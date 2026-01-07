@@ -23,9 +23,10 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login");
+      // Use window.location for more reliable redirect
+      window.location.href = "/login";
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user]);
 
   // Redirect to onboarding if no organization (except if already on onboarding, settings, or select-property)
   useEffect(() => {
@@ -33,10 +34,10 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
       const excludedPaths = ["/onboarding", "/settings", "/marketing/google-analytics/select-property"];
       const shouldRedirect = !excludedPaths.some(path => pathname.startsWith(path));
       if (shouldRedirect) {
-        router.push("/onboarding");
+        window.location.href = "/onboarding";
       }
     }
-  }, [authLoading, orgLoading, user, organizations, pathname, router]);
+  }, [authLoading, orgLoading, user, organizations, pathname]);
 
   // Show loading state
   if (authLoading || orgLoading) {
@@ -47,9 +48,14 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
     );
   }
 
-  // Don't render if not authenticated
+  // Don't render if not authenticated - show redirect message
   if (!user) {
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4" style={{ background: "var(--background)" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+        <p style={{ color: "var(--foreground-muted)" }}>Redirecting to login...</p>
+      </div>
+    );
   }
 
   return (
