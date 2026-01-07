@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Initialize Stripe and verify the key
     const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2025-12-15.clover',
     });
 
     // Verify the API key by fetching account info

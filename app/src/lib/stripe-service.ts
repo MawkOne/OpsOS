@@ -100,7 +100,7 @@ export class StripeService {
   async initializeWithApiKey(apiKey: string): Promise<{ success: boolean; error?: string; accountId?: string }> {
     try {
       this.stripe = new Stripe(apiKey, {
-        apiVersion: '2023-10-16',
+        apiVersion: '2025-12-15.clover',
       });
 
       // Verify the API key by fetching account info
