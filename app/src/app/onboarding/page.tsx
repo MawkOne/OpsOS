@@ -19,7 +19,7 @@ export default function OnboardingPage() {
   // Redirect if already has an org
   useEffect(() => {
     if (!orgLoading && organizations.length > 0) {
-      router.push("/");
+      router.push("/leadership");
     }
   }, [orgLoading, organizations, router]);
 
@@ -50,7 +50,7 @@ export default function OnboardingPage() {
 
     try {
       await createOrganization(orgName.trim());
-      router.push("/");
+      router.push("/leadership");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create organization");
       setCreating(false);

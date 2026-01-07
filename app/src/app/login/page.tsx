@@ -30,14 +30,14 @@ export default function LoginPage() {
         if (error) {
           setError(error);
         } else if (user) {
-          router.push("/initiatives");
+          router.push("/leadership");
         }
       } else {
         const { user, error } = await signIn(formData.email, formData.password);
         if (error) {
           setError(error);
         } else if (user) {
-          router.push("/initiatives");
+          router.push("/leadership");
         }
       }
     } catch {
@@ -56,7 +56,7 @@ export default function LoginPage() {
       if (error) {
         setError(error);
       } else if (user) {
-        router.push("/initiatives");
+        router.push("/leadership");
       }
     } catch {
       setError("An unexpected error occurred");
