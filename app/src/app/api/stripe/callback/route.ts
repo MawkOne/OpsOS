@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const stateData = JSON.parse(decodeURIComponent(state || '{}'));
     organizationId = stateData.organizationId;
-  } catch (e) {
+  } catch {
     return NextResponse.redirect(`${BASE_URL}/revenue/stripe?error=invalid_state`);
   }
 
@@ -95,9 +95,10 @@ export async function GET(request: NextRequest) {
 
     // Redirect back to the Stripe page with success
     return NextResponse.redirect(`${BASE_URL}/revenue/stripe?connected=true`);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Stripe OAuth callback error:', error);
-    return NextResponse.redirect(`${BASE_URL}/revenue/stripe?error=${encodeURIComponent(error.message || 'Unknown error')}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.redirect(`${BASE_URL}/revenue/stripe?error=${encodeURIComponent(message)}`);
   }
 }
 
