@@ -38,7 +38,7 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [currentMembership, setCurrentMembership] = useState<OrgMembership | null>(null);
@@ -47,6 +47,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Fetch user's organizations
   useEffect(() => {
+    // Don't do anything while auth is still loading - wait for it
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
     if (!user?.uid) {
       setOrganizations([]);
       setCurrentOrg(null);
@@ -55,7 +61,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Reset loading when user changes - prevents flash to onboarding
+    // User exists, fetch their orgs
     setLoading(true);
 
     const fetchOrganizations = async () => {
@@ -121,7 +127,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
 
     fetchOrganizations();
-  }, [user?.uid]);
+  }, [authLoading, user?.uid]);
 
   // Listen for changes to current org
   useEffect(() => {
