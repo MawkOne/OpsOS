@@ -14,7 +14,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { apiKey: providedApiKey, organizationId, syncType = 'full' } = body;
+    const { organizationId, syncType = 'full' } = body;
 
     if (!organizationId) {
       return NextResponse.json(
@@ -23,36 +23,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the connection to retrieve stored API key if not provided
+    // Get the connection to retrieve stored access token or account ID
     const connectionRef = doc(db, 'stripe_connections', organizationId);
     const connectionDoc = await getDoc(connectionRef);
     
-    let apiKey = providedApiKey;
-    
-    if (!apiKey) {
-      // Try to get stored API key from connection
-      if (!connectionDoc.exists()) {
-        return NextResponse.json(
-          { error: 'No Stripe connection found. Please connect first.' },
-          { status: 404 }
-        );
-      }
-      
-      const connectionData = connectionDoc.data();
-      apiKey = connectionData?.apiKey;
-      
-      if (!apiKey) {
-        return NextResponse.json(
-          { error: 'No API key stored. Please reconnect your Stripe account.' },
-          { status: 400 }
-        );
-      }
+    if (!connectionDoc.exists()) {
+      return NextResponse.json(
+        { error: 'No Stripe connection found. Please connect first.' },
+        { status: 404 }
+      );
     }
-
-    // Initialize Stripe
-    const stripe = new Stripe(apiKey, {
+    
+    const connectionData = connectionDoc.data();
+    
+    // For Stripe Connect OAuth, we use the access token directly
+    // OR use platform secret key with the connected account ID
+    let stripe: Stripe;
+    let stripeOptions: Stripe.StripeConfig = {
       apiVersion: '2025-12-15.clover',
-    });
+    };
+    
+    if (connectionData?.accessToken) {
+      // OAuth connection - use access token
+      stripe = new Stripe(connectionData.accessToken, stripeOptions);
+    } else if (connectionData?.apiKey) {
+      // Legacy API key connection
+      stripe = new Stripe(connectionData.apiKey, stripeOptions);
+    } else {
+      return NextResponse.json(
+        { error: 'No valid Stripe credentials found. Please reconnect your Stripe account.' },
+        { status: 400 }
+      );
+    }
 
     // Update status to syncing
     await setDoc(connectionRef, {
