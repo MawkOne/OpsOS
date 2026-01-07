@@ -9,14 +9,13 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Settings,
   Trash2,
   DollarSign,
   Repeat,
   Users,
-  Key,
   TrendingUp,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -26,6 +25,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 interface StripeConnection {
   status: 'connected' | 'disconnected' | 'syncing' | 'error';
   stripeAccountId?: string;
+  stripeAccountName?: string;
   lastSyncAt?: { toDate: () => Date };
   lastSyncResults?: {
     payments: number;
@@ -37,6 +37,7 @@ interface StripeConnection {
   };
   isTestMode?: boolean;
   apiKeyLast4?: string;
+  errorMessage?: string;
 }
 
 interface StripeMetrics {
@@ -54,19 +55,43 @@ export default function StripePage() {
   const { currentOrg } = useOrganization();
   const [connection, setConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Organization ID from context
   const organizationId = currentOrg?.id || "";
+
+  // Check for URL params (success/error from OAuth)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const connected = urlParams.get("connected");
+    const errorParam = urlParams.get("error");
+
+    if (connected === "true") {
+      setSuccess("Successfully connected to Stripe!");
+      window.history.replaceState({}, "", "/revenue/stripe");
+    }
+
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        missing_organization: "Organization ID is missing. Please try again.",
+        stripe_not_configured: "Stripe is not configured. Please contact support.",
+        missing_code: "Authorization failed. Please try again.",
+        token_exchange_failed: "Failed to connect to Stripe. Please try again.",
+        access_denied: "Access was denied. Please try again.",
+      };
+      setError(errorMessages[errorParam] || decodeURIComponent(errorParam));
+      window.history.replaceState({}, "", "/revenue/stripe");
+    }
+  }, []);
 
   // Listen to connection status
   useEffect(() => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = onSnapshot(
       doc(db, "stripe_connections", organizationId),
@@ -92,9 +117,10 @@ export default function StripePage() {
     if (connection?.status === "connected") {
       fetchMetrics();
     }
-  }, [connection?.status]);
+  }, [connection?.status, organizationId]);
 
   const fetchMetrics = async () => {
+    if (!organizationId) return;
     try {
       const response = await fetch(`/api/stripe/metrics?organizationId=${organizationId}`);
       if (response.ok) {
@@ -106,66 +132,13 @@ export default function StripePage() {
     }
   };
 
-  const handleConnect = async () => {
-    if (!showApiKeyInput) {
-      setShowApiKeyInput(true);
+  const handleConnect = () => {
+    if (!organizationId) {
+      setError("Please select an organization first");
       return;
     }
-
-    if (!apiKey.startsWith("sk_")) {
-      setError("Please enter a valid Stripe Secret Key (starts with sk_live_ or sk_test_)");
-      return;
-    }
-
-    setIsConnecting(true);
-    setError(null);
-
-    try {
-      // Connect to Stripe
-      const connectResponse = await fetch("/api/stripe/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey,
-          organizationId,
-          userId: user?.uid,
-        }),
-      });
-
-      const connectData = await connectResponse.json();
-
-      if (!connectResponse.ok) {
-        throw new Error(connectData.error || "Failed to connect to Stripe");
-      }
-
-      // Start initial sync
-      setIsSyncing(true);
-      const syncResponse = await fetch("/api/stripe/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey,
-          organizationId,
-        }),
-      });
-
-      const syncData = await syncResponse.json();
-
-      if (!syncResponse.ok) {
-        throw new Error(syncData.error || "Failed to sync Stripe data");
-      }
-
-      setShowApiKeyInput(false);
-      setApiKey("");
-      
-      // Fetch metrics after sync
-      await fetchMetrics();
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsConnecting(false);
-      setIsSyncing(false);
-    }
+    // Redirect to Stripe OAuth
+    window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
 
   const handleSync = async () => {
@@ -185,8 +158,9 @@ export default function StripePage() {
         throw new Error(syncData.error || "Failed to sync Stripe data");
       }
 
-      // Fetch updated metrics after sync
       await fetchMetrics();
+      setSuccess("Sync completed successfully!");
+      setTimeout(() => setSuccess(null), 3000);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -212,12 +186,13 @@ export default function StripePage() {
       }
 
       setMetrics(null);
+      setSuccess("Stripe disconnected successfully");
+      setTimeout(() => setSuccess(null), 3000);
     } catch (error: any) {
       setError(error.message);
     }
   };
 
-  // Consider connected if status is 'connected' OR if we have a lastSyncAt (sync completed)
   const isConnected = connection?.status === "connected" || (connection?.lastSyncAt && connection?.status !== "disconnected");
   const isSyncingStatus = connection?.status === "syncing";
 
@@ -243,6 +218,18 @@ export default function StripePage() {
   return (
     <AppLayout title="Stripe" subtitle="Connect and sync your Stripe payments">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Success Alert */}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="px-4 py-3 rounded-lg"
+            style={{ background: "rgba(16, 185, 129, 0.2)", border: "1px solid rgba(16, 185, 129, 0.3)" }}
+          >
+            <p className="text-sm text-green-400">{success}</p>
+          </motion.div>
+        )}
+
         {/* Error Alert */}
         {error && (
           <motion.div
@@ -293,7 +280,9 @@ export default function StripePage() {
                 </div>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
                   {isConnected
-                    ? `Connected to account ending in ****${connection?.apiKeyLast4 || "****"}`
+                    ? connection?.stripeAccountName 
+                      ? `Connected to ${connection.stripeAccountName}`
+                      : `Connected to Stripe account`
                     : "Connect your Stripe account to track payments, subscriptions, and MRR."}
                 </p>
                 {connection?.lastSyncAt && (
@@ -322,7 +311,7 @@ export default function StripePage() {
                     className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200"
                     style={{
                       background: "var(--background-tertiary)",
-                      color: "var(--error)",
+                      color: "#ef4444",
                       border: "1px solid var(--border)",
                     }}
                   >
@@ -330,92 +319,26 @@ export default function StripePage() {
                     Disconnect
                   </button>
                 </div>
-              ) : !showApiKeyInput ? (
+              ) : (
                 <button
                   onClick={handleConnect}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200"
+                  className="px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200 hover:opacity-90"
                   style={{ background: "#635BFF", color: "white" }}
                 >
-                  <Key className="w-4 h-4" />
-                  Connect Stripe
+                  <ExternalLink className="w-4 h-4" />
+                  Connect with Stripe
                 </button>
-              ) : null}
+              )}
             </div>
 
-            {/* API Key Input */}
-            {showApiKeyInput && !isConnected && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="mt-6 pt-6 border-t"
-                style={{ borderColor: "var(--border)" }}
+            {/* Connection Error */}
+            {connection?.status === "error" && connection?.errorMessage && (
+              <div 
+                className="mt-4 px-4 py-3 rounded-lg"
+                style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
               >
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                      Stripe Secret Key
-                    </label>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="sk_live_... or sk_test_..."
-                      className="w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-[#635BFF]/50"
-                      style={{
-                        background: "var(--background-tertiary)",
-                        border: "1px solid var(--border)",
-                        color: "var(--foreground)",
-                      }}
-                    />
-                    <p className="text-xs mt-2" style={{ color: "var(--foreground-muted)" }}>
-                      Find your API key in your{" "}
-                      <a
-                        href="https://dashboard.stripe.com/apikeys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline"
-                        style={{ color: "#635BFF" }}
-                      >
-                        Stripe Dashboard → Developers → API Keys
-                      </a>
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setShowApiKeyInput(false);
-                        setError(null);
-                      }}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
-                      style={{
-                        background: "var(--background-tertiary)",
-                        color: "var(--foreground-muted)",
-                        border: "1px solid var(--border)",
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleConnect}
-                      disabled={isConnecting || !apiKey}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
-                      style={{ background: "#635BFF", color: "white" }}
-                    >
-                      {isConnecting ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          {isSyncing ? "Syncing..." : "Connecting..."}
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4" />
-                          Connect & Sync
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
+                <p className="text-sm text-red-400">{connection.errorMessage}</p>
+              </div>
             )}
           </Card>
         </motion.div>
@@ -455,7 +378,7 @@ export default function StripePage() {
                   <Repeat className="w-4 h-4" style={{ color: "#8b5cf6" }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
-                  {metrics.activeSubscriptions}
+                  {metrics.activeSubscriptions.toLocaleString()}
                 </p>
               </Card>
               <Card>
@@ -464,239 +387,104 @@ export default function StripePage() {
                   <Users className="w-4 h-4" style={{ color: "#f59e0b" }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                  {metrics.totalCustomers}
-                </p>
-              </Card>
-            </div>
-
-            {/* Additional metrics row */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-              <Card>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Total Revenue</span>
-                </div>
-                <p className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {formatCurrency(metrics.totalRevenue)}
-                </p>
-              </Card>
-              <Card>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Churn Rate</span>
-                </div>
-                <p className="text-xl font-bold" style={{ color: metrics.churnRate > 5 ? "#ef4444" : "var(--foreground)" }}>
-                  {metrics.churnRate}%
-                </p>
-              </Card>
-              <Card>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>ARPU</span>
-                </div>
-                <p className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {formatCurrency(metrics.averageRevenuePerUser)}
+                  {metrics.totalCustomers.toLocaleString()}
                 </p>
               </Card>
             </div>
           </motion.div>
         )}
 
-        {/* Sync Results (when connected and has sync results) */}
+        {/* Sync Results */}
         {isConnected && connection?.lastSyncResults && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ delay: 0.2 }}
           >
             <Card>
-              <h3 className="text-sm font-medium mb-3" style={{ color: "var(--foreground-muted)" }}>
-                Last Sync Summary
+              <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
+                Last Sync Results
               </h3>
-              <div className="grid grid-cols-5 gap-4 text-center">
-                <div>
-                  <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                     {connection.lastSyncResults.payments}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Payments</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                     {connection.lastSyncResults.subscriptions}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Subscriptions</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                     {connection.lastSyncResults.customers}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Customers</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.products || 0}
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {connection.lastSyncResults.products}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Products</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.prices || 0}
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {connection.lastSyncResults.prices}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Prices</p>
                 </div>
               </div>
+              {connection.lastSyncResults.errors.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-red-400 mb-2">Sync Errors:</p>
+                  <ul className="text-sm text-red-400 space-y-1">
+                    {connection.lastSyncResults.errors.map((err, idx) => (
+                      <li key={idx}>• {err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
 
-        {/* What We Import */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
-            What We Import
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "#10b98120", color: "#10b981" }}
-                >
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <h4 className="font-medium" style={{ color: "var(--foreground)" }}>Payments</h4>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                All successful payments with product attribution
-              </p>
-            </Card>
-
-            <Card>
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "#3b82f620", color: "#3b82f6" }}
-                >
-                  <Repeat className="w-5 h-5" />
-                </div>
-                <h4 className="font-medium" style={{ color: "var(--foreground)" }}>Subscriptions</h4>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                MRR, ARR, churn rate, and subscription metrics
-              </p>
-            </Card>
-
-            <Card>
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "#f59e0b20", color: "#f59e0b" }}
-                >
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <h4 className="font-medium" style={{ color: "var(--foreground)" }}>Products & Prices</h4>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                Product catalog, pricing tiers, and billing intervals
-              </p>
-            </Card>
-
-            <Card>
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "#8b5cf620", color: "#8b5cf6" }}
-                >
-                  <Users className="w-5 h-5" />
-                </div>
-                <h4 className="font-medium" style={{ color: "var(--foreground)" }}>Customers</h4>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                Customer count, LTV, and payment history
-              </p>
-            </Card>
-          </div>
-        </motion.div>
-
-        {/* Security Note */}
+        {/* Empty State */}
         {!isConnected && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ delay: 0.1 }}
           >
             <Card>
-              <div className="flex gap-4">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "#f59e0b20", color: "#f59e0b" }}
+              <div className="text-center py-8">
+                <div 
+                  className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4"
+                  style={{ background: "#635BFF20", color: "#635BFF" }}
                 >
-                  <Key className="w-5 h-5" />
+                  <CreditCard className="w-8 h-8" />
                 </div>
-                <div>
-                  <h4 className="font-medium mb-1" style={{ color: "var(--foreground)" }}>
-                    Your API Key is Secure
-                  </h4>
-                  <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                    We use read-only access to fetch your payment data. Your API key is encrypted and stored securely.
-                    We never store card numbers or sensitive payment details. You can revoke access at any time from your Stripe dashboard.
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Settings (when connected) */}
-        {isConnected && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Settings className="w-5 h-5" style={{ color: "var(--foreground-muted)" }} />
-                <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                  Sync Settings
+                <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                  Connect Your Stripe Account
                 </h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--foreground)" }}>Auto-sync frequency</p>
-                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>How often to pull new data</p>
-                  </div>
-                  <select
-                    className="px-3 py-1.5 rounded-lg text-sm"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
+                <p className="text-sm mb-6 max-w-md mx-auto" style={{ color: "var(--foreground-muted)" }}>
+                  Securely connect your Stripe account to automatically sync payments, subscriptions, 
+                  and calculate your MRR, ARR, and other key metrics.
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleConnect}
+                    className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto transition-all duration-200 hover:opacity-90"
+                    style={{ background: "#635BFF", color: "white" }}
                   >
-                    <option value="realtime">Real-time (webhooks)</option>
-                    <option value="1h">Every hour</option>
-                    <option value="6h">Every 6 hours</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--foreground)" }}>Historical data</p>
-                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>How far back to import data</p>
-                  </div>
-                  <select
-                    className="px-3 py-1.5 rounded-lg text-sm"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <option value="12m">Last 12 months</option>
-                    <option value="24m">Last 24 months</option>
-                    <option value="all">All available data</option>
-                  </select>
+                    <ExternalLink className="w-4 h-4" />
+                    Connect with Stripe
+                  </button>
+                  <p className="text-xs" style={{ color: "var(--foreground-subtle)" }}>
+                    You&apos;ll be redirected to Stripe to authorize read-only access
+                  </p>
                 </div>
               </div>
             </Card>
