@@ -177,10 +177,11 @@ export async function POST(request: NextRequest) {
             
             monthlyAmount += (monthlyUnitAmount * quantity);
 
+            const product = item.price.product as any;
             return {
               priceId: item.price.id,
-              productId: typeof item.price.product === 'string' ? item.price.product : item.price.product?.id,
-              productName: typeof item.price.product === 'object' ? item.price.product?.name : null,
+              productId: typeof product === 'string' ? product : product?.id,
+              productName: typeof product === 'object' && product && !product.deleted ? product.name : null,
               quantity,
               unitAmount,
               currency: item.price.currency.toUpperCase(),
