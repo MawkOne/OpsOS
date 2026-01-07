@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+:root {
+  /* Deep navy/slate base */
+  --background: #0c0f1a;
+  --background-secondary: #141829;
+  --background-tertiary: #1a1f35;
+  
+  /* Text colors */
+  --foreground: #e8eaf6;
+  --foreground-muted: #8892b0;
+  --foreground-subtle: #5a6785;
+  
+  /* Accent - Teal/Cyan */
+  --accent: #00d4aa;
+  --accent-hover: #00f5c4;
+  --accent-muted: rgba(0, 212, 170, 0.15);
+  
+  /* Secondary accent - Electric blue */
+  --secondary: #3b82f6;
+  --secondary-hover: #60a5fa;
+  --secondary-muted: rgba(59, 130, 246, 0.15);
+  
+  /* Tertiary - Warm amber */
+  --tertiary: #f59e0b;
+  --tertiary-muted: rgba(245, 158, 11, 0.15);
+  
+  /* Status colors */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  
+  /* Borders */
+  --border: rgba(138, 150, 180, 0.12);
+  --border-hover: rgba(138, 150, 180, 0.25);
+  
+  /* Sidebar */
+  --sidebar-bg: #0a0d16;
+  --sidebar-hover: rgba(0, 212, 170, 0.08);
+  --sidebar-active: rgba(0, 212, 170, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--foreground-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
+}
+
+/* Utility classes */
+.glass {
+  background: rgba(20, 24, 41, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.15);
+}
+
+.glow-secondary {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+}
+
+/* Gradient backgrounds */
+.gradient-mesh {
+  background: 
+    radial-gradient(at 0% 0%, rgba(0, 212, 170, 0.08) 0%, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0%, transparent 50%),
+    var(--background);
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 170, 0.1); }
+  50% { box-shadow: 0 0 30px rgba(0, 212, 170, 0.2); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Stagger children animations */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 350ms; }
