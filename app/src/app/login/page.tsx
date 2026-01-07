@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { signIn, signUp, signInWithGoogle } from "@/lib/firebase-auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Zap, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const { organizations, loading: orgLoading } = useOrganization();
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,6 +22,28 @@ export default function LoginPage() {
     password: "",
     name: "",
   });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && !orgLoading && user) {
+      // User is logged in, redirect based on org status
+      if (organizations.length > 0) {
+        window.location.href = "/leadership";
+      } else {
+        window.location.href = "/onboarding";
+      }
+    }
+  }, [authLoading, orgLoading, user, organizations]);
+
+  const redirectAfterAuth = () => {
+    // After auth, go to onboarding for new users (signup) or leadership for existing
+    // The AppLayout will handle the org check and redirect if needed
+    if (isSignUp) {
+      window.location.href = "/onboarding";
+    } else {
+      window.location.href = "/leadership";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,14 +56,15 @@ export default function LoginPage() {
         if (error) {
           setError(error);
         } else if (user) {
-          router.push("/leadership");
+          // New signup - always go to onboarding
+          window.location.href = "/onboarding";
         }
       } else {
         const { user, error } = await signIn(formData.email, formData.password);
         if (error) {
           setError(error);
         } else if (user) {
-          router.push("/leadership");
+          redirectAfterAuth();
         }
       }
     } catch {
@@ -56,7 +83,7 @@ export default function LoginPage() {
       if (error) {
         setError(error);
       } else if (user) {
-        router.push("/leadership");
+        redirectAfterAuth();
       }
     } catch {
       setError("An unexpected error occurred");
@@ -64,6 +91,24 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth state
+  if (authLoading || (user && orgLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+      </div>
+    );
+  }
+
+  // If user is already logged in, show loading while redirecting
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+      </div>
+    );
+  }
 
   return (
     <div 
