@@ -87,7 +87,9 @@ export async function POST(request: NextRequest) {
           const paymentRef = doc(db, 'stripe_payments', `${organizationId}_${charge.id}`);
           
           // Extract invoice and line items for product attribution
-          const invoice = typeof charge.invoice === 'object' ? charge.invoice : null;
+          // Use type assertion since Stripe types vary by API version
+          const chargeAny = charge as any;
+          const invoice = typeof chargeAny.invoice === 'object' ? chargeAny.invoice : null;
           let lineItems: any[] = [];
           let subscriptionId: string | null = null;
           
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
             amountFormatted: (charge.amount / 100).toFixed(2),
             currency: charge.currency.toUpperCase(),
             status: charge.status,
-            customerId: typeof charge.customer === 'string' ? charge.customer : charge.customer?.id || null,
+            customerId: typeof charge.customer === 'string' ? charge.customer : (charge.customer as any)?.id || null,
             customerEmail: charge.billing_details?.email || null,
             description: charge.description || null,
             paymentMethod: charge.payment_method_details?.type || null,
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
             refunded: charge.refunded,
             amountRefunded: charge.amount_refunded,
             // Product attribution fields
-            invoiceId: typeof charge.invoice === 'string' ? charge.invoice : invoice?.id || null,
+            invoiceId: typeof chargeAny.invoice === 'string' ? chargeAny.invoice : invoice?.id || null,
             subscriptionId,
             lineItems,
             syncedAt: serverTimestamp(),
