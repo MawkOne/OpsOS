@@ -55,6 +55,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Reset loading when user changes - prevents flash to onboarding
+    setLoading(true);
+
     const fetchOrganizations = async () => {
       try {
         // Get all memberships for this user
