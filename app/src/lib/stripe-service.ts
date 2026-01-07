@@ -245,20 +245,25 @@ export class StripeService {
         for (const sub of subscriptions.data) {
           const subRef = doc(db, 'stripe_subscriptions', `${this.organizationId}_${sub.id}`);
           
-          const customer = typeof sub.customer === 'string' ? null : sub.customer;
+          // Handle customer type (may be deleted)
+          const customerRaw = typeof sub.customer === 'string' ? null : sub.customer;
+          const customer = customerRaw && !(customerRaw as any).deleted ? customerRaw as any : null;
+          
+          // Cast to any for Stripe API version compatibility
+          const subAny = sub as any;
           
           const subscription: Omit<StripeSubscription, 'id'> = {
             stripeId: sub.id,
-            customerId: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+            customerId: typeof sub.customer === 'string' ? sub.customer : (sub.customer as any).id,
             customerEmail: customer?.email || undefined,
             status: sub.status,
-            currentPeriodStart: Timestamp.fromDate(new Date(sub.current_period_start * 1000)),
-            currentPeriodEnd: Timestamp.fromDate(new Date(sub.current_period_end * 1000)),
-            cancelAtPeriodEnd: sub.cancel_at_period_end,
-            canceledAt: sub.canceled_at ? Timestamp.fromDate(new Date(sub.canceled_at * 1000)) : undefined,
+            currentPeriodStart: subAny.current_period_start ? Timestamp.fromDate(new Date(subAny.current_period_start * 1000)) : Timestamp.now(),
+            currentPeriodEnd: subAny.current_period_end ? Timestamp.fromDate(new Date(subAny.current_period_end * 1000)) : Timestamp.now(),
+            cancelAtPeriodEnd: subAny.cancel_at_period_end || false,
+            canceledAt: subAny.canceled_at ? Timestamp.fromDate(new Date(subAny.canceled_at * 1000)) : undefined,
             items: sub.items.data.map(item => ({
               priceId: item.price.id,
-              productId: typeof item.price.product === 'string' ? item.price.product : item.price.product.id,
+              productId: typeof item.price.product === 'string' ? item.price.product : (item.price.product as any).id,
               quantity: item.quantity || 1,
               unitAmount: item.price.unit_amount || 0,
               currency: item.price.currency,

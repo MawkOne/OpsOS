@@ -231,7 +231,7 @@ export default function MonteCarloPage() {
                         borderRadius: "8px",
                         color: "var(--foreground)",
                       }}
-                      formatter={(value: number) => [`${value} simulations`, "Count"]}
+                      formatter={(value) => [`${value ?? 0} simulations`, "Count"]}
                     />
                     <ReferenceLine x="800-875" stroke="#00d4aa" strokeDasharray="5 5" label={{ value: "Expected", fill: "#00d4aa", fontSize: 12 }} />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>

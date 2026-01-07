@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -33,7 +33,7 @@ interface PendingConnection {
   properties: GAProperty[];
 }
 
-export default function SelectPropertyPage() {
+function SelectPropertyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
@@ -233,7 +233,7 @@ export default function SelectPropertyPage() {
                       onClick={() => setSelectedPropertyId(property.id)}
                       className={`w-full p-4 rounded-xl text-left transition-all duration-200 ${
                         selectedPropertyId === property.id
-                          ? "ring-2"
+                          ? "ring-2 ring-[#F9AB00]"
                           : "hover:border-[var(--accent)]"
                       }`}
                       style={{
@@ -241,7 +241,6 @@ export default function SelectPropertyPage() {
                           ? "rgba(249, 171, 0, 0.1)" 
                           : "var(--background-secondary)",
                         border: `1px solid ${selectedPropertyId === property.id ? "#F9AB00" : "var(--border)"}`,
-                        ringColor: "#F9AB00",
                       }}
                     >
                       <div className="flex items-center gap-3">
@@ -316,3 +315,18 @@ export default function SelectPropertyPage() {
   );
 }
 
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+      <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F9AB00" }} />
+    </div>
+  );
+}
+
+export default function SelectPropertyPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <SelectPropertyContent />
+    </Suspense>
+  );
+}

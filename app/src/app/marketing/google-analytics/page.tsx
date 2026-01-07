@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
@@ -62,7 +62,7 @@ interface GAMetrics {
   engagedSessions: number;
 }
 
-export default function GoogleAnalyticsPage() {
+function GoogleAnalyticsContent() {
   const { currentOrg } = useOrganization();
   const searchParams = useSearchParams();
   const [connection, setConnection] = useState<GoogleAnalyticsConnection | null>(null);
@@ -663,5 +663,23 @@ export default function GoogleAnalyticsPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <AppLayout title="Google Analytics">
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F9AB00" }} />
+      </div>
+    </AppLayout>
+  );
+}
+
+export default function GoogleAnalyticsPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <GoogleAnalyticsContent />
+    </Suspense>
   );
 }

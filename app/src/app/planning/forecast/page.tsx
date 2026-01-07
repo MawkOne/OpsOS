@@ -211,7 +211,7 @@ export default function ForecastingPage() {
                     borderRadius: "8px",
                     color: "var(--foreground)",
                   }}
-                  formatter={(value: number) => [`$${value}K`, ""]}
+                  formatter={(value) => [`$${value ?? 0}K`, ""]}
                 />
                 <Legend />
                 <Area

@@ -416,11 +416,11 @@ function AddToolModal({ people, onClose, organizationId }: { people: Person[]; o
             <div 
               className="w-5 h-5 rounded flex items-center justify-center transition-all duration-200"
               style={{ 
-                background: formData.isCOGS ? "var(--accent)" : "transparent",
-                border: formData.isCOGS ? "none" : "2px solid var(--border)"
+                background: Boolean(formData.isCOGS) ? "var(--accent)" : "transparent",
+                border: Boolean(formData.isCOGS) ? "none" : "2px solid var(--border)"
               }}
             >
-              {formData.isCOGS && <Check className="w-3 h-3 text-white" />}
+              {Boolean(formData.isCOGS) && <Check className="w-3 h-3 text-white" />}
             </div>
             <div>
               <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>Cost of Goods Sold (COGS)</p>

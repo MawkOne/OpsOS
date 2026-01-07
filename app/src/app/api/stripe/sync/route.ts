@@ -159,7 +159,8 @@ export async function POST(request: NextRequest) {
 
         for (const sub of subscriptions.data) {
           const subRef = doc(db, 'stripe_subscriptions', `${organizationId}_${sub.id}`);
-          const customer = typeof sub.customer === 'string' ? null : sub.customer;
+          const customerRaw = typeof sub.customer === 'string' ? null : sub.customer;
+          const customer = customerRaw && !(customerRaw as any).deleted ? customerRaw as any : null;
           
           // Calculate MRR for this subscription
           let monthlyAmount = 0;
@@ -189,17 +190,19 @@ export async function POST(request: NextRequest) {
             };
           });
 
+          // Cast to any to handle varying Stripe API versions
+          const subAny = sub as any;
           batch.set(subRef, {
             organizationId,
             stripeId: sub.id,
-            customerId: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+            customerId: typeof sub.customer === 'string' ? sub.customer : (sub.customer as any).id,
             customerEmail: customer?.email || null,
             customerName: customer?.name || null,
             status: sub.status,
-            currentPeriodStart: Timestamp.fromDate(new Date(sub.current_period_start * 1000)),
-            currentPeriodEnd: Timestamp.fromDate(new Date(sub.current_period_end * 1000)),
-            cancelAtPeriodEnd: sub.cancel_at_period_end,
-            canceledAt: sub.canceled_at ? Timestamp.fromDate(new Date(sub.canceled_at * 1000)) : null,
+            currentPeriodStart: subAny.current_period_start ? Timestamp.fromDate(new Date(subAny.current_period_start * 1000)) : null,
+            currentPeriodEnd: subAny.current_period_end ? Timestamp.fromDate(new Date(subAny.current_period_end * 1000)) : null,
+            cancelAtPeriodEnd: subAny.cancel_at_period_end || false,
+            canceledAt: subAny.canceled_at ? Timestamp.fromDate(new Date(subAny.canceled_at * 1000)) : null,
             items,
             mrr: monthlyAmount / 100, // Store in dollars
             created: Timestamp.fromDate(new Date(sub.created * 1000)),
@@ -282,12 +285,13 @@ export async function POST(request: NextRequest) {
 
         for (const price of prices.data) {
           const priceRef = doc(db, 'stripe_prices', `${organizationId}_${price.id}`);
-          const product = typeof price.product === 'string' ? null : price.product;
+          const productRaw = typeof price.product === 'string' ? null : price.product;
+          const product = productRaw && !(productRaw as any).deleted ? productRaw as any : null;
           
           batch.set(priceRef, {
             organizationId,
             stripeId: price.id,
-            productId: typeof price.product === 'string' ? price.product : price.product?.id,
+            productId: typeof price.product === 'string' ? price.product : (price.product as any)?.id,
             productName: product?.name || null,
             active: price.active,
             currency: price.currency.toUpperCase(),
