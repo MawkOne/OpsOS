@@ -52,7 +52,7 @@ interface StripeMetrics {
 
 export default function StripePage() {
   const { user } = useAuth();
-  const { currentOrg, loading: orgLoading } = useOrganization();
+  const { currentOrg } = useOrganization();
   const [connection, setConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -61,9 +61,6 @@ export default function StripePage() {
   const [loading, setLoading] = useState(true);
 
   const organizationId = currentOrg?.id || "";
-  
-  // Debug: log organization state
-  console.log('[Stripe Page] orgLoading:', orgLoading, 'currentOrg:', currentOrg?.id);
 
   // Check for URL params (success/error from OAuth)
   useEffect(() => {

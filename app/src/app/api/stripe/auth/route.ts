@@ -24,13 +24,6 @@ export async function GET(request: NextRequest) {
   stripeAuthUrl.searchParams.set('scope', 'read_only');
   stripeAuthUrl.searchParams.set('state', state);
   stripeAuthUrl.searchParams.set('redirect_uri', `${BASE_URL}/api/stripe/callback`);
-  // Show account selector for users with multiple Stripe accounts
-  stripeAuthUrl.searchParams.set('stripe_landing', 'login');
-
-  // Debug logging
-  console.log('[Stripe Auth] BASE_URL:', BASE_URL);
-  console.log('[Stripe Auth] Redirect URL:', stripeAuthUrl.toString());
 
   return NextResponse.redirect(stripeAuthUrl.toString());
 }
-
