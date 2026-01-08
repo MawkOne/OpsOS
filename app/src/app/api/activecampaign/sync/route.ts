@@ -50,7 +50,8 @@ export async function POST(request: NextRequest) {
 
     const connection = connectionSnap.data() as ActiveCampaignConnection;
 
-    if (connection.status !== 'connected') {
+    // Allow sync if connected or if stuck in syncing state
+    if (connection.status !== 'connected' && connection.status !== 'syncing') {
       return NextResponse.json({ error: 'ActiveCampaign connection invalid' }, { status: 400 });
     }
 
