@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       customers: 0,
       products: 0,
       prices: 0,
+      invoices: 0,
       errors: [] as string[],
     };
 
@@ -345,7 +346,8 @@ export async function POST(request: NextRequest) {
         const batch = writeBatch(db);
 
         for (const invoice of invoices.data) {
-          if (invoice.status !== 'paid') continue; // Only sync paid invoices
+          // Sync paid invoices (for revenue) and void/uncollectible (for records)
+          if (!['paid', 'void', 'uncollectible'].includes(invoice.status || '')) continue;
           
           const invoiceRef = doc(db, 'stripe_invoices', `${organizationId}_${invoice.id}`);
           
@@ -382,6 +384,7 @@ export async function POST(request: NextRequest) {
             lineItems,
             syncedAt: serverTimestamp(),
           });
+          results.invoices++;
         }
 
         await batch.commit();
@@ -447,6 +450,7 @@ export async function POST(request: NextRequest) {
         customers: results.customers,
         products: results.products,
         prices: results.prices,
+        invoices: results.invoices,
         errors: results.errors,
       },
       updatedAt: serverTimestamp(),
