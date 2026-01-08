@@ -357,8 +357,10 @@ export async function POST(request: NextRequest) {
       while (hasMore) {
         // Note: Stripe limits expansion to 4 levels, so we can't expand data.lines.data.price.product
         // Instead, we'll look up product names from our synced products collection
+        // Only fetch PAID invoices for revenue tracking
         const invoices = await stripe.invoices.list({
           limit: 100,
+          status: 'paid',
           expand: ['data.lines.data.price'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });

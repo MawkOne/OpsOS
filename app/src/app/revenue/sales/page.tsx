@@ -136,7 +136,9 @@ export default function SalesPage() {
           lineItems.forEach((item: any) => {
             // Use description as a fallback key when productId is missing
             const productId = item.productId || item.description || "unknown";
+            // Look up product name: first from item, then from products map, then use description
             const productName = item.productName || products.get(item.productId) || item.description || "Unknown Product";
+            // Use line item amount, or fallback to invoice total divided by line count
             const amount = (item.amount || 0) / 100;
             
             if (!productRevenue.has(productId)) {
