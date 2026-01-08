@@ -51,7 +51,7 @@ interface StripeMetrics {
 }
 
 export default function StripePage() {
-  const { user } = useAuth();
+  useAuth(); // Ensure user is authenticated
   const { currentOrg } = useOrganization();
   const [connection, setConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
@@ -112,13 +112,6 @@ export default function StripePage() {
     return () => unsubscribe();
   }, [organizationId]);
 
-  // Fetch metrics when connected
-  useEffect(() => {
-    if (connection?.status === "connected") {
-      fetchMetrics();
-    }
-  }, [connection?.status, organizationId]);
-
   const fetchMetrics = async () => {
     if (!organizationId) return;
     try {
@@ -127,22 +120,24 @@ export default function StripePage() {
         const data = await response.json();
         setMetrics(data);
       }
-    } catch (error) {
-      console.error("Error fetching metrics:", error);
+    } catch (err) {
+      console.error("Error fetching metrics:", err);
     }
   };
 
+  // Fetch metrics when connected
+  useEffect(() => {
+    if (connection?.status === "connected") {
+      fetchMetrics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection?.status, organizationId]);
+
   const handleConnect = () => {
-    if (orgLoading) {
-      setError("Please wait, loading organization...");
-      return;
-    }
     if (!organizationId) {
-      setError("Please select an organization first. Organization ID: " + organizationId);
-      console.error('[Stripe Connect] No organizationId. currentOrg:', currentOrg);
+      setError("Please select an organization first");
       return;
     }
-    console.log('[Stripe Connect] Redirecting with orgId:', organizationId);
     // Redirect to Stripe OAuth
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
@@ -167,8 +162,8 @@ export default function StripePage() {
       await fetchMetrics();
       setSuccess("Sync completed successfully!");
       setTimeout(() => setSuccess(null), 3000);
-    } catch (error: any) {
-      setError(error.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setIsSyncing(false);
     }
@@ -194,8 +189,8 @@ export default function StripePage() {
       setMetrics(null);
       setSuccess("Stripe disconnected successfully");
       setTimeout(() => setSuccess(null), 3000);
-    } catch (error: any) {
-      setError(error.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Disconnect failed");
     }
   };
 
