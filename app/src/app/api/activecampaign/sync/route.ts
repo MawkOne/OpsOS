@@ -90,6 +90,35 @@ export async function POST(request: NextRequest) {
           count: totalContacts,
           timestamp: serverTimestamp(),
         });
+
+        // Fetch monthly historical contact counts (last 12 months)
+        // We query contacts created before end of each month to get cumulative count
+        const monthlyCountRef = doc(db, 'activecampaign_monthly_contacts', organizationId);
+        const monthlyCounts: Record<string, number> = {};
+        
+        for (let i = 0; i < 12; i++) {
+          const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+          const monthKey = `${monthEnd.getFullYear()}-${(monthEnd.getMonth() + 1).toString().padStart(2, '0')}`;
+          
+          // Query contacts created before end of this month
+          // ActiveCampaign filter: filters[created_before]=YYYY-MM-DD
+          const monthResponse = await acRequest(apiUrl, apiKey, 'contacts', { 
+            limit: '1',
+            'filters[created_before]': `${monthEnd.getFullYear()}-${(monthEnd.getMonth() + 1).toString().padStart(2, '0')}-${monthEnd.getDate().toString().padStart(2, '0')}`,
+          });
+          
+          if (monthResponse.ok) {
+            const monthData = await monthResponse.json();
+            monthlyCounts[monthKey] = parseInt(monthData.meta?.total) || 0;
+          }
+        }
+        
+        // Store monthly counts
+        await setDoc(monthlyCountRef, {
+          organizationId,
+          counts: monthlyCounts,
+          updatedAt: serverTimestamp(),
+        });
       }
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Unknown error';

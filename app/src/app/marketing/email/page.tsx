@@ -59,6 +59,10 @@ interface ContactCount {
   count: number;
 }
 
+interface MonthlyContacts {
+  counts: Record<string, number>; // "2026-01": 262000
+}
+
 type ViewMode = "ttm" | "year";
 type MetricType = "sent" | "opens" | "clicks" | "openRate" | "clickRate" | "unsubscribes" | "campaigns";
 
@@ -85,6 +89,7 @@ export default function EmailPage() {
   const [topCampaigns, setTopCampaigns] = useState<CampaignData[]>([]);
   const [totalContacts, setTotalContacts] = useState(0);
   const [contactHistory, setContactHistory] = useState<ContactCount[]>([]);
+  const [monthlyContacts, setMonthlyContacts] = useState<Record<string, number>>({});
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("sent");
@@ -172,6 +177,20 @@ export default function EmailPage() {
         // If we have history, use the latest count
         if (history.length > 0) {
           setTotalContacts(history[history.length - 1].count);
+        }
+
+        // Fetch monthly contact counts
+        const monthlyContactsRef = doc(db, "activecampaign_monthly_contacts", organizationId);
+        const monthlyContactsSnap = await getDoc(monthlyContactsRef);
+        if (monthlyContactsSnap.exists()) {
+          const data = monthlyContactsSnap.data() as MonthlyContacts;
+          setMonthlyContacts(data.counts || {});
+          
+          // Use the latest month's count as total if available
+          const sortedMonths = Object.keys(data.counts || {}).sort().reverse();
+          if (sortedMonths.length > 0) {
+            setTotalContacts(data.counts[sortedMonths[0]]);
+          }
         }
 
         // Fetch campaigns from Firestore
@@ -516,6 +535,36 @@ export default function EmailPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Contacts Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.01 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" style={{ color: "#356AE6" }} />
+                        Total Contacts
+                      </div>
+                    </td>
+                    {months.map((month) => {
+                      const count = monthlyContacts[month] || 0;
+                      return (
+                        <td key={month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#356AE6" }}>
+                          {count > 0 ? formatNumber(count) : "—"}
+                        </td>
+                      );
+                    })}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#356AE6" }}>
+                      {formatNumber(totalContacts)}
+                    </td>
+                  </motion.tr>
+
                   {/* Campaigns Row */}
                   <motion.tr
                     initial={{ opacity: 0, y: 10 }}
