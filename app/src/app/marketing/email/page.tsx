@@ -291,15 +291,35 @@ export default function EmailPage() {
   const overallOpenRate = totals.sent > 0 ? (totals.opens / totals.sent) * 100 : 0;
   const overallClickRate = totals.sent > 0 ? (totals.clicks / totals.sent) * 100 : 0;
 
-  // Calculate contact growth
+  // Calculate contact growth and CAGR from monthly data
   const contactGrowth = useMemo(() => {
-    if (contactHistory.length < 2) return { amount: 0, percent: 0 };
-    const latest = contactHistory[contactHistory.length - 1].count;
-    const previous = contactHistory[0].count;
-    const amount = latest - previous;
-    const percent = previous > 0 ? ((latest - previous) / previous) * 100 : 0;
-    return { amount, percent };
-  }, [contactHistory]);
+    // Get sorted months from monthlyContacts
+    const sortedMonths = Object.keys(monthlyContacts).sort();
+    
+    if (sortedMonths.length < 2) {
+      return { amount: 0, percent: 0, cagr: 0 };
+    }
+    
+    const firstMonth = sortedMonths[0];
+    const lastMonth = sortedMonths[sortedMonths.length - 1];
+    const beginning = monthlyContacts[firstMonth] || 0;
+    const ending = monthlyContacts[lastMonth] || totalContacts;
+    
+    const amount = ending - beginning;
+    const percent = beginning > 0 ? ((ending - beginning) / beginning) * 100 : 0;
+    
+    // Calculate CAGR: ((Ending/Beginning)^(1/years)) - 1
+    // Number of months between first and last
+    const numMonths = sortedMonths.length - 1;
+    const years = numMonths / 12;
+    
+    let cagr = 0;
+    if (beginning > 0 && years > 0) {
+      cagr = (Math.pow(ending / beginning, 1 / years) - 1) * 100;
+    }
+    
+    return { amount, percent, cagr };
+  }, [monthlyContacts, totalContacts]);
 
   if (loading) {
     return (
@@ -348,10 +368,10 @@ export default function EmailPage() {
             <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
               {formatNumber(totalContacts)}
             </p>
-            {contactGrowth.amount !== 0 && (
-              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: contactGrowth.amount > 0 ? "#10b981" : "#ef4444" }}>
-                {contactGrowth.amount > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {contactGrowth.amount > 0 ? "+" : ""}{formatNumber(contactGrowth.amount)} ({contactGrowth.percent.toFixed(1)}%)
+            {contactGrowth.cagr !== 0 && (
+              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: contactGrowth.cagr > 0 ? "#10b981" : "#ef4444" }}>
+                {contactGrowth.cagr > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {contactGrowth.cagr > 0 ? "+" : ""}{contactGrowth.cagr.toFixed(1)}% CAGR
               </p>
             )}
           </Card>
