@@ -52,7 +52,7 @@ interface StripeMetrics {
 
 export default function StripePage() {
   const { user } = useAuth();
-  const { currentOrg } = useOrganization();
+  const { currentOrg, loading: orgLoading } = useOrganization();
   const [connection, setConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -61,6 +61,9 @@ export default function StripePage() {
   const [loading, setLoading] = useState(true);
 
   const organizationId = currentOrg?.id || "";
+  
+  // Debug: log organization state
+  console.log('[Stripe Page] orgLoading:', orgLoading, 'currentOrg:', currentOrg?.id);
 
   // Check for URL params (success/error from OAuth)
   useEffect(() => {
@@ -133,10 +136,16 @@ export default function StripePage() {
   };
 
   const handleConnect = () => {
-    if (!organizationId) {
-      setError("Please select an organization first");
+    if (orgLoading) {
+      setError("Please wait, loading organization...");
       return;
     }
+    if (!organizationId) {
+      setError("Please select an organization first. Organization ID: " + organizationId);
+      console.error('[Stripe Connect] No organizationId. currentOrg:', currentOrg);
+      return;
+    }
+    console.log('[Stripe Connect] Redirecting with orgId:', organizationId);
     // Redirect to Stripe OAuth
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
