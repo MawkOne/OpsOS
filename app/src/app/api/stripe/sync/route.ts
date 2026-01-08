@@ -335,6 +335,7 @@ export async function POST(request: NextRequest) {
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let totalInvoicesFromStripe = 0;
 
       while (hasMore) {
         const invoices = await stripe.invoices.list({
@@ -343,11 +344,14 @@ export async function POST(request: NextRequest) {
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
+        totalInvoicesFromStripe += invoices.data.length;
+        console.log(`Stripe returned ${invoices.data.length} invoices, statuses:`, invoices.data.map(i => i.status));
+
         const batch = writeBatch(db);
 
         for (const invoice of invoices.data) {
-          // Sync paid invoices (for revenue) and void/uncollectible (for records)
-          if (!['paid', 'void', 'uncollectible'].includes(invoice.status || '')) continue;
+          // Sync ALL invoices (paid, open, draft, void, uncollectible)
+          // We'll filter by status when querying for revenue
           
           const invoiceRef = doc(db, 'stripe_invoices', `${organizationId}_${invoice.id}`);
           
@@ -394,7 +398,9 @@ export async function POST(request: NextRequest) {
           startingAfter = invoices.data[invoices.data.length - 1].id;
         }
       }
+      console.log(`Invoices sync complete: ${results.invoices} saved from ${totalInvoicesFromStripe} total`);
     } catch (error: any) {
+      console.error('Invoices sync error:', error);
       results.errors.push(`Invoices sync error: ${error.message}`);
     }
 
