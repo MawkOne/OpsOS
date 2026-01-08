@@ -27,6 +27,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 interface ActiveCampaignConnection {
   status: 'connected' | 'disconnected' | 'syncing' | 'error';
   apiUrl?: string;
+  apiKey?: string;
   accountName?: string;
   accountEmail?: string;
   lastSyncAt?: { toDate: () => Date };
@@ -225,7 +226,10 @@ export default function ActiveCampaignPage() {
     }
   };
 
-  const isConnected = connection?.status === "connected" || (connection?.lastSyncAt && connection?.status !== "disconnected");
+  // Consider connected if status is connected, syncing, or if we have credentials saved
+  const isConnected = connection?.status === "connected" || 
+                      connection?.status === "syncing" || 
+                      (connection?.apiUrl && connection?.status !== "disconnected");
   const isSyncingStatus = connection?.status === "syncing";
 
   const formatCurrency = (amount: number) => {

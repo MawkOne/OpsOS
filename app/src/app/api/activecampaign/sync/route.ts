@@ -414,6 +414,22 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('ActiveCampaign sync error:', error);
+    
+    // Try to reset status to connected even on error
+    try {
+      const body = await request.clone().json().catch(() => ({}));
+      if (body.organizationId) {
+        const connectionRef = doc(db, 'activecampaign_connections', body.organizationId);
+        await updateDoc(connectionRef, {
+          status: 'connected',
+          updatedAt: serverTimestamp(),
+          errorMessage: error instanceof Error ? error.message : 'Sync failed',
+        });
+      }
+    } catch {
+      // Ignore cleanup errors
+    }
+    
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Sync failed' },
       { status: 500 }
