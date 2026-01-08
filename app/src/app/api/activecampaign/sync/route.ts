@@ -34,7 +34,7 @@ async function acRequest(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId } = body;
+    const { organizationId, skipContacts = false } = body;
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
@@ -72,9 +72,9 @@ export async function POST(request: NextRequest) {
 
     // Sync Contacts (with batching for performance)
     // Note: For very large contact lists, we limit to avoid Vercel timeout
-    // Vercel Hobby: 10s, Pro: 60s - we can sync ~1-2k contacts safely
-    const MAX_CONTACTS = 2000; // Limit to avoid timeout
-    try {
+    // Vercel Hobby: 10s, Pro: 60s - keep this low
+    const MAX_CONTACTS = 500; // Limit to avoid timeout - sync contacts separately if needed
+    if (!skipContacts) try {
       let offset = 0;
       const limit = 100;
       let hasMore = true;
