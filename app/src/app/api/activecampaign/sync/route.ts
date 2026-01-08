@@ -91,20 +91,23 @@ export async function POST(request: NextRequest) {
           timestamp: serverTimestamp(),
         });
 
-        // Fetch monthly historical contact counts (last 12 months)
+        // Fetch monthly historical contact counts (last 12 complete months, matching TTM display)
         // We query contacts created before end of each month to get cumulative count
         const monthlyCountRef = doc(db, 'activecampaign_monthly_contacts', organizationId);
         const monthlyCounts: Record<string, number> = {};
         
-        for (let i = 0; i < 12; i++) {
-          const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
-          const monthKey = `${monthEnd.getFullYear()}-${(monthEnd.getMonth() + 1).toString().padStart(2, '0')}`;
+        // Match TTM: from 12 months ago to 1 month ago (excludes current partial month)
+        for (let i = 12; i >= 1; i--) {
+          const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0); // Last day of month
+          const monthKey = `${monthDate.getFullYear()}-${(monthDate.getMonth() + 1).toString().padStart(2, '0')}`;
           
-          // Query contacts created before end of this month
+          // Query contacts created before end of this month (cumulative count at end of month)
           // ActiveCampaign filter: filters[created_before]=YYYY-MM-DD
+          const filterDate = `${monthEnd.getFullYear()}-${(monthEnd.getMonth() + 1).toString().padStart(2, '0')}-${monthEnd.getDate().toString().padStart(2, '0')}`;
           const monthResponse = await acRequest(apiUrl, apiKey, 'contacts', { 
             limit: '1',
-            'filters[created_before]': `${monthEnd.getFullYear()}-${(monthEnd.getMonth() + 1).toString().padStart(2, '0')}-${monthEnd.getDate().toString().padStart(2, '0')}`,
+            'filters[created_before]': filterDate,
           });
           
           if (monthResponse.ok) {
@@ -112,6 +115,10 @@ export async function POST(request: NextRequest) {
             monthlyCounts[monthKey] = parseInt(monthData.meta?.total) || 0;
           }
         }
+        
+        // Also add current month's total (current count)
+        const currentMonthKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+        monthlyCounts[currentMonthKey] = totalContacts;
         
         // Store monthly counts
         await setDoc(monthlyCountRef, {
