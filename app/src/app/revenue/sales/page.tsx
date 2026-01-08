@@ -127,7 +127,8 @@ export default function SalesPage() {
         if (payment.lineItems && payment.lineItems.length > 0) {
           payment.lineItems.forEach((item: any) => {
             const productId = item.productId || "unknown";
-            const productName = products.get(productId) || item.description || "Unknown Product";
+            // Priority: productName from line item, then from products collection, then description
+            const productName = item.productName || products.get(productId) || item.description || "Unknown Product";
             const amount = (item.amount || 0) / 100; // Convert cents to dollars
             
             if (!productRevenue.has(productId)) {

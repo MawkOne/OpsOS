@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       while (hasMore) {
         const charges = await stripe.charges.list({
           limit: 100,
-          expand: ['data.invoice'],
+          expand: ['data.invoice.lines.data.price.product', 'data.invoice.subscription'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -96,15 +96,22 @@ export async function POST(request: NextRequest) {
           let subscriptionId: string | null = null;
           
           if (invoice && invoice.lines?.data) {
-            lineItems = invoice.lines.data.map((line: any) => ({
-              description: line.description,
-              amount: line.amount,
-              quantity: line.quantity || 1,
-              priceId: line.price?.id || null,
-              productId: typeof line.price?.product === 'string' 
-                ? line.price.product 
-                : line.price?.product?.id || null,
-            }));
+            lineItems = invoice.lines.data.map((line: any) => {
+              const product = line.price?.product;
+              const productId = typeof product === 'string' ? product : product?.id || null;
+              const productName = typeof product === 'object' && product && !product.deleted 
+                ? product.name 
+                : null;
+              
+              return {
+                description: line.description,
+                amount: line.amount,
+                quantity: line.quantity || 1,
+                priceId: line.price?.id || null,
+                productId,
+                productName, // Store product name directly on line item
+              };
+            });
             subscriptionId = typeof invoice.subscription === 'string' 
               ? invoice.subscription 
               : invoice.subscription?.id || null;
