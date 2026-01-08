@@ -309,30 +309,68 @@ export default function EmailPage() {
     return calculateCMGR(beginning, ending, numMonths);
   }, [monthlyContacts, totalContacts]);
 
-  // Calculate CMGR for email metrics
+  // Calculate CMGR for email metrics with tooltip data
   const metricCMGRs = useMemo(() => {
-    if (monthlyData.length < 2) {
-      return { sent: 0, opens: 0, clicks: 0, openRate: 0, clickRate: 0 };
-    }
+    const empty = { 
+      sent: { value: 0, tooltip: "" },
+      opens: { value: 0, tooltip: "" },
+      clicks: { value: 0, tooltip: "" },
+      openRate: { value: 0, tooltip: "" },
+      clickRate: { value: 0, tooltip: "" },
+    };
+    
+    if (monthlyData.length < 2) return empty;
     
     // Find first and last months with data
     const monthsWithData = monthlyData.filter(m => m.sent > 0);
-    if (monthsWithData.length < 2) {
-      return { sent: 0, opens: 0, clicks: 0, openRate: 0, clickRate: 0 };
-    }
+    if (monthsWithData.length < 2) return empty;
     
     const first = monthsWithData[0];
     const last = monthsWithData[monthsWithData.length - 1];
     const numMonths = monthsWithData.length - 1;
     
+    const buildTooltip = (name: string, start: number, end: number, months: number, isPercent = false) => {
+      const cmgr = calculateCMGR(start, end, months);
+      const fmt = isPercent ? (v: number) => `${v.toFixed(1)}%` : formatNumber;
+      return `${name} CMGR\n((${fmt(end)} / ${fmt(start)}) ^ (1/${months})) - 1\n= ${cmgr > 0 ? "+" : ""}${cmgr.toFixed(2)}% per month`;
+    };
+    
     return {
-      sent: calculateCMGR(first.sent, last.sent, numMonths),
-      opens: calculateCMGR(first.opens, last.opens, numMonths),
-      clicks: calculateCMGR(first.clicks, last.clicks, numMonths),
-      openRate: calculateCMGR(first.openRate, last.openRate, numMonths),
-      clickRate: calculateCMGR(first.clickRate, last.clickRate, numMonths),
+      sent: { 
+        value: calculateCMGR(first.sent, last.sent, numMonths),
+        tooltip: buildTooltip("Emails Sent", first.sent, last.sent, numMonths),
+      },
+      opens: { 
+        value: calculateCMGR(first.opens, last.opens, numMonths),
+        tooltip: buildTooltip("Opens", first.opens, last.opens, numMonths),
+      },
+      clicks: { 
+        value: calculateCMGR(first.clicks, last.clicks, numMonths),
+        tooltip: buildTooltip("Clicks", first.clicks, last.clicks, numMonths),
+      },
+      openRate: { 
+        value: calculateCMGR(first.openRate, last.openRate, numMonths),
+        tooltip: buildTooltip("Open Rate", first.openRate, last.openRate, numMonths, true),
+      },
+      clickRate: { 
+        value: calculateCMGR(first.clickRate, last.clickRate, numMonths),
+        tooltip: buildTooltip("Click Rate", first.clickRate, last.clickRate, numMonths, true),
+      },
     };
   }, [monthlyData]);
+  
+  // Build contact CMGR tooltip
+  const contactCMGRTooltip = useMemo(() => {
+    const sortedMonths = Object.keys(monthlyContacts).sort();
+    if (sortedMonths.length < 2) return "";
+    
+    const beginning = monthlyContacts[sortedMonths[0]] || 0;
+    const ending = monthlyContacts[sortedMonths[sortedMonths.length - 1]] || totalContacts;
+    const numMonths = sortedMonths.length - 1;
+    const cmgr = calculateCMGR(beginning, ending, numMonths);
+    
+    return `Contacts CMGR\n((${formatNumber(ending)} / ${formatNumber(beginning)}) ^ (1/${numMonths})) - 1\n= ${cmgr > 0 ? "+" : ""}${cmgr.toFixed(2)}% per month`;
+  }, [monthlyContacts, totalContacts]);
 
   if (loading) {
     return (
@@ -383,10 +421,14 @@ export default function EmailPage() {
                 {formatNumber(totalContacts)}
               </p>
               {contactCMGR !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: contactCMGR > 0 ? "#10b981" : "#ef4444",
-                  background: contactCMGR > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: contactCMGR > 0 ? "#10b981" : "#ef4444",
+                    background: contactCMGR > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={contactCMGRTooltip}
+                >
                   {contactCMGR > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                   {contactCMGR > 0 ? "+" : ""}{contactCMGR.toFixed(1)}%
                 </p>
@@ -403,13 +445,17 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
                 {formatNumber(totals.sent)}
               </p>
-              {metricCMGRs.sent !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: metricCMGRs.sent > 0 ? "#10b981" : "#ef4444",
-                  background: metricCMGRs.sent > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
-                  {metricCMGRs.sent > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {metricCMGRs.sent > 0 ? "+" : ""}{metricCMGRs.sent.toFixed(1)}%
+              {metricCMGRs.sent.value !== 0 && (
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: metricCMGRs.sent.value > 0 ? "#10b981" : "#ef4444",
+                    background: metricCMGRs.sent.value > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={metricCMGRs.sent.tooltip}
+                >
+                  {metricCMGRs.sent.value > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.sent.value > 0 ? "+" : ""}{metricCMGRs.sent.value.toFixed(1)}%
                 </p>
               )}
             </div>
@@ -424,13 +470,17 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#10b981" }}>
                 {formatNumber(totals.opens)}
               </p>
-              {metricCMGRs.opens !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: metricCMGRs.opens > 0 ? "#10b981" : "#ef4444",
-                  background: metricCMGRs.opens > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
-                  {metricCMGRs.opens > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {metricCMGRs.opens > 0 ? "+" : ""}{metricCMGRs.opens.toFixed(1)}%
+              {metricCMGRs.opens.value !== 0 && (
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: metricCMGRs.opens.value > 0 ? "#10b981" : "#ef4444",
+                    background: metricCMGRs.opens.value > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={metricCMGRs.opens.tooltip}
+                >
+                  {metricCMGRs.opens.value > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.opens.value > 0 ? "+" : ""}{metricCMGRs.opens.value.toFixed(1)}%
                 </p>
               )}
             </div>
@@ -445,13 +495,17 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
                 {formatNumber(totals.clicks)}
               </p>
-              {metricCMGRs.clicks !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: metricCMGRs.clicks > 0 ? "#10b981" : "#ef4444",
-                  background: metricCMGRs.clicks > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
-                  {metricCMGRs.clicks > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {metricCMGRs.clicks > 0 ? "+" : ""}{metricCMGRs.clicks.toFixed(1)}%
+              {metricCMGRs.clicks.value !== 0 && (
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: metricCMGRs.clicks.value > 0 ? "#10b981" : "#ef4444",
+                    background: metricCMGRs.clicks.value > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={metricCMGRs.clicks.tooltip}
+                >
+                  {metricCMGRs.clicks.value > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.clicks.value > 0 ? "+" : ""}{metricCMGRs.clicks.value.toFixed(1)}%
                 </p>
               )}
             </div>
@@ -466,13 +520,17 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
                 {overallOpenRate.toFixed(1)}%
               </p>
-              {metricCMGRs.openRate !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: metricCMGRs.openRate > 0 ? "#10b981" : "#ef4444",
-                  background: metricCMGRs.openRate > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
-                  {metricCMGRs.openRate > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {metricCMGRs.openRate > 0 ? "+" : ""}{metricCMGRs.openRate.toFixed(1)}%
+              {metricCMGRs.openRate.value !== 0 && (
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: metricCMGRs.openRate.value > 0 ? "#10b981" : "#ef4444",
+                    background: metricCMGRs.openRate.value > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={metricCMGRs.openRate.tooltip}
+                >
+                  {metricCMGRs.openRate.value > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.openRate.value > 0 ? "+" : ""}{metricCMGRs.openRate.value.toFixed(1)}%
                 </p>
               )}
             </div>
@@ -487,13 +545,17 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#06b6d4" }}>
                 {overallClickRate.toFixed(2)}%
               </p>
-              {metricCMGRs.clickRate !== 0 && (
-                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
-                  color: metricCMGRs.clickRate > 0 ? "#10b981" : "#ef4444",
-                  background: metricCMGRs.clickRate > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
-                }}>
-                  {metricCMGRs.clickRate > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {metricCMGRs.clickRate > 0 ? "+" : ""}{metricCMGRs.clickRate.toFixed(1)}%
+              {metricCMGRs.clickRate.value !== 0 && (
+                <p 
+                  className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-help" 
+                  style={{ 
+                    color: metricCMGRs.clickRate.value > 0 ? "#10b981" : "#ef4444",
+                    background: metricCMGRs.clickRate.value > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                  }}
+                  title={metricCMGRs.clickRate.tooltip}
+                >
+                  {metricCMGRs.clickRate.value > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.clickRate.value > 0 ? "+" : ""}{metricCMGRs.clickRate.value.toFixed(1)}%
                 </p>
               )}
             </div>
