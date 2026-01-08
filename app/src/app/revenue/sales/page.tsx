@@ -76,6 +76,7 @@ export default function SalesPage() {
   }, [viewMode, selectedYear]);
 
   useEffect(() => {
+    console.log("[Sales] organizationId:", organizationId);
     if (!organizationId) {
       setLoading(false);
       return;
@@ -86,6 +87,7 @@ export default function SalesPage() {
 
   const fetchRevenueData = async () => {
     setLoading(true);
+    console.log("[Sales] Fetching revenue data for org:", organizationId);
     try {
       const rows: RevenueRow[] = [];
       
@@ -95,6 +97,7 @@ export default function SalesPage() {
         where("organizationId", "==", organizationId)
       );
       const productsSnap = await getDocs(productsQuery);
+      console.log("[Sales] Products found:", productsSnap.size);
       const products = new Map<string, string>();
       productsSnap.docs.forEach(doc => {
         const data = doc.data();
@@ -108,12 +111,16 @@ export default function SalesPage() {
         where("status", "==", "succeeded")
       );
       const paymentsSnap = await getDocs(paymentsQuery);
+      console.log("[Sales] Payments found:", paymentsSnap.size);
       
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
       
       // Calculate date range for filtering
       const monthsSet = new Set(months);
+      
+      let paymentsWithLineItems = 0;
+      let paymentsWithoutLineItems = 0;
       
       paymentsSnap.docs.forEach(doc => {
         const payment = doc.data();
@@ -125,6 +132,7 @@ export default function SalesPage() {
         
         // If payment has line items with product info, use those
         if (payment.lineItems && payment.lineItems.length > 0) {
+          paymentsWithLineItems++;
           payment.lineItems.forEach((item: any) => {
             const productId = item.productId || "unknown";
             // Priority: productName from line item, then from products collection, then description
@@ -146,6 +154,7 @@ export default function SalesPage() {
             row.total += amount;
           });
         } else {
+          paymentsWithoutLineItems++;
           // Fallback: aggregate as "Other Stripe Revenue"
           const productId = "stripe-other";
           const productName = payment.description || "Other Stripe Revenue";
@@ -178,13 +187,17 @@ export default function SalesPage() {
       // TODO: Add QuickBooks invoices when integrated
       // TODO: Add Square transactions when integrated
       
+      console.log("[Sales] Payments with line items:", paymentsWithLineItems);
+      console.log("[Sales] Payments without line items (Other):", paymentsWithoutLineItems);
+      
       // Convert map to array and sort by total revenue
       rows.push(...Array.from(productRevenue.values()));
       rows.sort((a, b) => b.total - a.total);
       
+      console.log("[Sales] Final rows:", rows.length, rows);
       setRevenueData(rows);
     } catch (error) {
-      console.error("Error fetching revenue data:", error);
+      console.error("[Sales] Error fetching revenue data:", error);
     } finally {
       setLoading(false);
     }
