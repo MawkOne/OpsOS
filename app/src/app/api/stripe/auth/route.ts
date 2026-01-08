@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
   stripeAuthUrl.searchParams.set('scope', 'read_only');
   stripeAuthUrl.searchParams.set('state', state);
   stripeAuthUrl.searchParams.set('redirect_uri', `${BASE_URL}/api/stripe/callback`);
+  // Force account selection screen to show all accounts
+  stripeAuthUrl.searchParams.set('stripe_landing', 'login');
+  // Allow switching between accounts
+  stripeAuthUrl.searchParams.set('always_prompt', 'true');
 
   return NextResponse.redirect(stripeAuthUrl.toString());
 }
