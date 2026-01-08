@@ -365,15 +365,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Contacts</span>
               <Users className="w-4 h-4" style={{ color: "#356AE6" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
-              {formatNumber(totalContacts)}
-            </p>
-            {contactGrowth.cagr !== 0 && (
-              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: contactGrowth.cagr > 0 ? "#10b981" : "#ef4444" }}>
-                {contactGrowth.cagr > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {contactGrowth.cagr > 0 ? "+" : ""}{contactGrowth.cagr.toFixed(1)}% CAGR
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
+                {formatNumber(totalContacts)}
               </p>
-            )}
+              {contactGrowth.cagr !== 0 && (
+                <p className="text-sm flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ 
+                  color: contactGrowth.cagr > 0 ? "#10b981" : "#ef4444",
+                  background: contactGrowth.cagr > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {contactGrowth.cagr > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {contactGrowth.cagr > 0 ? "+" : ""}{contactGrowth.cagr.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
           
           <Card>
