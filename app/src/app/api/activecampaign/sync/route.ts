@@ -71,8 +71,9 @@ export async function POST(request: NextRequest) {
     };
 
     // Sync Contacts (with batching for performance)
-    // Note: For very large contact lists (100k+), consider using background jobs
-    const MAX_CONTACTS = 50000; // Limit to avoid timeout
+    // Note: For very large contact lists, we limit to avoid Vercel timeout
+    // Vercel Hobby: 10s, Pro: 60s - we can sync ~1-2k contacts safely
+    const MAX_CONTACTS = 2000; // Limit to avoid timeout
     try {
       let offset = 0;
       const limit = 100;
@@ -86,7 +87,14 @@ export async function POST(request: NextRequest) {
         });
 
         if (contactsResponse.ok) {
-          const data = await contactsResponse.json();
+          const text = await contactsResponse.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            results.errors.push(`Contacts API returned invalid JSON: ${text.substring(0, 100)}`);
+            break;
+          }
           const contacts = data.contacts || [];
 
           for (const contact of contacts) {
@@ -142,7 +150,14 @@ export async function POST(request: NextRequest) {
     try {
       const pipelinesResponse = await acRequest(apiUrl, apiKey, 'dealGroups');
       if (pipelinesResponse.ok) {
-        const data = await pipelinesResponse.json();
+        const text = await pipelinesResponse.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          results.errors.push(`Pipelines API returned invalid JSON`);
+          throw new Error('Invalid JSON');
+        }
         const pipelines = data.dealGroups || [];
 
         for (const pipeline of pipelines) {
