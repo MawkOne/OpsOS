@@ -291,35 +291,48 @@ export default function EmailPage() {
   const overallOpenRate = totals.sent > 0 ? (totals.opens / totals.sent) * 100 : 0;
   const overallClickRate = totals.sent > 0 ? (totals.clicks / totals.sent) * 100 : 0;
 
-  // Calculate contact growth and CAGR from monthly data
-  const contactGrowth = useMemo(() => {
-    // Get sorted months from monthlyContacts
+  // Helper function to calculate CMGR (Compound Monthly Growth Rate)
+  const calculateCMGR = (beginning: number, ending: number, numMonths: number): number => {
+    if (beginning <= 0 || numMonths <= 0) return 0;
+    return (Math.pow(ending / beginning, 1 / numMonths) - 1) * 100;
+  };
+
+  // Calculate contact CMGR from monthly data
+  const contactCMGR = useMemo(() => {
     const sortedMonths = Object.keys(monthlyContacts).sort();
+    if (sortedMonths.length < 2) return 0;
     
-    if (sortedMonths.length < 2) {
-      return { amount: 0, percent: 0, cagr: 0 };
-    }
-    
-    const firstMonth = sortedMonths[0];
-    const lastMonth = sortedMonths[sortedMonths.length - 1];
-    const beginning = monthlyContacts[firstMonth] || 0;
-    const ending = monthlyContacts[lastMonth] || totalContacts;
-    
-    const amount = ending - beginning;
-    const percent = beginning > 0 ? ((ending - beginning) / beginning) * 100 : 0;
-    
-    // Calculate CAGR: ((Ending/Beginning)^(1/years)) - 1
-    // Number of months between first and last
+    const beginning = monthlyContacts[sortedMonths[0]] || 0;
+    const ending = monthlyContacts[sortedMonths[sortedMonths.length - 1]] || totalContacts;
     const numMonths = sortedMonths.length - 1;
-    const years = numMonths / 12;
     
-    let cagr = 0;
-    if (beginning > 0 && years > 0) {
-      cagr = (Math.pow(ending / beginning, 1 / years) - 1) * 100;
+    return calculateCMGR(beginning, ending, numMonths);
+  }, [monthlyContacts, totalContacts]);
+
+  // Calculate CMGR for email metrics
+  const metricCMGRs = useMemo(() => {
+    if (monthlyData.length < 2) {
+      return { sent: 0, opens: 0, clicks: 0, openRate: 0, clickRate: 0 };
     }
     
-    return { amount, percent, cagr };
-  }, [monthlyContacts, totalContacts]);
+    // Find first and last months with data
+    const monthsWithData = monthlyData.filter(m => m.sent > 0);
+    if (monthsWithData.length < 2) {
+      return { sent: 0, opens: 0, clicks: 0, openRate: 0, clickRate: 0 };
+    }
+    
+    const first = monthsWithData[0];
+    const last = monthsWithData[monthsWithData.length - 1];
+    const numMonths = monthsWithData.length - 1;
+    
+    return {
+      sent: calculateCMGR(first.sent, last.sent, numMonths),
+      opens: calculateCMGR(first.opens, last.opens, numMonths),
+      clicks: calculateCMGR(first.clicks, last.clicks, numMonths),
+      openRate: calculateCMGR(first.openRate, last.openRate, numMonths),
+      clickRate: calculateCMGR(first.clickRate, last.clickRate, numMonths),
+    };
+  }, [monthlyData]);
 
   if (loading) {
     return (
@@ -369,13 +382,13 @@ export default function EmailPage() {
               <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
                 {formatNumber(totalContacts)}
               </p>
-              {contactGrowth.cagr !== 0 && (
-                <p className="text-sm flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ 
-                  color: contactGrowth.cagr > 0 ? "#10b981" : "#ef4444",
-                  background: contactGrowth.cagr > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+              {contactCMGR !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: contactCMGR > 0 ? "#10b981" : "#ef4444",
+                  background: contactCMGR > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
                 }}>
-                  {contactGrowth.cagr > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {contactGrowth.cagr > 0 ? "+" : ""}{contactGrowth.cagr.toFixed(1)}%
+                  {contactCMGR > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {contactCMGR > 0 ? "+" : ""}{contactCMGR.toFixed(1)}%
                 </p>
               )}
             </div>
@@ -386,9 +399,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Emails Sent</span>
               <Send className="w-4 h-4" style={{ color: "#3b82f6" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
-              {formatNumber(totals.sent)}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
+                {formatNumber(totals.sent)}
+              </p>
+              {metricCMGRs.sent !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: metricCMGRs.sent > 0 ? "#10b981" : "#ef4444",
+                  background: metricCMGRs.sent > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {metricCMGRs.sent > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.sent > 0 ? "+" : ""}{metricCMGRs.sent.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
           
           <Card>
@@ -396,9 +420,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Opens</span>
               <Eye className="w-4 h-4" style={{ color: "#10b981" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#10b981" }}>
-              {formatNumber(totals.opens)}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#10b981" }}>
+                {formatNumber(totals.opens)}
+              </p>
+              {metricCMGRs.opens !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: metricCMGRs.opens > 0 ? "#10b981" : "#ef4444",
+                  background: metricCMGRs.opens > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {metricCMGRs.opens > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.opens > 0 ? "+" : ""}{metricCMGRs.opens.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
           
           <Card>
@@ -406,9 +441,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Clicks</span>
               <MousePointerClick className="w-4 h-4" style={{ color: "#8b5cf6" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
-              {formatNumber(totals.clicks)}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
+                {formatNumber(totals.clicks)}
+              </p>
+              {metricCMGRs.clicks !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: metricCMGRs.clicks > 0 ? "#10b981" : "#ef4444",
+                  background: metricCMGRs.clicks > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {metricCMGRs.clicks > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.clicks > 0 ? "+" : ""}{metricCMGRs.clicks.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
           
           <Card>
@@ -416,9 +462,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Open Rate</span>
               <TrendingUp className="w-4 h-4" style={{ color: "#f59e0b" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-              {overallOpenRate.toFixed(1)}%
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
+                {overallOpenRate.toFixed(1)}%
+              </p>
+              {metricCMGRs.openRate !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: metricCMGRs.openRate > 0 ? "#10b981" : "#ef4444",
+                  background: metricCMGRs.openRate > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {metricCMGRs.openRate > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.openRate > 0 ? "+" : ""}{metricCMGRs.openRate.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
           
           <Card>
@@ -426,9 +483,20 @@ export default function EmailPage() {
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Click Rate</span>
               <MousePointerClick className="w-4 h-4" style={{ color: "#06b6d4" }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#06b6d4" }}>
-              {overallClickRate.toFixed(2)}%
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold" style={{ color: "#06b6d4" }}>
+                {overallClickRate.toFixed(2)}%
+              </p>
+              {metricCMGRs.clickRate !== 0 && (
+                <p className="text-xs flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ 
+                  color: metricCMGRs.clickRate > 0 ? "#10b981" : "#ef4444",
+                  background: metricCMGRs.clickRate > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)"
+                }}>
+                  {metricCMGRs.clickRate > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {metricCMGRs.clickRate > 0 ? "+" : ""}{metricCMGRs.clickRate.toFixed(1)}%
+                </p>
+              )}
+            </div>
           </Card>
         </div>
 
