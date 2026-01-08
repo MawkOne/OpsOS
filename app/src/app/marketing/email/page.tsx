@@ -420,7 +420,7 @@ export default function EmailPage() {
           </div>
         </Card>
 
-        {/* Monthly Trends Table */}
+        {/* Monthly Trends Table - Months as columns */}
         <Card className="overflow-hidden">
           <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
             Monthly Email Performance
@@ -438,109 +438,217 @@ export default function EmailPage() {
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
+                      className="text-left py-3 px-4 text-sm font-semibold sticky left-0 min-w-[120px]"
                       style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
                     >
-                      Month
+                      Metric
                     </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Campaigns
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Sent
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Opens
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Clicks
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Open Rate
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Click Rate
-                    </th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Unsubs
+                    {monthLabels.map((label, idx) => (
+                      <th 
+                        key={label}
+                        className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                    <th 
+                      className="text-right py-3 px-4 text-sm font-semibold"
+                      style={{ color: "var(--foreground)" }}
+                    >
+                      Total
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {monthlyData.map((row, idx) => (
-                    <motion.tr
-                      key={row.month}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.02 }}
-                      style={{ borderBottom: "1px solid var(--border)" }}
-                      className="hover:bg-[var(--background-tertiary)] transition-colors"
-                    >
-                      <td 
-                        className="py-3 px-4 text-sm font-medium sticky left-0"
-                        style={{ color: "var(--foreground)", background: "inherit" }}
-                      >
-                        {monthLabels[idx]}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {row.campaigns > 0 ? formatNumber(row.campaigns) : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {row.sent > 0 ? formatNumber(row.sent) : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#10b981" }}>
-                        {row.opens > 0 ? formatNumber(row.opens) : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#8b5cf6" }}>
-                        {row.clicks > 0 ? formatNumber(row.clicks) : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#f59e0b" }}>
-                        {row.sent > 0 ? `${row.openRate.toFixed(1)}%` : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#06b6d4" }}>
-                        {row.sent > 0 ? `${row.clickRate.toFixed(2)}%` : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-right tabular-nums" style={{ color: "#ef4444" }}>
-                        {row.unsubscribes > 0 ? formatNumber(row.unsubscribes) : "—"}
-                      </td>
-                    </motion.tr>
-                  ))}
-                  
-                  {/* Totals Row */}
-                  <tr 
-                    style={{ 
-                      borderTop: "2px solid var(--border)",
-                      background: "var(--background-tertiary)",
-                    }}
+                  {/* Campaigns Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.02 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
                   >
                     <td 
-                      className="py-3 px-4 text-sm font-bold sticky left-0"
-                      style={{ color: "var(--foreground)", background: "var(--background-tertiary)" }}
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
                     >
-                      Total
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" style={{ color: "#ec4899" }} />
+                        Campaigns
+                      </div>
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "var(--foreground)" }}>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                        {row.campaigns > 0 ? formatNumber(row.campaigns) : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#ec4899" }}>
                       {formatNumber(totals.campaigns)}
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "var(--foreground)" }}>
+                  </motion.tr>
+
+                  {/* Sent Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.04 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Send className="w-4 h-4" style={{ color: "#3b82f6" }} />
+                        Emails Sent
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                        {row.sent > 0 ? formatNumber(row.sent) : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#3b82f6" }}>
                       {formatNumber(totals.sent)}
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "#10b981" }}>
+                  </motion.tr>
+
+                  {/* Opens Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.06 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4" style={{ color: "#10b981" }} />
+                        Opens
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#10b981" }}>
+                        {row.opens > 0 ? formatNumber(row.opens) : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#10b981" }}>
                       {formatNumber(totals.opens)}
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "#8b5cf6" }}>
+                  </motion.tr>
+
+                  {/* Clicks Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.08 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MousePointerClick className="w-4 h-4" style={{ color: "#8b5cf6" }} />
+                        Clicks
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#8b5cf6" }}>
+                        {row.clicks > 0 ? formatNumber(row.clicks) : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#8b5cf6" }}>
                       {formatNumber(totals.clicks)}
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "#f59e0b" }}>
+                  </motion.tr>
+
+                  {/* Open Rate Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.10 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" style={{ color: "#f59e0b" }} />
+                        Open Rate
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#f59e0b" }}>
+                        {row.sent > 0 ? `${row.openRate.toFixed(1)}%` : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#f59e0b" }}>
                       {overallOpenRate.toFixed(1)}%
                     </td>
-                    <td className="py-3 px-3 text-sm text-right font-bold tabular-nums" style={{ color: "#06b6d4" }}>
+                  </motion.tr>
+
+                  {/* Click Rate Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.12 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MousePointerClick className="w-4 h-4" style={{ color: "#06b6d4" }} />
+                        Click Rate
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#06b6d4" }}>
+                        {row.sent > 0 ? `${row.clickRate.toFixed(2)}%` : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#06b6d4" }}>
                       {overallClickRate.toFixed(2)}%
                     </td>
-                    <td className="py-3 px-4 text-sm text-right font-bold tabular-nums" style={{ color: "#ef4444" }}>
+                  </motion.tr>
+
+                  {/* Unsubscribes Row */}
+                  <motion.tr
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.14 }}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    className="hover:bg-[var(--background-tertiary)] transition-colors"
+                  >
+                    <td 
+                      className="py-3 px-4 text-sm font-medium sticky left-0"
+                      style={{ color: "var(--foreground)", background: "inherit" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <UserMinus className="w-4 h-4" style={{ color: "#ef4444" }} />
+                        Unsubscribes
+                      </div>
+                    </td>
+                    {monthlyData.map((row) => (
+                      <td key={row.month} className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "#ef4444" }}>
+                        {row.unsubscribes > 0 ? formatNumber(row.unsubscribes) : "—"}
+                      </td>
+                    ))}
+                    <td className="py-3 px-4 text-sm text-right font-semibold tabular-nums" style={{ color: "#ef4444" }}>
                       {formatNumber(totals.unsubscribes)}
                     </td>
-                  </tr>
+                  </motion.tr>
                 </tbody>
               </table>
             </div>
