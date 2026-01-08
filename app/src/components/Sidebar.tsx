@@ -26,6 +26,7 @@ import {
   Megaphone,
   Activity,
   Search,
+  Mail,
 } from "lucide-react";
 
 type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "marketing";
@@ -185,6 +186,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Sources",
       items: [
         { label: "Google Analytics", href: "/marketing/google-analytics", icon: <Activity className="w-4 h-4" /> },
+        { label: "ActiveCampaign", href: "/marketing/activecampaign", icon: <Mail className="w-4 h-4" /> },
       ],
     },
   ],
