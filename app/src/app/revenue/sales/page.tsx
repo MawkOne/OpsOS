@@ -89,34 +89,7 @@ export default function SalesPage() {
     try {
       const rows: RevenueRow[] = [];
       
-      // Step 1: Fetch subscriptions to build subscription → product mapping
-      const subscriptionsQuery = query(
-        collection(db, "stripe_subscriptions"),
-        where("organizationId", "==", organizationId)
-      );
-      const subsSnap = await getDocs(subscriptionsQuery);
-      
-      // Map: subscriptionId → array of {productId, productName, ratio}
-      const subscriptionProducts = new Map<string, Array<{productId: string; productName: string; ratio: number}>>();
-      
-      subsSnap.docs.forEach(doc => {
-        const sub = doc.data();
-        const subId = sub.stripeId;
-        const items = sub.items || [];
-        
-        // Calculate total for this subscription to get ratios
-        const totalAmount = items.reduce((sum: number, item: any) => sum + (item.unitAmount || 0) * (item.quantity || 1), 0);
-        
-        const productInfos = items.map((item: any) => ({
-          productId: item.productId || "unknown",
-          productName: item.productName || "Unknown Product",
-          ratio: totalAmount > 0 ? ((item.unitAmount || 0) * (item.quantity || 1)) / totalAmount : 1 / items.length,
-        }));
-        
-        subscriptionProducts.set(subId, productInfos);
-      });
-
-      // Step 2: Fetch products as fallback
+      // Fetch products as name lookup
       const productsQuery = query(
         collection(db, "stripe_products"),
         where("organizationId", "==", organizationId)
@@ -128,56 +101,32 @@ export default function SalesPage() {
         products.set(data.stripeId, data.name);
       });
 
-      // Step 3: Fetch payments
-      const paymentsQuery = query(
-        collection(db, "stripe_payments"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "succeeded")
-      );
-      const paymentsSnap = await getDocs(paymentsQuery);
-      
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
       const monthsSet = new Set(months);
+
+      // PRIMARY: Use invoices (have proper line items with product info)
+      const invoicesQuery = query(
+        collection(db, "stripe_invoices"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "paid")
+      );
+      const invoicesSnap = await getDocs(invoicesQuery);
       
-      paymentsSnap.docs.forEach(doc => {
-        const payment = doc.data();
-        const paymentDate = payment.created?.toDate?.() || new Date(payment.created);
-        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        const invoiceDate = invoice.created?.toDate?.() || new Date();
+        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
-        // Only include payments within the selected date range
         if (!monthsSet.has(monthKey)) return;
         
-        const amount = (payment.amount || 0) / 100; // cents to dollars
+        const lineItems = invoice.lineItems || [];
         
-        // Strategy 1: Use subscriptionId to get product attribution
-        if (payment.subscriptionId && subscriptionProducts.has(payment.subscriptionId)) {
-          const productInfos = subscriptionProducts.get(payment.subscriptionId)!;
-          
-          productInfos.forEach(info => {
-            const productAmount = amount * info.ratio;
-            
-            if (!productRevenue.has(info.productId)) {
-              productRevenue.set(info.productId, {
-                productId: info.productId,
-                productName: info.productName,
-                source: "stripe",
-                months: {},
-                total: 0,
-              });
-            }
-            
-            const row = productRevenue.get(info.productId)!;
-            row.months[monthKey] = (row.months[monthKey] || 0) + productAmount;
-            row.total += productAmount;
-          });
-        }
-        // Strategy 2: Use line items if available
-        else if (payment.lineItems && payment.lineItems.length > 0) {
-          payment.lineItems.forEach((item: any) => {
+        if (lineItems.length > 0) {
+          lineItems.forEach((item: any) => {
             const productId = item.productId || "unknown";
             const productName = item.productName || products.get(productId) || item.description || "Unknown Product";
-            const itemAmount = (item.amount || 0) / 100;
+            const amount = (item.amount || 0) / 100;
             
             if (!productRevenue.has(productId)) {
               productRevenue.set(productId, {
@@ -190,14 +139,14 @@ export default function SalesPage() {
             }
             
             const row = productRevenue.get(productId)!;
-            row.months[monthKey] = (row.months[monthKey] || 0) + itemAmount;
-            row.total += itemAmount;
+            row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+            row.total += amount;
           });
-        }
-        // Strategy 3: Fallback to "Other"
-        else {
+        } else {
+          // Invoice without line items - use total
           const productId = "stripe-other";
-          const productName = payment.description || "Other Stripe Revenue";
+          const productName = "Other Stripe Revenue";
+          const amount = (invoice.amount || 0) / 100;
           
           if (!productRevenue.has(productId)) {
             productRevenue.set(productId, {
@@ -214,6 +163,42 @@ export default function SalesPage() {
           row.total += amount;
         }
       });
+
+      // FALLBACK: If no invoices, use payments
+      if (invoicesSnap.empty) {
+        const paymentsQuery = query(
+          collection(db, "stripe_payments"),
+          where("organizationId", "==", organizationId),
+          where("status", "==", "succeeded")
+        );
+        const paymentsSnap = await getDocs(paymentsQuery);
+        
+        paymentsSnap.docs.forEach(doc => {
+          const payment = doc.data();
+          const paymentDate = payment.created?.toDate?.() || new Date();
+          const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+          
+          if (!monthsSet.has(monthKey)) return;
+          
+          const productId = "stripe-other";
+          const productName = payment.description || "Other Stripe Revenue";
+          const amount = (payment.amount || 0) / 100;
+          
+          if (!productRevenue.has(productId)) {
+            productRevenue.set(productId, {
+              productId,
+              productName,
+              source: "stripe",
+              months: {},
+              total: 0,
+            });
+          }
+          
+          const row = productRevenue.get(productId)!;
+          row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+          row.total += amount;
+        });
+      }
 
       // Convert map to array and sort by total revenue
       rows.push(...Array.from(productRevenue.values()));

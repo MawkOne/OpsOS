@@ -330,6 +330,71 @@ export async function POST(request: NextRequest) {
       results.errors.push(`Prices sync error: ${error.message}`);
     }
 
+    // Sync Invoices (better product attribution than charges)
+    try {
+      let hasMore = true;
+      let startingAfter: string | undefined;
+
+      while (hasMore) {
+        const invoices = await stripe.invoices.list({
+          limit: 100,
+          expand: ['data.lines.data.price.product', 'data.subscription'],
+          ...(startingAfter ? { starting_after: startingAfter } : {}),
+        });
+
+        const batch = writeBatch(db);
+
+        for (const invoice of invoices.data) {
+          if (invoice.status !== 'paid') continue; // Only sync paid invoices
+          
+          const invoiceRef = doc(db, 'stripe_invoices', `${organizationId}_${invoice.id}`);
+          
+          // Extract line items with product info
+          const lineItems = invoice.lines?.data?.map((line: any) => {
+            const product = line.price?.product;
+            return {
+              description: line.description,
+              amount: line.amount,
+              quantity: line.quantity || 1,
+              priceId: line.price?.id || null,
+              productId: typeof product === 'string' ? product : product?.id || null,
+              productName: typeof product === 'object' && product && !product.deleted ? product.name : null,
+            };
+          }) || [];
+
+          const invoiceAny = invoice as any;
+          const subscriptionId = typeof invoiceAny.subscription === 'string' 
+            ? invoiceAny.subscription 
+            : invoiceAny.subscription?.id || null;
+
+          batch.set(invoiceRef, {
+            organizationId,
+            stripeId: invoice.id,
+            chargeId: typeof invoiceAny.charge === 'string' ? invoiceAny.charge : invoiceAny.charge?.id || null,
+            subscriptionId,
+            customerId: typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id || null,
+            amount: invoice.amount_paid,
+            currency: invoice.currency?.toUpperCase() || 'USD',
+            status: invoice.status,
+            created: Timestamp.fromDate(new Date(invoice.created * 1000)),
+            periodStart: invoiceAny.period_start ? Timestamp.fromDate(new Date(invoiceAny.period_start * 1000)) : null,
+            periodEnd: invoiceAny.period_end ? Timestamp.fromDate(new Date(invoiceAny.period_end * 1000)) : null,
+            lineItems,
+            syncedAt: serverTimestamp(),
+          });
+        }
+
+        await batch.commit();
+
+        hasMore = invoices.has_more;
+        if (invoices.data.length > 0) {
+          startingAfter = invoices.data[invoices.data.length - 1].id;
+        }
+      }
+    } catch (error: any) {
+      results.errors.push(`Invoices sync error: ${error.message}`);
+    }
+
     // Sync Customers
     try {
       let hasMore = true;
