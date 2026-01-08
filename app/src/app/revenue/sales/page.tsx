@@ -134,8 +134,9 @@ export default function SalesPage() {
         
         if (lineItems.length > 0) {
           lineItems.forEach((item: any) => {
-            const productId = item.productId || "unknown";
-            const productName = item.productName || products.get(productId) || item.description || "Unknown Product";
+            // Use description as a fallback key when productId is missing
+            const productId = item.productId || item.description || "unknown";
+            const productName = item.productName || products.get(item.productId) || item.description || "Unknown Product";
             const amount = (item.amount || 0) / 100;
             
             if (!productRevenue.has(productId)) {
