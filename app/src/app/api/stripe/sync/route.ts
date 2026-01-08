@@ -90,9 +90,10 @@ export async function POST(request: NextRequest) {
       let startingAfter: string | undefined;
 
       while (hasMore) {
+        // Note: Stripe limits expansion to 4 levels
         const charges = await stripe.charges.list({
           limit: 100,
-          expand: ['data.invoice.lines.data.price.product', 'data.invoice.subscription'],
+          expand: ['data.invoice'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -171,9 +172,10 @@ export async function POST(request: NextRequest) {
       let startingAfter: string | undefined;
 
       while (hasMore) {
+        // Note: Stripe limits expansion to 4 levels
         const subscriptions = await stripe.subscriptions.list({
           limit: 100,
-          expand: ['data.customer', 'data.items.data.price.product'],
+          expand: ['data.customer', 'data.items.data.price'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -200,11 +202,14 @@ export async function POST(request: NextRequest) {
             
             monthlyAmount += (monthlyUnitAmount * quantity);
 
-            const product = item.price.product as any;
+            const productId = typeof item.price.product === 'string' 
+              ? item.price.product 
+              : (item.price.product as any)?.id || null;
             return {
               priceId: item.price.id,
-              productId: typeof product === 'string' ? product : product?.id,
-              productName: typeof product === 'object' && product && !product.deleted ? product.name : null,
+              productId,
+              // productName will be looked up from stripe_products collection when displaying
+              productName: null,
               quantity,
               unitAmount,
               currency: item.price.currency.toUpperCase(),
@@ -350,9 +355,11 @@ export async function POST(request: NextRequest) {
       let totalInvoicesFromStripe = 0;
 
       while (hasMore) {
+        // Note: Stripe limits expansion to 4 levels, so we can't expand data.lines.data.price.product
+        // Instead, we'll look up product names from our synced products collection
         const invoices = await stripe.invoices.list({
           limit: 100,
-          expand: ['data.lines.data.price.product', 'data.subscription'],
+          expand: ['data.lines.data.price'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -368,15 +375,19 @@ export async function POST(request: NextRequest) {
           const invoiceRef = doc(db, 'stripe_invoices', `${organizationId}_${invoice.id}`);
           
           // Extract line items with product info
+          // Note: product is just an ID string since we can't expand 5 levels deep
           const lineItems = invoice.lines?.data?.map((line: any) => {
-            const product = line.price?.product;
+            const productId = typeof line.price?.product === 'string' 
+              ? line.price.product 
+              : line.price?.product?.id || null;
             return {
               description: line.description,
               amount: line.amount,
               quantity: line.quantity || 1,
               priceId: line.price?.id || null,
-              productId: typeof product === 'string' ? product : product?.id || null,
-              productName: typeof product === 'object' && product && !product.deleted ? product.name : null,
+              productId,
+              // productName will be looked up from stripe_products collection when displaying
+              productName: null,
             };
           }) || [];
 
