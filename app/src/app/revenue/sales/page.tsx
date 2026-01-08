@@ -76,7 +76,6 @@ export default function SalesPage() {
   }, [viewMode, selectedYear]);
 
   useEffect(() => {
-    console.log("[Sales] organizationId:", organizationId);
     if (!organizationId) {
       setLoading(false);
       return;
@@ -87,40 +86,59 @@ export default function SalesPage() {
 
   const fetchRevenueData = async () => {
     setLoading(true);
-    console.log("[Sales] Fetching revenue data for org:", organizationId);
     try {
       const rows: RevenueRow[] = [];
       
-      // Fetch Stripe products and their revenue
+      // Step 1: Fetch subscriptions to build subscription → product mapping
+      const subscriptionsQuery = query(
+        collection(db, "stripe_subscriptions"),
+        where("organizationId", "==", organizationId)
+      );
+      const subsSnap = await getDocs(subscriptionsQuery);
+      
+      // Map: subscriptionId → array of {productId, productName, ratio}
+      const subscriptionProducts = new Map<string, Array<{productId: string; productName: string; ratio: number}>>();
+      
+      subsSnap.docs.forEach(doc => {
+        const sub = doc.data();
+        const subId = sub.stripeId;
+        const items = sub.items || [];
+        
+        // Calculate total for this subscription to get ratios
+        const totalAmount = items.reduce((sum: number, item: any) => sum + (item.unitAmount || 0) * (item.quantity || 1), 0);
+        
+        const productInfos = items.map((item: any) => ({
+          productId: item.productId || "unknown",
+          productName: item.productName || "Unknown Product",
+          ratio: totalAmount > 0 ? ((item.unitAmount || 0) * (item.quantity || 1)) / totalAmount : 1 / items.length,
+        }));
+        
+        subscriptionProducts.set(subId, productInfos);
+      });
+
+      // Step 2: Fetch products as fallback
       const productsQuery = query(
         collection(db, "stripe_products"),
         where("organizationId", "==", organizationId)
       );
       const productsSnap = await getDocs(productsQuery);
-      console.log("[Sales] Products found:", productsSnap.size);
       const products = new Map<string, string>();
       productsSnap.docs.forEach(doc => {
         const data = doc.data();
         products.set(data.stripeId, data.name);
       });
 
-      // Fetch Stripe payments with line items
+      // Step 3: Fetch payments
       const paymentsQuery = query(
         collection(db, "stripe_payments"),
         where("organizationId", "==", organizationId),
         where("status", "==", "succeeded")
       );
       const paymentsSnap = await getDocs(paymentsQuery);
-      console.log("[Sales] Payments found:", paymentsSnap.size);
       
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
-      
-      // Calculate date range for filtering
       const monthsSet = new Set(months);
-      
-      let paymentsWithLineItems = 0;
-      let paymentsWithoutLineItems = 0;
       
       paymentsSnap.docs.forEach(doc => {
         const payment = doc.data();
@@ -130,14 +148,36 @@ export default function SalesPage() {
         // Only include payments within the selected date range
         if (!monthsSet.has(monthKey)) return;
         
-        // If payment has line items with product info, use those
-        if (payment.lineItems && payment.lineItems.length > 0) {
-          paymentsWithLineItems++;
+        const amount = (payment.amount || 0) / 100; // cents to dollars
+        
+        // Strategy 1: Use subscriptionId to get product attribution
+        if (payment.subscriptionId && subscriptionProducts.has(payment.subscriptionId)) {
+          const productInfos = subscriptionProducts.get(payment.subscriptionId)!;
+          
+          productInfos.forEach(info => {
+            const productAmount = amount * info.ratio;
+            
+            if (!productRevenue.has(info.productId)) {
+              productRevenue.set(info.productId, {
+                productId: info.productId,
+                productName: info.productName,
+                source: "stripe",
+                months: {},
+                total: 0,
+              });
+            }
+            
+            const row = productRevenue.get(info.productId)!;
+            row.months[monthKey] = (row.months[monthKey] || 0) + productAmount;
+            row.total += productAmount;
+          });
+        }
+        // Strategy 2: Use line items if available
+        else if (payment.lineItems && payment.lineItems.length > 0) {
           payment.lineItems.forEach((item: any) => {
             const productId = item.productId || "unknown";
-            // Priority: productName from line item, then from products collection, then description
             const productName = item.productName || products.get(productId) || item.description || "Unknown Product";
-            const amount = (item.amount || 0) / 100; // Convert cents to dollars
+            const itemAmount = (item.amount || 0) / 100;
             
             if (!productRevenue.has(productId)) {
               productRevenue.set(productId, {
@@ -150,15 +190,14 @@ export default function SalesPage() {
             }
             
             const row = productRevenue.get(productId)!;
-            row.months[monthKey] = (row.months[monthKey] || 0) + amount;
-            row.total += amount;
+            row.months[monthKey] = (row.months[monthKey] || 0) + itemAmount;
+            row.total += itemAmount;
           });
-        } else {
-          paymentsWithoutLineItems++;
-          // Fallback: aggregate as "Other Stripe Revenue"
+        }
+        // Strategy 3: Fallback to "Other"
+        else {
           const productId = "stripe-other";
           const productName = payment.description || "Other Stripe Revenue";
-          const amount = (payment.amount || 0) / 100;
           
           if (!productRevenue.has(productId)) {
             productRevenue.set(productId, {
@@ -176,28 +215,13 @@ export default function SalesPage() {
         }
       });
 
-      // Fetch subscriptions for MRR breakdown
-      const subscriptionsQuery = query(
-        collection(db, "stripe_subscriptions"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "active")
-      );
-      const subsSnap = await getDocs(subscriptionsQuery);
-      
-      // TODO: Add QuickBooks invoices when integrated
-      // TODO: Add Square transactions when integrated
-      
-      console.log("[Sales] Payments with line items:", paymentsWithLineItems);
-      console.log("[Sales] Payments without line items (Other):", paymentsWithoutLineItems);
-      
       // Convert map to array and sort by total revenue
       rows.push(...Array.from(productRevenue.values()));
       rows.sort((a, b) => b.total - a.total);
       
-      console.log("[Sales] Final rows:", rows.length, rows);
       setRevenueData(rows);
     } catch (error) {
-      console.error("[Sales] Error fetching revenue data:", error);
+      console.error("Error fetching revenue data:", error);
     } finally {
       setLoading(false);
     }
