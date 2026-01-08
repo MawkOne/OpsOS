@@ -18,6 +18,7 @@ import {
   ExternalLink,
   BarChart3,
   Globe,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -29,6 +30,12 @@ interface GoogleAnalyticsConnection {
   lastSyncAt?: { toDate: () => Date };
   propertyId?: string;
   propertyName?: string;
+}
+
+interface ActiveCampaignConnection {
+  status: "connected" | "disconnected" | "syncing" | "error";
+  lastSyncAt?: { toDate: () => Date };
+  accountName?: string;
 }
 
 interface MarketingMetrics {
@@ -43,6 +50,7 @@ interface MarketingMetrics {
 export default function MarketingDashboard() {
   const { currentOrg } = useOrganization();
   const [gaConnection, setGaConnection] = useState<GoogleAnalyticsConnection | null>(null);
+  const [acConnection, setAcConnection] = useState<ActiveCampaignConnection | null>(null);
   const [metrics, setMetrics] = useState<MarketingMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +63,7 @@ export default function MarketingDashboard() {
       return;
     }
 
-    const unsubscribe = onSnapshot(
+    const unsubscribeGA = onSnapshot(
       doc(db, "ga_connections", organizationId),
       (snapshot) => {
         if (snapshot.exists()) {
@@ -71,12 +79,31 @@ export default function MarketingDashboard() {
       }
     );
 
-    return () => unsubscribe();
+    // Listen to ActiveCampaign connection
+    const unsubscribeAC = onSnapshot(
+      doc(db, "activecampaign_connections", organizationId),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setAcConnection(snapshot.data() as ActiveCampaignConnection);
+        } else {
+          setAcConnection(null);
+        }
+      },
+      (error) => {
+        console.error("Error listening to AC connection:", error);
+      }
+    );
+
+    return () => {
+      unsubscribeGA();
+      unsubscribeAC();
+    };
   }, [organizationId]);
 
   const isGAConnected = gaConnection?.status === "connected";
-  const connectedSourcesCount = isGAConnected ? 1 : 0;
-  const totalSourcesCount = 1; // Just Google Analytics for now
+  const isACConnected = acConnection?.status === "connected";
+  const connectedSourcesCount = (isGAConnected ? 1 : 0) + (isACConnected ? 1 : 0);
+  const totalSourcesCount = 2; // Google Analytics + ActiveCampaign
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -209,30 +236,22 @@ export default function MarketingDashboard() {
               />
             </motion.div>
 
-            {/* Placeholder for future integrations */}
+            {/* ActiveCampaign Card */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.45 }}
+              transition={{ delay: 0.4 }}
             >
-              <Card className="h-full opacity-50">
-                <div className="flex items-start gap-4">
-                  <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#71717a20", color: "#71717a" }}
-                  >
-                    <Globe className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold" style={{ color: "var(--foreground-muted)" }}>More Coming Soon</h3>
-                    </div>
-                    <p className="text-sm" style={{ color: "var(--foreground-subtle)" }}>
-                      Additional marketing integrations like Google Ads, Facebook Ads, and more will be available soon.
-                    </p>
-                  </div>
-                </div>
-              </Card>
+              <SourceCard
+                name="ActiveCampaign"
+                description="Sync contacts, deals, campaigns, and marketing automations"
+                icon={<Mail className="w-6 h-6" />}
+                color="#356AE6"
+                status={isACConnected ? "connected" : acConnection?.status || "disconnected"}
+                href="/marketing/activecampaign"
+                lastSync={acConnection?.lastSyncAt?.toDate()}
+                propertyName={acConnection?.accountName}
+              />
             </motion.div>
           </div>
         </div>
@@ -324,24 +343,26 @@ export default function MarketingDashboard() {
                   </div>
                 </Card>
               </Link>
-              <Card className="opacity-50">
-                <div className="flex items-center gap-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center"
-                    style={{ background: "#71717a20", color: "#71717a" }}
-                  >
-                    <TrendingUp className="w-6 h-6" />
+              <Link href="/marketing/activecampaign">
+                <Card className="hover:border-[var(--accent)] transition-all duration-200 cursor-pointer group">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ background: "#356AE620", color: "#356AE6" }}
+                    >
+                      <Mail className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                        ActiveCampaign
+                      </h4>
+                      <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Email marketing & CRM
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-lg font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                      Campaign Tracking
-                    </h4>
-                    <p className="text-sm" style={{ color: "var(--foreground-subtle)" }}>
-                      Coming soon
-                    </p>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             </div>
           </motion.div>
         )}
