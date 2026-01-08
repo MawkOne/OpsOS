@@ -106,15 +106,25 @@ export default function SalesPage() {
       const monthsSet = new Set(months);
 
       // PRIMARY: Use invoices (have proper line items with product info)
+      // Query all invoices and filter client-side to catch any status variations
       const invoicesQuery = query(
         collection(db, "stripe_invoices"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "paid")
+        where("organizationId", "==", organizationId)
       );
       const invoicesSnap = await getDocs(invoicesQuery);
       
+      console.log(`Found ${invoicesSnap.size} invoices in Firestore`);
+      if (invoicesSnap.size > 0) {
+        console.log('Sample invoice:', invoicesSnap.docs[0].data());
+      }
+      
       invoicesSnap.docs.forEach(doc => {
         const invoice = doc.data();
+        
+        // Only count paid invoices for revenue (case-insensitive check)
+        const status = (invoice.status || '').toLowerCase();
+        if (status !== 'paid') return;
+        
         const invoiceDate = invoice.created?.toDate?.() || new Date();
         const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
