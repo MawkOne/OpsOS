@@ -99,9 +99,12 @@ export default function RevenueDashboard() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      // Calculate TTM date range - trailing 365 days (not calendar months)
+      // Calculate TTM date range - last 12 COMPLETE months (excluding current partial month)
       const now = new Date();
-      const ttmStart = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); // 365 days ago
+      // End of last month (e.g., Dec 31, 2025 if today is Jan 7, 2026)
+      const ttmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      // Start of 12 months before that (e.g., Jan 1, 2025)
+      const ttmStart = new Date(ttmEnd.getFullYear(), ttmEnd.getMonth() - 11, 1);
       
       // Fetch payments
       const paymentsQuery = query(
@@ -122,8 +125,8 @@ export default function RevenueDashboard() {
         
         totalRevenue += amount;
         
-        // Check if within TTM period
-        if (date >= ttmStart) {
+        // Check if within TTM period (last 12 complete months)
+        if (date >= ttmStart && date <= ttmEnd) {
           ttmRevenue += amount;
         }
         
@@ -282,7 +285,7 @@ export default function RevenueDashboard() {
               value={metrics?.ttmRevenue ? formatCurrency(metrics.ttmRevenue) : "—"}
               icon={<CreditCard className="w-5 h-5" />}
               color="#8b5cf6"
-              subtitle="last 365 days"
+              subtitle="last 12 complete months"
             />
           </motion.div>
           <motion.div
