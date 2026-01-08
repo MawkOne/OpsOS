@@ -99,12 +99,12 @@ export default function RevenueDashboard() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      // Calculate TTM date range - last 12 COMPLETE months (excluding current partial month)
+      // Calculate TTM date range - rolling 12 months from today
       const now = new Date();
-      // End of last month (e.g., Dec 31, 2025 if today is Jan 7, 2026)
-      const ttmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      // Start of 12 months before that (e.g., Jan 1, 2025)
-      const ttmStart = new Date(ttmEnd.getFullYear(), ttmEnd.getMonth() - 11, 1);
+      // Start from the 1st of the month, 12 months ago (e.g., Feb 1, 2025 if today is Jan 7, 2026)
+      const ttmStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      // End is today
+      const ttmEnd = now;
       
       // Fetch payments
       const paymentsQuery = query(
@@ -213,10 +213,13 @@ export default function RevenueDashboard() {
         avgRevenuePerCustomer: totalCustomers > 0 ? ttmRevenue / totalCustomers : 0,
       });
 
-      // Set monthly revenue for chart (last 12 months)
+      // Set monthly revenue for chart - only months within TTM range
+      const ttmStartMonth = `${ttmStart.getFullYear()}-${(ttmStart.getMonth() + 1).toString().padStart(2, "0")}`;
+      const ttmEndMonth = `${ttmEnd.getFullYear()}-${(ttmEnd.getMonth() + 1).toString().padStart(2, "0")}`;
+      
       const sortedMonths = Object.entries(monthlyData)
+        .filter(([month]) => month >= ttmStartMonth && month <= ttmEndMonth)
         .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-12)
         .map(([month, amount]) => ({ month, amount }));
       setMonthlyRevenue(sortedMonths);
 
@@ -285,7 +288,7 @@ export default function RevenueDashboard() {
               value={metrics?.ttmRevenue ? formatCurrency(metrics.ttmRevenue) : "—"}
               icon={<CreditCard className="w-5 h-5" />}
               color="#8b5cf6"
-              subtitle="last 12 complete months"
+              subtitle="rolling 12 months"
             />
           </motion.div>
           <motion.div
