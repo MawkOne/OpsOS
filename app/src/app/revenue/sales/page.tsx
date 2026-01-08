@@ -49,12 +49,13 @@ export default function SalesPage() {
   // Generate months based on view mode
   const { months, monthLabels } = useMemo(() => {
     if (viewMode === "ttm") {
-      // Trailing 12 months from current month
+      // Trailing 12 COMPLETE months (excluding current partial month)
       const now = new Date();
       const ttmMonths: string[] = [];
       const ttmLabels: string[] = [];
       
-      for (let i = 11; i >= 0; i--) {
+      // Start from 12 months ago, end at LAST month (not current month)
+      for (let i = 12; i >= 1; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
         const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });

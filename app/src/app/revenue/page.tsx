@@ -99,12 +99,12 @@ export default function RevenueDashboard() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      // Calculate TTM date range - rolling 12 months from today
+      // Calculate TTM date range - last 12 COMPLETE months (excluding current partial month)
       const now = new Date();
-      // Start from the 1st of the month, 12 months ago (e.g., Feb 1, 2025 if today is Jan 7, 2026)
-      const ttmStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-      // End is today
-      const ttmEnd = now;
+      // Start: 1st of month, 12 months before current month (e.g., Jan 1, 2025 if today is Jan 7, 2026)
+      const ttmStart = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+      // End: last day of PREVIOUS month (e.g., Dec 31, 2025 if today is Jan 7, 2026)
+      const ttmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       
       // Fetch payments
       const paymentsQuery = query(
@@ -213,8 +213,9 @@ export default function RevenueDashboard() {
         avgRevenuePerCustomer: totalCustomers > 0 ? ttmRevenue / totalCustomers : 0,
       });
 
-      // Set monthly revenue for chart - only months within TTM range
+      // Set monthly revenue for chart - only months within TTM range (12 complete months)
       const ttmStartMonth = `${ttmStart.getFullYear()}-${(ttmStart.getMonth() + 1).toString().padStart(2, "0")}`;
+      // ttmEnd is last day of previous month, so get that month
       const ttmEndMonth = `${ttmEnd.getFullYear()}-${(ttmEnd.getMonth() + 1).toString().padStart(2, "0")}`;
       
       const sortedMonths = Object.entries(monthlyData)
@@ -288,7 +289,7 @@ export default function RevenueDashboard() {
               value={metrics?.ttmRevenue ? formatCurrency(metrics.ttmRevenue) : "—"}
               icon={<CreditCard className="w-5 h-5" />}
               color="#8b5cf6"
-              subtitle="rolling 12 months"
+              subtitle="last 12 complete months"
             />
           </motion.div>
           <motion.div
