@@ -36,19 +36,31 @@ export async function POST(request: NextRequest) {
     
     const connectionData = connectionDoc.data();
     
-    // For Stripe Connect OAuth, we use the access token directly
-    // OR use platform secret key with the connected account ID
+    // For Stripe Connect OAuth, we need to use either:
+    // 1. The access token directly (for standard OAuth)
+    // 2. Platform secret key + stripeAccount header (for Connect)
     let stripe: Stripe;
-    let stripeOptions: Stripe.StripeConfig = {
-      apiVersion: '2025-12-15.clover',
-    };
+    const PLATFORM_SECRET = process.env.STRIPE_SECRET_KEY;
     
-    if (connectionData?.accessToken) {
-      // OAuth connection - use access token
-      stripe = new Stripe(connectionData.accessToken, stripeOptions);
+    if (connectionData?.stripeAccountId && PLATFORM_SECRET) {
+      // Best approach: Use platform secret with connected account ID
+      console.log('Using platform secret with stripeAccount:', connectionData.stripeAccountId);
+      stripe = new Stripe(PLATFORM_SECRET, {
+        apiVersion: '2025-12-15.clover',
+        stripeAccount: connectionData.stripeAccountId,
+      });
+    } else if (connectionData?.accessToken) {
+      // Fallback: OAuth access token directly
+      console.log('Using OAuth access token directly');
+      stripe = new Stripe(connectionData.accessToken, {
+        apiVersion: '2025-12-15.clover',
+      });
     } else if (connectionData?.apiKey) {
       // Legacy API key connection
-      stripe = new Stripe(connectionData.apiKey, stripeOptions);
+      console.log('Using legacy API key');
+      stripe = new Stripe(connectionData.apiKey, {
+        apiVersion: '2025-12-15.clover',
+      });
     } else {
       return NextResponse.json(
         { error: 'No valid Stripe credentials found. Please reconnect your Stripe account.' },
