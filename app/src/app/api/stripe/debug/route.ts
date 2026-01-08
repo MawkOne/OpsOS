@@ -63,11 +63,33 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Sample invoices (key for product attribution)
+    const invoicesQuery = query(
+      collection(db, 'stripe_invoices'),
+      where('organizationId', '==', organizationId),
+      limit(10)
+    );
+    const invoicesSnap = await getDocs(invoicesQuery);
+    const invoices = invoicesSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        stripeId: data.stripeId,
+        amount: data.amount,
+        status: data.status,
+        hasLineItems: !!(data.lineItems && data.lineItems.length > 0),
+        lineItemsCount: data.lineItems?.length || 0,
+        lineItems: data.lineItems || [],
+        subscriptionId: data.subscriptionId,
+      };
+    });
+
     // Counts
     const counts = {
       products: productsSnap.size,
       payments: paymentsSnap.size,
       subscriptions: subsSnap.size,
+      invoices: invoicesSnap.size,
     };
 
     return NextResponse.json({
@@ -75,6 +97,7 @@ export async function GET(request: NextRequest) {
       products,
       payments,
       subscriptions,
+      invoices,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
