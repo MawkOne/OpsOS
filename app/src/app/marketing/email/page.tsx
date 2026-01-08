@@ -19,10 +19,11 @@ import {
   AlertCircle,
   Loader2,
   Zap,
+  Users,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, getCountFromServer } from "firebase/firestore";
 import Link from "next/link";
 
 interface CampaignData {
@@ -77,6 +78,7 @@ export default function EmailPage() {
   const [loading, setLoading] = useState(true);
   const [monthlyData, setMonthlyData] = useState<MonthlyEmailData[]>([]);
   const [topCampaigns, setTopCampaigns] = useState<CampaignData[]>([]);
+  const [totalContacts, setTotalContacts] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("sent");
@@ -134,6 +136,14 @@ export default function EmailPage() {
         }
         
         setIsConnected(true);
+
+        // Fetch contacts count
+        const contactsQuery = query(
+          collection(db, "activecampaign_contacts"),
+          where("organizationId", "==", organizationId)
+        );
+        const contactsCount = await getCountFromServer(contactsQuery);
+        setTotalContacts(contactsCount.data().count);
 
         // Fetch campaigns from Firestore
         const campaignsQuery = query(
@@ -274,11 +284,11 @@ export default function EmailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <Card>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Campaigns</span>
-              <Mail className="w-4 h-4" style={{ color: "#356AE6" }} />
+              <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Contacts</span>
+              <Users className="w-4 h-4" style={{ color: "#356AE6" }} />
             </div>
             <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
-              {formatNumber(totals.campaigns)}
+              {formatNumber(totalContacts)}
             </p>
           </Card>
           
