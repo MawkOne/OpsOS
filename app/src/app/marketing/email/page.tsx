@@ -54,6 +54,11 @@ interface MonthlyEmailData {
   campaigns: number;
 }
 
+interface ContactCount {
+  date: string;
+  count: number;
+}
+
 type ViewMode = "ttm" | "year";
 type MetricType = "sent" | "opens" | "clicks" | "openRate" | "clickRate" | "unsubscribes" | "campaigns";
 
@@ -79,6 +84,7 @@ export default function EmailPage() {
   const [monthlyData, setMonthlyData] = useState<MonthlyEmailData[]>([]);
   const [topCampaigns, setTopCampaigns] = useState<CampaignData[]>([]);
   const [totalContacts, setTotalContacts] = useState(0);
+  const [contactHistory, setContactHistory] = useState<ContactCount[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("sent");
@@ -144,6 +150,29 @@ export default function EmailPage() {
         );
         const contactsCount = await getCountFromServer(contactsQuery);
         setTotalContacts(contactsCount.data().count);
+
+        // Fetch contact count history
+        const contactHistoryQuery = query(
+          collection(db, "activecampaign_contact_counts"),
+          where("organizationId", "==", organizationId)
+        );
+        const contactHistorySnap = await getDocs(contactHistoryQuery);
+        const history: ContactCount[] = [];
+        contactHistorySnap.docs.forEach(doc => {
+          const data = doc.data();
+          history.push({
+            date: data.date,
+            count: data.count,
+          });
+        });
+        // Sort by date
+        history.sort((a, b) => a.date.localeCompare(b.date));
+        setContactHistory(history);
+
+        // If we have history, use the latest count
+        if (history.length > 0) {
+          setTotalContacts(history[history.length - 1].count);
+        }
 
         // Fetch campaigns from Firestore
         const campaignsQuery = query(
@@ -243,6 +272,16 @@ export default function EmailPage() {
   const overallOpenRate = totals.sent > 0 ? (totals.opens / totals.sent) * 100 : 0;
   const overallClickRate = totals.sent > 0 ? (totals.clicks / totals.sent) * 100 : 0;
 
+  // Calculate contact growth
+  const contactGrowth = useMemo(() => {
+    if (contactHistory.length < 2) return { amount: 0, percent: 0 };
+    const latest = contactHistory[contactHistory.length - 1].count;
+    const previous = contactHistory[0].count;
+    const amount = latest - previous;
+    const percent = previous > 0 ? ((latest - previous) / previous) * 100 : 0;
+    return { amount, percent };
+  }, [contactHistory]);
+
   if (loading) {
     return (
       <AppLayout title="Email Marketing" subtitle="Campaign performance and engagement analytics">
@@ -290,6 +329,12 @@ export default function EmailPage() {
             <p className="text-2xl font-bold" style={{ color: "#356AE6" }}>
               {formatNumber(totalContacts)}
             </p>
+            {contactGrowth.amount !== 0 && (
+              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: contactGrowth.amount > 0 ? "#10b981" : "#ef4444" }}>
+                {contactGrowth.amount > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {contactGrowth.amount > 0 ? "+" : ""}{formatNumber(contactGrowth.amount)} ({contactGrowth.percent.toFixed(1)}%)
+              </p>
+            )}
           </Card>
           
           <Card>

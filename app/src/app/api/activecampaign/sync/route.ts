@@ -67,8 +67,34 @@ export async function POST(request: NextRequest) {
       campaigns: 0,
       automations: 0,
       lists: 0,
+      totalContacts: 0,
       errors: [] as string[],
     };
+
+    // Get total contacts count from API and store it with date
+    try {
+      // ActiveCampaign returns total in meta when fetching contacts
+      const countResponse = await acRequest(apiUrl, apiKey, 'contacts', { limit: '1' });
+      if (countResponse.ok) {
+        const data = await countResponse.json();
+        const totalContacts = parseInt(data.meta?.total) || 0;
+        results.totalContacts = totalContacts;
+        
+        // Store daily contact count
+        const today = new Date();
+        const dateKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+        const countRef = doc(db, 'activecampaign_contact_counts', `${organizationId}_${dateKey}`);
+        await setDoc(countRef, {
+          organizationId,
+          date: dateKey,
+          count: totalContacts,
+          timestamp: serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Unknown error';
+      results.errors.push(`Contact count fetch failed: ${error}`);
+    }
 
     // Sync Contacts (with batching for performance)
     // Note: For very large contact lists, we limit to avoid Vercel timeout
