@@ -99,9 +99,9 @@ export default function RevenueDashboard() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      // Calculate TTM date range
+      // Calculate TTM date range - trailing 365 days (not calendar months)
       const now = new Date();
-      const ttmStart = new Date(now.getFullYear(), now.getMonth() - 11, 1); // 12 months ago
+      const ttmStart = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); // 365 days ago
       
       // Fetch payments
       const paymentsQuery = query(
@@ -282,7 +282,7 @@ export default function RevenueDashboard() {
               value={metrics?.ttmRevenue ? formatCurrency(metrics.ttmRevenue) : "—"}
               icon={<CreditCard className="w-5 h-5" />}
               color="#8b5cf6"
-              subtitle="trailing 12 months"
+              subtitle="last 365 days"
             />
           </motion.div>
           <motion.div
