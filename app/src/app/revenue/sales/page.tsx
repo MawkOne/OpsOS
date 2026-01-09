@@ -43,6 +43,7 @@ export default function SalesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [planFilter, setPlanFilter] = useState<string>("all"); // "all" = summary, or specific productId
   
   const organizationId = currentOrg?.id || "";
 
@@ -226,12 +227,18 @@ export default function SalesPage() {
   };
 
   // Filter by source
-  const filteredData = useMemo(() => {
+  const sourceFilteredData = useMemo(() => {
     if (sourceFilter === "all") return revenueData;
     return revenueData.filter(row => row.source === sourceFilter);
   }, [revenueData, sourceFilter]);
 
-  // Calculate monthly totals
+  // Filter by plan (for display)
+  const filteredData = useMemo(() => {
+    if (planFilter === "all") return sourceFilteredData;
+    return sourceFilteredData.filter(row => row.productId === planFilter);
+  }, [sourceFilteredData, planFilter]);
+
+  // Calculate monthly totals (always based on source-filtered data for summary)
   const monthlyTotals = useMemo(() => {
     const totals: MonthlyTotal[] = months.map(month => ({
       month,
@@ -239,7 +246,9 @@ export default function SalesPage() {
       bySource: {},
     }));
     
-    filteredData.forEach(row => {
+    // Use sourceFilteredData for summary totals
+    const dataToSum = planFilter === "all" ? sourceFilteredData : filteredData;
+    dataToSum.forEach(row => {
       months.forEach((month, idx) => {
         const amount = row.months[month] || 0;
         totals[idx].total += amount;
@@ -248,12 +257,13 @@ export default function SalesPage() {
     });
     
     return totals;
-  }, [filteredData, months]);
+  }, [sourceFilteredData, filteredData, planFilter, months]);
 
   // Calculate period total (TTM or year)
   const periodTotal = useMemo(() => {
-    return filteredData.reduce((sum, row) => sum + row.total, 0);
-  }, [filteredData]);
+    const dataToSum = planFilter === "all" ? sourceFilteredData : filteredData;
+    return dataToSum.reduce((sum, row) => sum + row.total, 0);
+  }, [sourceFilteredData, filteredData, planFilter]);
 
   // Calculate YoY growth (placeholder - would need previous year data)
   const yoyGrowth = 0; // TODO: Calculate when historical data available
@@ -394,9 +404,30 @@ export default function SalesPage() {
                 </div>
               )}
 
-              {/* Source Filter */}
+              {/* Plan Filter */}
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                <select
+                  value={planFilter}
+                  onChange={(e) => setPlanFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-sm min-w-[180px]"
+                  style={{
+                    background: "var(--background-tertiary)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <option value="all">All Revenue (Summary)</option>
+                  {revenueData.map(row => (
+                    <option key={row.productId} value={row.productId}>
+                      {row.productName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Source Filter */}
+              <div className="flex items-center gap-2">
                 <select
                   value={sourceFilter}
                   onChange={(e) => setSourceFilter(e.target.value)}
@@ -410,8 +441,6 @@ export default function SalesPage() {
                   <option value="all">All Sources</option>
                   <option value="stripe">Stripe</option>
                   <option value="quickbooks">QuickBooks</option>
-                  <option value="square">Square</option>
-                  <option value="manual">Manual</option>
                 </select>
               </div>
             </div>
@@ -437,7 +466,7 @@ export default function SalesPage() {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
             </div>
-          ) : filteredData.length === 0 ? (
+          ) : sourceFilteredData.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--foreground-muted)" }} />
               <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--foreground)" }}>
@@ -456,15 +485,17 @@ export default function SalesPage() {
                       className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
                       style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
                     >
-                      Product / Plan
+                      {planFilter === "all" ? "Revenue" : "Product / Plan"}
                     </th>
-                    <th 
-                      className="text-center py-3 px-2 text-sm font-semibold"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Source
-                    </th>
-                    {monthLabels.map((label, idx) => (
+                    {planFilter !== "all" && (
+                      <th 
+                        className="text-center py-3 px-2 text-sm font-semibold"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        Source
+                      </th>
+                    )}
+                    {monthLabels.map((label) => (
                       <th 
                         key={label}
                         className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
@@ -482,79 +513,96 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((row, idx) => (
+                  {planFilter === "all" ? (
+                    /* Summary Row - Show Total Only */
                     <motion.tr
-                      key={row.productId}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.02 }}
                       style={{ borderBottom: "1px solid var(--border)" }}
                       className="hover:bg-[var(--background-tertiary)] transition-colors"
                     >
                       <td 
-                        className="py-3 px-4 text-sm font-medium sticky left-0"
+                        className="py-4 px-4 text-sm font-bold sticky left-0"
                         style={{ color: "var(--foreground)", background: "inherit" }}
                       >
-                        {row.productName}
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        <div className="flex items-center justify-center">
-                          {getSourceIcon(row.source)}
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-10 h-10 rounded-lg flex items-center justify-center"
+                            style={{ background: "rgba(16, 185, 129, 0.15)" }}
+                          >
+                            <DollarSign className="w-5 h-5" style={{ color: "#10b981" }} />
+                          </div>
+                          <div>
+                            <span className="block">Total Revenue</span>
+                            <span className="text-xs font-normal" style={{ color: "var(--foreground-muted)" }}>
+                              {sourceFilteredData.length} products
+                            </span>
+                          </div>
                         </div>
                       </td>
-                      {months.map(month => {
-                        const amount = row.months[month] || 0;
-                        return (
-                          <td 
-                            key={month}
-                            className="py-3 px-3 text-sm text-right tabular-nums"
-                            style={{ 
-                              color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)",
-                            }}
-                          >
-                            {amount > 0 ? formatCurrency(amount) : "—"}
-                          </td>
-                        );
-                      })}
+                      {monthlyTotals.map((mt) => (
+                        <td 
+                          key={mt.month}
+                          className="py-4 px-3 text-sm text-right font-semibold tabular-nums"
+                          style={{ color: mt.total > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
+                        >
+                          {mt.total > 0 ? formatCurrency(mt.total) : "—"}
+                        </td>
+                      ))}
                       <td 
-                        className="py-3 px-4 text-sm text-right font-semibold tabular-nums"
+                        className="py-4 px-4 text-sm text-right font-bold tabular-nums"
                         style={{ color: "#10b981" }}
                       >
-                        {formatCurrency(row.total)}
+                        {formatCurrency(periodTotal)}
                       </td>
                     </motion.tr>
-                  ))}
-                  
-                  {/* Totals Row */}
-                  <tr 
-                    style={{ 
-                      borderTop: "2px solid var(--border)",
-                      background: "var(--background-tertiary)",
-                    }}
-                  >
-                    <td 
-                      className="py-3 px-4 text-sm font-bold sticky left-0"
-                      style={{ color: "var(--foreground)", background: "var(--background-tertiary)" }}
-                    >
-                      Total
-                    </td>
-                    <td></td>
-                    {monthlyTotals.map((mt, idx) => (
-                      <td 
-                        key={mt.month}
-                        className="py-3 px-3 text-sm text-right font-bold tabular-nums"
-                        style={{ color: "var(--foreground)" }}
-                      >
-                        {mt.total > 0 ? formatCurrency(mt.total) : "—"}
-                      </td>
-                    ))}
-                    <td 
-                      className="py-3 px-4 text-sm text-right font-bold tabular-nums"
-                      style={{ color: "#10b981" }}
-                    >
-                      {formatCurrency(periodTotal)}
-                    </td>
-                  </tr>
+                  ) : (
+                    /* Individual Plan Rows */
+                    <>
+                      {filteredData.map((row, idx) => (
+                        <motion.tr
+                          key={row.productId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.02 }}
+                          style={{ borderBottom: "1px solid var(--border)" }}
+                          className="hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          <td 
+                            className="py-3 px-4 text-sm font-medium sticky left-0"
+                            style={{ color: "var(--foreground)", background: "inherit" }}
+                          >
+                            {row.productName}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <div className="flex items-center justify-center">
+                              {getSourceIcon(row.source)}
+                            </div>
+                          </td>
+                          {months.map(month => {
+                            const amount = row.months[month] || 0;
+                            return (
+                              <td 
+                                key={month}
+                                className="py-3 px-3 text-sm text-right tabular-nums"
+                                style={{ 
+                                  color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)",
+                                }}
+                              >
+                                {amount > 0 ? formatCurrency(amount) : "—"}
+                              </td>
+                            );
+                          })}
+                          <td 
+                            className="py-3 px-4 text-sm text-right font-semibold tabular-nums"
+                            style={{ color: "#10b981" }}
+                          >
+                            {formatCurrency(row.total)}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>
