@@ -34,7 +34,7 @@ interface MonthlyTotal {
   bySource: Record<string, number>;
 }
 
-type ViewMode = "ttm" | "year";
+type ViewMode = "ttm" | "year" | "all";
 
 type GroupBy = "type" | "plan";
 
@@ -59,8 +59,20 @@ export default function SalesPage() {
   const organizationId = currentOrg?.id || "";
 
   // Generate months based on view mode
-  const { months, monthLabels } = useMemo(() => {
-    if (viewMode === "ttm") {
+  const { months, monthLabels, isAllTime } = useMemo(() => {
+    if (viewMode === "all") {
+      // All time - generate years from 2018 to current year
+      const currentYear = new Date().getFullYear();
+      const allYears: string[] = [];
+      const allLabels: string[] = [];
+      
+      for (let year = 2018; year <= currentYear; year++) {
+        allYears.push(year.toString());
+        allLabels.push(year.toString());
+      }
+      
+      return { months: allYears, monthLabels: allLabels, isAllTime: true };
+    } else if (viewMode === "ttm") {
       // Trailing 12 COMPLETE months (excluding current partial month)
       const now = new Date();
       const ttmMonths: string[] = [];
@@ -75,7 +87,7 @@ export default function SalesPage() {
         ttmLabels.push(label);
       }
       
-      return { months: ttmMonths, monthLabels: ttmLabels };
+      return { months: ttmMonths, monthLabels: ttmLabels, isAllTime: false };
     } else {
       // Calendar year
       const yearMonths = Array.from({ length: 12 }, (_, i) => {
@@ -83,7 +95,7 @@ export default function SalesPage() {
         return `${selectedYear}-${month}`;
       });
       const yearLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      return { months: yearMonths, monthLabels: yearLabels };
+      return { months: yearMonths, monthLabels: yearLabels, isAllTime: false };
     }
   }, [viewMode, selectedYear]);
 
@@ -153,9 +165,12 @@ export default function SalesPage() {
         if (invoice.status !== 'paid') return;
         
         const invoiceDate = invoice.created?.toDate?.() || new Date();
-        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        // For all time view, use year as key; otherwise use YYYY-MM
+        const periodKey = isAllTime 
+          ? invoiceDate.getFullYear().toString()
+          : `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
-        if (!monthsSet.has(monthKey)) return;
+        if (!monthsSet.has(periodKey)) return;
         
         // Determine type: has subscriptionId = subscription, otherwise one-time
         const hasSubscription = !!invoice.subscriptionId;
@@ -194,7 +209,7 @@ export default function SalesPage() {
             const amount = (item.amount || 0) / 100;
             
             // Add to type totals
-            typeRevenue[revenueType].months[monthKey] = (typeRevenue[revenueType].months[monthKey] || 0) + amount;
+            typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
             typeRevenue[revenueType].total += amount;
             
             // Add to product totals
@@ -209,7 +224,7 @@ export default function SalesPage() {
             }
             
             const row = productRevenue.get(productId)!;
-            row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+            row.months[periodKey] = (row.months[periodKey] || 0) + amount;
             row.total += amount;
           });
         } else {
@@ -217,7 +232,7 @@ export default function SalesPage() {
           const amount = (invoice.amount || 0) / 100;
           
           // Add to type totals
-          typeRevenue[revenueType].months[monthKey] = (typeRevenue[revenueType].months[monthKey] || 0) + amount;
+          typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
           typeRevenue[revenueType].total += amount;
           
           // Add to product totals
@@ -235,7 +250,7 @@ export default function SalesPage() {
           }
           
           const row = productRevenue.get(productId)!;
-          row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+          row.months[periodKey] = (row.months[periodKey] || 0) + amount;
           row.total += amount;
         }
       });
@@ -254,14 +269,16 @@ export default function SalesPage() {
         if (payment.invoiceId) return;
         
         const paymentDate = payment.created?.toDate?.() || new Date();
-        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        const periodKey = isAllTime 
+          ? paymentDate.getFullYear().toString()
+          : `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
-        if (!monthsSet.has(monthKey)) return;
+        if (!monthsSet.has(periodKey)) return;
         
         const amount = (payment.amount || 0) / 100;
         
         // Direct charges without invoices = one-time
-        typeRevenue.one_time.months[monthKey] = (typeRevenue.one_time.months[monthKey] || 0) + amount;
+        typeRevenue.one_time.months[periodKey] = (typeRevenue.one_time.months[periodKey] || 0) + amount;
         typeRevenue.one_time.total += amount;
         
         const productId = payment.description || "stripe-other";
@@ -278,7 +295,7 @@ export default function SalesPage() {
         }
         
         const row = productRevenue.get(productId)!;
-        row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+        row.months[periodKey] = (row.months[periodKey] || 0) + amount;
         row.total += amount;
       });
 
@@ -292,14 +309,16 @@ export default function SalesPage() {
       qbInvoicesSnap.docs.forEach(doc => {
         const invoice = doc.data();
         const invoiceDate = invoice.txnDate?.toDate?.() || invoice.created?.toDate?.() || new Date();
-        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        const periodKey = isAllTime 
+          ? invoiceDate.getFullYear().toString()
+          : `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
-        if (!monthsSet.has(monthKey)) return;
+        if (!monthsSet.has(periodKey)) return;
         
         const amount = invoice.totalAmt || invoice.amount || 0;
         
         // Add to invoice type (QuickBooks = manual invoices)
-        typeRevenue.invoice.months[monthKey] = (typeRevenue.invoice.months[monthKey] || 0) + amount;
+        typeRevenue.invoice.months[periodKey] = (typeRevenue.invoice.months[periodKey] || 0) + amount;
         typeRevenue.invoice.total += amount;
         
         // Add to product totals
@@ -317,7 +336,7 @@ export default function SalesPage() {
         }
         
         const row = productRevenue.get(productId)!;
-        row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+        row.months[periodKey] = (row.months[periodKey] || 0) + amount;
         row.total += amount;
       });
 
@@ -420,7 +439,7 @@ export default function SalesPage() {
           <Card>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                {viewMode === "ttm" ? "TTM Revenue" : `${selectedYear} Revenue`}
+                {viewMode === "all" ? "All Time Revenue" : viewMode === "ttm" ? "TTM Revenue" : `${selectedYear} Revenue`}
               </span>
               <DollarSign className="w-4 h-4" style={{ color: "#10b981" }} />
             </div>
@@ -470,6 +489,16 @@ export default function SalesPage() {
             <div className="flex items-center gap-4">
               {/* View Mode Toggle */}
               <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+                <button
+                  onClick={() => setViewMode("all")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: viewMode === "all" ? "var(--accent)" : "transparent",
+                    color: viewMode === "all" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  All Time
+                </button>
                 <button
                   onClick={() => setViewMode("ttm")}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
