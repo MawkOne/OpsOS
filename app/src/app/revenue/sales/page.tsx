@@ -124,39 +124,53 @@ export default function SalesPage() {
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
 
-      // PRIMARY: Use stripe_payments (has subscriptionId and lineItems)
-      const paymentsQuery = query(
-        collection(db, "stripe_payments"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "succeeded")
+      // PRIMARY: Use stripe_invoices (most Stripe accounts use invoicing for subscriptions)
+      const invoicesQuery = query(
+        collection(db, "stripe_invoices"),
+        where("organizationId", "==", organizationId)
       );
-      const paymentsSnap = await getDocs(paymentsQuery);
+      const invoicesSnap = await getDocs(invoicesQuery);
       
-      paymentsSnap.docs.forEach(doc => {
-        const payment = doc.data();
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
         
-        const paymentDate = payment.created?.toDate?.() || new Date();
-        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        // Only count paid invoices
+        if (invoice.status !== 'paid') return;
+        
+        const invoiceDate = invoice.created?.toDate?.() || new Date();
+        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
         if (!monthsSet.has(monthKey)) return;
         
         // Determine type: has subscriptionId = subscription, otherwise one-time
-        const hasSubscription = !!payment.subscriptionId;
-        const revenueType = hasSubscription ? "subscription" : "one_time";
-        
-        const lineItems = payment.lineItems || [];
+        const hasSubscription = !!invoice.subscriptionId;
+        // Also check if description mentions subscription patterns
+        const lineItems = invoice.lineItems || [];
+        const looksLikeSubscription = lineItems.some((item: any) => 
+          item.description && (item.description.includes('/ month') || item.description.includes('/ year'))
+        );
+        const revenueType = (hasSubscription || looksLikeSubscription) ? "subscription" : "one_time";
         
         if (lineItems.length > 0) {
           // Use line items for product attribution
           lineItems.forEach((item: any) => {
-            const productId = item.productId || item.description || "unknown";
-            // Try to get product name from: products lookup > lineItem description > fallback
-            let productName = products.get(item.productId) || item.description || "Unknown Product";
-            // Clean up description like "1 × Business (at $249.00 / month)" to just "Business"
+            // Extract product name from description like "1 × Agency (at $50.00 / month)"
+            let productName = item.description || "Unknown Product";
+            let productId = item.productId || item.description || "unknown";
+            
             if (item.description) {
               const match = item.description.match(/^\d+\s*×\s*(.+?)\s*\(at/);
-              if (match) productName = match[1].trim();
+              if (match) {
+                productName = match[1].trim();
+                productId = productName.toLowerCase().replace(/\s+/g, '-');
+              }
             }
+            
+            // Try to get from products lookup
+            if (item.productId && products.has(item.productId)) {
+              productName = products.get(item.productId)!;
+            }
+            
             const amount = (item.amount || 0) / 100;
             
             // Add to type totals
@@ -179,16 +193,16 @@ export default function SalesPage() {
             row.total += amount;
           });
         } else {
-          // No line items - use payment amount directly
-          const amount = (payment.amount || 0) / 100;
+          // No line items - use invoice amount directly
+          const amount = (invoice.amount || 0) / 100;
           
           // Add to type totals
           typeRevenue[revenueType].months[monthKey] = (typeRevenue[revenueType].months[monthKey] || 0) + amount;
           typeRevenue[revenueType].total += amount;
           
           // Add to product totals
-          const productId = payment.description || "stripe-other";
-          const productName = payment.description || "Other Stripe Revenue";
+          const productId = "stripe-other";
+          const productName = "Other Stripe Revenue";
           
           if (!productRevenue.has(productId)) {
             productRevenue.set(productId, {
@@ -204,6 +218,48 @@ export default function SalesPage() {
           row.months[monthKey] = (row.months[monthKey] || 0) + amount;
           row.total += amount;
         }
+      });
+      
+      // SECONDARY: Also check stripe_payments for direct charges (if any)
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
+      );
+      const paymentsSnap = await getDocs(paymentsQuery);
+      
+      paymentsSnap.docs.forEach(doc => {
+        const payment = doc.data();
+        // Skip if this payment has an invoice (already counted above)
+        if (payment.invoiceId) return;
+        
+        const paymentDate = payment.created?.toDate?.() || new Date();
+        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        if (!monthsSet.has(monthKey)) return;
+        
+        const amount = (payment.amount || 0) / 100;
+        
+        // Direct charges without invoices = one-time
+        typeRevenue.one_time.months[monthKey] = (typeRevenue.one_time.months[monthKey] || 0) + amount;
+        typeRevenue.one_time.total += amount;
+        
+        const productId = payment.description || "stripe-other";
+        const productName = payment.description || "One-time Payment";
+        
+        if (!productRevenue.has(productId)) {
+          productRevenue.set(productId, {
+            productId,
+            productName,
+            source: "stripe",
+            months: {},
+            total: 0,
+          });
+        }
+        
+        const row = productRevenue.get(productId)!;
+        row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+        row.total += amount;
       });
 
       // Fetch QuickBooks invoices (manual invoices)
