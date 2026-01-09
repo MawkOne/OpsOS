@@ -234,7 +234,7 @@ export default function InviteAcceptPage() {
         {user ? (
           <button
             onClick={handleAccept}
-            disabled={accepting || emailMismatch}
+            disabled={accepting || !!emailMismatch}
             className="w-full px-6 py-3 rounded-lg font-medium text-white flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: "var(--accent)" }}
           >
