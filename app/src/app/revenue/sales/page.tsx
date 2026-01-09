@@ -124,31 +124,39 @@ export default function SalesPage() {
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
 
-      // Fetch invoices
-      const invoicesQuery = query(
-        collection(db, "stripe_invoices"),
-        where("organizationId", "==", organizationId)
+      // PRIMARY: Use stripe_payments (has subscriptionId and lineItems)
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
       );
-      const invoicesSnap = await getDocs(invoicesQuery);
+      const paymentsSnap = await getDocs(paymentsQuery);
       
-      invoicesSnap.docs.forEach(doc => {
-        const invoice = doc.data();
-        const status = (invoice.status || '').toLowerCase();
-        if (status !== 'paid') return;
+      paymentsSnap.docs.forEach(doc => {
+        const payment = doc.data();
         
-        const invoiceDate = invoice.created?.toDate?.() || new Date();
-        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        const paymentDate = payment.created?.toDate?.() || new Date();
+        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
         if (!monthsSet.has(monthKey)) return;
         
-        const lineItems = invoice.lineItems || [];
-        const hasSubscription = invoice.subscriptionId || lineItems.some((item: any) => item.type === 'subscription');
-        const revenueType = hasSubscription ? "subscription" : "one_time"; // Non-subscription Stripe invoices = one-time
+        // Determine type: has subscriptionId = subscription, otherwise one-time
+        const hasSubscription = !!payment.subscriptionId;
+        const revenueType = hasSubscription ? "subscription" : "one_time";
+        
+        const lineItems = payment.lineItems || [];
         
         if (lineItems.length > 0) {
+          // Use line items for product attribution
           lineItems.forEach((item: any) => {
             const productId = item.productId || item.description || "unknown";
-            const productName = item.productName || products.get(item.productId) || item.description || "Unknown Product";
+            // Try to get product name from: products lookup > lineItem description > fallback
+            let productName = products.get(item.productId) || item.description || "Unknown Product";
+            // Clean up description like "1 × Business (at $249.00 / month)" to just "Business"
+            if (item.description) {
+              const match = item.description.match(/^\d+\s*×\s*(.+?)\s*\(at/);
+              if (match) productName = match[1].trim();
+            }
             const amount = (item.amount || 0) / 100;
             
             // Add to type totals
@@ -171,18 +179,21 @@ export default function SalesPage() {
             row.total += amount;
           });
         } else {
-          const amount = (invoice.amount || 0) / 100;
+          // No line items - use payment amount directly
+          const amount = (payment.amount || 0) / 100;
           
           // Add to type totals
           typeRevenue[revenueType].months[monthKey] = (typeRevenue[revenueType].months[monthKey] || 0) + amount;
           typeRevenue[revenueType].total += amount;
           
-          // Add to product totals as "Other"
-          const productId = "stripe-other";
+          // Add to product totals
+          const productId = payment.description || "stripe-other";
+          const productName = payment.description || "Other Stripe Revenue";
+          
           if (!productRevenue.has(productId)) {
             productRevenue.set(productId, {
               productId,
-              productName: "Other Stripe Revenue",
+              productName,
               source: "stripe",
               months: {},
               total: 0,
@@ -193,49 +204,6 @@ export default function SalesPage() {
           row.months[monthKey] = (row.months[monthKey] || 0) + amount;
           row.total += amount;
         }
-      });
-
-      // Fetch one-time payments (charges without invoices)
-      const paymentsQuery = query(
-        collection(db, "stripe_payments"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "succeeded")
-      );
-      const paymentsSnap = await getDocs(paymentsQuery);
-      
-      paymentsSnap.docs.forEach(doc => {
-        const payment = doc.data();
-        // Skip if this payment has an invoice (already counted)
-        if (payment.invoiceId) return;
-        
-        const paymentDate = payment.created?.toDate?.() || new Date();
-        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
-        
-        if (!monthsSet.has(monthKey)) return;
-        
-        const amount = (payment.amount || 0) / 100;
-        
-        // Add to one-time type
-        typeRevenue.one_time.months[monthKey] = (typeRevenue.one_time.months[monthKey] || 0) + amount;
-        typeRevenue.one_time.total += amount;
-        
-        // Add to product totals
-        const productId = payment.description || "one-time-payment";
-        const productName = payment.description || "One-time Payment";
-        
-        if (!productRevenue.has(productId)) {
-          productRevenue.set(productId, {
-            productId,
-            productName,
-            source: "stripe",
-            months: {},
-            total: 0,
-          });
-        }
-        
-        const row = productRevenue.get(productId)!;
-        row.months[monthKey] = (row.months[monthKey] || 0) + amount;
-        row.total += amount;
       });
 
       // Fetch QuickBooks invoices (manual invoices)
