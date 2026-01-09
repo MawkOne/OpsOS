@@ -467,15 +467,20 @@ export async function POST(request: NextRequest) {
           let lineSubscriptionId: string | null = null;
           
           const lineItems = invoice.lines?.data?.map((line: any) => {
-            // Try to get price from multiple sources
-            const price = line.price || line.plan; // plan is deprecated but might exist
+            // Try multiple sources for price/product data (Stripe API versions vary)
+            // 1. New API: line.pricing.price_details
+            // 2. Legacy: line.price (expanded) or line.plan (deprecated)
+            const pricing = line.pricing?.price_details;
+            const price = line.price || line.plan;
             
-            // Get priceId
-            const priceId = price?.id || null;
+            // Get priceId - try new path first, then legacy
+            const priceId = pricing?.price || price?.id || null;
             
             // Get productId from various possible locations
             let productId: string | null = null;
-            if (price?.product) {
+            if (pricing?.product) {
+              productId = pricing.product;
+            } else if (price?.product) {
               productId = typeof price.product === 'string' 
                 ? price.product 
                 : price.product?.id || null;
@@ -487,8 +492,11 @@ export async function POST(request: NextRequest) {
               productName = price.product.name;
             }
             
-            // Try to get subscription ID from line item
-            if (line.subscription) {
+            // Try to get subscription ID from line item parent
+            const parentSub = line.parent?.subscription_item_details?.subscription;
+            if (parentSub) {
+              lineSubscriptionId = parentSub;
+            } else if (line.subscription) {
               lineSubscriptionId = typeof line.subscription === 'string' 
                 ? line.subscription 
                 : line.subscription;
@@ -498,12 +506,16 @@ export async function POST(request: NextRequest) {
             if (results.invoices === 0 && invoice.lines?.data?.indexOf(line) === 0) {
               console.log('Sample line item structure:', JSON.stringify({
                 description: line.description,
+                amount: line.amount,
+                hasPricing: !!line.pricing,
                 hasPrice: !!line.price,
                 hasPlan: !!line.plan,
+                hasParent: !!line.parent,
                 priceId,
                 productId,
                 productName,
                 subscription: line.subscription,
+                parentSubscription: parentSub,
                 type: line.type,
               }, null, 2));
             }
@@ -520,10 +532,20 @@ export async function POST(request: NextRequest) {
           }) || [];
 
           const invoiceAny = invoice as any;
-          // Get subscription ID from invoice or from line items
-          const subscriptionId = typeof invoiceAny.subscription === 'string' 
-            ? invoiceAny.subscription 
-            : invoiceAny.subscription?.id || lineSubscriptionId;
+          // Get subscription ID from multiple sources:
+          // 1. invoice.subscription (direct)
+          // 2. invoice.parent.subscription_details.subscription (new API)
+          // 3. Line item subscription IDs
+          let subscriptionId: string | null = null;
+          if (invoiceAny.subscription) {
+            subscriptionId = typeof invoiceAny.subscription === 'string' 
+              ? invoiceAny.subscription 
+              : invoiceAny.subscription?.id;
+          } else if (invoiceAny.parent?.subscription_details?.subscription) {
+            subscriptionId = invoiceAny.parent.subscription_details.subscription;
+          } else {
+            subscriptionId = lineSubscriptionId;
+          }
 
           batch.set(invoiceRef, {
             organizationId,
@@ -532,8 +554,12 @@ export async function POST(request: NextRequest) {
             subscriptionId,
             customerId: typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id || null,
             amount: invoice.amount_paid,
+            amountDue: invoice.amount_due,
+            total: invoice.total,
+            subtotal: invoice.subtotal,
             currency: invoice.currency?.toUpperCase() || 'USD',
             status: invoice.status,
+            billingReason: invoiceAny.billing_reason || null, // manual, subscription_create, subscription_cycle, etc.
             created: Timestamp.fromDate(new Date(invoice.created * 1000)),
             periodStart: invoiceAny.period_start ? Timestamp.fromDate(new Date(invoiceAny.period_start * 1000)) : null,
             periodEnd: invoiceAny.period_end ? Timestamp.fromDate(new Date(invoiceAny.period_end * 1000)) : null,
