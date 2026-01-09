@@ -754,22 +754,6 @@ export default function SalesPage() {
           )}
         </Card>
 
-        {/* Source Legend */}
-        <div className="flex items-center gap-6 text-sm" style={{ color: "var(--foreground-muted)" }}>
-          <span className="font-medium">Sources:</span>
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4" style={{ color: "#635BFF" }} />
-            <span>Stripe</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Receipt className="w-4 h-4" style={{ color: "#2CA01C" }} />
-            <span>QuickBooks</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Package className="w-4 h-4" style={{ color: "#006AFF" }} />
-            <span>Square</span>
-          </div>
-        </div>
       </div>
     </AppLayout>
   );
