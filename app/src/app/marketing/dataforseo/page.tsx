@@ -1,0 +1,574 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import AppLayout from "@/components/AppLayout";
+import { motion } from "framer-motion";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import {
+  Search,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Globe,
+  Activity,
+  FileText,
+  AlertTriangle,
+  Loader2,
+  ExternalLink,
+  Zap,
+} from "lucide-react";
+
+interface ConnectionStatus {
+  status: "disconnected" | "connected" | "syncing" | "crawling" | "error";
+  domain?: string;
+  balance?: number;
+  summary?: {
+    pagesAnalyzed: number;
+    averageScore: number;
+    issues: {
+      critical: number;
+      warnings: number;
+      notices: number;
+    };
+    taskId: string;
+  };
+  lastSyncAt?: Date;
+}
+
+export default function DataForSEOPage() {
+  const { currentOrg } = useOrganization();
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
+    status: "disconnected",
+  });
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [domain, setDomain] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [crawlProgress, setCrawlProgress] = useState<{
+    pagesCrawled: number;
+    pagesInQueue: number;
+    maxPages: number;
+  } | null>(null);
+
+  // Listen for connection status changes
+  useEffect(() => {
+    if (!currentOrg?.id) return;
+
+    const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
+    const unsubscribe = onSnapshot(connectionRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setConnectionStatus({
+          status: data.status || "disconnected",
+          domain: data.domain,
+          balance: data.balance,
+          summary: data.summary,
+          lastSyncAt: data.lastSyncAt?.toDate?.(),
+        });
+        if (data.domain) {
+          setDomain(data.domain);
+        }
+      } else {
+        setConnectionStatus({ status: "disconnected" });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentOrg?.id]);
+
+  // Poll for crawl progress when crawling
+  useEffect(() => {
+    if (connectionStatus.status !== "crawling") {
+      setCrawlProgress(null);
+      return;
+    }
+
+    const checkProgress = async () => {
+      try {
+        const response = await fetch("/api/dataforseo/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId: currentOrg?.id,
+            action: "check_status",
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.status === "in_progress") {
+          setCrawlProgress({
+            pagesCrawled: data.pagesCrawled,
+            pagesInQueue: data.pagesInQueue,
+            maxPages: data.maxPages,
+          });
+        } else if (data.success) {
+          setCrawlProgress(null);
+          setIsSyncing(false);
+        }
+      } catch (err) {
+        console.error("Error checking crawl progress:", err);
+      }
+    };
+
+    const interval = setInterval(checkProgress, 5000);
+    checkProgress();
+
+    return () => clearInterval(interval);
+  }, [connectionStatus.status, currentOrg?.id]);
+
+  const handleConnect = async () => {
+    if (!currentOrg?.id || !login || !password || !domain) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    setIsConnecting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/dataforseo/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: currentOrg.id,
+          login,
+          password,
+          domain,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to connect");
+      }
+
+      setLogin("");
+      setPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection failed");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!currentOrg?.id) return;
+
+    try {
+      await fetch("/api/dataforseo/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: currentOrg.id }),
+      });
+    } catch (err) {
+      console.error("Disconnect error:", err);
+    }
+  };
+
+  const handleStartCrawl = useCallback(async () => {
+    if (!currentOrg?.id) return;
+
+    setIsSyncing(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/dataforseo/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: currentOrg.id,
+          action: "start_crawl",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to start crawl");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start crawl");
+      setIsSyncing(false);
+    }
+  }, [currentOrg?.id]);
+
+  const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling";
+
+  return (
+    <AppLayout>
+      <div className="p-8 max-w-6xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
+            >
+              <Search className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                DataForSEO
+              </h1>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                Site health analysis and SEO monitoring
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Connection Status Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-2xl p-6 mb-6"
+          style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+              Connection Status
+            </h2>
+            <div className="flex items-center gap-2">
+              {connectionStatus.status === "connected" && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-green-500/10 text-green-500">
+                  <CheckCircle className="w-4 h-4" />
+                  Connected
+                </span>
+              )}
+              {connectionStatus.status === "crawling" && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-blue-500/10 text-blue-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Crawling
+                </span>
+              )}
+              {connectionStatus.status === "syncing" && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-yellow-500/10 text-yellow-500">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Syncing
+                </span>
+              )}
+              {connectionStatus.status === "error" && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-red-500/10 text-red-500">
+                  <AlertCircle className="w-4 h-4" />
+                  Error
+                </span>
+              )}
+              {connectionStatus.status === "disconnected" && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-gray-500/10 text-gray-500">
+                  <XCircle className="w-4 h-4" />
+                  Not Connected
+                </span>
+              )}
+            </div>
+          </div>
+
+          {!isConnected ? (
+            <div className="space-y-4">
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                Connect your DataForSEO account to analyze your site&apos;s health and SEO performance.
+                Get your API credentials from{" "}
+                <a
+                  href="https://app.dataforseo.com/api-dashboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                >
+                  DataForSEO Dashboard <ExternalLink className="w-3 h-3" />
+                </a>
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                    Login (Email)
+                  </label>
+                  <input
+                    type="email"
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                    API Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Your API password"
+                    className="w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                    Domain to Analyze
+                  </label>
+                  <input
+                    type="text"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="example.com"
+                    className="w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 rounded-lg bg-red-500/10 text-red-500 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={handleConnect}
+                disabled={isConnecting || !login || !password || !domain}
+                className="px-6 py-2.5 rounded-lg font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
+              >
+                {isConnecting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Connecting...
+                  </span>
+                ) : (
+                  "Connect DataForSEO"
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-blue-500" />
+                  <span className="font-medium" style={{ color: "var(--foreground)" }}>
+                    {connectionStatus.domain}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleStartCrawl}
+                    disabled={isSyncing || connectionStatus.status === "crawling"}
+                    className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
+                    style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
+                  >
+                    {connectionStatus.status === "crawling" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Crawling...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        Start Crawl
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-red-500/10 text-red-500"
+                    style={{ border: "1px solid rgba(239, 68, 68, 0.3)" }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+
+              {/* Crawl Progress */}
+              {crawlProgress && (
+                <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      Crawl Progress
+                    </span>
+                    <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                      {crawlProgress.pagesCrawled} / {crawlProgress.maxPages} pages
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-2 rounded-full bg-blue-500 transition-all duration-300"
+                      style={{
+                        width: `${(crawlProgress.pagesCrawled / crawlProgress.maxPages) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {connectionStatus.lastSyncAt && (
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  Last crawl: {connectionStatus.lastSyncAt.toLocaleDateString()} at{" "}
+                  {connectionStatus.lastSyncAt.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Summary Cards */}
+        {isConnected && connectionStatus.summary && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
+          >
+            <div
+              className="rounded-xl p-5"
+              style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-500/10">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                </div>
+                <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                  Pages Analyzed
+                </span>
+              </div>
+              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                {connectionStatus.summary.pagesAnalyzed}
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl p-5"
+              style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-500/10">
+                  <Activity className="w-5 h-5 text-green-500" />
+                </div>
+                <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                  Health Score
+                </span>
+              </div>
+              <p
+                className="text-2xl font-bold"
+                style={{
+                  color:
+                    connectionStatus.summary.averageScore >= 80
+                      ? "#10b981"
+                      : connectionStatus.summary.averageScore >= 60
+                      ? "#f59e0b"
+                      : "#ef4444",
+                }}
+              >
+                {connectionStatus.summary.averageScore}%
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl p-5"
+              style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-red-500/10">
+                  <XCircle className="w-5 h-5 text-red-500" />
+                </div>
+                <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                  Critical Issues
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-red-500">
+                {connectionStatus.summary.issues.critical}
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl p-5"
+              style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/10">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                </div>
+                <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                  Warnings
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-yellow-500">
+                {connectionStatus.summary.issues.warnings}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Features Info */}
+        {!isConnected && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          >
+            {[
+              {
+                icon: <Activity className="w-5 h-5" />,
+                title: "Site Health Analysis",
+                description: "Get detailed on-page SEO scores and performance metrics for every page",
+              },
+              {
+                icon: <AlertTriangle className="w-5 h-5" />,
+                title: "Issue Detection",
+                description: "Identify critical SEO issues, warnings, and optimization opportunities",
+              },
+              {
+                icon: <FileText className="w-5 h-5" />,
+                title: "Page-Level Insights",
+                description: "Analyze meta tags, headings, load times, and technical SEO factors",
+              },
+            ].map((feature, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl p-5"
+                style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+              >
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-500/10 text-blue-500 mb-3">
+                  {feature.icon}
+                </div>
+                <h3 className="font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                  {feature.title}
+                </h3>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
+

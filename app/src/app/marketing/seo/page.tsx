@@ -16,10 +16,17 @@ import {
   Eye,
   Target,
   Activity,
+  AlertTriangle,
+  XCircle,
+  CheckCircle,
+  FileText,
+  ExternalLink,
+  Zap,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import Link from "next/link";
 
 interface SearchQueryData {
   id: string;
@@ -44,6 +51,29 @@ const metricConfig: Record<MetricType, { label: string; format: (v: number) => s
   position: { label: "Avg. Position", format: (v) => v.toFixed(1), color: "#f59e0b", invertSort: true },
 };
 
+interface DataForSEOConnection {
+  status: string;
+  domain?: string;
+  summary?: {
+    pagesAnalyzed: number;
+    averageScore: number;
+    issues: {
+      critical: number;
+      warnings: number;
+      notices: number;
+    };
+  };
+  lastSyncAt?: Date;
+}
+
+interface PageHealthData {
+  url: string;
+  title: string | null;
+  onpageScore: number;
+  checks: Record<string, boolean | number | string>;
+  statusCode: number;
+}
+
 function formatNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
@@ -60,8 +90,66 @@ export default function SEOPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsReconnect, setNeedsReconnect] = useState(false);
+  
+  // DataForSEO state
+  const [dataForSEOConnection, setDataForSEOConnection] = useState<DataForSEOConnection | null>(null);
+  const [pagesHealth, setPagesHealth] = useState<PageHealthData[]>([]);
+  const [dataForSEOLoading, setDataForSEOLoading] = useState(true);
 
   const organizationId = currentOrg?.id || "";
+  
+  // Listen for DataForSEO connection
+  useEffect(() => {
+    if (!organizationId) {
+      setDataForSEOLoading(false);
+      return;
+    }
+
+    const connectionRef = doc(db, "dataforseo_connections", organizationId);
+    const unsubscribe = onSnapshot(connectionRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setDataForSEOConnection({
+          status: data.status,
+          domain: data.domain,
+          summary: data.summary,
+          lastSyncAt: data.lastSyncAt?.toDate?.(),
+        });
+
+        // Fetch pages data if connected
+        if (data.status === "connected" && data.summary) {
+          try {
+            const pagesQuery = query(
+              collection(db, "dataforseo_pages"),
+              where("organizationId", "==", organizationId)
+            );
+            const pagesSnapshot = await getDocs(pagesQuery);
+            const pages: PageHealthData[] = [];
+            pagesSnapshot.forEach((doc) => {
+              const pageData = doc.data();
+              pages.push({
+                url: pageData.url,
+                title: pageData.title,
+                onpageScore: pageData.onpageScore || 0,
+                checks: pageData.checks || {},
+                statusCode: pageData.statusCode || 200,
+              });
+            });
+            // Sort by score (lowest first - needs attention)
+            pages.sort((a, b) => a.onpageScore - b.onpageScore);
+            setPagesHealth(pages);
+          } catch (err) {
+            console.error("Error fetching pages:", err);
+          }
+        }
+      } else {
+        setDataForSEOConnection(null);
+      }
+      setDataForSEOLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [organizationId]);
 
   // Generate months based on view mode
   const { months, monthLabels } = useMemo(() => {
@@ -211,9 +299,203 @@ export default function SEOPage() {
 
   const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
 
+  const isDataForSEOConnected = dataForSEOConnection?.status === "connected";
+
   return (
-    <AppLayout title="SEO" subtitle="Search Console performance by keyword">
+    <AppLayout title="SEO" subtitle="Site health and search performance">
       <div className="max-w-full mx-auto space-y-6">
+        
+        {/* DataForSEO Site Health Section */}
+        {!dataForSEOLoading && (
+          <>
+            {isDataForSEOConnected && dataForSEOConnection?.summary ? (
+              <>
+                {/* Site Health Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Pages Analyzed
+                      </span>
+                      <FileText className="w-4 h-4" style={{ color: "#3b82f6" }} />
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
+                      {dataForSEOConnection.summary.pagesAnalyzed}
+                    </p>
+                  </Card>
+
+                  <Card>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Health Score
+                      </span>
+                      <Activity className="w-4 h-4" style={{ 
+                        color: dataForSEOConnection.summary.averageScore >= 80 ? "#10b981" : 
+                               dataForSEOConnection.summary.averageScore >= 60 ? "#f59e0b" : "#ef4444" 
+                      }} />
+                    </div>
+                    <p className="text-2xl font-bold" style={{ 
+                      color: dataForSEOConnection.summary.averageScore >= 80 ? "#10b981" : 
+                             dataForSEOConnection.summary.averageScore >= 60 ? "#f59e0b" : "#ef4444" 
+                    }}>
+                      {dataForSEOConnection.summary.averageScore}%
+                    </p>
+                  </Card>
+
+                  <Card>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Critical Issues
+                      </span>
+                      <XCircle className="w-4 h-4" style={{ color: "#ef4444" }} />
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color: "#ef4444" }}>
+                      {dataForSEOConnection.summary.issues.critical}
+                    </p>
+                  </Card>
+
+                  <Card>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Warnings
+                      </span>
+                      <AlertTriangle className="w-4 h-4" style={{ color: "#f59e0b" }} />
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
+                      {dataForSEOConnection.summary.issues.warnings}
+                    </p>
+                  </Card>
+                </div>
+
+                {/* Pages Health Table */}
+                {pagesHealth.length > 0 && (
+                  <Card>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                        Page Health ({pagesHealth.length} pages)
+                      </h3>
+                      <Link
+                        href="/marketing/dataforseo"
+                        className="text-sm flex items-center gap-1 hover:underline"
+                        style={{ color: "#3b82f6" }}
+                      >
+                        View All <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                            <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                              Page
+                            </th>
+                            <th className="text-center py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
+                              Status
+                            </th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground-muted)" }}>
+                              Score
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagesHealth.slice(0, 10).map((page, idx) => (
+                            <motion.tr
+                              key={page.url}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.02 }}
+                              style={{ borderBottom: "1px solid var(--border)" }}
+                              className="hover:bg-[var(--background-tertiary)] transition-colors"
+                            >
+                              <td className="py-3 px-4">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium truncate max-w-[400px]" style={{ color: "var(--foreground)" }}>
+                                    {page.title || page.url}
+                                  </span>
+                                  <span className="text-xs truncate max-w-[400px]" style={{ color: "var(--foreground-muted)" }}>
+                                    {page.url}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {page.statusCode === 200 ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-500/10 text-green-500">
+                                    <CheckCircle className="w-3 h-3" /> OK
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-500">
+                                    <XCircle className="w-3 h-3" /> {page.statusCode}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span 
+                                  className="text-sm font-semibold"
+                                  style={{ 
+                                    color: page.onpageScore >= 80 ? "#10b981" : 
+                                           page.onpageScore >= 60 ? "#f59e0b" : "#ef4444" 
+                                  }}
+                                >
+                                  {page.onpageScore}%
+                                </span>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {dataForSEOConnection.lastSyncAt && (
+                      <p className="text-xs mt-4" style={{ color: "var(--foreground-subtle)" }}>
+                        Last crawl: {dataForSEOConnection.lastSyncAt.toLocaleDateString()} at {dataForSEOConnection.lastSyncAt.toLocaleTimeString()}
+                      </p>
+                    )}
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
+                    >
+                      <Search className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                        Site Health Analysis
+                      </h3>
+                      <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Connect DataForSEO to analyze your site&apos;s technical SEO health
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/marketing/dataforseo"
+                    className="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2"
+                    style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Connect DataForSEO
+                  </Link>
+                </div>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Divider if both sections are shown */}
+        {isDataForSEOConnected && (
+          <div className="flex items-center gap-4 pt-4">
+            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+            <span className="text-sm font-medium px-3" style={{ color: "var(--foreground-muted)" }}>
+              Search Console Data
+            </span>
+            <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+          </div>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
