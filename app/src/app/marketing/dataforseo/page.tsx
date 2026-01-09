@@ -202,32 +202,8 @@ export default function DataForSEOPage() {
   const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling";
 
   return (
-    <AppLayout>
-      <div className="p-8 max-w-6xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
-            >
-              <Search className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                DataForSEO
-              </h1>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                Site health analysis and SEO monitoring
-              </p>
-            </div>
-          </div>
-        </motion.div>
-
+    <AppLayout title="DataForSEO" subtitle="Site health analysis and SEO monitoring">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Connection Status Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
