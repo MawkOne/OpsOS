@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ status: "no_task" });
       }
 
-      // Check task status
+      // Check task status using GET /v3/on_page/summary/{id}
       const summaryResponse = await fetch(`https://api.dataforseo.com/v3/on_page/summary/${taskId}`, {
         method: "GET",
         headers: {
@@ -145,7 +145,8 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const summaryData: { status_code: number; status_message?: string; tasks?: OnPageTask[] } = await summaryResponse.json();
+      const summaryData = await summaryResponse.json();
+      console.log("DataForSEO summary response:", JSON.stringify(summaryData, null, 2));
 
       if (summaryData.status_code !== 20000) {
         return NextResponse.json({
@@ -173,7 +174,49 @@ export async function POST(request: NextRequest) {
       }
 
       if (crawlProgress === "finished") {
-        // Fetch the results
+        // Store the summary data from the response
+        const domainInfo = result.domain_info;
+        const pageMetrics = result.page_metrics;
+        
+        // Update connection with rich summary data
+        await setDoc(connectionRef, {
+          status: "connected",
+          lastSyncAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          summary: {
+            pagesAnalyzed: domainInfo?.total_pages || 0,
+            averageScore: Math.round(pageMetrics?.onpage_score || 0),
+            issues: {
+              critical: (pageMetrics?.broken_links || 0) + (pageMetrics?.broken_resources || 0) + (pageMetrics?.checks?.is_broken || 0),
+              warnings: (pageMetrics?.checks?.no_description || 0) + (pageMetrics?.checks?.title_too_long || 0) + (pageMetrics?.checks?.title_too_short || 0) + (pageMetrics?.checks?.no_h1_tag || 0),
+              notices: (pageMetrics?.checks?.no_image_alt || 0) + (pageMetrics?.checks?.low_content_rate || 0) + (pageMetrics?.duplicate_content || 0),
+            },
+            taskId,
+          },
+          domainInfo: {
+            name: domainInfo?.name,
+            cms: domainInfo?.cms,
+            ip: domainInfo?.ip,
+            server: domainInfo?.server,
+            hasSitemap: domainInfo?.checks?.sitemap || false,
+            hasRobotsTxt: domainInfo?.checks?.robots_txt || false,
+            hasSSL: domainInfo?.checks?.ssl || false,
+            hasHttp2: domainInfo?.checks?.http2 || false,
+          },
+          pageMetrics: {
+            linksExternal: pageMetrics?.links_external || 0,
+            linksInternal: pageMetrics?.links_internal || 0,
+            duplicateTitle: pageMetrics?.duplicate_title || 0,
+            duplicateDescription: pageMetrics?.duplicate_description || 0,
+            duplicateContent: pageMetrics?.duplicate_content || 0,
+            brokenLinks: pageMetrics?.broken_links || 0,
+            brokenResources: pageMetrics?.broken_resources || 0,
+            onpageScore: pageMetrics?.onpage_score || 0,
+            nonIndexable: pageMetrics?.non_indexable || 0,
+          },
+        }, { merge: true });
+
+        // Also fetch individual pages
         return await fetchAndStoreResults(organizationId, taskId, credentials, connectionRef);
       }
 
