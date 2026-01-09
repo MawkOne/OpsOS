@@ -238,12 +238,15 @@ export async function POST(request: NextRequest) {
       results.errors.push(`Payments sync error: ${error.message}`);
     }
 
-    // Sync Subscriptions
+    // Sync Subscriptions (limit pages to prevent timeout)
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let subPageCount = 0;
+      const subMaxPages = 10; // Limit to 1000 subscriptions
 
-      while (hasMore) {
+      while (hasMore && subPageCount < subMaxPages) {
+        subPageCount++;
         // Note: Stripe limits expansion to 4 levels
         const subscriptions = await stripe.subscriptions.list({
           limit: 100,
@@ -321,12 +324,15 @@ export async function POST(request: NextRequest) {
       results.errors.push(`Subscriptions sync error: ${error.message}`);
     }
 
-    // Sync Products
+    // Sync Products (limit pages to prevent timeout)
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let productPageCount = 0;
+      const productMaxPages = 5; // Limit to 500 products
 
-      while (hasMore) {
+      while (hasMore && productPageCount < productMaxPages) {
+        productPageCount++;
         const products = await stripe.products.list({
           limit: 100,
           active: true,
@@ -367,12 +373,15 @@ export async function POST(request: NextRequest) {
       results.errors.push(`Products sync error: ${error.message}`);
     }
 
-    // Sync Prices
+    // Sync Prices (limit pages to prevent timeout)
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let pricePageCount = 0;
+      const priceMaxPages = 5; // Limit to 500 prices
 
-      while (hasMore) {
+      while (hasMore && pricePageCount < priceMaxPages) {
+        pricePageCount++;
         const prices = await stripe.prices.list({
           limit: 100,
           active: true,
@@ -426,7 +435,7 @@ export async function POST(request: NextRequest) {
       let startingAfter: string | undefined;
       let totalInvoicesFromStripe = 0;
       let pageCount = 0;
-      const invoiceMaxPages = 50; // Allow up to 5000 invoices (50 pages x 100)
+      const invoiceMaxPages = 10; // Limit to 1000 invoices per sync to prevent timeout
 
       while (hasMore && pageCount < invoiceMaxPages) {
         pageCount++;
@@ -582,16 +591,21 @@ export async function POST(request: NextRequest) {
       results.errors.push(`Invoices sync error: ${error.message}`);
     }
 
-    // Sync Customers
+    // Sync Customers (limit pages to prevent timeout)
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let customerPageCount = 0;
+      const customerMaxPages = 10; // Limit to 1000 customers
 
-      while (hasMore) {
+      while (hasMore && customerPageCount < customerMaxPages) {
+        customerPageCount++;
         const customers = await stripe.customers.list({
           limit: 100,
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
+        
+        console.log(`Customer page ${customerPageCount}: fetched ${customers.data.length}`);
 
         const batch = writeBatch(db);
 
