@@ -18,7 +18,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, syncType = 'full', maxPages = 5 } = body; // Limit pages to prevent timeout
+    const { organizationId, syncType = 'full', maxPages = 2 } = body; // Limit to 2 pages (200 items) to prevent Vercel timeout
 
     if (!organizationId) {
       return NextResponse.json(
@@ -45,6 +45,14 @@ export async function POST(request: NextRequest) {
     // 2. Platform secret key + stripeAccount header (for Connect)
     let stripe: Stripe;
     const PLATFORM_SECRET = process.env.STRIPE_SECRET_KEY;
+    
+    console.log('Starting Stripe sync for org:', organizationId);
+    console.log('Connection data:', {
+      hasStripeAccountId: !!connectionData?.stripeAccountId,
+      hasAccessToken: !!connectionData?.accessToken,
+      hasApiKey: !!connectionData?.apiKey,
+      hasPlatformSecret: !!PLATFORM_SECRET,
+    });
     
     if (connectionData?.stripeAccountId && PLATFORM_SECRET) {
       // Best approach: Use platform secret with connected account ID
