@@ -545,6 +545,22 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Stripe sync error:', error);
+    
+    // Always reset status from 'syncing' to prevent stuck state
+    try {
+      const { organizationId } = await request.clone().json();
+      if (organizationId) {
+        const connectionRef = doc(db, 'stripe_connections', organizationId);
+        await setDoc(connectionRef, {
+          status: 'error',
+          errorMessage: error.message || 'Sync failed',
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+    } catch (resetError) {
+      console.error('Failed to reset connection status:', resetError);
+    }
+    
     return NextResponse.json(
       { error: error.message || 'Failed to sync Stripe data' },
       { status: 500 }

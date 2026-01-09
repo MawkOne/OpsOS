@@ -292,20 +292,20 @@ export default function StripePage() {
                   </p>
                 )}
               </div>
-              {isConnected ? (
+              {isConnected || isSyncingStatus ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSync}
-                    disabled={isSyncing || isSyncingStatus}
+                    disabled={isSyncing}
                     className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
                       background: "var(--background-tertiary)",
-                      color: "var(--foreground-muted)",
+                      color: isSyncingStatus && !isSyncing ? "#f59e0b" : "var(--foreground-muted)",
                       border: "1px solid var(--border)",
                     }}
                   >
-                    <RefreshCw className={`w-4 h-4 ${isSyncing || isSyncingStatus ? "animate-spin" : ""}`} />
-                    {isSyncing || isSyncingStatus ? "Syncing..." : "Sync Now"}
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync Now"}
                   </button>
                   <button
                     onClick={handleDisconnect}
