@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         lineItemsCount: data.lineItems?.length || 0,
         lineItems: data.lineItems || [],
         invoiceId: data.invoiceId,
+        subscriptionId: data.subscriptionId || null,
         description: data.description,
       };
     });
