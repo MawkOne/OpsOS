@@ -8,7 +8,11 @@ import {
   collection,
   writeBatch,
   serverTimestamp,
-  Timestamp 
+  Timestamp,
+  query,
+  where,
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
@@ -73,6 +77,54 @@ export async function POST(request: NextRequest) {
       status: 'syncing',
       updatedAt: serverTimestamp(),
     }, { merge: true });
+
+    // Clean up old data before syncing fresh data
+    const collectionsToClean = [
+      'stripe_invoices',
+      'stripe_payments', 
+      'stripe_subscriptions',
+      'stripe_customers',
+      'stripe_products',
+      'stripe_prices',
+    ];
+
+    for (const collectionName of collectionsToClean) {
+      try {
+        const oldDataQuery = query(
+          collection(db, collectionName),
+          where('organizationId', '==', organizationId)
+        );
+        const oldDocs = await getDocs(oldDataQuery);
+        
+        // Delete in batches of 500 (Firestore limit)
+        const batches: ReturnType<typeof writeBatch>[] = [];
+        let currentBatch = writeBatch(db);
+        let operationCount = 0;
+        
+        for (const docSnap of oldDocs.docs) {
+          currentBatch.delete(docSnap.ref);
+          operationCount++;
+          
+          if (operationCount >= 500) {
+            batches.push(currentBatch);
+            currentBatch = writeBatch(db);
+            operationCount = 0;
+          }
+        }
+        
+        if (operationCount > 0) {
+          batches.push(currentBatch);
+        }
+        
+        for (const batch of batches) {
+          await batch.commit();
+        }
+        
+        console.log(`Cleaned ${oldDocs.size} old documents from ${collectionName}`);
+      } catch (cleanupError: any) {
+        console.error(`Error cleaning ${collectionName}:`, cleanupError.message);
+      }
+    }
 
     const results = {
       payments: 0,
