@@ -109,7 +109,7 @@ export default function SalesPage() {
         invoice: { id: "invoice", name: "Invoices", type: "invoice", months: {}, total: 0 },
       };
       
-      // Fetch products as name lookup
+      // Fetch products as name lookup (productId -> productName)
       const productsQuery = query(
         collection(db, "stripe_products"),
         where("organizationId", "==", organizationId)
@@ -119,6 +119,21 @@ export default function SalesPage() {
       productsSnap.docs.forEach(doc => {
         const data = doc.data();
         products.set(data.stripeId, data.name);
+      });
+      
+      // Fetch prices for priceId -> productId lookup
+      const pricesQuery = query(
+        collection(db, "stripe_prices"),
+        where("organizationId", "==", organizationId)
+      );
+      const pricesSnap = await getDocs(pricesQuery);
+      const prices = new Map<string, { productId: string; productName: string | null }>();
+      pricesSnap.docs.forEach(doc => {
+        const data = doc.data();
+        prices.set(data.stripeId, {
+          productId: data.productId,
+          productName: data.productName || products.get(data.productId) || null,
+        });
       });
 
       // Aggregate by product and month
@@ -154,21 +169,26 @@ export default function SalesPage() {
         if (lineItems.length > 0) {
           // Use line items for product attribution
           lineItems.forEach((item: any) => {
-            // Extract product name from description like "1 × Agency (at $50.00 / month)"
-            let productName = item.description || "Unknown Product";
-            let productId = item.productId || item.description || "unknown";
+            // Start with synced productName if available
+            let productName = item.productName || item.description || "Unknown Product";
+            let productId = item.productId || "unknown";
             
-            if (item.description) {
+            // Try lookup chain: productId -> products, priceId -> prices -> products
+            if (item.productId && products.has(item.productId)) {
+              productName = products.get(item.productId)!;
+            } else if (item.priceId && prices.has(item.priceId)) {
+              const priceInfo = prices.get(item.priceId)!;
+              productId = priceInfo.productId || productId;
+              productName = priceInfo.productName || products.get(priceInfo.productId) || productName;
+            }
+            
+            // Fallback: Extract product name from description like "1 × Agency (at $50.00 / month)"
+            if ((productName === item.description || productName === "Unknown Product") && item.description) {
               const match = item.description.match(/^\d+\s*×\s*(.+?)\s*\(at/);
               if (match) {
                 productName = match[1].trim();
                 productId = productName.toLowerCase().replace(/\s+/g, '-');
               }
-            }
-            
-            // Try to get from products lookup
-            if (item.productId && products.has(item.productId)) {
-              productName = products.get(item.productId)!;
             }
             
             const amount = (item.amount || 0) / 100;

@@ -447,26 +447,67 @@ export async function POST(request: NextRequest) {
           const invoiceRef = doc(db, 'stripe_invoices', `${organizationId}_${invoice.id}`);
           
           // Extract line items with product info
-          // Note: product is just an ID string since we can't expand 5 levels deep
+          // Try multiple sources for price/product data
+          let lineSubscriptionId: string | null = null;
+          
           const lineItems = invoice.lines?.data?.map((line: any) => {
-            const productId = typeof line.price?.product === 'string' 
-              ? line.price.product 
-              : line.price?.product?.id || null;
+            // Try to get price from multiple sources
+            const price = line.price || line.plan; // plan is deprecated but might exist
+            
+            // Get priceId
+            const priceId = price?.id || null;
+            
+            // Get productId from various possible locations
+            let productId: string | null = null;
+            if (price?.product) {
+              productId = typeof price.product === 'string' 
+                ? price.product 
+                : price.product?.id || null;
+            }
+            
+            // Get productName if product was expanded
+            let productName: string | null = null;
+            if (price?.product && typeof price.product !== 'string' && price.product.name) {
+              productName = price.product.name;
+            }
+            
+            // Try to get subscription ID from line item
+            if (line.subscription) {
+              lineSubscriptionId = typeof line.subscription === 'string' 
+                ? line.subscription 
+                : line.subscription;
+            }
+            
+            // Log first invoice's first line item for debugging
+            if (results.invoices === 0 && invoice.lines?.data?.indexOf(line) === 0) {
+              console.log('Sample line item structure:', JSON.stringify({
+                description: line.description,
+                hasPrice: !!line.price,
+                hasPlan: !!line.plan,
+                priceId,
+                productId,
+                productName,
+                subscription: line.subscription,
+                type: line.type,
+              }, null, 2));
+            }
+            
             return {
               description: line.description,
               amount: line.amount,
               quantity: line.quantity || 1,
-              priceId: line.price?.id || null,
+              priceId,
               productId,
-              // productName will be looked up from stripe_products collection when displaying
-              productName: null,
+              productName,
+              type: line.type, // 'invoiceitem' or 'subscription'
             };
           }) || [];
 
           const invoiceAny = invoice as any;
+          // Get subscription ID from invoice or from line items
           const subscriptionId = typeof invoiceAny.subscription === 'string' 
             ? invoiceAny.subscription 
-            : invoiceAny.subscription?.id || null;
+            : invoiceAny.subscription?.id || lineSubscriptionId;
 
           batch.set(invoiceRef, {
             organizationId,
