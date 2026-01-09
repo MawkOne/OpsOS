@@ -105,7 +105,7 @@ export default function SalesPage() {
       // Typed revenue aggregation
       const typeRevenue: Record<string, TypedRevenueRow> = {
         subscription: { id: "subscription", name: "Subscriptions", type: "subscription", months: {}, total: 0 },
-        one_time: { id: "one_time", name: "One-time Payments", type: "one_time", months: {}, total: 0 },
+        one_time: { id: "one_time", name: "One-Time", type: "one_time", months: {}, total: 0 },
         invoice: { id: "invoice", name: "Invoices", type: "invoice", months: {}, total: 0 },
       };
       
@@ -143,7 +143,7 @@ export default function SalesPage() {
         
         const lineItems = invoice.lineItems || [];
         const hasSubscription = invoice.subscriptionId || lineItems.some((item: any) => item.type === 'subscription');
-        const revenueType = hasSubscription ? "subscription" : "invoice";
+        const revenueType = hasSubscription ? "subscription" : "one_time"; // Non-subscription Stripe invoices = one-time
         
         if (lineItems.length > 0) {
           lineItems.forEach((item: any) => {
@@ -228,6 +228,45 @@ export default function SalesPage() {
             productId,
             productName,
             source: "stripe",
+            months: {},
+            total: 0,
+          });
+        }
+        
+        const row = productRevenue.get(productId)!;
+        row.months[monthKey] = (row.months[monthKey] || 0) + amount;
+        row.total += amount;
+      });
+
+      // Fetch QuickBooks invoices (manual invoices)
+      const qbInvoicesQuery = query(
+        collection(db, "quickbooks_invoices"),
+        where("organizationId", "==", organizationId)
+      );
+      const qbInvoicesSnap = await getDocs(qbInvoicesQuery);
+      
+      qbInvoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        const invoiceDate = invoice.txnDate?.toDate?.() || invoice.created?.toDate?.() || new Date();
+        const monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        if (!monthsSet.has(monthKey)) return;
+        
+        const amount = invoice.totalAmt || invoice.amount || 0;
+        
+        // Add to invoice type (QuickBooks = manual invoices)
+        typeRevenue.invoice.months[monthKey] = (typeRevenue.invoice.months[monthKey] || 0) + amount;
+        typeRevenue.invoice.total += amount;
+        
+        // Add to product totals
+        const productId = `qb-${invoice.customerRef?.name || "invoice"}`;
+        const productName = invoice.customerRef?.name || "QuickBooks Invoice";
+        
+        if (!productRevenue.has(productId)) {
+          productRevenue.set(productId, {
+            productId,
+            productName,
+            source: "quickbooks",
             months: {},
             total: 0,
           });
@@ -551,9 +590,9 @@ export default function SalesPage() {
                     <>
                       {typedData.map((row, idx) => {
                         const typeConfig = {
-                          subscription: { color: "#10b981", icon: <CreditCard className="w-5 h-5" style={{ color: "#10b981" }} />, label: "Recurring revenue from subscriptions" },
-                          one_time: { color: "#3b82f6", icon: <DollarSign className="w-5 h-5" style={{ color: "#3b82f6" }} />, label: "Single purchase payments" },
-                          invoice: { color: "#8b5cf6", icon: <Receipt className="w-5 h-5" style={{ color: "#8b5cf6" }} />, label: "Custom invoices and billing" },
+                          subscription: { color: "#10b981", icon: <CreditCard className="w-5 h-5" style={{ color: "#10b981" }} /> },
+                          one_time: { color: "#3b82f6", icon: <DollarSign className="w-5 h-5" style={{ color: "#3b82f6" }} /> },
+                          invoice: { color: "#8b5cf6", icon: <Receipt className="w-5 h-5" style={{ color: "#8b5cf6" }} /> },
                         }[row.type];
                         
                         return (
@@ -576,12 +615,7 @@ export default function SalesPage() {
                                 >
                                   {typeConfig.icon}
                                 </div>
-                                <div>
-                                  <span className="block font-semibold">{row.name}</span>
-                                  <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                    {typeConfig.label}
-                                  </span>
-                                </div>
+                                <span className="font-semibold">{row.name}</span>
                               </div>
                             </td>
                             {months.map(month => {
