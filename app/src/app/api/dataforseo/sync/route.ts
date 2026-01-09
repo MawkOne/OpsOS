@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
     await setDoc(connectionRef, { status: "syncing", updatedAt: Timestamp.now() }, { merge: true });
 
     if (action === "start_crawl") {
-      // Start a new On-Page task
+      // Start a new On-Page task with improved settings
+      const targetUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+      
       const taskResponse = await fetch("https://api.dataforseo.com/v3/on_page/task_post", {
         method: "POST",
         headers: {
@@ -85,12 +87,16 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify([
           {
-            target: domain,
-            max_crawl_pages: 100, // Limit for initial crawl
+            target: targetUrl,
+            max_crawl_pages: 500, // Increased crawl limit
             load_resources: true,
             enable_javascript: true,
             enable_browser_rendering: true,
-            custom_js: "meta = {}; meta.url = document.URL; meta;",
+            respect_sitemap: true, // Use sitemap.xml to find pages
+            crawl_delay: 100, // 100ms delay between requests
+            store_raw_html: false, // Don't store raw HTML to save costs
+            calculate_keyword_density: true,
+            check_spell: false, // Disable spell check to speed up
           },
         ]),
       });
@@ -214,15 +220,17 @@ async function fetchAndStoreResults(
   connectionRef: ReturnType<typeof doc>
 ) {
   try {
-    // Fetch pages data
+    // Fetch pages data with higher limit
     const pagesResponse = await fetch("https://api.dataforseo.com/v3/on_page/pages", {
       method: "POST",
       headers: {
         "Authorization": `Basic ${credentials}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([{ id: taskId, limit: 100 }]),
+      body: JSON.stringify([{ id: taskId, limit: 500 }]),
     });
+    
+    console.log("DataForSEO pages response status:", pagesResponse.status);
 
     const pagesData = await pagesResponse.json();
     const pages = pagesData.tasks?.[0]?.result?.[0]?.items || [];
