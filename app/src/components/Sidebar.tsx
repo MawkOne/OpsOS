@@ -28,7 +28,11 @@ import {
   Search,
   Mail,
   Settings,
+  Building2,
+  Check,
+  Plus,
 } from "lucide-react";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "marketing";
 
@@ -198,7 +202,9 @@ const navigationByModule: Record<Module, NavSection[]> = {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { organizations, currentOrg, switchOrganization } = useOrganization();
   const [moduleMenuOpen, setModuleMenuOpen] = useState(false);
+  const [orgMenuOpen, setOrgMenuOpen] = useState(false);
 
   // Determine current module from URL path
   const getCurrentModule = (): Module => {
@@ -224,29 +230,112 @@ export default function Sidebar() {
     router.push(moduleConfig[module].href);
   };
 
+  const handleSwitchOrg = async (orgId: string) => {
+    await switchOrganization(orgId);
+    setOrgMenuOpen(false);
+    router.refresh();
+  };
+
   const navigation = navigationByModule[currentModule];
   const currentModuleConfig = moduleConfig[currentModule];
 
   return (
     <aside className="w-64 h-screen flex flex-col" style={{ background: "var(--sidebar-bg)" }}>
-      {/* Logo */}
-      <div className="px-5 py-6 border-b" style={{ borderColor: "var(--border)" }}>
-        <Link href="/" className="flex items-center gap-3">
-          <div 
-            className="w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #00d4aa 0%, #3b82f6 100%)" }}
+      {/* Workspace/Organization Selector */}
+      <div className="px-3 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+        <div className="relative">
+          <button
+            onClick={() => setOrgMenuOpen(!orgMenuOpen)}
+            className="w-full px-3 py-2.5 rounded-lg flex items-center gap-3 transition-all duration-200 hover:bg-[var(--sidebar-hover)]"
+            style={{ 
+              background: orgMenuOpen ? "var(--sidebar-hover)" : "transparent",
+            }}
           >
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight" style={{ color: "var(--foreground)" }}>
-              OpsOS
-            </h1>
-            <p className="text-xs" style={{ color: "var(--foreground-subtle)" }}>
-              Company OS
-            </p>
-          </div>
-        </Link>
+            <div 
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold"
+              style={{ background: "linear-gradient(135deg, #00d4aa 0%, #3b82f6 100%)", color: "white" }}
+            >
+              {currentOrg?.name?.slice(0, 2).toUpperCase() || "OS"}
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <h1 className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+                {currentOrg?.name || "OpsOS"}
+              </h1>
+              <p className="text-xs truncate" style={{ color: "var(--foreground-subtle)" }}>
+                Workspace
+              </p>
+            </div>
+            <ChevronDown 
+              className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${orgMenuOpen ? 'rotate-180' : ''}`}
+              style={{ color: "var(--foreground-muted)" }}
+            />
+          </button>
+
+          <AnimatePresence>
+            {orgMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 right-0 mt-2 rounded-lg overflow-hidden z-50"
+                style={{ 
+                  background: "var(--background-secondary)",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+                }}
+              >
+                <div className="p-2">
+                  <p className="px-2 py-1 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    Workspaces
+                  </p>
+                  {organizations.map((org) => (
+                    <button
+                      key={org.id}
+                      onClick={() => handleSwitchOrg(org.id)}
+                      className="w-full px-2 py-2 flex items-center gap-3 rounded-md transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
+                    >
+                      <div
+                        className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold"
+                        style={{ background: "var(--accent)", color: "var(--background)" }}
+                      >
+                        {org.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className="flex-1 text-left text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                        {org.name}
+                      </span>
+                      {org.id === currentOrg?.id && (
+                        <Check className="w-4 h-4 flex-shrink-0" style={{ color: "var(--accent)" }} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t" style={{ borderColor: "var(--border)" }}>
+                  <Link
+                    href="/settings/team"
+                    onClick={() => setOrgMenuOpen(false)}
+                    className="w-full px-4 py-3 flex items-center gap-3 transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
+                  >
+                    <Building2 className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                    <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                      Workspace Settings
+                    </span>
+                  </Link>
+                  <Link
+                    href="/onboarding"
+                    onClick={() => setOrgMenuOpen(false)}
+                    className="w-full px-4 py-3 flex items-center gap-3 transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
+                  >
+                    <Plus className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                    <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                      Create Workspace
+                    </span>
+                  </Link>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Module Switcher */}

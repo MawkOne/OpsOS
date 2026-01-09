@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, MessageSquare, User, LogOut, ChevronDown, Building2, Check, Plus, Settings } from "lucide-react";
+import { Bell, Search, MessageSquare, LogOut, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 
 interface HeaderProps {
   title: string;
@@ -15,21 +13,12 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const { user, signOut } = useAuth();
-  const { organizations, currentOrg, switchOrganization } = useOrganization();
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showOrgMenu, setShowOrgMenu] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
     router.push("/login");
-  };
-
-  const handleSwitchOrg = async (orgId: string) => {
-    await switchOrganization(orgId);
-    setShowOrgMenu(false);
-    // Refresh the page to reload data for new org
-    router.refresh();
   };
 
   const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
@@ -102,94 +91,6 @@ export default function Header({ title, subtitle }: HeaderProps) {
 
         {/* Divider */}
         <div className="w-px h-8 mx-2" style={{ background: "var(--border)" }} />
-
-        {/* Organization Switcher */}
-        {currentOrg && (
-          <div className="relative">
-            <button
-              onClick={() => setShowOrgMenu(!showOrgMenu)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-150"
-              style={{
-                background: "var(--background-secondary)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <Building2 className="w-4 h-4" style={{ color: "var(--accent)" }} />
-              <span className="text-sm font-medium max-w-[120px] truncate" style={{ color: "var(--foreground)" }}>
-                {currentOrg.name}
-              </span>
-              <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${showOrgMenu ? "rotate-180" : ""}`}
-                style={{ color: "var(--foreground-muted)" }}
-              />
-            </button>
-
-            <AnimatePresence>
-              {showOrgMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full right-0 mt-2 w-64 rounded-lg overflow-hidden z-50"
-                  style={{
-                    background: "var(--background-secondary)",
-                    border: "1px solid var(--border)",
-                    boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
-                  }}
-                >
-                  <div className="p-2">
-                    <p className="px-2 py-1 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                      Organizations
-                    </p>
-                    {organizations.map((org) => (
-                      <button
-                        key={org.id}
-                        onClick={() => handleSwitchOrg(org.id)}
-                        className="w-full px-2 py-2 flex items-center gap-3 rounded-md transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
-                      >
-                        <div
-                          className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold"
-                          style={{ background: "var(--accent)", color: "var(--background)" }}
-                        >
-                          {org.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="flex-1 text-left text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-                          {org.name}
-                        </span>
-                        {org.id === currentOrg.id && (
-                          <Check className="w-4 h-4" style={{ color: "var(--accent)" }} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t" style={{ borderColor: "var(--border)" }}>
-                    <Link
-                      href="/settings/organization"
-                      onClick={() => setShowOrgMenu(false)}
-                      className="w-full px-4 py-3 flex items-center gap-3 transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
-                    >
-                      <Settings className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                        Organization Settings
-                      </span>
-                    </Link>
-                    <Link
-                      href="/onboarding"
-                      onClick={() => setShowOrgMenu(false)}
-                      className="w-full px-4 py-3 flex items-center gap-3 transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
-                    >
-                      <Plus className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                        Create Organization
-                      </span>
-                    </Link>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
 
         {/* User Menu */}
         <div className="relative">
