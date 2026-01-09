@@ -18,7 +18,9 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, syncType = 'full', maxPages = 2 } = body; // Limit to 2 pages (200 items) to prevent Vercel timeout
+    const { organizationId, syncType = 'full', maxPages = 2, createdAfter, createdBefore } = body; 
+    // maxPages: Limit pages for charges (200 items default)
+    // createdAfter/createdBefore: Unix timestamps to sync specific date ranges
 
     if (!organizationId) {
       return NextResponse.json(
@@ -423,17 +425,31 @@ export async function POST(request: NextRequest) {
       let hasMore = true;
       let startingAfter: string | undefined;
       let totalInvoicesFromStripe = 0;
+      let pageCount = 0;
+      const invoiceMaxPages = 50; // Allow up to 5000 invoices (50 pages x 100)
 
-      while (hasMore) {
+      while (hasMore && pageCount < invoiceMaxPages) {
+        pageCount++;
         // Note: Stripe limits expansion to 4 levels, so we can't expand data.lines.data.price.product
         // Instead, we'll look up product names from our synced products collection
-        // Only fetch PAID invoices for revenue tracking
-        const invoices = await stripe.invoices.list({
+        // Fetch ALL invoices (not just paid) - we filter by status when displaying
+        const invoiceParams: any = {
           limit: 100,
-          status: 'paid',
           expand: ['data.lines.data.price', 'data.subscription'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
-        });
+        };
+        
+        // Add date filters if provided (for syncing historical data in chunks)
+        if (createdAfter) {
+          invoiceParams.created = { ...(invoiceParams.created || {}), gte: createdAfter };
+        }
+        if (createdBefore) {
+          invoiceParams.created = { ...(invoiceParams.created || {}), lte: createdBefore };
+        }
+        
+        const invoices = await stripe.invoices.list(invoiceParams);
+        
+        console.log(`Invoice page ${pageCount}: fetched ${invoices.data.length}, has_more: ${invoices.has_more}`);
 
         totalInvoicesFromStripe += invoices.data.length;
         console.log(`Stripe returned ${invoices.data.length} invoices, statuses:`, invoices.data.map(i => i.status));
@@ -534,7 +550,7 @@ export async function POST(request: NextRequest) {
           startingAfter = invoices.data[invoices.data.length - 1].id;
         }
       }
-      console.log(`Invoices sync complete: ${results.invoices} saved from ${totalInvoicesFromStripe} total`);
+      console.log(`Invoices sync complete: ${results.invoices} saved from ${totalInvoicesFromStripe} fetched (${pageCount} pages, hasMore: ${hasMore})`);
     } catch (error: any) {
       console.error('Invoices sync error:', error);
       results.errors.push(`Invoices sync error: ${error.message}`);
