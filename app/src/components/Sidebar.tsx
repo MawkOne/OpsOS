@@ -27,6 +27,7 @@ import {
   Activity,
   Search,
   Mail,
+  Settings,
 } from "lucide-react";
 
 type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "marketing";
@@ -366,6 +367,21 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Settings */}
+      <div className="px-3 py-2 border-t" style={{ borderColor: "var(--border)" }}>
+        <Link
+          href="/settings/team"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 hover:bg-[var(--sidebar-hover)]"
+          style={{
+            color: pathname.startsWith("/settings") ? "var(--accent)" : "var(--foreground-muted)",
+            background: pathname.startsWith("/settings") ? "var(--sidebar-active)" : "transparent",
+          }}
+        >
+          <Settings className="w-4 h-4" />
+          <span className="text-sm">Settings</span>
+        </Link>
+      </div>
 
       {/* Footer */}
       <div className="px-3 py-4 border-t" style={{ borderColor: "var(--border)" }}>
