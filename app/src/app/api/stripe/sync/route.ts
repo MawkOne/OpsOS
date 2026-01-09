@@ -18,7 +18,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, syncType = 'full' } = body;
+    const { organizationId, syncType = 'full', maxPages = 5 } = body; // Limit pages to prevent timeout
 
     if (!organizationId) {
       return NextResponse.json(
@@ -78,51 +78,55 @@ export async function POST(request: NextRequest) {
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
-    // Clean up old data before syncing fresh data
-    const collectionsToClean = [
-      'stripe_invoices',
-      'stripe_payments', 
-      'stripe_subscriptions',
-      'stripe_customers',
-      'stripe_products',
-      'stripe_prices',
-    ];
+    // Optional: Clean up old data if requested (skip by default for faster sync)
+    const { cleanFirst = false } = body;
+    
+    if (cleanFirst) {
+      const collectionsToClean = [
+        'stripe_invoices',
+        'stripe_payments', 
+        'stripe_subscriptions',
+        'stripe_customers',
+        'stripe_products',
+        'stripe_prices',
+      ];
 
-    for (const collectionName of collectionsToClean) {
-      try {
-        const oldDataQuery = query(
-          collection(db, collectionName),
-          where('organizationId', '==', organizationId)
-        );
-        const oldDocs = await getDocs(oldDataQuery);
-        
-        // Delete in batches of 500 (Firestore limit)
-        const batches: ReturnType<typeof writeBatch>[] = [];
-        let currentBatch = writeBatch(db);
-        let operationCount = 0;
-        
-        for (const docSnap of oldDocs.docs) {
-          currentBatch.delete(docSnap.ref);
-          operationCount++;
+      for (const collectionName of collectionsToClean) {
+        try {
+          const oldDataQuery = query(
+            collection(db, collectionName),
+            where('organizationId', '==', organizationId)
+          );
+          const oldDocs = await getDocs(oldDataQuery);
           
-          if (operationCount >= 500) {
-            batches.push(currentBatch);
-            currentBatch = writeBatch(db);
-            operationCount = 0;
+          // Delete in batches of 500 (Firestore limit)
+          const batches: ReturnType<typeof writeBatch>[] = [];
+          let currentBatch = writeBatch(db);
+          let operationCount = 0;
+          
+          for (const docSnap of oldDocs.docs) {
+            currentBatch.delete(docSnap.ref);
+            operationCount++;
+            
+            if (operationCount >= 500) {
+              batches.push(currentBatch);
+              currentBatch = writeBatch(db);
+              operationCount = 0;
+            }
           }
+          
+          if (operationCount > 0) {
+            batches.push(currentBatch);
+          }
+          
+          for (const batch of batches) {
+            await batch.commit();
+          }
+          
+          console.log(`Cleaned ${oldDocs.size} old documents from ${collectionName}`);
+        } catch (cleanupError: any) {
+          console.error(`Error cleaning ${collectionName}:`, cleanupError.message);
         }
-        
-        if (operationCount > 0) {
-          batches.push(currentBatch);
-        }
-        
-        for (const batch of batches) {
-          await batch.commit();
-        }
-        
-        console.log(`Cleaned ${oldDocs.size} old documents from ${collectionName}`);
-      } catch (cleanupError: any) {
-        console.error(`Error cleaning ${collectionName}:`, cleanupError.message);
       }
     }
 
@@ -140,12 +144,18 @@ export async function POST(request: NextRequest) {
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
+      let pageCount = 0;
 
-      while (hasMore) {
-        // Note: Stripe limits expansion to 4 levels
+      while (hasMore && pageCount < maxPages) {
+        pageCount++;
+        // Expand invoice with lines and subscription for full product attribution
+        // Stripe allows 4 levels: data.invoice.lines.data.price
         const charges = await stripe.charges.list({
           limit: 100,
-          expand: ['data.invoice'],
+          expand: [
+            'data.invoice.lines.data.price',
+            'data.invoice.subscription',
+          ],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -413,7 +423,7 @@ export async function POST(request: NextRequest) {
         const invoices = await stripe.invoices.list({
           limit: 100,
           status: 'paid',
-          expand: ['data.lines.data.price'],
+          expand: ['data.lines.data.price', 'data.subscription'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
