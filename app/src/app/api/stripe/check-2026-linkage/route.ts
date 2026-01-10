@@ -25,12 +25,12 @@ export async function GET(request: Request) {
     
     // Filter to 2025+ in code
     const recentPayments = paymentsSnap.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(payment => {
+      .map(doc => ({ id: doc.id, ...doc.data() } as any))
+      .filter((payment: any) => {
         const created = payment.created?.toDate?.() || new Date(0);
         return created >= startDate.toDate();
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         const dateA = a.created?.toDate?.() || new Date(0);
         const dateB = b.created?.toDate?.() || new Date(0);
         return dateB.getTime() - dateA.getTime();
