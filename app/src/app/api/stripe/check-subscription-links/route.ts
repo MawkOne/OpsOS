@@ -11,15 +11,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing organizationId" }, { status: 400 });
     }
 
-    // Get payments without line items
+    // Get recent payments (last 30 days from Dec 2025)
+    const thirtyDaysAgo = new Date('2025-12-01');
+    
     const paymentsQuery = query(
       collection(db, "stripe_payments"),
       where("organizationId", "==", organizationId),
       where("status", "==", "succeeded"),
-      firestoreLimit(500)
+      firestoreLimit(1000)
     );
 
     const paymentsSnap = await getDocs(paymentsQuery);
+    
+    // Filter to last 30 days in code
+    const recentPayments = paymentsSnap.docs.filter(doc => {
+      const payment = doc.data();
+      const paymentDate = payment.created?.toDate?.() || new Date(0);
+      return paymentDate >= thirtyDaysAgo;
+    });
     
     let withLineItems = 0;
     let withoutLineItems = 0;
@@ -31,7 +40,7 @@ export async function GET(request: Request) {
       withoutSubscriptionId: [] as any[],
     };
 
-    for (const doc of paymentsSnap.docs) {
+    for (const doc of recentPayments) {
       const payment = doc.data();
       
       if (payment.lineItems && payment.lineItems.length > 0) {
@@ -41,6 +50,8 @@ export async function GET(request: Request) {
       
       withoutLineItems++;
       
+      const paymentDate = payment.created?.toDate?.();
+      
       if (payment.subscriptionId) {
         withoutLineItemsButHasSubscriptionId++;
         if (samples.withSubscriptionId.length < 5) {
@@ -49,6 +60,7 @@ export async function GET(request: Request) {
             subscriptionId: payment.subscriptionId,
             amount: payment.amount / 100,
             description: payment.description || null,
+            date: paymentDate ? paymentDate.toISOString().split('T')[0] : null,
           });
         }
       } else {
@@ -59,6 +71,7 @@ export async function GET(request: Request) {
             amount: payment.amount / 100,
             description: payment.description || null,
             metadata: payment.metadata || {},
+            date: paymentDate ? paymentDate.toISOString().split('T')[0] : null,
           });
         }
       }
@@ -66,7 +79,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       summary: {
-        paymentsChecked: paymentsSnap.size,
+        dateFilter: "Dec 1, 2025 onwards",
+        totalPaymentsFetched: paymentsSnap.size,
+        recentPaymentsChecked: recentPayments.length,
         withLineItems,
         withoutLineItems,
         withoutLineItemsButHasSubscriptionId,
