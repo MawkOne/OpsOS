@@ -169,9 +169,9 @@ export async function POST(request: NextRequest) {
         // Stripe allows 4 levels: data.invoice.lines.data.price
         const chargeParams: any = {
           limit: 100,
+          // Simplified expansion - only 3 levels deep (Stripe limit is 4)
           expand: [
-            'data.invoice.lines.data.price',
-            'data.invoice.subscription',
+            'data.invoice',
           ],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         };
@@ -200,44 +200,46 @@ export async function POST(request: NextRequest) {
           if (invoice && invoice.lines?.data) {
             lineItems = invoice.lines.data.map((line: any) => {
               const product = line.price?.product;
-              const productId = typeof product === 'string' ? product : product?.id || null;
+              const productId = typeof product === 'string' ? product : (product?.id || null);
               const productName = typeof product === 'object' && product && !product.deleted 
                 ? product.name 
                 : null;
               
+              // Ensure no undefined values (Firebase rejects undefined)
               return {
-                description: line.description,
-                amount: line.amount,
+                description: line.description || null,
+                amount: line.amount ?? 0,
                 quantity: line.quantity || 1,
                 priceId: line.price?.id || null,
-                productId,
-                productName, // Store product name directly on line item
+                productId: productId || null,
+                productName: productName || null,
               };
             });
             subscriptionId = typeof invoice.subscription === 'string' 
               ? invoice.subscription 
-              : invoice.subscription?.id || null;
+              : (invoice.subscription?.id || null);
           }
           
+          // Ensure no undefined values (Firebase rejects undefined)
           batch.set(paymentRef, {
             organizationId,
-            stripeId: charge.id,
-            amount: charge.amount,
-            amountFormatted: (charge.amount / 100).toFixed(2),
-            currency: charge.currency.toUpperCase(),
-            status: charge.status,
-            customerId: typeof charge.customer === 'string' ? charge.customer : (charge.customer as any)?.id || null,
+            stripeId: charge.id || null,
+            amount: charge.amount ?? 0,
+            amountFormatted: ((charge.amount ?? 0) / 100).toFixed(2),
+            currency: (charge.currency || 'usd').toUpperCase(),
+            status: charge.status || 'unknown',
+            customerId: typeof charge.customer === 'string' ? charge.customer : ((charge.customer as any)?.id || null),
             customerEmail: charge.billing_details?.email || null,
             description: charge.description || null,
             paymentMethod: charge.payment_method_details?.type || null,
-            created: Timestamp.fromDate(new Date(charge.created * 1000)),
+            created: charge.created ? Timestamp.fromDate(new Date(charge.created * 1000)) : Timestamp.now(),
             metadata: charge.metadata || {},
-            refunded: charge.refunded,
-            amountRefunded: charge.amount_refunded,
+            refunded: charge.refunded ?? false,
+            amountRefunded: charge.amount_refunded ?? 0,
             // Product attribution fields
-            invoiceId: typeof chargeAny.invoice === 'string' ? chargeAny.invoice : invoice?.id || null,
-            subscriptionId,
-            lineItems,
+            invoiceId: typeof chargeAny.invoice === 'string' ? chargeAny.invoice : (invoice?.id || null),
+            subscriptionId: subscriptionId || null,
+            lineItems: lineItems || [],
             syncedAt: serverTimestamp(),
           });
           results.payments++;
@@ -545,14 +547,15 @@ export async function POST(request: NextRequest) {
               }, null, 2));
             }
             
+            // Ensure no undefined values (Firebase rejects undefined)
             return {
-              description: line.description,
-              amount: line.amount,
+              description: line.description || null,
+              amount: line.amount ?? 0,
               quantity: line.quantity || 1,
-              priceId,
-              productId,
-              productName,
-              type: line.type, // 'invoiceitem' or 'subscription'
+              priceId: priceId || null,
+              productId: productId || null,
+              productName: productName || null,
+              type: line.type || null,
             };
           }) || [];
 
@@ -572,23 +575,24 @@ export async function POST(request: NextRequest) {
             subscriptionId = lineSubscriptionId;
           }
 
+          // Ensure no undefined values (Firebase rejects undefined)
           batch.set(invoiceRef, {
             organizationId,
-            stripeId: invoice.id,
-            chargeId: typeof invoiceAny.charge === 'string' ? invoiceAny.charge : invoiceAny.charge?.id || null,
-            subscriptionId,
-            customerId: typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id || null,
-            amount: invoice.amount_paid,
-            amountDue: invoice.amount_due,
-            total: invoice.total,
-            subtotal: invoice.subtotal,
+            stripeId: invoice.id || null,
+            chargeId: typeof invoiceAny.charge === 'string' ? invoiceAny.charge : (invoiceAny.charge?.id || null),
+            subscriptionId: subscriptionId || null,
+            customerId: typeof invoice.customer === 'string' ? invoice.customer : ((invoice.customer as any)?.id || null),
+            amount: invoice.amount_paid ?? 0,
+            amountDue: invoice.amount_due ?? 0,
+            total: invoice.total ?? 0,
+            subtotal: invoice.subtotal ?? 0,
             currency: invoice.currency?.toUpperCase() || 'USD',
-            status: invoice.status,
-            billingReason: invoiceAny.billing_reason || null, // manual, subscription_create, subscription_cycle, etc.
-            created: Timestamp.fromDate(new Date(invoice.created * 1000)),
+            status: invoice.status || 'unknown',
+            billingReason: invoiceAny.billing_reason || null,
+            created: invoice.created ? Timestamp.fromDate(new Date(invoice.created * 1000)) : Timestamp.now(),
             periodStart: invoiceAny.period_start ? Timestamp.fromDate(new Date(invoiceAny.period_start * 1000)) : null,
             periodEnd: invoiceAny.period_end ? Timestamp.fromDate(new Date(invoiceAny.period_end * 1000)) : null,
-            lineItems,
+            lineItems: lineItems || [],
             syncedAt: serverTimestamp(),
           });
           results.invoices++;
