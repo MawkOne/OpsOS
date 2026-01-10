@@ -344,9 +344,9 @@ export async function POST(request: NextRequest) {
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         };
         
-        // Add created filter for incremental sync
-        if (incrementalTimestamp && syncType !== 'full') {
-          piParams.created = { gte: incrementalTimestamp };
+        // Add created filter (same logic as charges)
+        if (createdFilter) {
+          piParams.created = createdFilter;
         }
         
         const paymentIntents = await stripe.paymentIntents.list(piParams);
