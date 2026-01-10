@@ -457,6 +457,13 @@ export default function StripePage() {
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Prices</p>
                 </div>
               </div>
+              {connection.lastSyncResults.cleanedRecords && connection.lastSyncResults.cleanedRecords > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    Cleaned {connection.lastSyncResults.cleanedRecords} existing records before sync (Full Sync)
+                  </p>
+                </div>
+              )}
               {connection.lastSyncResults.errors.length > 0 && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-red-400 mb-2">Sync Errors:</p>

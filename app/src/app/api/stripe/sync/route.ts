@@ -88,10 +88,12 @@ export async function POST(request: NextRequest) {
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
-    // Optional: Clean up old data if requested (skip by default for faster sync)
-    const { cleanFirst = false } = body;
+    // For Full Sync: Clean up all existing Stripe data for this organization first
+    // This ensures a clean slate and prevents duplicates
+    const shouldCleanFirst = syncType === 'full';
     
-    if (cleanFirst) {
+    if (shouldCleanFirst) {
+      console.log(`Full Sync requested - cleaning up existing Stripe data for org: ${organizationId}`);
       const collectionsToClean = [
         'stripe_invoices',
         'stripe_payments', 
@@ -133,11 +135,15 @@ export async function POST(request: NextRequest) {
             await batch.commit();
           }
           
+          results.cleanedRecords += oldDocs.size;
           console.log(`Cleaned ${oldDocs.size} old documents from ${collectionName}`);
         } catch (cleanupError: any) {
           console.error(`Error cleaning ${collectionName}:`, cleanupError.message);
+          results.errors.push(`Cleanup error in ${collectionName}: ${cleanupError.message}`);
         }
       }
+      
+      console.log(`Total cleaned records: ${results.cleanedRecords}`);
     }
 
     const results = {
@@ -147,6 +153,7 @@ export async function POST(request: NextRequest) {
       products: 0,
       prices: 0,
       invoices: 0,
+      cleanedRecords: 0,
       errors: [] as string[],
     };
     
