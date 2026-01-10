@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     // Initialize results object early so cleanup can use it
     const results = {
       payments: 0,
+      paymentIntents: 0,
       subscriptions: 0,
       customers: 0,
       products: 0,
@@ -108,7 +109,8 @@ export async function POST(request: NextRequest) {
       console.log(`Full Sync requested - cleaning up existing Stripe data for org: ${organizationId}`);
       const collectionsToClean = [
         'stripe_invoices',
-        'stripe_payments', 
+        'stripe_payments',
+        'stripe_payment_intents',
         'stripe_subscriptions',
         'stripe_customers',
         'stripe_products',
@@ -291,6 +293,77 @@ export async function POST(request: NextRequest) {
       }
     } catch (error: any) {
       results.errors.push(`Payments sync error: ${error.message}`);
+    }
+
+    // Sync Payment Intents (NEW - the missing link between charges, invoices, and customers)
+    try {
+      let hasMore = true;
+      let startingAfter: string | undefined;
+      let pageCount = 0;
+      const piMaxPages = syncType === 'full' ? 100 : 20; // Up to 10,000 payment intents
+
+      console.log(`Starting PaymentIntent sync. Type: ${syncType}`);
+
+      while (hasMore && pageCount < piMaxPages) {
+        pageCount++;
+        const piParams: any = {
+          limit: 100,
+          ...(startingAfter ? { starting_after: startingAfter } : {}),
+        };
+        
+        // Add created filter for incremental sync
+        if (incrementalTimestamp && syncType !== 'full') {
+          piParams.created = { gte: incrementalTimestamp };
+        }
+        
+        const paymentIntents = await stripe.paymentIntents.list(piParams);
+        
+        console.log(`PaymentIntent page ${pageCount}: fetched ${paymentIntents.data.length}, has_more: ${paymentIntents.has_more}`);
+
+        const batch = writeBatch(db);
+
+        for (const pi of paymentIntents.data) {
+          const piRef = doc(db, 'stripe_payment_intents', `${organizationId}_${pi.id}`);
+          
+          // Extract IDs for linking (no expansions needed - we'll join in code)
+          const piAny = pi as any;
+          
+          batch.set(piRef, {
+            organizationId,
+            stripeId: pi.id,
+            amount: pi.amount ?? 0,
+            amountReceived: pi.amount_received ?? 0,
+            currency: (pi.currency || 'usd').toUpperCase(),
+            status: pi.status || 'unknown',
+            // Link to other objects
+            customerId: typeof pi.customer === 'string' ? pi.customer : (pi.customer as any)?.id || null,
+            invoiceId: typeof piAny.invoice === 'string' ? piAny.invoice : (piAny.invoice as any)?.id || null,
+            latestChargeId: typeof piAny.latest_charge === 'string' ? piAny.latest_charge : (piAny.latest_charge as any)?.id || null,
+            // Metadata and description
+            description: pi.description || null,
+            statementDescriptor: pi.statement_descriptor || null,
+            metadata: pi.metadata || {},
+            // Payment method info
+            paymentMethodTypes: pi.payment_method_types || [],
+            // Timestamps
+            created: pi.created ? Timestamp.fromDate(new Date(pi.created * 1000)) : Timestamp.now(),
+            canceledAt: piAny.canceled_at ? Timestamp.fromDate(new Date(piAny.canceled_at * 1000)) : null,
+            syncedAt: serverTimestamp(),
+          });
+          results.paymentIntents++;
+        }
+
+        await batch.commit();
+
+        hasMore = paymentIntents.has_more;
+        if (paymentIntents.data.length > 0) {
+          startingAfter = paymentIntents.data[paymentIntents.data.length - 1].id;
+        }
+      }
+      console.log(`PaymentIntents sync complete: ${results.paymentIntents} saved (${pageCount} pages)`);
+    } catch (error: any) {
+      console.error('PaymentIntents sync error:', error);
+      results.errors.push(`PaymentIntents sync error: ${error.message}`);
     }
 
     // Sync Subscriptions (limit pages to prevent timeout)

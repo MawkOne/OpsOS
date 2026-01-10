@@ -29,6 +29,7 @@ interface StripeConnection {
   lastSyncAt?: { toDate: () => Date };
   lastSyncResults?: {
     payments: number;
+    paymentIntents?: number;
     subscriptions: number;
     customers: number;
     products: number;
@@ -426,12 +427,18 @@ export default function StripePage() {
               <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
                 Last Sync Results
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                     {connection.lastSyncResults.payments}
                   </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Payments</p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Charges</p>
+                </div>
+                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {connection.lastSyncResults.paymentIntents || 0}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>PaymentIntents</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
