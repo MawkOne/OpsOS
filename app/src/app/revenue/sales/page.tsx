@@ -285,6 +285,29 @@ export default function SalesPage() {
         }
       });
       
+      // Fetch PaymentIntents for attribution linking
+      const paymentIntentsQuery = query(
+        collection(db, "stripe_payment_intents"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
+      );
+      const paymentIntentsSnap = await getDocs(paymentIntentsQuery);
+      
+      // Build maps for quick lookups
+      const paymentIntentsByChargeId = new Map<string, any>();
+      paymentIntentsSnap.docs.forEach(doc => {
+        const pi = doc.data();
+        if (pi.latestChargeId) {
+          paymentIntentsByChargeId.set(pi.latestChargeId, pi);
+        }
+      });
+      
+      const invoicesByStripeId = new Map<string, any>();
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        invoicesByStripeId.set(invoice.stripeId, invoice);
+      });
+      
       // ALSO check stripe_payments - track which invoices we've already counted
       const countedInvoiceIds = new Set<string>();
       invoicesSnap.docs.forEach(doc => {
@@ -300,9 +323,11 @@ export default function SalesPage() {
       const paymentsSnap = await getDocs(paymentsQuery);
       
       console.log(`Processing ${paymentsSnap.size} payments, ${countedInvoiceIds.size} invoices already counted`);
+      console.log(`Built attribution maps: ${paymentIntentsByChargeId.size} PaymentIntents, ${invoicesByStripeId.size} Invoices`);
       let paymentsWithLineItems = 0;
       let paymentsWithoutLineItems = 0;
       let paymentsSkipped = 0;
+      let paymentsAttributedViaInvoice = 0;
       
       paymentsSnap.docs.forEach(doc => {
         const payment = doc.data();
@@ -388,49 +413,128 @@ export default function SalesPage() {
           return; // Done with this payment
         }
         
-        // No line items - use payment amount directly
+        // No line items - try to attribute via PaymentIntent → Invoice chain
         paymentsWithoutLineItems++;
         const amount = (payment.amount || 0) / 100;
         
         typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
         typeRevenue[revenueType].total += amount;
         
-        // Try to extract product info from description or metadata
         let productId = "stripe-unlabeled";
         let productName = "Unlabeled Payments";
+        let attributedViaInvoice = false;
         
-        if (payment.description) {
-          // Use description if available
-          productId = payment.description.toLowerCase().replace(/\s+/g, '-');
-          productName = payment.description;
-        } else if (payment.metadata) {
-          // Check metadata for product info (common in custom Stripe integrations)
-          const meta = payment.metadata as any;
-          if (meta.product_name || meta.productName) {
-            productName = meta.product_name || meta.productName;
-            productId = productName.toLowerCase().replace(/\s+/g, '-');
-          } else if (meta.description) {
-            productName = meta.description;
-            productId = meta.description.toLowerCase().replace(/\s+/g, '-');
+        // Try to link via PaymentIntent → Invoice
+        if (payment.stripeId && paymentIntentsByChargeId.has(payment.stripeId)) {
+          const paymentIntent = paymentIntentsByChargeId.get(payment.stripeId);
+          if (paymentIntent.invoiceId && invoicesByStripeId.has(paymentIntent.invoiceId)) {
+            const linkedInvoice = invoicesByStripeId.get(paymentIntent.invoiceId);
+            const invoiceLineItems = linkedInvoice.lineItems || [];
+            
+            if (invoiceLineItems.length > 0) {
+              // Successfully attributed! Use invoice line items
+              attributedViaInvoice = true;
+              paymentsAttributedViaInvoice++;
+              
+              invoiceLineItems.forEach((item: any) => {
+                let itemProductName = item.productName || item.description || "Unknown Product";
+                let itemProductId = item.productId || "unknown";
+                
+                // Try lookup chain for product name
+                if (item.productId && products.has(item.productId)) {
+                  itemProductName = products.get(item.productId)!;
+                } else if (item.priceId && prices.has(item.priceId)) {
+                  const priceInfo = prices.get(item.priceId)!;
+                  itemProductId = priceInfo.productId || itemProductId;
+                  itemProductName = priceInfo.productName || products.get(priceInfo.productId) || itemProductName;
+                }
+                
+                // Extract from description pattern
+                if ((itemProductName === item.description || itemProductName === "Unknown Product") && item.description) {
+                  const match = item.description.match(/^\d+\s*×\s*(.+?)\s*\(at/);
+                  if (match) {
+                    itemProductName = match[1].trim();
+                    itemProductId = itemProductName.toLowerCase().replace(/\s+/g, '-');
+                  }
+                }
+                
+                const itemAmount = (item.amount || 0) / 100;
+                
+                if (!productRevenue.has(itemProductId)) {
+                  productRevenue.set(itemProductId, {
+                    productId: itemProductId,
+                    productName: itemProductName,
+                    source: "stripe",
+                    months: {},
+                    total: 0,
+                  });
+                }
+                
+                const row = productRevenue.get(itemProductId)!;
+                row.months[periodKey] = (row.months[periodKey] || 0) + itemAmount;
+                row.total += itemAmount;
+                
+                // Add to price totals if priceId exists
+                if (item.priceId) {
+                  const priceInfo = prices.get(item.priceId);
+                  const priceAmount = priceInfo ? priceInfo.unitAmount / 100 : itemAmount;
+                  const priceLabel = priceInfo 
+                    ? `$${priceAmount.toFixed(2)}${priceInfo.recurring ? `/${priceInfo.recurring.interval}` : ''}`
+                    : `$${itemAmount.toFixed(2)}`;
+                  
+                  if (!priceRevenue.has(item.priceId)) {
+                    priceRevenue.set(item.priceId, {
+                      productId: item.priceId,
+                      productName: `${priceLabel} - ${itemProductName}`,
+                      source: "stripe",
+                      months: {},
+                      total: 0,
+                    });
+                  }
+                  
+                  const priceRow = priceRevenue.get(item.priceId)!;
+                  priceRow.months[periodKey] = (priceRow.months[periodKey] || 0) + itemAmount;
+                  priceRow.total += itemAmount;
+                }
+              });
+            }
           }
         }
         
-        if (!productRevenue.has(productId)) {
-          productRevenue.set(productId, {
-            productId,
-            productName,
-            source: "stripe",
-            months: {},
-            total: 0,
-          });
+        // If not attributed via invoice, fall back to description/metadata
+        if (!attributedViaInvoice) {
+          if (payment.description) {
+            productId = payment.description.toLowerCase().replace(/\s+/g, '-');
+            productName = payment.description;
+          } else if (payment.metadata) {
+            const meta = payment.metadata as any;
+            if (meta.product_name || meta.productName) {
+              productName = meta.product_name || meta.productName;
+              productId = productName.toLowerCase().replace(/\s+/g, '-');
+            } else if (meta.description) {
+              productName = meta.description;
+              productId = meta.description.toLowerCase().replace(/\s+/g, '-');
+            }
+          }
+          
+          // Only add to productRevenue if not attributed via invoice (to avoid "Unlabeled Payments")
+          if (!productRevenue.has(productId)) {
+            productRevenue.set(productId, {
+              productId,
+              productName,
+              source: "stripe",
+              months: {},
+              total: 0,
+            });
+          }
+          
+          const row = productRevenue.get(productId)!;
+          row.months[periodKey] = (row.months[periodKey] || 0) + amount;
+          row.total += amount;
         }
-        
-        const row = productRevenue.get(productId)!;
-        row.months[periodKey] = (row.months[periodKey] || 0) + amount;
-        row.total += amount;
       });
       
-      console.log(`Payments breakdown: ${paymentsWithLineItems} with line items, ${paymentsWithoutLineItems} without, ${paymentsSkipped} skipped (already in invoices)`);
+      console.log(`Payments breakdown: ${paymentsWithLineItems} with line items, ${paymentsWithoutLineItems} without (${paymentsAttributedViaInvoice} attributed via invoice), ${paymentsSkipped} skipped (already in invoices)`);
 
       // Fetch QuickBooks invoices (manual invoices)
       const qbInvoicesQuery = query(
