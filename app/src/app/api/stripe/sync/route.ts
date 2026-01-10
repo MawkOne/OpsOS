@@ -372,23 +372,6 @@ export async function POST(request: NextRequest) {
           // Extract IDs for linking (no expansions needed - we'll join in code)
           const piAny = pi as any;
           
-          // Fetch line items for this PaymentIntent (for product attribution)
-          let lineItems: any[] = [];
-          try {
-            const lineItemsResponse = await stripe.paymentIntents.listLineItems(pi.id, { limit: 100 });
-            lineItems = lineItemsResponse.data.map((item: any) => ({
-              productCode: item.product_code || null,
-              productName: item.product_name || null,
-              quantity: item.quantity || 1,
-              unitCost: item.unit_cost ?? 0,
-              amount: (item.unit_cost ?? 0) * (item.quantity || 1),
-              discountAmount: item.discount_amount ?? 0,
-            }));
-          } catch (error) {
-            // Line items might not be available for all PaymentIntents
-            console.log(`No line items for PaymentIntent ${pi.id}`);
-          }
-          
           batch.set(piRef, {
             organizationId,
             stripeId: pi.id,
@@ -406,8 +389,6 @@ export async function POST(request: NextRequest) {
             metadata: pi.metadata || {},
             // Payment method info
             paymentMethodTypes: pi.payment_method_types || [],
-            // Line items for product attribution
-            lineItems: lineItems || [],
             // Timestamps
             created: pi.created ? Timestamp.fromDate(new Date(pi.created * 1000)) : Timestamp.now(),
             canceledAt: piAny.canceled_at ? Timestamp.fromDate(new Date(piAny.canceled_at * 1000)) : null,

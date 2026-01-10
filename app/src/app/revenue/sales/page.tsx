@@ -424,46 +424,15 @@ export default function SalesPage() {
         let productName = "Unlabeled Payments";
         let attributedViaInvoice = false;
         
-        // Try to link via PaymentIntent (first check PaymentIntent line items, then Invoice)
+        // Try to link via PaymentIntent → Invoice
         if (payment.stripeId && paymentIntentsByChargeId.has(payment.stripeId)) {
           const paymentIntent = paymentIntentsByChargeId.get(payment.stripeId);
-          
-          // PRIORITY 1: Check if PaymentIntent has its own line items
-          const piLineItems = paymentIntent.lineItems || [];
-          
-          if (piLineItems.length > 0) {
-            // Successfully attributed via PaymentIntent line items!
-            attributedViaInvoice = true;
-            paymentsAttributedViaInvoice++;
-            
-            piLineItems.forEach((item: any) => {
-              let itemProductName = item.productName || "Unknown Product";
-              let itemProductId = item.productCode || item.productName?.toLowerCase().replace(/\s+/g, '-') || "unknown";
-              
-              const itemAmount = (item.amount || 0) / 100;
-              
-              if (!productRevenue.has(itemProductId)) {
-                productRevenue.set(itemProductId, {
-                  productId: itemProductId,
-                  productName: itemProductName,
-                  source: "stripe",
-                  months: {},
-                  total: 0,
-                });
-              }
-              
-              const row = productRevenue.get(itemProductId)!;
-              row.months[periodKey] = (row.months[periodKey] || 0) + itemAmount;
-              row.total += itemAmount;
-            });
-          }
-          // PRIORITY 2: If no PaymentIntent line items, try Invoice linkage
-          else if (paymentIntent.invoiceId && invoicesByStripeId.has(paymentIntent.invoiceId)) {
+          if (paymentIntent.invoiceId && invoicesByStripeId.has(paymentIntent.invoiceId)) {
             const linkedInvoice = invoicesByStripeId.get(paymentIntent.invoiceId);
             const invoiceLineItems = linkedInvoice.lineItems || [];
             
             if (invoiceLineItems.length > 0) {
-              // Successfully attributed via invoice line items
+              // Successfully attributed! Use invoice line items
               attributedViaInvoice = true;
               paymentsAttributedViaInvoice++;
               
@@ -530,8 +499,6 @@ export default function SalesPage() {
               });
             }
           }
-          // End of Invoice linkage attempt
-          }
         }
         
         // If not attributed via invoice, fall back to description/metadata
@@ -567,7 +534,7 @@ export default function SalesPage() {
         }
       });
       
-      console.log(`Payments breakdown: ${paymentsWithLineItems} with line items, ${paymentsWithoutLineItems} without (${paymentsAttributedViaInvoice} attributed via PaymentIntent/Invoice), ${paymentsSkipped} skipped (already in invoices)`);
+      console.log(`Payments breakdown: ${paymentsWithLineItems} with line items, ${paymentsWithoutLineItems} without (${paymentsAttributedViaInvoice} attributed via invoice), ${paymentsSkipped} skipped (already in invoices)`);
 
       // Fetch QuickBooks invoices (manual invoices)
       const qbInvoicesQuery = query(
