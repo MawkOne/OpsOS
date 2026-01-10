@@ -255,7 +255,13 @@ export default function SalesPage() {
         }
       });
       
-      // SECONDARY: Also check stripe_payments for direct charges (if any)
+      // ALSO check stripe_payments - track which invoices we've already counted
+      const countedInvoiceIds = new Set<string>();
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        if (invoice.stripeId) countedInvoiceIds.add(invoice.stripeId);
+      });
+      
       const paymentsQuery = query(
         collection(db, "stripe_payments"),
         where("organizationId", "==", organizationId),
@@ -263,10 +269,12 @@ export default function SalesPage() {
       );
       const paymentsSnap = await getDocs(paymentsQuery);
       
+      console.log(`Processing ${paymentsSnap.size} payments, ${countedInvoiceIds.size} invoices already counted`);
+      
       paymentsSnap.docs.forEach(doc => {
         const payment = doc.data();
-        // Skip if this payment has an invoice (already counted above)
-        if (payment.invoiceId) return;
+        // Skip if this payment's invoice was already counted above
+        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) return;
         
         const paymentDate = payment.created?.toDate?.() || new Date();
         const periodKey = isAllTime 
@@ -275,14 +283,59 @@ export default function SalesPage() {
         
         if (!monthsSet.has(periodKey)) return;
         
+        // Check if this is a subscription payment
+        const lineItems = payment.lineItems || [];
+        const hasSubscription = !!payment.subscriptionId;
+        const looksLikeSubscription = lineItems.some((item: any) => 
+          item.description && (item.description.includes('/ month') || item.description.includes('/ year'))
+        );
+        const revenueType = (hasSubscription || looksLikeSubscription) ? "subscription" : "one_time";
+        
+        // Use line items if available, otherwise use payment amount
+        if (lineItems.length > 0) {
+          lineItems.forEach((item: any) => {
+            let productName = item.productName || item.description || "Unknown Product";
+            let productId = item.productId || "unknown";
+            
+            // Fallback: Extract from description
+            if ((productName === item.description || productName === "Unknown Product") && item.description) {
+              const match = item.description.match(/^\d+\s*×\s*(.+?)\s*\(at/);
+              if (match) {
+                productName = match[1].trim();
+                productId = productName.toLowerCase().replace(/\s+/g, '-');
+              }
+            }
+            
+            const amount = (item.amount || 0) / 100;
+            
+            typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
+            typeRevenue[revenueType].total += amount;
+            
+            if (!productRevenue.has(productId)) {
+              productRevenue.set(productId, {
+                productId,
+                productName,
+                source: "stripe",
+                months: {},
+                total: 0,
+              });
+            }
+            
+            const row = productRevenue.get(productId)!;
+            row.months[periodKey] = (row.months[periodKey] || 0) + amount;
+            row.total += amount;
+          });
+          return; // Done with this payment
+        }
+        
+        // No line items - use payment amount directly
         const amount = (payment.amount || 0) / 100;
         
-        // Direct charges without invoices = one-time
-        typeRevenue.one_time.months[periodKey] = (typeRevenue.one_time.months[periodKey] || 0) + amount;
-        typeRevenue.one_time.total += amount;
+        typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
+        typeRevenue[revenueType].total += amount;
         
         const productId = payment.description || "stripe-other";
-        const productName = payment.description || "One-time Payment";
+        const productName = payment.description || "Stripe Payment";
         
         if (!productRevenue.has(productId)) {
           productRevenue.set(productId, {

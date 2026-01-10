@@ -18,8 +18,8 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, syncType = 'full', maxPages = 2, createdAfter, createdBefore } = body; 
-    // maxPages: Limit pages for charges (200 items default)
+    const { organizationId, syncType = 'full', maxPages = 20, createdAfter, createdBefore } = body; 
+    // maxPages: Limit pages for charges (2000 items default - increased for large accounts)
     // createdAfter/createdBefore: Unix timestamps to sync specific date ranges
 
     if (!organizationId) {
