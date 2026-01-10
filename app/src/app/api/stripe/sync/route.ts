@@ -170,15 +170,16 @@ export async function POST(request: NextRequest) {
     // Sync Payments/Charges with invoice expansion for product attribution
     // For incremental sync, get lastSyncAt from connection and only fetch newer charges
     const lastSyncAt = connectionData?.lastSyncAt?.toDate?.();
-    const incrementalTimestamp = lastSyncAt ? Math.floor(lastSyncAt.getTime() / 1000) : null;
+    const incrementalTimestamp = (syncType !== 'full' && lastSyncAt) ? Math.floor(lastSyncAt.getTime() / 1000) : null;
     
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
       let pageCount = 0;
-      const chargeMaxPages = 100; // Allow up to 10,000 charges per sync
+      // Reduced limits to prevent Vercel timeout (5 min max)
+      const chargeMaxPages = syncType === 'full' ? 20 : 10; // 2,000 or 1,000 charges
 
-      console.log(`Starting charge sync. Incremental from: ${incrementalTimestamp ? new Date(incrementalTimestamp * 1000).toISOString() : 'beginning'}`);
+      console.log(`Starting charge sync. Type: ${syncType}, Incremental from: ${incrementalTimestamp ? new Date(incrementalTimestamp * 1000).toISOString() : 'ALL DATA'}`);
 
       while (hasMore && pageCount < chargeMaxPages) {
         pageCount++;
@@ -300,7 +301,8 @@ export async function POST(request: NextRequest) {
       let hasMore = true;
       let startingAfter: string | undefined;
       let pageCount = 0;
-      const piMaxPages = syncType === 'full' ? 100 : 20; // Up to 10,000 payment intents
+      // Reduced limits to prevent Vercel timeout (5 min max)
+      const piMaxPages = syncType === 'full' ? 15 : 10; // 1,500 or 1,000 payment intents
 
       console.log(`Starting PaymentIntent sync. Type: ${syncType}`);
 
