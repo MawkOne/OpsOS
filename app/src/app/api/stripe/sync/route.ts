@@ -88,6 +88,18 @@ export async function POST(request: NextRequest) {
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
+    // Initialize results object early so cleanup can use it
+    const results = {
+      payments: 0,
+      subscriptions: 0,
+      customers: 0,
+      products: 0,
+      prices: 0,
+      invoices: 0,
+      cleanedRecords: 0,
+      errors: [] as string[],
+    };
+
     // For Full Sync: Clean up all existing Stripe data for this organization first
     // This ensures a clean slate and prevents duplicates
     const shouldCleanFirst = syncType === 'full';
@@ -145,17 +157,6 @@ export async function POST(request: NextRequest) {
       
       console.log(`Total cleaned records: ${results.cleanedRecords}`);
     }
-
-    const results = {
-      payments: 0,
-      subscriptions: 0,
-      customers: 0,
-      products: 0,
-      prices: 0,
-      invoices: 0,
-      cleanedRecords: 0,
-      errors: [] as string[],
-    };
     
     // Clear previous sync errors immediately so UI doesn't show stale errors
     await setDoc(connectionRef, {
