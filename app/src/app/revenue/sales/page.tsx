@@ -36,7 +36,7 @@ interface MonthlyTotal {
 
 type ViewMode = "ttm" | "year" | "all";
 
-type GroupBy = "type" | "plan";
+type GroupBy = "type" | "plan" | "price";
 
 interface TypedRevenueRow {
   id: string;
@@ -49,11 +49,12 @@ interface TypedRevenueRow {
 export default function SalesPage() {
   const { currentOrg } = useOrganization();
   const [loading, setLoading] = useState(true);
-  const [revenueData, setRevenueData] = useState<RevenueRow[]>([]);
-  const [typedData, setTypedData] = useState<TypedRevenueRow[]>([]);
+  const [revenueData, setRevenueData] = useState<RevenueRow[]>([]); // Product/Plan data
+  const [priceData, setPriceData] = useState<RevenueRow[]>([]); // Price data
+  const [typedData, setTypedData] = useState<TypedRevenueRow[]>([]); // Type data
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [groupBy, setGroupBy] = useState<GroupBy>("type"); // "type" or "plan"
+  const [groupBy, setGroupBy] = useState<GroupBy>("type"); // "type", "plan", or "price"
   const [planFilter, setPlanFilter] = useState<string>("all"); // Filter for specific plan
   
   const organizationId = currentOrg?.id || "";
@@ -139,17 +140,23 @@ export default function SalesPage() {
         where("organizationId", "==", organizationId)
       );
       const pricesSnap = await getDocs(pricesQuery);
-      const prices = new Map<string, { productId: string; productName: string | null }>();
+      const prices = new Map<string, { productId: string; productName: string | null; unitAmount: number; currency: string; recurring: any }>();
       pricesSnap.docs.forEach(doc => {
         const data = doc.data();
         prices.set(data.stripeId, {
           productId: data.productId,
           productName: data.productName || products.get(data.productId) || null,
+          unitAmount: data.unitAmount || 0,
+          currency: data.currency || 'usd',
+          recurring: data.recurring || null,
         });
       });
 
       // Aggregate by product and month
       const productRevenue = new Map<string, RevenueRow>();
+      
+      // Aggregate by price point
+      const priceRevenue = new Map<string, RevenueRow>();
 
       // PRIMARY: Use stripe_invoices (most Stripe accounts use invoicing for subscriptions)
       const invoicesQuery = query(
@@ -226,6 +233,29 @@ export default function SalesPage() {
             const row = productRevenue.get(productId)!;
             row.months[periodKey] = (row.months[periodKey] || 0) + amount;
             row.total += amount;
+            
+            // Add to price totals (if priceId exists)
+            if (item.priceId) {
+              const priceInfo = prices.get(item.priceId);
+              const priceAmount = priceInfo ? priceInfo.unitAmount / 100 : amount;
+              const priceLabel = priceInfo 
+                ? `$${priceAmount.toFixed(2)}${priceInfo.recurring ? `/${priceInfo.recurring.interval}` : ''}`
+                : `$${amount.toFixed(2)}`;
+              
+              if (!priceRevenue.has(item.priceId)) {
+                priceRevenue.set(item.priceId, {
+                  productId: item.priceId,
+                  productName: `${priceLabel} - ${productName}`,
+                  source: "stripe",
+                  months: {},
+                  total: 0,
+                });
+              }
+              
+              const priceRow = priceRevenue.get(item.priceId)!;
+              priceRow.months[periodKey] = (priceRow.months[periodKey] || 0) + amount;
+              priceRow.total += amount;
+            }
           });
         } else {
           // No line items - use invoice amount directly
@@ -331,6 +361,29 @@ export default function SalesPage() {
             const row = productRevenue.get(productId)!;
             row.months[periodKey] = (row.months[periodKey] || 0) + amount;
             row.total += amount;
+            
+            // Add to price totals (if priceId exists)
+            if (item.priceId) {
+              const priceInfo = prices.get(item.priceId);
+              const priceAmount = priceInfo ? priceInfo.unitAmount / 100 : amount;
+              const priceLabel = priceInfo 
+                ? `$${priceAmount.toFixed(2)}${priceInfo.recurring ? `/${priceInfo.recurring.interval}` : ''}`
+                : `$${amount.toFixed(2)}`;
+              
+              if (!priceRevenue.has(item.priceId)) {
+                priceRevenue.set(item.priceId, {
+                  productId: item.priceId,
+                  productName: `${priceLabel} - ${productName}`,
+                  source: "stripe",
+                  months: {},
+                  total: 0,
+                });
+              }
+              
+              const priceRow = priceRevenue.get(item.priceId)!;
+              priceRow.months[periodKey] = (priceRow.months[periodKey] || 0) + amount;
+              priceRow.total += amount;
+            }
           });
           return; // Done with this payment
         }
@@ -424,10 +477,15 @@ export default function SalesPage() {
       rows.push(...Array.from(productRevenue.values()));
       rows.sort((a, b) => b.total - a.total);
       
+      // Price data
+      const priceRows = Array.from(priceRevenue.values());
+      priceRows.sort((a, b) => b.total - a.total);
+      
       // Filter out zero-total type rows
       const typedRows = Object.values(typeRevenue).filter(r => r.total > 0);
       
       setRevenueData(rows);
+      setPriceData(priceRows);
       setTypedData(typedRows);
     } catch (error) {
       console.error("Error fetching revenue data:", error);
@@ -442,14 +500,21 @@ export default function SalesPage() {
     return revenueData.filter(row => row.productId === planFilter);
   }, [revenueData, planFilter]);
 
+  const filteredPriceData = useMemo(() => {
+    if (planFilter === "all") return priceData;
+    return priceData.filter(row => row.productId === planFilter);
+  }, [priceData, planFilter]);
+
   // Get display data based on groupBy mode
   const displayData = useMemo(() => {
     if (groupBy === "type") {
       return typedData;
+    } else if (groupBy === "price") {
+      return filteredPriceData;
     } else {
       return filteredPlanData;
     }
-  }, [groupBy, typedData, filteredPlanData]);
+  }, [groupBy, typedData, filteredPlanData, filteredPriceData]);
 
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
@@ -530,11 +595,13 @@ export default function SalesPage() {
           
           <Card>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Products</span>
+              <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                {groupBy === "type" ? "Types" : groupBy === "price" ? "Prices" : "Products"}
+              </span>
               <Package className="w-4 h-4" style={{ color: "#3b82f6" }} />
             </div>
             <p className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
-              {revenueData.length}
+              {groupBy === "type" ? typedData.length : groupBy === "price" ? priceData.length : revenueData.length}
             </p>
           </Card>
           
@@ -643,11 +710,12 @@ export default function SalesPage() {
                 >
                   <option value="type">By Type</option>
                   <option value="plan">By Plan</option>
+                  <option value="price">By Price</option>
                 </select>
               </div>
 
-              {/* Plan Filter (only show when grouped by plan) */}
-              {groupBy === "plan" && (
+              {/* Plan/Price Filter (only show when grouped by plan or price) */}
+              {(groupBy === "plan" || groupBy === "price") && (
                 <div className="flex items-center gap-2">
                   <select
                     value={planFilter}
@@ -659,8 +727,8 @@ export default function SalesPage() {
                       color: "var(--foreground)",
                     }}
                   >
-                    <option value="all">All Plans</option>
-                    {revenueData.map(row => (
+                    <option value="all">{groupBy === "price" ? "All Prices" : "All Plans"}</option>
+                    {(groupBy === "price" ? priceData : revenueData).map(row => (
                       <option key={row.productId} value={row.productId}>
                         {row.productName}
                       </option>
@@ -710,9 +778,9 @@ export default function SalesPage() {
                       className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
                       style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
                     >
-                      {groupBy === "type" ? "Revenue Type" : "Product / Plan"}
+                      {groupBy === "type" ? "Revenue Type" : groupBy === "price" ? "Price Point" : "Product / Plan"}
                     </th>
-                    {groupBy === "plan" && (
+                    {(groupBy === "plan" || groupBy === "price") && (
                       <th 
                         className="text-center py-3 px-2 text-sm font-semibold"
                         style={{ color: "var(--foreground-muted)" }}
@@ -823,9 +891,9 @@ export default function SalesPage() {
                       </motion.tr>
                     </>
                   ) : (
-                    /* Plan View - Show individual product/plan rows */
+                    /* Plan/Price View - Show individual product/plan/price rows */
                     <>
-                      {filteredPlanData.map((row, idx) => (
+                      {displayData.map((row, idx) => (
                         <motion.tr
                           key={row.productId}
                           initial={{ opacity: 0, y: 10 }}
@@ -867,19 +935,19 @@ export default function SalesPage() {
                           </td>
                         </motion.tr>
                       ))}
-                      {/* Total Row for Plans */}
-                      {planFilter === "all" && filteredPlanData.length > 1 && (
+                      {/* Total Row for Plans/Prices */}
+                      {planFilter === "all" && displayData.length > 1 && (
                         <motion.tr
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: filteredPlanData.length * 0.02 }}
+                          transition={{ delay: displayData.length * 0.02 }}
                           style={{ borderTop: "2px solid var(--border)", background: "var(--background-tertiary)" }}
                         >
                           <td 
                             className="py-4 px-4 text-sm font-bold sticky left-0"
                             style={{ color: "var(--foreground)", background: "inherit" }}
                           >
-                            Total ({filteredPlanData.length} plans)
+                            Total ({displayData.length} {groupBy === "price" ? "prices" : "plans"})
                           </td>
                           <td className="py-4 px-2"></td>
                           {monthlyTotals.map((mt) => (
