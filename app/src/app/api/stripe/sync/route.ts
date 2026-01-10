@@ -227,6 +227,25 @@ export async function POST(request: NextRequest) {
               : (invoice.subscription?.id || null);
           }
           
+          // If charge has a payment_intent, try to fetch its details for product info
+          const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
+          
+          // If no line items from invoice, check metadata for product info
+          if (lineItems.length === 0 && charge.metadata) {
+            // Many Stripe integrations store product info in metadata
+            const meta = charge.metadata as any;
+            if (meta.product_name || meta.productName || meta.product_id || meta.productId) {
+              lineItems = [{
+                description: meta.product_name || meta.productName || meta.description || null,
+                amount: charge.amount ?? 0,
+                quantity: parseInt(meta.quantity || '1'),
+                priceId: meta.price_id || meta.priceId || null,
+                productId: meta.product_id || meta.productId || null,
+                productName: meta.product_name || meta.productName || null,
+              }];
+            }
+          }
+          
           // Ensure no undefined values (Firebase rejects undefined)
           batch.set(paymentRef, {
             organizationId,
@@ -238,12 +257,15 @@ export async function POST(request: NextRequest) {
             customerId: typeof charge.customer === 'string' ? charge.customer : ((charge.customer as any)?.id || null),
             customerEmail: charge.billing_details?.email || null,
             description: charge.description || null,
+            statementDescriptor: charge.statement_descriptor || null,
+            calculatedStatementDescriptor: (charge as any).calculated_statement_descriptor || null,
             paymentMethod: charge.payment_method_details?.type || null,
             created: charge.created ? Timestamp.fromDate(new Date(charge.created * 1000)) : Timestamp.now(),
             metadata: charge.metadata || {},
             refunded: charge.refunded ?? false,
             amountRefunded: charge.amount_refunded ?? 0,
             // Product attribution fields
+            paymentIntentId: paymentIntentId || null,
             invoiceId: typeof chargeAny.invoice === 'string' ? chargeAny.invoice : (invoice?.id || null),
             subscriptionId: subscriptionId || null,
             lineItems: lineItems || [],

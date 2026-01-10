@@ -342,29 +342,23 @@ export default function SalesPage() {
         typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
         typeRevenue[revenueType].total += amount;
         
-        // Group standalone payments by amount tier for better categorization
-        let productId = "stripe-other";
-        let productName = "One-time Payments";
+        // Try to extract product info from description or metadata
+        let productId = "stripe-unlabeled";
+        let productName = "Unlabeled Payments";
         
         if (payment.description) {
           // Use description if available
           productId = payment.description.toLowerCase().replace(/\s+/g, '-');
           productName = payment.description;
-        } else {
-          // Group by amount range for cleaner reporting
-          const amountDollars = amount;
-          if (amountDollars < 25) {
-            productId = "stripe-small";
-            productName = "Small Payments (< $25)";
-          } else if (amountDollars < 100) {
-            productId = "stripe-medium";
-            productName = "Medium Payments ($25-99)";
-          } else if (amountDollars < 500) {
-            productId = "stripe-large";
-            productName = "Large Payments ($100-499)";
-          } else {
-            productId = "stripe-premium";
-            productName = "Premium Payments ($500+)";
+        } else if (payment.metadata) {
+          // Check metadata for product info (common in custom Stripe integrations)
+          const meta = payment.metadata as any;
+          if (meta.product_name || meta.productName) {
+            productName = meta.product_name || meta.productName;
+            productId = productName.toLowerCase().replace(/\s+/g, '-');
+          } else if (meta.description) {
+            productName = meta.description;
+            productId = meta.description.toLowerCase().replace(/\s+/g, '-');
           }
         }
         
