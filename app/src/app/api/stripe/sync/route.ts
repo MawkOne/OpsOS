@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { organizationId, syncType = 'full', maxPages = 20, createdAfter, createdBefore } = body; 
+    // syncType: 'full' | 'incremental' | 'historical'
     // maxPages: Limit pages for charges (2000 items default - increased for large accounts)
     // createdAfter/createdBefore: Unix timestamps to sync specific date ranges
 
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
 
     // For Full Sync: Clean up all existing Stripe data for this organization first
     // This ensures a clean slate and prevents duplicates
+    // Don't clean on incremental or historical syncs
     const shouldCleanFirst = syncType === 'full';
     
     if (shouldCleanFirst) {
@@ -168,18 +170,35 @@ export async function POST(request: NextRequest) {
     }, { merge: true });
 
     // Sync Payments/Charges with invoice expansion for product attribution
-    // For incremental sync, get lastSyncAt from connection and only fetch newer charges
+    // For incremental sync: get lastSyncAt from connection and fetch NEWER charges
+    // For historical sync: get oldestSyncedChargeDate and fetch OLDER charges
     const lastSyncAt = connectionData?.lastSyncAt?.toDate?.();
-    const incrementalTimestamp = (syncType !== 'full' && lastSyncAt) ? Math.floor(lastSyncAt.getTime() / 1000) : null;
+    const oldestSyncedChargeDate = connectionData?.oldestSyncedChargeDate?.toDate?.();
+    
+    let createdFilter: any = null;
+    let chargeMaxPages = 20;
+    
+    if (syncType === 'incremental' && lastSyncAt) {
+      // Fetch charges AFTER last sync
+      createdFilter = { gte: Math.floor(lastSyncAt.getTime() / 1000) };
+      chargeMaxPages = 10; // 1,000 charges
+    } else if (syncType === 'historical' && oldestSyncedChargeDate) {
+      // Fetch charges BEFORE oldest synced date
+      createdFilter = { lte: Math.floor(oldestSyncedChargeDate.getTime() / 1000) };
+      chargeMaxPages = 20; // 2,000 charges per historical batch
+    } else if (syncType === 'full') {
+      // Fetch all (newest first)
+      createdFilter = null;
+      chargeMaxPages = 20; // 2,000 charges
+    }
     
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
       let pageCount = 0;
-      // Reduced limits to prevent Vercel timeout (5 min max)
-      const chargeMaxPages = syncType === 'full' ? 20 : 10; // 2,000 or 1,000 charges
+      let oldestChargeDate: Date | null = null;
 
-      console.log(`Starting charge sync. Type: ${syncType}, Incremental from: ${incrementalTimestamp ? new Date(incrementalTimestamp * 1000).toISOString() : 'ALL DATA'}`);
+      console.log(`Starting charge sync. Type: ${syncType}, Filter: ${createdFilter ? JSON.stringify(createdFilter) : 'ALL DATA'}`);
 
       while (hasMore && pageCount < chargeMaxPages) {
         pageCount++;
@@ -194,9 +213,9 @@ export async function POST(request: NextRequest) {
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         };
         
-        // Add created filter for incremental sync (only new charges since last sync)
-        if (incrementalTimestamp && syncType !== 'full') {
-          chargeParams.created = { gte: incrementalTimestamp };
+        // Add created filter if specified
+        if (createdFilter) {
+          chargeParams.created = createdFilter;
         }
         
         const charges = await stripe.charges.list(chargeParams);
@@ -207,6 +226,12 @@ export async function POST(request: NextRequest) {
 
         for (const charge of charges.data) {
           const paymentRef = doc(db, 'stripe_payments', `${organizationId}_${charge.id}`);
+          
+          // Track oldest charge date for historical syncing
+          const chargeDate = new Date(charge.created * 1000);
+          if (!oldestChargeDate || chargeDate < oldestChargeDate) {
+            oldestChargeDate = chargeDate;
+          }
           
           // Extract invoice and line items for product attribution
           // Use type assertion since Stripe types vary by API version
@@ -291,6 +316,12 @@ export async function POST(request: NextRequest) {
         if (charges.data.length > 0) {
           startingAfter = charges.data[charges.data.length - 1].id;
         }
+      }
+      
+      // Store oldest charge date for historical syncing
+      if (oldestChargeDate) {
+        (results as any).oldestChargeDate = oldestChargeDate;
+        console.log(`Oldest charge synced: ${oldestChargeDate.toISOString()}`);
       }
     } catch (error: any) {
       results.errors.push(`Payments sync error: ${error.message}`);
@@ -773,11 +804,12 @@ export async function POST(request: NextRequest) {
 
     // Update connection status
     const finalStatus = results.errors.length > 0 ? 'error' : 'connected';
-    await setDoc(connectionRef, {
+    const updateData: any = {
       status: finalStatus,
       lastSyncAt: serverTimestamp(),
       lastSyncResults: {
         payments: results.payments,
+        paymentIntents: results.paymentIntents,
         subscriptions: results.subscriptions,
         customers: results.customers,
         products: results.products,
@@ -786,7 +818,14 @@ export async function POST(request: NextRequest) {
         errors: results.errors,
       },
       updatedAt: serverTimestamp(),
-    }, { merge: true });
+    };
+    
+    // Store oldest synced charge date for historical syncing (scoped variable from charges sync)
+    if ((results as any).oldestChargeDate) {
+      updateData.oldestSyncedChargeDate = Timestamp.fromDate((results as any).oldestChargeDate);
+    }
+    
+    await setDoc(connectionRef, updateData, { merge: true });
 
     return NextResponse.json({
       success: results.errors.length === 0,

@@ -144,7 +144,7 @@ export default function StripePage() {
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async (fullSync = false) => {
+  const handleSync = async (syncType: 'full' | 'incremental' | 'historical' = 'incremental') => {
     setIsSyncing(true);
     setError(null);
 
@@ -154,7 +154,7 @@ export default function StripePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           organizationId,
-          syncType: fullSync ? 'full' : 'incremental',
+          syncType,
         }),
       });
 
@@ -165,10 +165,12 @@ export default function StripePage() {
       }
 
       await fetchMetrics();
-      const msg = fullSync 
-        ? `Full sync completed! ${syncData.payments || 0} payments synced.`
-        : `Sync completed! ${syncData.payments || 0} new payments.`;
-      setSuccess(msg);
+      const messages = {
+        full: `Full sync completed! ${syncData.payments || 0} payments synced.`,
+        incremental: `Sync completed! ${syncData.payments || 0} new payments.`,
+        historical: `Historical sync completed! ${syncData.payments || 0} older payments synced.`,
+      };
+      setSuccess(messages[syncType]);
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
@@ -303,7 +305,7 @@ export default function StripePage() {
               {isConnected || isSyncingStatus ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleSync(false)}
+                    onClick={() => handleSync('incremental')}
                     disabled={isSyncing}
                     className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
@@ -311,12 +313,13 @@ export default function StripePage() {
                       color: isSyncingStatus && !isSyncing ? "#f59e0b" : "var(--foreground-muted)",
                       border: "1px solid var(--border)",
                     }}
+                    title="Sync new data since last sync"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
                     {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync New"}
                   </button>
                   <button
-                    onClick={() => handleSync(true)}
+                    onClick={() => handleSync('full')}
                     disabled={isSyncing}
                     className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
@@ -324,9 +327,24 @@ export default function StripePage() {
                       color: "#3b82f6",
                       border: "1px solid var(--border)",
                     }}
-                    title="Fetch all historical data from Stripe"
+                    title="Delete all data and sync 2,000 newest records"
                   >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
                     Full Sync
+                  </button>
+                  <button
+                    onClick={() => handleSync('historical')}
+                    disabled={isSyncing}
+                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      color: "#8b5cf6",
+                      border: "1px solid var(--border)",
+                    }}
+                    title="Sync next batch of older data (2,000 records)"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    Sync Historical
                   </button>
                   <button
                     onClick={handleDisconnect}
