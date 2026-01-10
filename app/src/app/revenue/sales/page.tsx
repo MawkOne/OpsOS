@@ -895,7 +895,7 @@ export default function SalesPage() {
                     <>
                       {displayData.map((row, idx) => (
                         <motion.tr
-                          key={row.productId}
+                          key={'productId' in row ? row.productId : (row as TypedRevenueRow).id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.02 }}
@@ -906,13 +906,15 @@ export default function SalesPage() {
                             className="py-3 px-4 text-sm font-medium sticky left-0"
                             style={{ color: "var(--foreground)", background: "inherit" }}
                           >
-                            {row.productName}
+                            {'productName' in row ? row.productName : (row as TypedRevenueRow).name}
                           </td>
-                          <td className="py-3 px-2 text-center">
-                            <div className="flex items-center justify-center">
-                              {getSourceIcon(row.source)}
-                            </div>
-                          </td>
+                          {'source' in row && (
+                            <td className="py-3 px-2 text-center">
+                              <div className="flex items-center justify-center">
+                                {getSourceIcon(row.source)}
+                              </div>
+                            </td>
+                          )}
                           {months.map(month => {
                             const amount = row.months[month] || 0;
                             return (
