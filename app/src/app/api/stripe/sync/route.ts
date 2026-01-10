@@ -149,6 +149,13 @@ export async function POST(request: NextRequest) {
       invoices: 0,
       errors: [] as string[],
     };
+    
+    // Clear previous sync errors immediately so UI doesn't show stale errors
+    await setDoc(connectionRef, {
+      status: 'syncing',
+      lastSyncResults: { errors: [] },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
 
     // Sync Payments/Charges with invoice expansion for product attribution
     // For incremental sync, get lastSyncAt from connection and only fetch newer charges
