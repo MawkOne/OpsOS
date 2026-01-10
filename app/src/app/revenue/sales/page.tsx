@@ -270,11 +270,17 @@ export default function SalesPage() {
       const paymentsSnap = await getDocs(paymentsQuery);
       
       console.log(`Processing ${paymentsSnap.size} payments, ${countedInvoiceIds.size} invoices already counted`);
+      let paymentsWithLineItems = 0;
+      let paymentsWithoutLineItems = 0;
+      let paymentsSkipped = 0;
       
       paymentsSnap.docs.forEach(doc => {
         const payment = doc.data();
         // Skip if this payment's invoice was already counted above
-        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) return;
+        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) {
+          paymentsSkipped++;
+          return;
+        }
         
         const paymentDate = payment.created?.toDate?.() || new Date();
         const periodKey = isAllTime 
@@ -293,6 +299,7 @@ export default function SalesPage() {
         
         // Use line items if available, otherwise use payment amount
         if (lineItems.length > 0) {
+          paymentsWithLineItems++;
           lineItems.forEach((item: any) => {
             let productName = item.productName || item.description || "Unknown Product";
             let productId = item.productId || "unknown";
@@ -329,13 +336,37 @@ export default function SalesPage() {
         }
         
         // No line items - use payment amount directly
+        paymentsWithoutLineItems++;
         const amount = (payment.amount || 0) / 100;
         
         typeRevenue[revenueType].months[periodKey] = (typeRevenue[revenueType].months[periodKey] || 0) + amount;
         typeRevenue[revenueType].total += amount;
         
-        const productId = payment.description || "stripe-other";
-        const productName = payment.description || "Stripe Payment";
+        // Group standalone payments by amount tier for better categorization
+        let productId = "stripe-other";
+        let productName = "One-time Payments";
+        
+        if (payment.description) {
+          // Use description if available
+          productId = payment.description.toLowerCase().replace(/\s+/g, '-');
+          productName = payment.description;
+        } else {
+          // Group by amount range for cleaner reporting
+          const amountDollars = amount;
+          if (amountDollars < 25) {
+            productId = "stripe-small";
+            productName = "Small Payments (< $25)";
+          } else if (amountDollars < 100) {
+            productId = "stripe-medium";
+            productName = "Medium Payments ($25-99)";
+          } else if (amountDollars < 500) {
+            productId = "stripe-large";
+            productName = "Large Payments ($100-499)";
+          } else {
+            productId = "stripe-premium";
+            productName = "Premium Payments ($500+)";
+          }
+        }
         
         if (!productRevenue.has(productId)) {
           productRevenue.set(productId, {
@@ -351,6 +382,8 @@ export default function SalesPage() {
         row.months[periodKey] = (row.months[periodKey] || 0) + amount;
         row.total += amount;
       });
+      
+      console.log(`Payments breakdown: ${paymentsWithLineItems} with line items, ${paymentsWithoutLineItems} without, ${paymentsSkipped} skipped (already in invoices)`);
 
       // Fetch QuickBooks invoices (manual invoices)
       const qbInvoicesQuery = query(
