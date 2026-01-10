@@ -376,14 +376,20 @@ export async function POST(request: NextRequest) {
           // Using direct fetch since the SDK doesn't expose this endpoint yet
           let lineItems: any[] = [];
           try {
+            const headers: Record<string, string> = {
+              'Authorization': `Bearer ${PLATFORM_SECRET || connectionData?.accessToken || connectionData?.apiKey}`,
+            };
+            
+            // Add Stripe-Account header if using Connect
+            if (connectionData?.stripeAccountId) {
+              headers['Stripe-Account'] = connectionData.stripeAccountId;
+            }
+            
             const response = await fetch(
               `https://api.stripe.com/v1/payment_intents/${pi.id}/amount_details_line_items?limit=100`,
               {
                 method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${apiKey}`,
-                  'Stripe-Account': stripeAccountId,
-                },
+                headers,
               }
             );
             
