@@ -268,7 +268,8 @@ export async function POST(request: NextRequest) {
         // Note: Stripe limits expansion to 4 levels
         const subscriptions = await stripe.subscriptions.list({
           limit: 100,
-          expand: ['data.customer', 'data.items.data.price'],
+          // Simplified expansion - avoid 4+ level nesting
+          expand: ['data.customer'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         });
 
@@ -462,7 +463,8 @@ export async function POST(request: NextRequest) {
         // Fetch ALL invoices (not just paid) - we filter by status when displaying
         const invoiceParams: any = {
           limit: 100,
-          expand: ['data.lines.data.price', 'data.subscription'],
+          // Simplified expansion - avoid 4+ level nesting
+          expand: ['data.subscription'],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
         };
         
