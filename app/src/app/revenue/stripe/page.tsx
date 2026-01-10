@@ -170,8 +170,14 @@ export default function StripePage() {
         incremental: `Sync completed! ${syncData.payments || 0} new payments.`,
         historical: `Historical sync completed! ${syncData.payments || 0} older payments synced.`,
       };
-      setSuccess(messages[syncType]);
-      setTimeout(() => setSuccess(null), 5000);
+      
+      let message = messages[syncType];
+      if (syncData.hasMoreData) {
+        message += ` ⚠️ More data available - click "${syncType === 'historical' ? 'Sync Historical' : 'Sync New'}" again to continue.`;
+      }
+      
+      setSuccess(message);
+      setTimeout(() => setSuccess(null), syncData.hasMoreData ? 10000 : 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {

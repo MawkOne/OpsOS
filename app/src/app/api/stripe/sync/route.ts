@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
       prices: 0,
       invoices: 0,
       cleanedRecords: 0,
+      hasMoreData: false, // Indicates if there's more data to sync (stopped due to timeout)
       errors: [] as string[],
     };
 
@@ -169,6 +170,14 @@ export async function POST(request: NextRequest) {
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
+    // Track elapsed time to prevent Vercel timeout (5 min max, leave 1 min buffer)
+    const syncStartTime = Date.now();
+    const MAX_SYNC_TIME_MS = 4 * 60 * 1000; // 4 minutes
+    
+    const isApproachingTimeout = () => {
+      return (Date.now() - syncStartTime) > MAX_SYNC_TIME_MS;
+    };
+    
     // Sync Payments/Charges with invoice expansion for product attribution
     // For incremental sync: get lastSyncAt from connection and fetch NEWER charges
     // For historical sync: get oldestSyncedChargeDate and fetch OLDER charges
@@ -176,20 +185,16 @@ export async function POST(request: NextRequest) {
     const oldestSyncedChargeDate = connectionData?.oldestSyncedChargeDate?.toDate?.();
     
     let createdFilter: any = null;
-    let chargeMaxPages = 20;
     
     if (syncType === 'incremental' && lastSyncAt) {
       // Fetch charges AFTER last sync
       createdFilter = { gte: Math.floor(lastSyncAt.getTime() / 1000) };
-      chargeMaxPages = 10; // 1,000 charges
     } else if (syncType === 'historical' && oldestSyncedChargeDate) {
       // Fetch charges BEFORE oldest synced date
       createdFilter = { lte: Math.floor(oldestSyncedChargeDate.getTime() / 1000) };
-      chargeMaxPages = 20; // 2,000 charges per historical batch
     } else if (syncType === 'full') {
       // Fetch all (newest first)
       createdFilter = null;
-      chargeMaxPages = 20; // 2,000 charges
     }
     
     try {
@@ -200,7 +205,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`Starting charge sync. Type: ${syncType}, Filter: ${createdFilter ? JSON.stringify(createdFilter) : 'ALL DATA'}`);
 
-      while (hasMore && pageCount < chargeMaxPages) {
+      while (hasMore && !isApproachingTimeout()) {
         pageCount++;
         // Expand invoice with lines and subscription for full product attribution
         // Stripe allows 4 levels: data.invoice.lines.data.price
@@ -323,6 +328,14 @@ export async function POST(request: NextRequest) {
         (results as any).oldestChargeDate = oldestChargeDate;
         console.log(`Oldest charge synced: ${oldestChargeDate.toISOString()}`);
       }
+      
+      // Check if we stopped due to timeout (more data available)
+      if (hasMore && isApproachingTimeout()) {
+        results.hasMoreData = true;
+        console.log(`Charge sync stopped due to timeout. More data available. Synced ${results.payments} charges in ${pageCount} pages.`);
+      } else {
+        console.log(`Charge sync complete: ${results.payments} charges in ${pageCount} pages. No more data.`);
+      }
     } catch (error: any) {
       results.errors.push(`Payments sync error: ${error.message}`);
     }
@@ -332,12 +345,10 @@ export async function POST(request: NextRequest) {
       let hasMore = true;
       let startingAfter: string | undefined;
       let pageCount = 0;
-      // Reduced limits to prevent Vercel timeout (5 min max)
-      const piMaxPages = syncType === 'full' ? 15 : 10; // 1,500 or 1,000 payment intents
 
       console.log(`Starting PaymentIntent sync. Type: ${syncType}`);
 
-      while (hasMore && pageCount < piMaxPages) {
+      while (hasMore && !isApproachingTimeout()) {
         pageCount++;
         const piParams: any = {
           limit: 100,
@@ -393,7 +404,14 @@ export async function POST(request: NextRequest) {
           startingAfter = paymentIntents.data[paymentIntents.data.length - 1].id;
         }
       }
-      console.log(`PaymentIntents sync complete: ${results.paymentIntents} saved (${pageCount} pages)`);
+      
+      // Check if we stopped due to timeout
+      if (hasMore && isApproachingTimeout()) {
+        results.hasMoreData = true;
+        console.log(`PaymentIntent sync stopped due to timeout. More data available. Synced ${results.paymentIntents} in ${pageCount} pages.`);
+      } else {
+        console.log(`PaymentIntent sync complete: ${results.paymentIntents} saved in ${pageCount} pages. No more data.`);
+      }
     } catch (error: any) {
       console.error('PaymentIntents sync error:', error);
       results.errors.push(`PaymentIntents sync error: ${error.message}`);
