@@ -530,8 +530,6 @@ export default function SalesPage() {
               });
             }
           }
-          // End of Invoice linkage attempt
-          }
         }
         
         // If not attributed via invoice, fall back to description/metadata
