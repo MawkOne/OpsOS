@@ -347,6 +347,9 @@ export async function POST(request: NextRequest) {
       let pageCount = 0;
 
       console.log(`Starting PaymentIntent sync. Type: ${syncType}`);
+      
+      let piWithLineItemsFetched = 0;
+      let piSkippedLineItems = 0;
 
       while (hasMore && !isApproachingTimeout()) {
         pageCount++;
@@ -372,43 +375,51 @@ export async function POST(request: NextRequest) {
           // Extract IDs for linking (no expansions needed - we'll join in code)
           const piAny = pi as any;
           
-          // Fetch line items for this PaymentIntent (for product attribution)
-          // Using direct fetch since the SDK doesn't expose this endpoint yet
+          // OPTIMIZATION: Only fetch line items if PaymentIntent has NO invoiceId
+          // If it has an invoiceId, we can attribute via invoice instead (much faster!)
+          const invoiceId = typeof piAny.invoice === 'string' ? piAny.invoice : (piAny.invoice as any)?.id || null;
           let lineItems: any[] = [];
-          try {
-            const headers: Record<string, string> = {
-              'Authorization': `Bearer ${PLATFORM_SECRET || connectionData?.accessToken || connectionData?.apiKey}`,
-            };
-            
-            // Add Stripe-Account header if using Connect
-            if (connectionData?.stripeAccountId) {
-              headers['Stripe-Account'] = connectionData.stripeAccountId;
-            }
-            
-            const response = await fetch(
-              `https://api.stripe.com/v1/payment_intents/${pi.id}/amount_details_line_items?limit=100`,
-              {
-                method: 'GET',
-                headers,
+          
+          if (!invoiceId) {
+            // No invoice - try to fetch line items for direct attribution
+            piWithLineItemsFetched++;
+            try {
+              const headers: Record<string, string> = {
+                'Authorization': `Bearer ${PLATFORM_SECRET || connectionData?.accessToken || connectionData?.apiKey}`,
+              };
+              
+              // Add Stripe-Account header if using Connect
+              if (connectionData?.stripeAccountId) {
+                headers['Stripe-Account'] = connectionData.stripeAccountId;
               }
-            );
-            
-            if (response.ok) {
-              const lineItemsResponse = await response.json();
-              if (lineItemsResponse?.data) {
-                lineItems = lineItemsResponse.data.map((item: any) => ({
-                  productCode: item.product_code || null,
-                  productName: item.product_name || null,
-                  quantity: item.quantity || 1,
-                  unitCost: item.unit_cost ?? 0,
-                  amount: (item.unit_cost ?? 0) * (item.quantity || 1),
-                  discountAmount: item.discount_amount ?? 0,
-                }));
+              
+              const response = await fetch(
+                `https://api.stripe.com/v1/payment_intents/${pi.id}/amount_details_line_items?limit=100`,
+                {
+                  method: 'GET',
+                  headers,
+                }
+              );
+              
+              if (response.ok) {
+                const lineItemsResponse = await response.json();
+                if (lineItemsResponse?.data) {
+                  lineItems = lineItemsResponse.data.map((item: any) => ({
+                    productCode: item.product_code || null,
+                    productName: item.product_name || null,
+                    quantity: item.quantity || 1,
+                    unitCost: item.unit_cost ?? 0,
+                    amount: (item.unit_cost ?? 0) * (item.quantity || 1),
+                    discountAmount: item.discount_amount ?? 0,
+                  }));
+                }
               }
+            } catch (error) {
+              // Line items might not be available - continue without them
             }
-          } catch (error) {
-            // Line items might not be available for all PaymentIntents
-            // This is expected - not all PaymentIntents will have line items
+          } else {
+            // Has invoice - skip line items fetch for speed
+            piSkippedLineItems++;
           }
           
           batch.set(piRef, {
@@ -420,7 +431,7 @@ export async function POST(request: NextRequest) {
             status: pi.status || 'unknown',
             // Link to other objects
             customerId: typeof pi.customer === 'string' ? pi.customer : (pi.customer as any)?.id || null,
-            invoiceId: typeof piAny.invoice === 'string' ? piAny.invoice : (piAny.invoice as any)?.id || null,
+            invoiceId: invoiceId,
             latestChargeId: typeof piAny.latest_charge === 'string' ? piAny.latest_charge : (piAny.latest_charge as any)?.id || null,
             // Metadata and description
             description: pi.description || null,
@@ -449,9 +460,9 @@ export async function POST(request: NextRequest) {
       // Check if we stopped due to timeout
       if (hasMore && isApproachingTimeout()) {
         results.hasMoreData = true;
-        console.log(`PaymentIntent sync stopped due to timeout. More data available. Synced ${results.paymentIntents} in ${pageCount} pages.`);
+        console.log(`PaymentIntent sync stopped due to timeout. More data available. Synced ${results.paymentIntents} in ${pageCount} pages. LineItems: ${piWithLineItemsFetched} fetched, ${piSkippedLineItems} skipped (had invoiceId).`);
       } else {
-        console.log(`PaymentIntent sync complete: ${results.paymentIntents} saved in ${pageCount} pages. No more data.`);
+        console.log(`PaymentIntent sync complete: ${results.paymentIntents} saved in ${pageCount} pages. No more data. LineItems: ${piWithLineItemsFetched} fetched, ${piSkippedLineItems} skipped (had invoiceId).`);
       }
     } catch (error: any) {
       console.error('PaymentIntents sync error:', error);
