@@ -373,22 +373,32 @@ export async function POST(request: NextRequest) {
           const piAny = pi as any;
           
           // Fetch line items for this PaymentIntent (for product attribution)
-          // Using Stripe's raw request method to call the amount_details_line_items endpoint
+          // Using direct fetch since the SDK doesn't expose this endpoint yet
           let lineItems: any[] = [];
           try {
-            const lineItemsResponse: any = await stripe.request('GET', `/v1/payment_intents/${pi.id}/amount_details_line_items`, {
-              limit: 100,
-            });
+            const response = await fetch(
+              `https://api.stripe.com/v1/payment_intents/${pi.id}/amount_details_line_items?limit=100`,
+              {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Stripe-Account': stripeAccountId,
+                },
+              }
+            );
             
-            if (lineItemsResponse?.data) {
-              lineItems = lineItemsResponse.data.map((item: any) => ({
-                productCode: item.product_code || null,
-                productName: item.product_name || null,
-                quantity: item.quantity || 1,
-                unitCost: item.unit_cost ?? 0,
-                amount: (item.unit_cost ?? 0) * (item.quantity || 1),
-                discountAmount: item.discount_amount ?? 0,
-              }));
+            if (response.ok) {
+              const lineItemsResponse = await response.json();
+              if (lineItemsResponse?.data) {
+                lineItems = lineItemsResponse.data.map((item: any) => ({
+                  productCode: item.product_code || null,
+                  productName: item.product_name || null,
+                  quantity: item.quantity || 1,
+                  unitCost: item.unit_cost ?? 0,
+                  amount: (item.unit_cost ?? 0) * (item.quantity || 1),
+                  discountAmount: item.discount_amount ?? 0,
+                }));
+              }
             }
           } catch (error) {
             // Line items might not be available for all PaymentIntents
