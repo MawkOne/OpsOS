@@ -151,23 +151,39 @@ export async function POST(request: NextRequest) {
     };
 
     // Sync Payments/Charges with invoice expansion for product attribution
+    // For incremental sync, get lastSyncAt from connection and only fetch newer charges
+    const lastSyncAt = connectionData?.lastSyncAt?.toDate?.();
+    const incrementalTimestamp = lastSyncAt ? Math.floor(lastSyncAt.getTime() / 1000) : null;
+    
     try {
       let hasMore = true;
       let startingAfter: string | undefined;
       let pageCount = 0;
+      const chargeMaxPages = 100; // Allow up to 10,000 charges per sync
 
-      while (hasMore && pageCount < maxPages) {
+      console.log(`Starting charge sync. Incremental from: ${incrementalTimestamp ? new Date(incrementalTimestamp * 1000).toISOString() : 'beginning'}`);
+
+      while (hasMore && pageCount < chargeMaxPages) {
         pageCount++;
         // Expand invoice with lines and subscription for full product attribution
         // Stripe allows 4 levels: data.invoice.lines.data.price
-        const charges = await stripe.charges.list({
+        const chargeParams: any = {
           limit: 100,
           expand: [
             'data.invoice.lines.data.price',
             'data.invoice.subscription',
           ],
           ...(startingAfter ? { starting_after: startingAfter } : {}),
-        });
+        };
+        
+        // Add created filter for incremental sync (only new charges since last sync)
+        if (incrementalTimestamp && syncType !== 'full') {
+          chargeParams.created = { gte: incrementalTimestamp };
+        }
+        
+        const charges = await stripe.charges.list(chargeParams);
+        
+        console.log(`Charge page ${pageCount}: fetched ${charges.data.length}, has_more: ${charges.has_more}`);
 
         const batch = writeBatch(db);
 

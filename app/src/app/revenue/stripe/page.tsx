@@ -142,7 +142,7 @@ export default function StripePage() {
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async () => {
+  const handleSync = async (fullSync = false) => {
     setIsSyncing(true);
     setError(null);
 
@@ -150,7 +150,10 @@ export default function StripePage() {
       const syncResponse = await fetch("/api/stripe/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ 
+          organizationId,
+          syncType: fullSync ? 'full' : 'incremental',
+        }),
       });
 
       const syncData = await syncResponse.json();
@@ -160,8 +163,11 @@ export default function StripePage() {
       }
 
       await fetchMetrics();
-      setSuccess("Sync completed successfully!");
-      setTimeout(() => setSuccess(null), 3000);
+      const msg = fullSync 
+        ? `Full sync completed! ${syncData.payments || 0} payments synced.`
+        : `Sync completed! ${syncData.payments || 0} new payments.`;
+      setSuccess(msg);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -295,7 +301,7 @@ export default function StripePage() {
               {isConnected || isSyncingStatus ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleSync}
+                    onClick={() => handleSync(false)}
                     disabled={isSyncing}
                     className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
@@ -305,7 +311,20 @@ export default function StripePage() {
                     }}
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync Now"}
+                    {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync New"}
+                  </button>
+                  <button
+                    onClick={() => handleSync(true)}
+                    disabled={isSyncing}
+                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      color: "#3b82f6",
+                      border: "1px solid var(--border)",
+                    }}
+                    title="Fetch all historical data from Stripe"
+                  >
+                    Full Sync
                   </button>
                   <button
                     onClick={handleDisconnect}
