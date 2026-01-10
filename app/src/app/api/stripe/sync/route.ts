@@ -373,20 +373,26 @@ export async function POST(request: NextRequest) {
           const piAny = pi as any;
           
           // Fetch line items for this PaymentIntent (for product attribution)
+          // Using Stripe's raw request method to call the amount_details_line_items endpoint
           let lineItems: any[] = [];
           try {
-            const lineItemsResponse = await stripe.paymentIntents.listLineItems(pi.id, { limit: 100 });
-            lineItems = lineItemsResponse.data.map((item: any) => ({
-              productCode: item.product_code || null,
-              productName: item.product_name || null,
-              quantity: item.quantity || 1,
-              unitCost: item.unit_cost ?? 0,
-              amount: (item.unit_cost ?? 0) * (item.quantity || 1),
-              discountAmount: item.discount_amount ?? 0,
-            }));
+            const lineItemsResponse: any = await stripe.request('GET', `/v1/payment_intents/${pi.id}/amount_details_line_items`, {
+              limit: 100,
+            });
+            
+            if (lineItemsResponse?.data) {
+              lineItems = lineItemsResponse.data.map((item: any) => ({
+                productCode: item.product_code || null,
+                productName: item.product_name || null,
+                quantity: item.quantity || 1,
+                unitCost: item.unit_cost ?? 0,
+                amount: (item.unit_cost ?? 0) * (item.quantity || 1),
+                discountAmount: item.discount_amount ?? 0,
+              }));
+            }
           } catch (error) {
             // Line items might not be available for all PaymentIntents
-            console.log(`No line items for PaymentIntent ${pi.id}`);
+            // This is expected - not all PaymentIntents will have line items
           }
           
           batch.set(piRef, {
