@@ -33,6 +33,7 @@ interface StripeConnection {
     customers: number;
     products: number;
     prices: number;
+    cleanedRecords?: number;
     errors: string[];
   };
   isTestMode?: boolean;
