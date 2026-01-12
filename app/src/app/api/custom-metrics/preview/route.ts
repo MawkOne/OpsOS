@@ -145,8 +145,9 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if we support the data sources
-    if (numerator.source !== 'google-analytics' || denominator.source !== 'google-analytics') {
-      return NextResponse.json({ error: 'Only Google Analytics data source is currently supported' }, { status: 400 });
+    const supportedSources = ['google-analytics', 'advertising'];
+    if (!supportedSources.includes(numerator.source) || !supportedSources.includes(denominator.source)) {
+      return NextResponse.json({ error: 'Only Google Analytics and Advertising data sources are currently supported' }, { status: 400 });
     }
     
     // Get GA connection

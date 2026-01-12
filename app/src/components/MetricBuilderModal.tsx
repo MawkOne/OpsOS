@@ -17,6 +17,7 @@ interface MetricBuilderModalProps {
 
 const dataSourceOptions = [
   { value: "google-analytics" as DataSource, label: "Google Analytics", color: "#F9AB00" },
+  { value: "advertising" as DataSource, label: "Advertising", color: "#ec4899" },
   { value: "activecampaign" as DataSource, label: "ActiveCampaign", color: "#356AE6" },
   { value: "dataforseo" as DataSource, label: "DataForSEO", color: "#00C4CC" },
   { value: "stripe" as DataSource, label: "Stripe", color: "#635BFF" },
@@ -201,7 +202,8 @@ export default function MetricBuilderModal({
   // Fetch preview when selectors change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (numeratorSource === "google-analytics" && denominatorSource === "google-analytics") {
+      const supportedSources = ["google-analytics", "advertising"];
+      if (supportedSources.includes(numeratorSource) && supportedSources.includes(denominatorSource)) {
         fetchPreviewTotals();
       }
     }, 500); // Debounce
@@ -314,7 +316,8 @@ export default function MetricBuilderModal({
   };
   
   const getDisplayLabel = (selector: { type: "metric" | "event"; metric?: GAMetric; event?: string; source: DataSource }) => {
-    if (selector.source !== "google-analytics") return selector.source;
+    const supportedSources = ["google-analytics", "advertising"];
+    if (!supportedSources.includes(selector.source)) return selector.source;
     if (selector.type === "event" && selector.event) return `Event: ${selector.event}`;
     if (selector.type === "metric" && selector.metric) {
       const option = gaMetricOptions.find(o => o.value === selector.metric);
@@ -445,7 +448,7 @@ export default function MetricBuilderModal({
                   </div>
                   
                   {/* Type Selector (Metric vs Event) */}
-                  {numeratorSource === "google-analytics" && (
+                  {(numeratorSource === "google-analytics" || numeratorSource === "advertising") && (
                     <>
                       <div>
                         <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
@@ -616,7 +619,7 @@ export default function MetricBuilderModal({
                   </div>
                   
                   {/* Type Selector (Metric vs Event) */}
-                  {denominatorSource === "google-analytics" && (
+                  {(denominatorSource === "google-analytics" || denominatorSource === "advertising") && (
                     <>
                       <div>
                         <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>

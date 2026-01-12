@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type DataSource = "google-analytics" | "activecampaign" | "dataforseo" | "stripe";
+export type DataSource = "google-analytics" | "advertising" | "activecampaign" | "dataforseo" | "stripe";
 
 export type GAMetric = 
   | "activeUsers"

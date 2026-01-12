@@ -153,8 +153,9 @@ export async function POST(request: NextRequest) {
     const metric = { id: metricDoc.id, ...metricDoc.data() } as CustomMetric;
     
     // Check if we support the data sources
-    if (metric.numerator.source !== 'google-analytics' || metric.denominator.source !== 'google-analytics') {
-      return NextResponse.json({ error: 'Only Google Analytics data source is currently supported' }, { status: 400 });
+    const supportedSources = ['google-analytics', 'advertising'];
+    if (!supportedSources.includes(metric.numerator.source) || !supportedSources.includes(metric.denominator.source)) {
+      return NextResponse.json({ error: 'Only Google Analytics and Advertising data sources are currently supported' }, { status: 400 });
     }
     
     // Get GA connection
