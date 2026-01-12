@@ -234,17 +234,23 @@ export function calculateWaterlinePosition(
   const estimatedCost = initiative.estimatedCost || 0;
   const estimatedHours = initiative.estimatedPeopleHours || 0;
   
-  const remainingBudget = availableResources.totalBudget - availableResources.allocatedBudget;
-  const remainingHours = availableResources.availablePeopleHours - availableResources.allocatedPeopleHours;
+  // Handle NaN values by defaulting to 0
+  const totalBudget = isNaN(availableResources.totalBudget) ? 0 : availableResources.totalBudget;
+  const allocatedBudget = isNaN(availableResources.allocatedBudget) ? 0 : availableResources.allocatedBudget;
+  const availablePeopleHours = isNaN(availableResources.availablePeopleHours) ? 0 : availableResources.availablePeopleHours;
+  const allocatedPeopleHours = isNaN(availableResources.allocatedPeopleHours) ? 0 : availableResources.allocatedPeopleHours;
+  
+  const remainingBudget = totalBudget - allocatedBudget;
+  const remainingHours = availablePeopleHours - allocatedPeopleHours;
   
   // Can we afford it?
   const canAffordBudget = estimatedCost <= remainingBudget;
-  const canAffordHours = estimatedHours <= remainingHours;
+  const canAffordHours = estimatedHours <= remainingHours || estimatedHours === 0;
   
   const isAbove = canAffordBudget && canAffordHours;
   
   // Calculate a score for prioritization (higher = more important)
-  const priority = initiative.priority || "low";
+  const priority = initiative.priority || "medium";
   const priorityScore = { critical: 100, high: 75, medium: 50, low: 25 }[priority];
   
   const expectedRevenue = initiative.expectedRevenue || 0;
@@ -255,9 +261,18 @@ export function calculateWaterlinePosition(
   const score = priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
   
   let reason = "";
-  if (!canAffordBudget) reason = `Needs $${(estimatedCost - remainingBudget).toFixed(0)} more budget`;
-  if (!canAffordHours) reason += (reason ? ", " : "") + `Needs ${(estimatedHours - remainingHours).toFixed(0)} more hours`;
+  if (!canAffordBudget && estimatedCost > 0) {
+    const shortfall = estimatedCost - remainingBudget;
+    reason = `Needs $${shortfall.toFixed(0)} more budget`;
+  }
+  if (!canAffordHours && estimatedHours > 0) {
+    const shortfall = estimatedHours - remainingHours;
+    if (!isNaN(shortfall) && shortfall > 0) {
+      reason += (reason ? ", " : "") + `Needs ${shortfall.toFixed(0)} more hours`;
+    }
+  }
   if (isAbove) reason = "Resources available";
+  if (!reason) reason = "Ready to plan";
   
   return { isAbove, score, reason };
 }
