@@ -32,6 +32,8 @@ import {
   Timestamp,
   getDocs,
 } from "firebase/firestore";
+import { CustomMetric } from "@/types/custom-metrics";
+import Link from "next/link";
 
 interface Metric {
   id: string;
@@ -71,6 +73,7 @@ const metricCategories = [
 export default function MetricsPage() {
   const { currentOrg } = useOrganization();
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>([]);
   const [conversionData, setConversionData] = useState<ConversionMetricRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(true);
@@ -376,6 +379,25 @@ export default function MetricsPage() {
     return () => unsubscribe();
   }, [currentOrg?.id]);
 
+  // Load custom metrics from all sections
+  useEffect(() => {
+    if (!currentOrg?.id) {
+      return;
+    }
+
+    const customMetricsQuery = query(
+      collection(db, "custom_metrics"),
+      where("organizationId", "==", currentOrg.id)
+    );
+
+    const unsubscribe = onSnapshot(customMetricsQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomMetric));
+      setCustomMetrics(data);
+    });
+
+    return () => unsubscribe();
+  }, [currentOrg?.id]);
+
   // Load conversion metrics table data
   useEffect(() => {
     if (!organizationId) {
@@ -490,6 +512,139 @@ export default function MetricsPage() {
             icon={<Percent className="w-5 h-5" />}
           />
         </div>
+
+        {/* Custom Conversion Metrics from All Sections */}
+        {customMetrics.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                  Custom Conversion Metrics
+                </h3>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  Custom metrics from Marketing, Revenue, and other sections
+                </p>
+              </div>
+            </div>
+
+            {/* Group by Section */}
+            {["marketing", "revenue", "leadership", "custom"].map(section => {
+              const sectionMetrics = customMetrics.filter(m => m.section === section);
+              if (sectionMetrics.length === 0) return null;
+
+              const sectionColors: Record<string, string> = {
+                marketing: "#ec4899",
+                revenue: "#10b981",
+                leadership: "#8b5cf6",
+                custom: "#00d4aa",
+              };
+
+              const sectionLabels: Record<string, string> = {
+                marketing: "Marketing",
+                revenue: "Revenue",
+                leadership: "Leadership",
+                custom: "Custom",
+              };
+
+              return (
+                <div key={section}>
+                  <h4 
+                    className="text-sm font-semibold mb-3 flex items-center gap-2"
+                    style={{ color: sectionColors[section] }}
+                  >
+                    <div 
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: sectionColors[section] }}
+                    />
+                    {sectionLabels[section]}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    {sectionMetrics.map((metric, idx) => {
+                      const monthlyValues = metric.monthlyValues || {};
+                      const values = Object.values(monthlyValues).filter(v => v > 0);
+                      const avgValue = values.length > 0
+                        ? values.reduce((a, b) => a + b, 0) / values.length
+                        : 0;
+
+                      const sectionPath = section === "custom" ? "metrics" : section;
+
+                      return (
+                        <motion.div
+                          key={metric.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                        >
+                          <Link href={`/${sectionPath}/metrics`}>
+                            <Card className="hover:border-[var(--accent)] transition-colors cursor-pointer">
+                              <div className="space-y-3">
+                                {/* Header */}
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                                      {metric.name}
+                                    </h4>
+                                    {metric.description && (
+                                      <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                        {metric.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Formula Preview */}
+                                <div
+                                  className="p-2 rounded text-xs"
+                                  style={{
+                                    background: "var(--background-tertiary)",
+                                    color: "var(--foreground-muted)",
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2 justify-center">
+                                    <span style={{ color: "#10b981" }}>
+                                      {metric.numerator.metricType === "event"
+                                        ? metric.numerator.gaEventName
+                                        : metric.numerator.gaMetric}
+                                    </span>
+                                    <span>/</span>
+                                    <span style={{ color: "#3b82f6" }}>
+                                      {metric.denominator.metricType === "event"
+                                        ? metric.denominator.gaEventName
+                                        : metric.denominator.gaMetric}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Value */}
+                                {avgValue > 0 ? (
+                                  <>
+                                    <div className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
+                                      {avgValue.toFixed(2)}%
+                                    </div>
+                                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                      Average conversion rate
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="text-center py-2">
+                                    <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                                      No data yet
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </Card>
+                          </Link>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Monthly Conversion Table */}
         <Card>
