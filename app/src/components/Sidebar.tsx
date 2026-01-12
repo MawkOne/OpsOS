@@ -207,6 +207,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/marketing", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Metrics", href: "/marketing/metrics", icon: <BarChart3 className="w-4 h-4" /> },
         { label: "Traffic", href: "/marketing/traffic", icon: <TrendingUp className="w-4 h-4" /> },
         { label: "Email", href: "/marketing/email", icon: <Mail className="w-4 h-4" /> },
         { label: "Advertising", href: "/marketing/ads", icon: <Megaphone className="w-4 h-4" /> },
