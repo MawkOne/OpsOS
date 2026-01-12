@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card, { CardHeader, StatCard } from "@/components/Card";
 import { motion } from "framer-motion";
@@ -14,6 +14,8 @@ import {
   X,
   Edit,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
@@ -28,6 +30,7 @@ import {
   doc,
   serverTimestamp,
   Timestamp,
+  getDocs,
 } from "firebase/firestore";
 
 interface Metric {
@@ -45,6 +48,17 @@ interface Metric {
   updatedAt?: Timestamp;
 }
 
+interface ConversionMetricRow {
+  id: string;
+  name: string;
+  description: string;
+  months: Record<string, number>; // month key -> percentage
+  average: number;
+  unit: "percentage" | "number" | "currency";
+}
+
+type ViewMode = "ttm" | "year" | "all";
+
 const metricCategories = [
   { value: "conversion", label: "Conversion", color: "#00d4aa" },
   { value: "revenue", label: "Revenue", color: "#10b981" },
@@ -57,10 +71,290 @@ const metricCategories = [
 export default function MetricsPage() {
   const { currentOrg } = useOrganization();
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [conversionData, setConversionData] = useState<ConversionMetricRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMetric, setEditingMetric] = useState<Metric | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("ttm");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  const organizationId = currentOrg?.id || "";
+
+  // Generate months based on view mode
+  const { months, monthLabels, isAllTime } = useMemo(() => {
+    if (viewMode === "all") {
+      // All time - generate years from 2018 to current year
+      const currentYear = new Date().getFullYear();
+      const allYears: string[] = [];
+      const allLabels: string[] = [];
+      
+      for (let year = 2018; year <= currentYear; year++) {
+        allYears.push(year.toString());
+        allLabels.push(year.toString());
+      }
+      
+      return { months: allYears, monthLabels: allLabels, isAllTime: true };
+    } else if (viewMode === "ttm") {
+      // Trailing 12 COMPLETE months (excluding current partial month)
+      const now = new Date();
+      const ttmMonths: string[] = [];
+      const ttmLabels: string[] = [];
+      
+      // Start from 12 months ago, end at LAST month (not current month)
+      for (let i = 12; i >= 1; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        ttmMonths.push(monthKey);
+        ttmLabels.push(label);
+      }
+      
+      return { months: ttmMonths, monthLabels: ttmLabels, isAllTime: false };
+    } else {
+      // Calendar year
+      const yearMonths = Array.from({ length: 12 }, (_, i) => {
+        const month = (i + 1).toString().padStart(2, "0");
+        return `${selectedYear}-${month}`;
+      });
+      const yearLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return { months: yearMonths, monthLabels: yearLabels, isAllTime: false };
+    }
+  }, [viewMode, selectedYear]);
+
+  // Function to fetch conversion data
+  const fetchConversionData = useCallback(async () => {
+    setTableLoading(true);
+    try {
+      const monthsSet = new Set(months);
+      
+      // Data structures to hold monthly data
+      const monthlyData: Record<string, {
+        sessions: number;
+        users: number;
+        newUsers: number;
+        customers: number;
+        newCustomers: number;
+        subscriptions: number;
+        paidSubscriptions: number;
+        payments: number;
+        revenue: number;
+        purchases: number;
+      }> = {};
+
+      // Initialize all months
+      months.forEach(month => {
+        monthlyData[month] = {
+          sessions: 0,
+          users: 0,
+          newUsers: 0,
+          customers: 0,
+          newCustomers: 0,
+          subscriptions: 0,
+          paidSubscriptions: 0,
+          payments: 0,
+          revenue: 0,
+          purchases: 0,
+        };
+      });
+
+      // Fetch Stripe Customers
+      const customersQuery = query(
+        collection(db, "stripe_customers"),
+        where("organizationId", "==", organizationId)
+      );
+      const customersSnap = await getDocs(customersQuery);
+      
+      customersSnap.docs.forEach(doc => {
+        const customer = doc.data();
+        const createdDate = customer.created?.toDate?.() || new Date();
+        const periodKey = isAllTime 
+          ? createdDate.getFullYear().toString()
+          : `${createdDate.getFullYear()}-${(createdDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        if (monthsSet.has(periodKey)) {
+          monthlyData[periodKey].newCustomers++;
+        }
+      });
+
+      // Cumulative customer count
+      let cumulativeCustomers = 0;
+      months.forEach(month => {
+        cumulativeCustomers += monthlyData[month].newCustomers;
+        monthlyData[month].customers = cumulativeCustomers;
+      });
+
+      // Fetch Stripe Subscriptions
+      const subscriptionsQuery = query(
+        collection(db, "stripe_subscriptions"),
+        where("organizationId", "==", organizationId)
+      );
+      const subscriptionsSnap = await getDocs(subscriptionsQuery);
+      
+      subscriptionsSnap.docs.forEach(doc => {
+        const sub = doc.data();
+        const createdDate = sub.created?.toDate?.() || new Date();
+        const periodKey = isAllTime 
+          ? createdDate.getFullYear().toString()
+          : `${createdDate.getFullYear()}-${(createdDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        if (monthsSet.has(periodKey)) {
+          monthlyData[periodKey].subscriptions++;
+          if (sub.status === 'active' || sub.status === 'trialing') {
+            monthlyData[periodKey].paidSubscriptions++;
+          }
+        }
+      });
+
+      // Fetch Stripe Payments
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId)
+      );
+      const paymentsSnap = await getDocs(paymentsQuery);
+      
+      paymentsSnap.docs.forEach(doc => {
+        const payment = doc.data();
+        if (payment.status !== 'succeeded') return;
+        
+        const createdDate = payment.created?.toDate?.() || new Date();
+        const periodKey = isAllTime 
+          ? createdDate.getFullYear().toString()
+          : `${createdDate.getFullYear()}-${(createdDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        if (monthsSet.has(periodKey)) {
+          monthlyData[periodKey].payments++;
+          monthlyData[periodKey].purchases++;
+          monthlyData[periodKey].revenue += (payment.amount || 0) / 100;
+        }
+      });
+
+      // TODO: Fetch Google Analytics data when API is set up
+      // For now, we'll use placeholder or estimate from existing data
+      
+      // Calculate conversion metrics
+      const conversionMetrics: ConversionMetricRow[] = [
+        {
+          id: "visitor-to-customer",
+          name: "Visitor → Customer",
+          description: "New customers / Total sessions",
+          months: {},
+          average: 0,
+          unit: "percentage",
+        },
+        {
+          id: "session-to-purchase",
+          name: "Session → Purchase",
+          description: "Purchases / Total sessions",
+          months: {},
+          average: 0,
+          unit: "percentage",
+        },
+        {
+          id: "trial-to-paid",
+          name: "Trial → Paid",
+          description: "Paid subscriptions / Total subscriptions",
+          months: {},
+          average: 0,
+          unit: "percentage",
+        },
+        {
+          id: "customer-ltv",
+          name: "Customer LTV",
+          description: "Total revenue / Total customers",
+          months: {},
+          average: 0,
+          unit: "currency",
+        },
+        {
+          id: "avg-order-value",
+          name: "Avg Order Value",
+          description: "Total revenue / Total purchases",
+          months: {},
+          average: 0,
+          unit: "currency",
+        },
+        {
+          id: "new-customers",
+          name: "New Customers",
+          description: "New customers acquired this month",
+          months: {},
+          average: 0,
+          unit: "number",
+        },
+        {
+          id: "new-subscriptions",
+          name: "New Subscriptions",
+          description: "New subscriptions started this month",
+          months: {},
+          average: 0,
+          unit: "number",
+        },
+        {
+          id: "revenue",
+          name: "Total Revenue",
+          description: "Total revenue from all sources",
+          months: {},
+          average: 0,
+          unit: "currency",
+        },
+      ];
+
+      // Calculate values for each month
+      months.forEach(month => {
+        const data = monthlyData[month];
+        
+        // Visitor to Customer (using sessions as proxy for visitors)
+        conversionMetrics[0].months[month] = data.sessions > 0 
+          ? (data.newCustomers / data.sessions) * 100 
+          : 0;
+        
+        // Session to Purchase
+        conversionMetrics[1].months[month] = data.sessions > 0 
+          ? (data.purchases / data.sessions) * 100 
+          : 0;
+        
+        // Trial to Paid
+        conversionMetrics[2].months[month] = data.subscriptions > 0 
+          ? (data.paidSubscriptions / data.subscriptions) * 100 
+          : 0;
+        
+        // Customer LTV (cumulative)
+        conversionMetrics[3].months[month] = data.customers > 0 
+          ? data.revenue / data.customers 
+          : 0;
+        
+        // Avg Order Value
+        conversionMetrics[4].months[month] = data.purchases > 0 
+          ? data.revenue / data.purchases 
+          : 0;
+        
+        // New Customers (count)
+        conversionMetrics[5].months[month] = data.newCustomers;
+        
+        // New Subscriptions (count)
+        conversionMetrics[6].months[month] = data.subscriptions;
+        
+        // Revenue
+        conversionMetrics[7].months[month] = data.revenue;
+      });
+
+      // Calculate averages
+      conversionMetrics.forEach(metric => {
+        const values = Object.values(metric.months).filter(v => v > 0);
+        metric.average = values.length > 0 
+          ? values.reduce((a, b) => a + b, 0) / values.length 
+          : 0;
+      });
+
+      setConversionData(conversionMetrics);
+      setTableLoading(false);
+    } catch (error) {
+      console.error("Error fetching conversion data:", error);
+      setTableLoading(false);
+    }
+  }, [organizationId, months, isAllTime]);
 
   // Load metrics from Firestore
   useEffect(() => {
@@ -81,6 +375,17 @@ export default function MetricsPage() {
 
     return () => unsubscribe();
   }, [currentOrg?.id]);
+
+  // Load conversion metrics table data
+  useEffect(() => {
+    if (!organizationId) {
+      return;
+    }
+    
+    // Data fetching is a valid use case for async calls in effects
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchConversionData();
+  }, [organizationId, fetchConversionData]);
 
   // Filter metrics by category
   const filteredMetrics = filterCategory === "all" 
@@ -185,6 +490,139 @@ export default function MetricsPage() {
             icon={<Percent className="w-5 h-5" />}
           />
         </div>
+
+        {/* Monthly Conversion Table */}
+        <Card>
+          <CardHeader
+            title="Monthly Conversion Metrics"
+            subtitle="Track conversion rates and key metrics over time"
+            action={
+              <div className="flex items-center gap-3">
+              {/* View Mode Selector */}
+              <div className="flex rounded-lg p-1" style={{ background: "var(--background-secondary)" }}>
+                <button
+                  onClick={() => setViewMode("ttm")}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={{
+                    background: viewMode === "ttm" ? "var(--accent)" : "transparent",
+                    color: viewMode === "ttm" ? "#ffffff" : "var(--foreground-muted)",
+                  }}
+                >
+                  TTM
+                </button>
+                <button
+                  onClick={() => setViewMode("year")}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={{
+                    background: viewMode === "year" ? "var(--accent)" : "transparent",
+                    color: viewMode === "year" ? "#ffffff" : "var(--foreground-muted)",
+                  }}
+                >
+                  Year
+                </button>
+                <button
+                  onClick={() => setViewMode("all")}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={{
+                    background: viewMode === "all" ? "var(--accent)" : "transparent",
+                    color: viewMode === "all" ? "#ffffff" : "var(--foreground-muted)",
+                  }}
+                >
+                  All Time
+                </button>
+              </div>
+
+              {/* Year selector (only for year view) */}
+              {viewMode === "year" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedYear(prev => prev - 1)}
+                    className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm font-medium px-2">{selectedYear}</span>
+                  <button
+                    onClick={() => setSelectedYear(prev => prev + 1)}
+                    disabled={selectedYear >= new Date().getFullYear()}
+                    className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors disabled:opacity-50"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              </div>
+            }
+          />
+
+          <div className="overflow-x-auto">
+            {tableLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  Loading conversion data...
+                </div>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="text-left p-3 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
+                      Metric
+                    </th>
+                    {monthLabels.map((label, idx) => (
+                      <th key={idx} className="text-right p-3 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
+                        {label}
+                      </th>
+                    ))}
+                    <th className="text-right p-3 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
+                      Avg
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conversionData.map((row, rowIdx) => (
+                    <motion.tr
+                      key={row.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: rowIdx * 0.05 }}
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                      className="hover:bg-[var(--background-secondary)] transition-colors"
+                    >
+                      <td className="p-3">
+                        <div>
+                          <div className="text-sm font-medium">{row.name}</div>
+                          <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {row.description}
+                          </div>
+                        </div>
+                      </td>
+                      {months.map((month, idx) => {
+                        const value = row.months[month] || 0;
+                        return (
+                          <td key={idx} className="p-3 text-right text-sm font-medium">
+                            {value === 0 ? (
+                              <span style={{ color: "var(--foreground-muted)" }}>-</span>
+                            ) : (
+                              formatValue(value, row.unit)
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="p-3 text-right text-sm font-semibold">
+                        {row.average === 0 ? (
+                          <span style={{ color: "var(--foreground-muted)" }}>-</span>
+                        ) : (
+                          formatValue(row.average, row.unit)
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
 
         {/* Actions & Filters */}
         <div className="flex items-center gap-3">
