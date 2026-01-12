@@ -125,7 +125,7 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (numeratorType === "metric" && numeratorMetric && numeratorMetric !== "") {
+      if (numeratorType === "metric" && numeratorMetric) {
         numSelector.gaMetric = numeratorMetric;
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numSelector.gaEventName = numeratorEvent;
@@ -153,7 +153,7 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (denominatorType === "metric" && denominatorMetric && denominatorMetric !== "") {
+      if (denominatorType === "metric" && denominatorMetric) {
         denSelector.gaMetric = denominatorMetric;
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denSelector.gaEventName = denominatorEvent;
@@ -228,7 +228,7 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (numeratorType === "metric" && numeratorMetric && numeratorMetric !== "") {
+      if (numeratorType === "metric" && numeratorMetric) {
         numerator.gaMetric = numeratorMetric;
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numerator.gaEventName = numeratorEvent;
@@ -256,7 +256,7 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (denominatorType === "metric" && denominatorMetric && denominatorMetric !== "") {
+      if (denominatorType === "metric" && denominatorMetric) {
         denominator.gaMetric = denominatorMetric;
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denominator.gaEventName = denominatorEvent;
