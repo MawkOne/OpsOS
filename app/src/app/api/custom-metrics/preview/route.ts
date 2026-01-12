@@ -43,8 +43,8 @@ async function fetchGAData(
 ): Promise<number> {
   const dimensionFilters: any[] = [];
   
-  // Add country filter
-  if (selector.filters.country) {
+  // Add country filter (check if filters object exists)
+  if (selector.filters?.country) {
     dimensionFilters.push({
       filter: {
         fieldName: 'country',
@@ -56,8 +56,8 @@ async function fetchGAData(
     });
   }
   
-  // Add device filter
-  if (selector.filters.device) {
+  // Add device filter (check if filters object exists)
+  if (selector.filters?.device) {
     dimensionFilters.push({
       filter: {
         fieldName: 'deviceCategory',
