@@ -567,18 +567,22 @@ function AddInitiativeModal({
 }) {
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     type: "new" as "new" | "existing",
     category: "product" as InitiativeCategory,
     priority: "medium" as "critical" | "high" | "medium" | "low",
     ownerId: "",
-    // Revenue plans
+    // Three key descriptions (LEFT SIDE)
+    whatsImportant: "", // Why this matters
+    howAreWeDoing: "", // Current state
+    prioritiesToImprove: "", // What needs to change
+    // Revenue plans (RIGHT SIDE)
     linkedProductIds: [] as string[],
     customRevenue: 0,
-    // People & Tools
+    // People & Tools (RIGHT SIDE)
     linkedPeopleIds: [] as string[],
     linkedToolIds: [] as string[],
     // Legacy fields (kept for backward compatibility)
+    description: "", // Will be combined from the three descriptions
     estimatedCost: 0,
     estimatedPeopleHours: 0,
     estimatedDuration: 0,
@@ -608,8 +612,16 @@ function AddInitiativeModal({
     try {
       const owner = people.find(p => p.id === formData.ownerId);
       
+      // Combine the three descriptions into one for backward compatibility
+      const combinedDescription = [
+        formData.whatsImportant ? `What's Important: ${formData.whatsImportant}` : "",
+        formData.howAreWeDoing ? `How We're Doing: ${formData.howAreWeDoing}` : "",
+        formData.prioritiesToImprove ? `Priorities to Improve: ${formData.prioritiesToImprove}` : "",
+      ].filter(Boolean).join("\n\n");
+      
       await addDoc(collection(db, "initiatives"), {
         ...formData,
+        description: combinedDescription, // Legacy field
         organizationId,
         ownerName: owner?.name || "",
         status: waterlinePreview.isAbove ? "above-waterline" : "below-waterline",
@@ -646,14 +658,19 @@ function AddInitiativeModal({
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="rounded-2xl p-6 max-w-7xl w-full max-h-[90vh] overflow-y-auto"
         style={{ background: "var(--background)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-            New Initiative
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+              New Initiative
+            </h2>
+            <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+              Start with why it matters, then plan the resources needed
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[var(--background-secondary)]"
@@ -663,67 +680,166 @@ function AddInitiativeModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name & Type */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Initiative Name *
+        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+          {/* ============= LEFT SIDE: THE "WHY" ============= */}
+          <div className="space-y-4">
+            <div 
+              className="p-4 rounded-lg"
+              style={{ background: "var(--background-secondary)", border: "2px solid var(--border)" }}
+            >
+              <h3 className="font-bold text-lg mb-4" style={{ color: "var(--foreground)" }}>
+                📝 Define the Initiative
+              </h3>
+
+              {/* Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  Initiative Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg text-base font-medium"
+                  style={{ 
+                    background: "var(--background)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                  placeholder="e.g. Q1 Product Launch"
+                />
+              </div>
+
+              {/* Type, Category, Priority */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                    Type *
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as "new" | "existing" })}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{ 
+                      background: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value="new">New</option>
+                    <option value="existing">Existing</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as InitiativeCategory })}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{ 
+                      background: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {initiativeCategories.map(cat => (
+                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                    Priority
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{ 
+                      background: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 1. What's Important */}
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                1️⃣ What's Important
               </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg"
+              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
+                Why does this matter? What problem are we solving?
+              </p>
+              <textarea
+                value={formData.whatsImportant}
+                onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-3 rounded-lg text-sm"
                 style={{ 
                   background: "var(--background-secondary)",
                   border: "1px solid var(--border)",
                   color: "var(--foreground)",
                 }}
-                placeholder="e.g. Q1 Product Launch"
+                placeholder="Explain why this initiative is important to the business, team, or customers..."
               />
             </div>
+
+            {/* 2. How Are We Doing */}
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Type *
+              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                2️⃣ How Are We Doing
               </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as "new" | "existing" })}
-                className="w-full px-4 py-2 rounded-lg"
+              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
+                What's the current state? Where are we now?
+              </p>
+              <textarea
+                value={formData.howAreWeDoing}
+                onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-3 rounded-lg text-sm"
                 style={{ 
                   background: "var(--background-secondary)",
                   border: "1px solid var(--border)",
                   color: "var(--foreground)",
                 }}
-              >
-                <option value="new">New</option>
-                <option value="existing">Existing</option>
-              </select>
+                placeholder="Describe the current situation, metrics, pain points, or opportunities..."
+              />
             </div>
-          </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
-              className="w-full px-4 py-2 rounded-lg"
-              style={{ 
-                background: "var(--background-secondary)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-              placeholder="What does this initiative aim to achieve?"
-            />
-          </div>
+            {/* 3. Priorities to Improve */}
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                3️⃣ Priorities to Improve
+              </label>
+              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
+                What needs to change? What are the key outcomes?
+              </p>
+              <textarea
+                value={formData.prioritiesToImprove}
+                onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-3 rounded-lg text-sm"
+                style={{ 
+                  background: "var(--background-secondary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+                placeholder="List the specific improvements, goals, or changes we need to make..."
+              />
+            </div>
 
-          {/* Category & Priority */}
+            {/* Owner */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
@@ -767,320 +883,233 @@ function AddInitiativeModal({
             </div>
           </div>
 
-          {/* Owner */}
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-              Owner
-            </label>
-            <select
-              value={formData.ownerId}
-              onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
-              className="w-full px-4 py-2 rounded-lg"
-              style={{ 
-                background: "var(--background-secondary)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-            >
-              <option value="">Select owner...</option>
-              {people.map(person => (
-                <option key={person.id} value={person.id}>{person.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Revenue Plans Section */}
-          <div 
-            className="p-4 rounded-lg space-y-3"
-            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
-          >
-            <h3 className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
-              💰 Revenue Plans
-            </h3>
-            
-            {/* Linked Products */}
+            {/* Owner */}
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                Linked Products (from Stripe)
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                Owner
               </label>
               <select
-                multiple
-                value={formData.linkedProductIds}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                  setFormData({ ...formData, linkedProductIds: selected });
-                }}
-                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
-                style={{ 
-                  background: "var(--background-tertiary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                {products.length === 0 ? (
-                  <option disabled>No Stripe products found. Connect Stripe first.</option>
-                ) : (
-                  products.map(product => (
-                    <option key={product.id} value={product.stripeId}>
-                      {product.name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Hold Cmd/Ctrl to select multiple products
-              </p>
-            </div>
-
-            {/* Custom Revenue */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                Or Custom Revenue ($)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={formData.customRevenue}
-                onChange={(e) => setFormData({ ...formData, customRevenue: Number(e.target.value) })}
+                value={formData.ownerId}
+                onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg"
                 style={{ 
-                  background: "var(--background-tertiary)",
+                  background: "var(--background-secondary)",
                   border: "1px solid var(--border)",
                   color: "var(--foreground)",
                 }}
-                placeholder="If not linked to products..."
-              />
+              >
+                <option value="">Select owner...</option>
+                {people.map(person => (
+                  <option key={person.id} value={person.id}>{person.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* People & Tools Section */}
-          <div 
-            className="p-4 rounded-lg space-y-3"
-            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
-          >
-            <h3 className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
-              👥 People & Tools
-            </h3>
-            
-            {/* Linked People */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                People Working on This
-              </label>
-              <select
-                multiple
-                value={formData.linkedPeopleIds}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                  setFormData({ ...formData, linkedPeopleIds: selected });
-                }}
-                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
-                style={{ 
-                  background: "var(--background-tertiary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                {people.length === 0 ? (
-                  <option disabled>No people found. Add people first.</option>
-                ) : (
-                  people.map(person => (
-                    <option key={person.id} value={person.id}>
-                      {person.name} - {person.role}
-                    </option>
-                  ))
-                )}
-              </select>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Hold Cmd/Ctrl to select multiple people
-              </p>
-            </div>
+          {/* ============= RIGHT SIDE: THE "HOW" (RESOURCES & FORECAST) ============= */}
+          <div className="space-y-4">
+            <div 
+              className="p-4 rounded-lg"
+              style={{ background: "var(--background-secondary)", border: "2px solid var(--border)" }}
+            >
+              <h3 className="font-bold text-lg mb-4" style={{ color: "var(--foreground)" }}>
+                💰 Revenue & Forecast
+              </h3>
 
-            {/* Linked Tools */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                Tools Needed
-              </label>
-              <select
-                multiple
-                value={formData.linkedToolIds}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                  setFormData({ ...formData, linkedToolIds: selected });
-                }}
-                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
-                style={{ 
-                  background: "var(--background-tertiary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                {tools.length === 0 ? (
-                  <option disabled>No tools found. Add tools first.</option>
-                ) : (
-                  tools.map(tool => (
-                    <option key={tool.id} value={tool.id}>
-                      {tool.name} - ${tool.cost}/{tool.billingCycle}
-                    </option>
-                  ))
-                )}
-              </select>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Hold Cmd/Ctrl to select multiple tools
-              </p>
-            </div>
+              {/* Linked Products */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  Linked Revenue Products
+                </label>
+                <select
+                  multiple
+                  value={formData.linkedProductIds}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                    setFormData({ ...formData, linkedProductIds: selected });
+                  }}
+                  className="w-full px-3 py-2 rounded-lg min-h-[60px] text-sm"
+                  style={{ 
+                    background: "var(--background)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  {products.length === 0 ? (
+                    <option disabled>No Stripe products</option>
+                  ) : (
+                    products.map(product => (
+                      <option key={product.id} value={product.stripeId}>
+                        {product.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
 
-            {/* Calculated Costs */}
-            {actualCosts.totalCost > 0 && (
-              <div className="p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                  📊 Calculated Annual Costs:
-                </p>
-                <div className="space-y-1 text-xs" style={{ color: "var(--foreground)" }}>
-                  <div className="flex justify-between">
-                    <span>People:</span>
-                    <span className="font-semibold">${actualCosts.peopleCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tools:</span>
-                    <span className="font-semibold">${actualCosts.toolsCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t" style={{ borderColor: "var(--border)" }}>
-                    <span className="font-semibold">Total:</span>
-                    <span className="font-semibold">${actualCosts.totalCost.toLocaleString()}</span>
-                  </div>
+              {/* Custom Revenue */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                    Expected Revenue
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={formData.expectedRevenue}
+                    onChange={(e) => setFormData({ ...formData, expectedRevenue: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{ 
+                      background: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                    placeholder="$0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                    Expected Savings
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={formData.expectedSavings}
+                    onChange={(e) => setFormData({ ...formData, expectedSavings: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{ 
+                      background: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                    placeholder="$0"
+                  />
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Resource Estimates (Legacy) */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Estimated Cost ($)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="100"
-                value={formData.estimatedCost}
-                onChange={(e) => setFormData({ ...formData, estimatedCost: Number(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                People Hours
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="10"
-                value={formData.estimatedPeopleHours}
-                onChange={(e) => setFormData({ ...formData, estimatedPeopleHours: Number(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-            </div>
+            {/* People & Tools */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ background: "var(--background-secondary)", border: "2px solid var(--border)" }}
+            >
+              <h3 className="font-bold text-lg mb-4" style={{ color: "var(--foreground)" }}>
+                👥 Resources & Costs
+              </h3>
+              {/* Linked People */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  People Working on This
+                </label>
+                <select
+                  multiple
+                  value={formData.linkedPeopleIds}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                    setFormData({ ...formData, linkedPeopleIds: selected });
+                  }}
+                  className="w-full px-3 py-2 rounded-lg min-h-[60px] text-sm"
+                  style={{ 
+                    background: "var(--background)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  {people.length === 0 ? (
+                    <option disabled>No people found</option>
+                  ) : (
+                    people.map(person => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} - {person.role}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Duration (weeks)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.estimatedDuration}
-                onChange={(e) => setFormData({ ...formData, estimatedDuration: Number(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-            </div>
-          </div>
+              {/* Linked Tools */}
+              <div className="mb-3">
+                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  Tools & Software Needed
+                </label>
+                <select
+                  multiple
+                  value={formData.linkedToolIds}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                    setFormData({ ...formData, linkedToolIds: selected });
+                  }}
+                  className="w-full px-3 py-2 rounded-lg min-h-[60px] text-sm"
+                  style={{ 
+                    background: "var(--background)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  {tools.length === 0 ? (
+                    <option disabled>No tools found</option>
+                  ) : (
+                    tools.map(tool => (
+                      <option key={tool.id} value={tool.id}>
+                        {tool.name} - ${tool.cost}/{tool.billingCycle}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
 
-          {/* Expected Impact */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Expected Revenue ($)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={formData.expectedRevenue}
-                onChange={(e) => setFormData({ ...formData, expectedRevenue: Number(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Expected Savings ($)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={formData.expectedSavings}
-                onChange={(e) => setFormData({ ...formData, expectedSavings: Number(e.target.value) })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Waterline Preview */}
-          <div 
-            className="p-4 rounded-lg"
-            style={{ 
-              background: waterlinePreview.isAbove ? "rgba(0, 212, 170, 0.1)" : "rgba(245, 158, 11, 0.1)",
-              border: `1px solid ${waterlinePreview.isAbove ? "#00d4aa" : "#f59e0b"}`,
-            }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              {waterlinePreview.isAbove ? (
-                <TrendingUp className="w-5 h-5" style={{ color: "#00d4aa" }} />
-              ) : (
-                <TrendingDown className="w-5 h-5" style={{ color: "#f59e0b" }} />
+              {/* Calculated Costs */}
+              {actualCosts.totalCost > 0 && (
+                <div className="p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                  <p className="text-xs font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                    📊 Calculated Annual Costs
+                  </p>
+                  <div className="space-y-1 text-xs" style={{ color: "var(--foreground)" }}>
+                    <div className="flex justify-between">
+                      <span>People:</span>
+                      <span className="font-semibold">${actualCosts.peopleCost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tools:</span>
+                      <span className="font-semibold">${actualCosts.toolsCost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 mt-1 border-t font-semibold" style={{ borderColor: "var(--border)" }}>
+                      <span>Total Cost:</span>
+                      <span>${actualCosts.totalCost.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
               )}
-              <span className="font-semibold" style={{ color: waterlinePreview.isAbove ? "#00d4aa" : "#f59e0b" }}>
-                {waterlinePreview.isAbove ? "Above Waterline" : "Below Waterline"}
-              </span>
             </div>
-            <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-              {waterlinePreview.reason}
-            </p>
+
+            {/* Waterline Preview */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ 
+                background: waterlinePreview.isAbove ? "rgba(0, 212, 170, 0.1)" : "rgba(245, 158, 11, 0.1)",
+                border: `2px solid ${waterlinePreview.isAbove ? "#00d4aa" : "#f59e0b"}`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                {waterlinePreview.isAbove ? (
+                  <TrendingUp className="w-6 h-6" style={{ color: "#00d4aa" }} />
+                ) : (
+                  <TrendingDown className="w-6 h-6" style={{ color: "#f59e0b" }} />
+                )}
+                <span className="font-bold text-base" style={{ color: waterlinePreview.isAbove ? "#00d4aa" : "#f59e0b" }}>
+                  {waterlinePreview.isAbove ? "✓ Above Waterline" : "⚠ Below Waterline"}
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                {waterlinePreview.reason}
+              </p>
+            </div>
           </div>
 
-          {/* Submit */}
-          <div className="flex items-center gap-3 pt-4">
+          {/* Submit - Spans Both Columns */}
+          <div className="col-span-2 flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
             <button
               type="submit"
               disabled={submitting || !formData.name.trim()}
