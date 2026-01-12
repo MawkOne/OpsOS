@@ -8,8 +8,6 @@ import {
   Activity,
   TrendingUp,
   TrendingDown,
-  Users,
-  DollarSign,
   Target,
   Percent,
   Plus,
@@ -67,7 +65,6 @@ export default function MetricsPage() {
   // Load metrics from Firestore
   useEffect(() => {
     if (!currentOrg?.id) {
-      setLoading(false);
       return;
     }
 
@@ -470,7 +467,7 @@ function MetricModal({
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as Metric["category"] })}
                 className="w-full px-4 py-2 rounded-lg"
                 style={{ 
                   background: "var(--background-secondary)",
@@ -490,7 +487,7 @@ function MetricModal({
               </label>
               <select
                 value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value as Metric["unit"] })}
                 className="w-full px-4 py-2 rounded-lg"
                 style={{ 
                   background: "var(--background-secondary)",

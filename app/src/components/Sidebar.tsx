@@ -31,6 +31,7 @@ import {
   Building2,
   Check,
   Plus,
+  Percent,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
