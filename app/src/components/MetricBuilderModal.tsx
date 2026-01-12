@@ -210,10 +210,9 @@ export default function MetricBuilderModal({
         },
       };
       
-      const metricData = {
+      const metricData: any = {
         organizationId,
         name: metricName,
-        description: description || undefined,
         section,
         numerator,
         denominator,
@@ -221,6 +220,11 @@ export default function MetricBuilderModal({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      
+      // Only add description if it's not empty (Firestore doesn't allow undefined)
+      if (description && description.trim()) {
+        metricData.description = description.trim();
+      }
       
       console.log("Saving metric data:", metricData);
       
