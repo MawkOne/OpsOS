@@ -840,50 +840,6 @@ function AddInitiativeModal({
             </div>
 
             {/* Owner */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Category
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value as InitiativeCategory })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                {initiativeCategories.map(cat => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Priority
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{ 
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-          </div>
-
-            {/* Owner */}
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
                 Owner
