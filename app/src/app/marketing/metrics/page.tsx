@@ -38,6 +38,37 @@ export default function MarketingMetricsPage() {
     }
   }, [viewMode, selectedYear]);
 
+  // Calculate months for table headers
+  const months = useMemo(() => {
+    const now = new Date();
+    const result: string[] = [];
+    
+    if (viewMode === "ttm") {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        result.push(`${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`);
+      }
+    } else {
+      for (let m = 0; m < 12; m++) {
+        const monthDate = new Date(selectedYear, m, 1);
+        if (monthDate <= now) {
+          result.push(`${selectedYear}-${(m + 1).toString().padStart(2, "0")}`);
+        }
+      }
+    }
+    
+    return result;
+  }, [viewMode, selectedYear]);
+
+  // Calculate month labels
+  const monthLabels = useMemo(() => {
+    return months.map(month => {
+      const [year, monthNum] = month.split("-");
+      const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      return date.toLocaleDateString("en-US", { month: "short" });
+    });
+  }, [months]);
+
   // Fetch custom metrics from Firestore
   useEffect(() => {
     if (!organizationId) {
@@ -146,6 +177,124 @@ export default function MarketingMetricsPage() {
             </div>
           </div>
         </Card>
+
+        {/* Monthly Metrics Table */}
+        {customMetrics.length > 0 && (
+          <Card>
+            <CardHeader
+              title="Monthly Conversion Rates"
+              subtitle="Track your custom metrics over time"
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th 
+                      className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
+                      style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
+                    >
+                      Metric Name
+                    </th>
+                    <th 
+                      className="text-center py-3 px-3 text-sm font-semibold"
+                      style={{ color: "var(--foreground-muted)" }}
+                    >
+                      Formula
+                    </th>
+                    {monthLabels.map((label) => (
+                      <th 
+                        key={label}
+                        className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                    <th 
+                      className="text-right py-3 px-4 text-sm font-semibold"
+                      style={{ color: "var(--foreground)" }}
+                    >
+                      Average
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customMetrics.map((metric, idx) => {
+                    const monthlyValues = metric.monthlyValues || {};
+                    const values = months.map(m => monthlyValues[m] || 0);
+                    const avgValue = values.filter(v => v > 0).length > 0
+                      ? values.filter(v => v > 0).reduce((a, b) => a + b, 0) / values.filter(v => v > 0).length
+                      : 0;
+
+                    return (
+                      <motion.tr
+                        key={metric.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                        className="hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <td 
+                          className="py-3 px-4 text-sm font-medium sticky left-0"
+                          style={{ color: "var(--foreground)", background: "inherit" }}
+                        >
+                          <div>
+                            <div className="font-semibold">{metric.name}</div>
+                            {metric.description && (
+                              <div className="text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                                {metric.description}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <div 
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+                            style={{ 
+                              background: "var(--background-tertiary)",
+                              color: "var(--foreground-muted)" 
+                            }}
+                          >
+                            <span style={{ color: "#10b981" }}>
+                              {metric.numerator.metricType === "event"
+                                ? metric.numerator.gaEventName
+                                : metric.numerator.gaMetric}
+                            </span>
+                            <span>/</span>
+                            <span style={{ color: "#3b82f6" }}>
+                              {metric.denominator.metricType === "event"
+                                ? metric.denominator.gaEventName
+                                : metric.denominator.gaMetric}
+                            </span>
+                          </div>
+                        </td>
+                        {months.map(month => {
+                          const value = monthlyValues[month] || 0;
+                          return (
+                            <td 
+                              key={month}
+                              className="py-3 px-3 text-sm text-right tabular-nums"
+                              style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
+                            >
+                              {value > 0 ? `${value.toFixed(2)}%` : "—"}
+                            </td>
+                          );
+                        })}
+                        <td 
+                          className="py-3 px-4 text-sm text-right font-bold tabular-nums"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {avgValue > 0 ? `${avgValue.toFixed(2)}%` : "—"}
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
         {/* Custom Conversion Metrics */}
         <div className="space-y-4">
