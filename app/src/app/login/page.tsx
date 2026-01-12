@@ -10,7 +10,7 @@ import { Zap, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isProcessingRedirect } = useAuth();
   const { organizations, loading: orgLoading } = useOrganization();
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -23,9 +23,9 @@ export default function LoginPage() {
     name: "",
   });
 
-  // Redirect if already logged in
+  // Redirect if already logged in (but wait for redirect processing to complete)
   useEffect(() => {
-    if (!authLoading && !orgLoading && user) {
+    if (!authLoading && !orgLoading && !isProcessingRedirect && user) {
       // User is logged in, redirect based on org status
       if (organizations.length > 0) {
         window.location.href = "/leadership";
@@ -33,7 +33,7 @@ export default function LoginPage() {
         window.location.href = "/onboarding";
       }
     }
-  }, [authLoading, orgLoading, user, organizations]);
+  }, [authLoading, orgLoading, isProcessingRedirect, user, organizations]);
 
   const redirectAfterAuth = () => {
     // After auth, go to onboarding for new users (signup) or leadership for existing
@@ -94,11 +94,16 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading while checking auth state
-  if (authLoading || (user && orgLoading)) {
+  // Show loading while checking auth state or processing OAuth redirect
+  if (authLoading || isProcessingRedirect || (user && orgLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
+          <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+            {isProcessingRedirect ? "Completing sign in..." : "Loading..."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -107,7 +112,12 @@ export default function LoginPage() {
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" style={{ color: "var(--accent)" }} />
+          <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+            Redirecting...
+          </p>
+        </div>
       </div>
     );
   }

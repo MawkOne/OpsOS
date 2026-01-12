@@ -7,6 +7,7 @@ import { onAuthChange, signIn, signUp, signOut, signInWithGoogle, checkRedirectR
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isProcessingRedirect: boolean;
   signIn: (email: string, password: string) => Promise<{ user: User | null; error: string | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ user: User | null; error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
@@ -18,18 +19,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
 
   useEffect(() => {
     // Check for redirect result first (from Google OAuth)
-    checkRedirectResult().then(({ user: redirectUser, error }) => {
-      if (error) {
-        console.error("Redirect sign-in error:", error);
-      }
-      if (redirectUser) {
-        setUser(redirectUser);
-        setLoading(false);
-      }
-    });
+    setIsProcessingRedirect(true);
+    checkRedirectResult()
+      .then(({ user: redirectUser, error }) => {
+        if (error) {
+          console.error("Redirect sign-in error:", error);
+        }
+        if (redirectUser) {
+          setUser(redirectUser);
+          setLoading(false);
+        }
+      })
+      .finally(() => {
+        setIsProcessingRedirect(false);
+      });
 
     // Then set up the auth state listener
     const unsubscribe = onAuthChange((user) => {
@@ -43,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     loading,
+    isProcessingRedirect,
     signIn,
     signUp,
     signOut,
