@@ -90,6 +90,7 @@ export default function TrafficPage() {
   const { currentOrg } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [trafficData, setTrafficData] = useState<TrafficSourceData[]>([]);
+  const [eventsData, setEventsData] = useState<TrafficSourceData[]>([]); // For events-by-month view
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("users");
@@ -168,6 +169,9 @@ export default function TrafficPage() {
     fetchFilterOptions();
   }, [organizationId]);
 
+  // Determine if we should show events as rows instead of traffic sources
+  const showEventsAsRows = selectedMetric === "events" && !selectedEvent;
+
   // Auto-switch to compatible metric when event is selected/cleared
   useEffect(() => {
     const incompatibleMetrics: MetricType[] = ["users", "newUsers", "sessions", "engagementRate", "avgEngagementTime", "conversionRate"];
@@ -235,6 +239,58 @@ export default function TrafficPage() {
     fetchData();
   }, [organizationId, viewMode, selectedYear, selectedCountry, selectedDevice, selectedEvent]);
 
+  // Fetch events-by-month data when metric is "events"
+  useEffect(() => {
+    if (!organizationId || !showEventsAsRows) {
+      return;
+    }
+
+    const fetchEventsData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const connectionDoc = await getDoc(doc(db, "ga_connections", organizationId));
+
+        if (!connectionDoc.exists() || connectionDoc.data()?.status !== "connected") {
+          setIsConnected(false);
+          setEventsData([]);
+          setLoading(false);
+          return;
+        }
+
+        setIsConnected(true);
+
+        const params = new URLSearchParams({
+          organizationId,
+          viewMode,
+          year: selectedYear.toString(),
+        });
+        if (selectedCountry) params.set("country", selectedCountry);
+        if (selectedDevice) params.set("device", selectedDevice);
+
+        const response = await fetch(
+          `/api/google-analytics/events-by-month?${params.toString()}`
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch events data");
+        }
+
+        const data = await response.json();
+        setEventsData(data.events || []);
+      } catch (err) {
+        console.error("Error fetching events data:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch events data");
+        setEventsData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventsData();
+  }, [organizationId, viewMode, selectedYear, selectedCountry, selectedDevice, showEventsAsRows]);
+
   // Fetch event breakdown for a specific source
   const fetchEventBreakdown = async (sourceId: string, channelGroup: string) => {
     setLoadingBreakdown(sourceId);
@@ -290,11 +346,18 @@ export default function TrafficPage() {
     }
   };
 
-  // Get value for a source and month
+  // Get value for a source/event and month
   const getValue = (source: TrafficSourceData, month: string): number => {
     const metrics = source.months[month];
     if (!metrics) return 0;
-    return metrics[selectedMetric] || 0;
+    
+    if (showEventsAsRows) {
+      // For events view, always return the event count
+      return metrics.events || 0;
+    } else {
+      // For traffic sources view, use selected metric
+      return metrics[selectedMetric] || 0;
+    }
   };
 
   // Calculate row total
@@ -302,40 +365,64 @@ export default function TrafficPage() {
     return months.reduce((sum, month) => {
       const metrics = source.months[month];
       if (!metrics) return sum;
-      return sum + (metrics[selectedMetric] || 0);
+      
+      if (showEventsAsRows) {
+        return sum + (metrics.events || 0);
+      } else {
+        return sum + (metrics[selectedMetric] || 0);
+      }
     }, 0);
   };
 
   // Calculate monthly totals
   const monthlyTotals = useMemo(() => {
+    const dataToSum = showEventsAsRows ? eventsData : trafficData;
+    
     return months.map((month) => {
-      return trafficData.reduce((sum, source) => {
+      return dataToSum.reduce((sum, source) => {
         const metrics = source.months[month];
         if (!metrics) return sum;
-        return sum + (metrics[selectedMetric] || 0);
+        
+        if (showEventsAsRows) {
+          return sum + (metrics.events || 0);
+        } else {
+          return sum + (metrics[selectedMetric] || 0);
+        }
       }, 0);
     });
-  }, [trafficData, months, selectedMetric]);
+  }, [trafficData, eventsData, months, selectedMetric, showEventsAsRows]);
 
   // Calculate period total
   const periodTotal = useMemo(() => {
     return monthlyTotals.reduce((sum, val) => sum + val, 0);
   }, [monthlyTotals]);
 
-  // Sort data by total (descending)
+  // Sort data by total (descending) - use eventsData if showing events as rows
   const sortedData = useMemo(() => {
-    return [...trafficData].sort((a, b) => {
+    const dataToSort = showEventsAsRows ? eventsData : trafficData;
+    
+    return [...dataToSort].sort((a, b) => {
       const totalA = months.reduce((sum, month) => {
         const metrics = a.months[month];
-        return sum + (metrics?.[selectedMetric] || 0);
+        if (showEventsAsRows) {
+          // For events view, sum the 'events' property
+          return sum + (metrics?.events || 0);
+        } else {
+          // For traffic sources view, use selected metric
+          return sum + (metrics?.[selectedMetric] || 0);
+        }
       }, 0);
       const totalB = months.reduce((sum, month) => {
         const metrics = b.months[month];
-        return sum + (metrics?.[selectedMetric] || 0);
+        if (showEventsAsRows) {
+          return sum + (metrics?.events || 0);
+        } else {
+          return sum + (metrics?.[selectedMetric] || 0);
+        }
       }, 0);
       return totalB - totalA;
     });
-  }, [trafficData, months, selectedMetric]);
+  }, [trafficData, eventsData, months, selectedMetric, showEventsAsRows]);
 
   // Calculate YoY growth
   const yoyGrowth = useMemo(() => {
@@ -675,7 +762,7 @@ export default function TrafficPage() {
                       className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
                       style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
                     >
-                      Source
+                      {showEventsAsRows ? "Event" : "Source"}
                     </th>
                     {monthLabels.map((label) => (
                       <th
@@ -698,7 +785,7 @@ export default function TrafficPage() {
                   {sortedData.map((source, idx) => {
                     const rowTotal = getRowTotal(source);
                     const isExpanded = expandedSource === source.id;
-                    const canExpand = selectedMetric === "events" && !selectedEvent;
+                    const canExpand = !showEventsAsRows && selectedMetric === "events" && !selectedEvent;
                     
                     return (
                       <React.Fragment key={source.id}>
@@ -714,24 +801,38 @@ export default function TrafficPage() {
                             className="py-3 px-4 text-sm font-medium sticky left-0"
                             style={{ color: "var(--foreground)", background: "inherit" }}
                           >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                style={{ background: `${getSourceColor(source.id)}20`, color: getSourceColor(source.id) }}
-                              >
-                                {getSourceIcon(source.id)}
-                              </div>
-                              <span>{source.name}</span>
-                              {canExpand && (
-                                <div className="ml-auto">
-                                  {isExpanded ? (
-                                    <ChevronUp className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-                                  ) : (
-                                    <ChevronDown className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-                                  )}
+                            {showEventsAsRows ? (
+                              // Events view: Show event name with activity icon
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                  style={{ background: "var(--accent-transparent)", color: "var(--accent)" }}
+                                >
+                                  <Activity className="w-4 h-4" />
                                 </div>
-                              )}
-                            </div>
+                                <span>{source.name}</span>
+                              </div>
+                            ) : (
+                              // Traffic sources view: Show source icon
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                  style={{ background: `${getSourceColor(source.id)}20`, color: getSourceColor(source.id) }}
+                                >
+                                  {getSourceIcon(source.id)}
+                                </div>
+                                <span>{source.name}</span>
+                                {canExpand && (
+                                  <div className="ml-auto">
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </td>
                           {months.map((month) => {
                             const value = getValue(source, month);
