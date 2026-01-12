@@ -41,6 +41,9 @@ export default function MetricBuilderModal({
 }: MetricBuilderModalProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewNumerator, setPreviewNumerator] = useState<number | null>(null);
+  const [previewDenominator, setPreviewDenominator] = useState<number | null>(null);
   
   // Form state
   const [metricName, setMetricName] = useState("");
@@ -94,8 +97,92 @@ export default function MetricBuilderModal({
     }
   }, [organizationId]);
   
+  // Fetch preview totals
+  const fetchPreviewTotals = async () => {
+    if (numeratorSource !== "google-analytics" || denominatorSource !== "google-analytics") {
+      return;
+    }
+    
+    if ((numeratorType === "event" && !numeratorEvent) || (denominatorType === "event" && !denominatorEvent)) {
+      return;
+    }
+    
+    setLoadingPreview(true);
+    try {
+      // Calculate last 30 days for preview
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const startDate = `${thirtyDaysAgo.getFullYear()}-${(thirtyDaysAgo.getMonth() + 1).toString().padStart(2, '0')}-${thirtyDaysAgo.getDate().toString().padStart(2, '0')}`;
+      const endDate = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+      
+      // Build numerator selector
+      const numSelector: MetricSelector = {
+        source: numeratorSource,
+        metricType: numeratorType,
+        gaMetric: numeratorType === "metric" ? numeratorMetric : undefined,
+        gaEventName: numeratorType === "event" ? numeratorEvent : undefined,
+        filters: {
+          country: numeratorCountry || undefined,
+          device: numeratorDevice || undefined,
+        },
+      };
+      
+      // Build denominator selector
+      const denSelector: MetricSelector = {
+        source: denominatorSource,
+        metricType: denominatorType,
+        gaMetric: denominatorType === "metric" ? denominatorMetric : undefined,
+        gaEventName: denominatorType === "event" ? denominatorEvent : undefined,
+        filters: {
+          country: denominatorCountry || undefined,
+          device: denominatorDevice || undefined,
+        },
+      };
+      
+      // Fetch preview from API
+      const response = await fetch("/api/custom-metrics/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          numerator: numSelector,
+          denominator: denSelector,
+          startDate,
+          endDate,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPreviewNumerator(data.numeratorValue || 0);
+        setPreviewDenominator(data.denominatorValue || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching preview:", error);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+  
+  // Fetch preview when selectors change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (numeratorSource === "google-analytics" && denominatorSource === "google-analytics") {
+        fetchPreviewTotals();
+      }
+    }, 500); // Debounce
+    
+    return () => clearTimeout(timeoutId);
+  }, [
+    numeratorSource, numeratorType, numeratorMetric, numeratorEvent, numeratorCountry, numeratorDevice,
+    denominatorSource, denominatorType, denominatorMetric, denominatorEvent, denominatorCountry, denominatorDevice
+  ]);
+  
   const handleSave = async () => {
     if (!metricName.trim() || !user) {
+      console.log("Cannot save: missing name or user", { metricName, user });
       return;
     }
     
@@ -135,7 +222,11 @@ export default function MetricBuilderModal({
         updatedAt: serverTimestamp(),
       };
       
+      console.log("Saving metric data:", metricData);
+      
       const docRef = await addDoc(collection(db, "custom_metrics"), metricData);
+      
+      console.log("Metric saved with ID:", docRef.id);
       
       if (onSave) {
         onSave({ ...metricData, id: docRef.id } as any);
@@ -144,6 +235,7 @@ export default function MetricBuilderModal({
       onClose();
     } catch (error) {
       console.error("Error saving metric:", error);
+      alert("Error saving metric: " + (error as Error).message);
     } finally {
       setSaving(false);
     }
@@ -586,49 +678,77 @@ export default function MetricBuilderModal({
             
             {/* Formula Preview */}
             <div
-              className="p-4 rounded-lg border flex items-center justify-center gap-4"
+              className="p-6 rounded-lg border"
               style={{ 
                 background: "var(--background-secondary)",
                 borderColor: "var(--border)",
               }}
             >
-              <div className="text-center">
-                <div className="text-sm font-medium" style={{ color: "#10b981" }}>
-                  {getDisplayLabel({ 
-                    type: numeratorType, 
-                    metric: numeratorMetric, 
-                    event: numeratorEvent,
-                    source: numeratorSource,
-                  })}
-                </div>
-                {numeratorCountry && (
-                  <div className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                    {numeratorCountry}
-                  </div>
-                )}
+              <div className="text-xs font-medium mb-3" style={{ color: "var(--foreground-muted)" }}>
+                Preview (Last 30 Days)
               </div>
               
-              <Divide className="w-6 h-6" style={{ color: "var(--foreground-muted)" }} />
-              
-              <div className="text-center">
-                <div className="text-sm font-medium" style={{ color: "#3b82f6" }}>
-                  {getDisplayLabel({ 
-                    type: denominatorType, 
-                    metric: denominatorMetric, 
-                    event: denominatorEvent,
-                    source: denominatorSource,
-                  })}
-                </div>
-                {denominatorCountry && (
-                  <div className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                    {denominatorCountry}
+              <div className="flex items-center justify-center gap-4">
+                {/* Numerator */}
+                <div className="text-center">
+                  <div className="text-xs font-medium mb-1" style={{ color: "#10b981" }}>
+                    {getDisplayLabel({ 
+                      type: numeratorType, 
+                      metric: numeratorMetric, 
+                      event: numeratorEvent,
+                      source: numeratorSource,
+                    })}
                   </div>
-                )}
+                  {loadingPreview ? (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>...</div>
+                  ) : previewNumerator !== null ? (
+                    <div className="text-lg font-bold" style={{ color: "#10b981" }}>
+                      {previewNumerator.toLocaleString()}
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>-</div>
+                  )}
+                </div>
+                
+                <Divide className="w-6 h-6" style={{ color: "var(--foreground-muted)" }} />
+                
+                {/* Denominator */}
+                <div className="text-center">
+                  <div className="text-xs font-medium mb-1" style={{ color: "#3b82f6" }}>
+                    {getDisplayLabel({ 
+                      type: denominatorType, 
+                      metric: denominatorMetric, 
+                      event: denominatorEvent,
+                      source: denominatorSource,
+                    })}
+                  </div>
+                  {loadingPreview ? (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>...</div>
+                  ) : previewDenominator !== null ? (
+                    <div className="text-lg font-bold" style={{ color: "#3b82f6" }}>
+                      {previewDenominator.toLocaleString()}
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>-</div>
+                  )}
+                </div>
+                
+                {/* Result */}
+                <div className="text-center">
+                  <div className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                    = Conversion Rate
+                  </div>
+                  {loadingPreview ? (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>...</div>
+                  ) : previewNumerator !== null && previewDenominator !== null && previewDenominator > 0 ? (
+                    <div className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
+                      {((previewNumerator / previewDenominator) * 100).toFixed(2)}%
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>-</div>
+                  )}
+                </div>
               </div>
-              
-              <span className="text-lg font-bold" style={{ color: "var(--foreground-muted)" }}>
-                × 100 = %
-              </span>
             </div>
           </div>
           
