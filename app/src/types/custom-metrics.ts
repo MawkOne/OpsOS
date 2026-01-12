@@ -12,6 +12,16 @@ export type GAMetric =
   | "conversions"
   | "totalRevenue";
 
+export type AdMetric =
+  | "clicks"
+  | "impressions"
+  | "spend"
+  | "cpc"
+  | "ctr"
+  | "conversionRate"
+  | "roas"
+  | "revenue";
+
 export type GAEventName = string; // Dynamic list from GA
 
 export interface MetricSelector {
@@ -21,11 +31,14 @@ export interface MetricSelector {
   // For GA metrics
   gaMetric?: GAMetric;
   
+  // For Advertising metrics
+  adMetric?: AdMetric;
+  
   // For GA events
   gaEventName?: string;
   
   // Filters
-  filters: {
+  filters?: {
     country?: string;
     device?: string;
     eventName?: string; // For filtering specific events

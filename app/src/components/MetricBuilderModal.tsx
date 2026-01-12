@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Divide, Activity, TrendingUp, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CustomMetric, MetricSelector, DataSource, GAMetric } from "@/types/custom-metrics";
+import { CustomMetric, MetricSelector, DataSource, GAMetric, AdMetric } from "@/types/custom-metrics";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +34,18 @@ const gaMetricOptions: { value: GAMetric; label: string }[] = [
   { value: "totalRevenue", label: "Revenue" },
 ];
 
+const adMetricOptions: { value: AdMetric; label: string }[] = [
+  { value: "clicks", label: "Clicks" },
+  { value: "impressions", label: "Impressions" },
+  { value: "spend", label: "Ad Spend" },
+  { value: "cpc", label: "Cost Per Click (CPC)" },
+  { value: "ctr", label: "Click-Through Rate (CTR)" },
+  { value: "conversions", label: "Conversions" },
+  { value: "revenue", label: "Revenue" },
+  { value: "conversionRate", label: "Conversion Rate" },
+  { value: "roas", label: "Return on Ad Spend (ROAS)" },
+];
+
 export default function MetricBuilderModal({
   organizationId,
   section,
@@ -54,6 +66,7 @@ export default function MetricBuilderModal({
   const [numeratorSource, setNumeratorSource] = useState<DataSource>("google-analytics");
   const [numeratorType, setNumeratorType] = useState<"metric" | "event">("event");
   const [numeratorMetric, setNumeratorMetric] = useState<GAMetric>("eventCount");
+  const [numeratorAdMetric, setNumeratorAdMetric] = useState<AdMetric>("clicks");
   const [numeratorEvent, setNumeratorEvent] = useState("");
   const [numeratorCountry, setNumeratorCountry] = useState("");
   const [numeratorDevice, setNumeratorDevice] = useState("");
@@ -62,6 +75,7 @@ export default function MetricBuilderModal({
   const [denominatorSource, setDenominatorSource] = useState<DataSource>("google-analytics");
   const [denominatorType, setDenominatorType] = useState<"metric" | "event">("metric");
   const [denominatorMetric, setDenominatorMetric] = useState<GAMetric>("newUsers");
+  const [denominatorAdMetric, setDenominatorAdMetric] = useState<AdMetric>("impressions");
   const [denominatorEvent, setDenominatorEvent] = useState("");
   const [denominatorCountry, setDenominatorCountry] = useState("");
   const [denominatorDevice, setDenominatorDevice] = useState("");
@@ -126,8 +140,12 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (numeratorType === "metric" && numeratorMetric) {
-        numSelector.gaMetric = numeratorMetric;
+      if (numeratorType === "metric") {
+        if (numeratorSource === "advertising" && numeratorAdMetric) {
+          numSelector.adMetric = numeratorAdMetric;
+        } else if (numeratorSource === "google-analytics" && numeratorMetric) {
+          numSelector.gaMetric = numeratorMetric;
+        }
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numSelector.gaEventName = numeratorEvent;
       }
@@ -154,8 +172,12 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (denominatorType === "metric" && denominatorMetric) {
-        denSelector.gaMetric = denominatorMetric;
+      if (denominatorType === "metric") {
+        if (denominatorSource === "advertising" && denominatorAdMetric) {
+          denSelector.adMetric = denominatorAdMetric;
+        } else if (denominatorSource === "google-analytics" && denominatorMetric) {
+          denSelector.gaMetric = denominatorMetric;
+        }
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denSelector.gaEventName = denominatorEvent;
       }
@@ -210,8 +232,8 @@ export default function MetricBuilderModal({
     
     return () => clearTimeout(timeoutId);
   }, [
-    numeratorSource, numeratorType, numeratorMetric, numeratorEvent, numeratorCountry, numeratorDevice,
-    denominatorSource, denominatorType, denominatorMetric, denominatorEvent, denominatorCountry, denominatorDevice
+    numeratorSource, numeratorType, numeratorMetric, numeratorAdMetric, numeratorEvent, numeratorCountry, numeratorDevice,
+    denominatorSource, denominatorType, denominatorMetric, denominatorAdMetric, denominatorEvent, denominatorCountry, denominatorDevice
   ]);
   
   const handleSave = async () => {
@@ -230,8 +252,12 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (numeratorType === "metric" && numeratorMetric) {
-        numerator.gaMetric = numeratorMetric;
+      if (numeratorType === "metric") {
+        if (numeratorSource === "advertising" && numeratorAdMetric) {
+          numerator.adMetric = numeratorAdMetric;
+        } else if (numeratorSource === "google-analytics" && numeratorMetric) {
+          numerator.gaMetric = numeratorMetric;
+        }
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numerator.gaEventName = numeratorEvent;
       }
@@ -258,8 +284,12 @@ export default function MetricBuilderModal({
       };
       
       // Only add metric/event fields if they have actual values
-      if (denominatorType === "metric" && denominatorMetric) {
-        denominator.gaMetric = denominatorMetric;
+      if (denominatorType === "metric") {
+        if (denominatorSource === "advertising" && denominatorAdMetric) {
+          denominator.adMetric = denominatorAdMetric;
+        } else if (denominatorSource === "google-analytics" && denominatorMetric) {
+          denominator.gaMetric = denominatorMetric;
+        }
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denominator.gaEventName = denominatorEvent;
       }
@@ -315,13 +345,18 @@ export default function MetricBuilderModal({
     }
   };
   
-  const getDisplayLabel = (selector: { type: "metric" | "event"; metric?: GAMetric; event?: string; source: DataSource }) => {
+  const getDisplayLabel = (selector: { type: "metric" | "event"; metric?: GAMetric; adMetric?: AdMetric; event?: string; source: DataSource }) => {
     const supportedSources = ["google-analytics", "advertising"];
     if (!supportedSources.includes(selector.source)) return selector.source;
     if (selector.type === "event" && selector.event) return `Event: ${selector.event}`;
-    if (selector.type === "metric" && selector.metric) {
-      const option = gaMetricOptions.find(o => o.value === selector.metric);
-      return option?.label || selector.metric;
+    if (selector.type === "metric") {
+      if (selector.source === "advertising" && selector.adMetric) {
+        const option = adMetricOptions.find(o => o.value === selector.adMetric);
+        return option?.label || selector.adMetric;
+      } else if (selector.metric) {
+        const option = gaMetricOptions.find(o => o.value === selector.metric);
+        return option?.label || selector.metric;
+      }
     }
     return "Select...";
   };
@@ -486,22 +521,41 @@ export default function MetricBuilderModal({
                           <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
                             Metric
                           </label>
-                          <select
-                            value={numeratorMetric}
-                            onChange={(e) => setNumeratorMetric(e.target.value as GAMetric)}
-                            className="w-full px-3 py-2 rounded-lg text-sm"
-                            style={{
-                              background: "var(--background)",
-                              border: "1px solid var(--border)",
-                              color: "var(--foreground)",
-                            }}
-                          >
-                            {gaMetricOptions.map((metric) => (
-                              <option key={metric.value} value={metric.value}>
-                                {metric.label}
-                              </option>
-                            ))}
-                          </select>
+                          {numeratorSource === "advertising" ? (
+                            <select
+                              value={numeratorAdMetric}
+                              onChange={(e) => setNumeratorAdMetric(e.target.value as AdMetric)}
+                              className="w-full px-3 py-2 rounded-lg text-sm"
+                              style={{
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                color: "var(--foreground)",
+                              }}
+                            >
+                              {adMetricOptions.map((metric) => (
+                                <option key={metric.value} value={metric.value}>
+                                  {metric.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <select
+                              value={numeratorMetric}
+                              onChange={(e) => setNumeratorMetric(e.target.value as GAMetric)}
+                              className="w-full px-3 py-2 rounded-lg text-sm"
+                              style={{
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                color: "var(--foreground)",
+                              }}
+                            >
+                              {gaMetricOptions.map((metric) => (
+                                <option key={metric.value} value={metric.value}>
+                                  {metric.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                       ) : (
                         <div>
@@ -657,22 +711,41 @@ export default function MetricBuilderModal({
                           <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
                             Metric
                           </label>
-                          <select
-                            value={denominatorMetric}
-                            onChange={(e) => setDenominatorMetric(e.target.value as GAMetric)}
-                            className="w-full px-3 py-2 rounded-lg text-sm"
-                            style={{
-                              background: "var(--background)",
-                              border: "1px solid var(--border)",
-                              color: "var(--foreground)",
-                            }}
-                          >
-                            {gaMetricOptions.map((metric) => (
-                              <option key={metric.value} value={metric.value}>
-                                {metric.label}
-                              </option>
-                            ))}
-                          </select>
+                          {denominatorSource === "advertising" ? (
+                            <select
+                              value={denominatorAdMetric}
+                              onChange={(e) => setDenominatorAdMetric(e.target.value as AdMetric)}
+                              className="w-full px-3 py-2 rounded-lg text-sm"
+                              style={{
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                color: "var(--foreground)",
+                              }}
+                            >
+                              {adMetricOptions.map((metric) => (
+                                <option key={metric.value} value={metric.value}>
+                                  {metric.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <select
+                              value={denominatorMetric}
+                              onChange={(e) => setDenominatorMetric(e.target.value as GAMetric)}
+                              className="w-full px-3 py-2 rounded-lg text-sm"
+                              style={{
+                                background: "var(--background)",
+                                border: "1px solid var(--border)",
+                                color: "var(--foreground)",
+                              }}
+                            >
+                              {gaMetricOptions.map((metric) => (
+                                <option key={metric.value} value={metric.value}>
+                                  {metric.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                       ) : (
                         <div>
@@ -769,7 +842,8 @@ export default function MetricBuilderModal({
                   <div className="text-xs font-medium mb-1" style={{ color: "#10b981" }}>
                     {getDisplayLabel({ 
                       type: numeratorType, 
-                      metric: numeratorMetric, 
+                      metric: numeratorMetric,
+                      adMetric: numeratorAdMetric,
                       event: numeratorEvent,
                       source: numeratorSource,
                     })}
@@ -792,7 +866,8 @@ export default function MetricBuilderModal({
                   <div className="text-xs font-medium mb-1" style={{ color: "#3b82f6" }}>
                     {getDisplayLabel({ 
                       type: denominatorType, 
-                      metric: denominatorMetric, 
+                      metric: denominatorMetric,
+                      adMetric: denominatorAdMetric,
                       event: denominatorEvent,
                       source: denominatorSource,
                     })}
