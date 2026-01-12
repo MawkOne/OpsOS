@@ -365,13 +365,13 @@ export default function MarketingMetricsPage() {
                             <span style={{ color: "#10b981" }}>
                               {metric.numerator.metricType === "event"
                                 ? metric.numerator.gaEventName
-                                : (metric.numerator.source === "advertising" ? metric.numerator.adMetric : metric.numerator.gaMetric)}
+                                : ((metric.numerator.source as string) === "advertising" ? metric.numerator.adMetric : metric.numerator.gaMetric)}
                             </span>
                             <span>/</span>
                             <span style={{ color: "#3b82f6" }}>
                               {metric.denominator.metricType === "event"
                                 ? metric.denominator.gaEventName
-                                : (metric.denominator.source === "advertising" ? metric.denominator.adMetric : metric.denominator.gaMetric)}
+                                : ((metric.denominator.source as string) === "advertising" ? metric.denominator.adMetric : metric.denominator.gaMetric)}
                             </span>
                           </div>
                         </div>

@@ -141,9 +141,9 @@ export default function MetricBuilderModal({
       
       // Only add metric/event fields if they have actual values
       if (numeratorType === "metric") {
-        if (numeratorSource === "advertising" && numeratorAdMetric) {
+        if ((numeratorSource as string) === "advertising" && numeratorAdMetric) {
           numSelector.adMetric = numeratorAdMetric;
-        } else if (numeratorSource === "google-analytics" && numeratorMetric) {
+        } else if ((numeratorSource as string) === "google-analytics" && numeratorMetric) {
           numSelector.gaMetric = numeratorMetric;
         }
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
@@ -173,9 +173,9 @@ export default function MetricBuilderModal({
       
       // Only add metric/event fields if they have actual values
       if (denominatorType === "metric") {
-        if (denominatorSource === "advertising" && denominatorAdMetric) {
+        if ((denominatorSource as string) === "advertising" && denominatorAdMetric) {
           denSelector.adMetric = denominatorAdMetric;
-        } else if (denominatorSource === "google-analytics" && denominatorMetric) {
+        } else if ((denominatorSource as string) === "google-analytics" && denominatorMetric) {
           denSelector.gaMetric = denominatorMetric;
         }
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
@@ -253,9 +253,9 @@ export default function MetricBuilderModal({
       
       // Only add metric/event fields if they have actual values
       if (numeratorType === "metric") {
-        if (numeratorSource === "advertising" && numeratorAdMetric) {
+        if ((numeratorSource as string) === "advertising" && numeratorAdMetric) {
           numerator.adMetric = numeratorAdMetric;
-        } else if (numeratorSource === "google-analytics" && numeratorMetric) {
+        } else if ((numeratorSource as string) === "google-analytics" && numeratorMetric) {
           numerator.gaMetric = numeratorMetric;
         }
       } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
@@ -285,9 +285,9 @@ export default function MetricBuilderModal({
       
       // Only add metric/event fields if they have actual values
       if (denominatorType === "metric") {
-        if (denominatorSource === "advertising" && denominatorAdMetric) {
+        if ((denominatorSource as string) === "advertising" && denominatorAdMetric) {
           denominator.adMetric = denominatorAdMetric;
-        } else if (denominatorSource === "google-analytics" && denominatorMetric) {
+        } else if ((denominatorSource as string) === "google-analytics" && denominatorMetric) {
           denominator.gaMetric = denominatorMetric;
         }
       } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
@@ -350,7 +350,7 @@ export default function MetricBuilderModal({
     if (!supportedSources.includes(selector.source)) return selector.source;
     if (selector.type === "event" && selector.event) return `Event: ${selector.event}`;
     if (selector.type === "metric") {
-      if (selector.source === "advertising" && selector.adMetric) {
+      if ((selector.source as string) === "advertising" && selector.adMetric) {
         const option = adMetricOptions.find(o => o.value === selector.adMetric);
         return option?.label || selector.adMetric;
       } else if (selector.metric) {
