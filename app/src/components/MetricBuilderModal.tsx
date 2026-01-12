@@ -117,29 +117,51 @@ export default function MetricBuilderModal({
       const startDate = `${thirtyDaysAgo.getFullYear()}-${(thirtyDaysAgo.getMonth() + 1).toString().padStart(2, '0')}-${thirtyDaysAgo.getDate().toString().padStart(2, '0')}`;
       const endDate = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
       
-      // Build numerator selector
-      const numSelector: MetricSelector = {
+      // Build numerator selector (only include fields that have values)
+      const numSelector: any = {
         source: numeratorSource,
         metricType: numeratorType,
-        gaMetric: numeratorType === "metric" ? numeratorMetric : undefined,
-        gaEventName: numeratorType === "event" ? numeratorEvent : undefined,
-        filters: {
-          country: numeratorCountry || undefined,
-          device: numeratorDevice || undefined,
-        },
+        filters: {},
       };
       
-      // Build denominator selector
-      const denSelector: MetricSelector = {
+      if (numeratorType === "metric" && numeratorMetric) {
+        numSelector.gaMetric = numeratorMetric;
+      }
+      
+      if (numeratorType === "event" && numeratorEvent) {
+        numSelector.gaEventName = numeratorEvent;
+      }
+      
+      if (numeratorCountry) {
+        numSelector.filters.country = numeratorCountry;
+      }
+      
+      if (numeratorDevice) {
+        numSelector.filters.device = numeratorDevice;
+      }
+      
+      // Build denominator selector (only include fields that have values)
+      const denSelector: any = {
         source: denominatorSource,
         metricType: denominatorType,
-        gaMetric: denominatorType === "metric" ? denominatorMetric : undefined,
-        gaEventName: denominatorType === "event" ? denominatorEvent : undefined,
-        filters: {
-          country: denominatorCountry || undefined,
-          device: denominatorDevice || undefined,
-        },
+        filters: {},
       };
+      
+      if (denominatorType === "metric" && denominatorMetric) {
+        denSelector.gaMetric = denominatorMetric;
+      }
+      
+      if (denominatorType === "event" && denominatorEvent) {
+        denSelector.gaEventName = denominatorEvent;
+      }
+      
+      if (denominatorCountry) {
+        denSelector.filters.country = denominatorCountry;
+      }
+      
+      if (denominatorDevice) {
+        denSelector.filters.device = denominatorDevice;
+      }
       
       // Fetch preview from API
       const response = await fetch("/api/custom-metrics/preview", {
@@ -188,27 +210,51 @@ export default function MetricBuilderModal({
     
     setSaving(true);
     try {
-      const numerator: MetricSelector = {
+      // Build numerator (only include fields that have values)
+      const numerator: any = {
         source: numeratorSource,
         metricType: numeratorType,
-        gaMetric: numeratorType === "metric" ? numeratorMetric : undefined,
-        gaEventName: numeratorType === "event" ? numeratorEvent : undefined,
-        filters: {
-          country: numeratorCountry || undefined,
-          device: numeratorDevice || undefined,
-        },
+        filters: {},
       };
       
-      const denominator: MetricSelector = {
+      if (numeratorType === "metric" && numeratorMetric) {
+        numerator.gaMetric = numeratorMetric;
+      }
+      
+      if (numeratorType === "event" && numeratorEvent) {
+        numerator.gaEventName = numeratorEvent;
+      }
+      
+      if (numeratorCountry) {
+        numerator.filters.country = numeratorCountry;
+      }
+      
+      if (numeratorDevice) {
+        numerator.filters.device = numeratorDevice;
+      }
+      
+      // Build denominator (only include fields that have values)
+      const denominator: any = {
         source: denominatorSource,
         metricType: denominatorType,
-        gaMetric: denominatorType === "metric" ? denominatorMetric : undefined,
-        gaEventName: denominatorType === "event" ? denominatorEvent : undefined,
-        filters: {
-          country: denominatorCountry || undefined,
-          device: denominatorDevice || undefined,
-        },
+        filters: {},
       };
+      
+      if (denominatorType === "metric" && denominatorMetric) {
+        denominator.gaMetric = denominatorMetric;
+      }
+      
+      if (denominatorType === "event" && denominatorEvent) {
+        denominator.gaEventName = denominatorEvent;
+      }
+      
+      if (denominatorCountry) {
+        denominator.filters.country = denominatorCountry;
+      }
+      
+      if (denominatorDevice) {
+        denominator.filters.device = denominatorDevice;
+      }
       
       const metricData: any = {
         organizationId,
