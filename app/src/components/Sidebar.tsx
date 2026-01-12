@@ -166,6 +166,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       items: [
         { label: "Dashboard", href: "/revenue", icon: <LayoutDashboard className="w-4 h-4" /> },
         { label: "Sales", href: "/revenue/sales", icon: <TrendingUp className="w-4 h-4" /> },
+        { label: "Metrics", href: "/revenue/metrics", icon: <Activity className="w-4 h-4" /> },
         { label: "Analytics", href: "/revenue/analytics", icon: <LineChart className="w-4 h-4" /> },
       ],
     },
