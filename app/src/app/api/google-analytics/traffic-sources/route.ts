@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
   const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
   const country = searchParams.get('country') || ''; // Country filter
   const deviceCategory = searchParams.get('device') || ''; // Device filter (desktop, mobile, tablet)
+  const eventName = searchParams.get('event') || ''; // Event name filter
 
   if (!organizationId) {
     return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
@@ -167,6 +168,18 @@ export async function GET(request: NextRequest) {
             stringFilter: {
               matchType: 'EXACT',
               value: deviceCategory,
+            },
+          },
+        });
+      }
+
+      if (eventName) {
+        dimensionFilters.push({
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: eventName,
             },
           },
         });

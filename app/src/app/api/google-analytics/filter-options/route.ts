@@ -171,10 +171,38 @@ export async function GET(request: NextRequest) {
         .filter((b: string) => b && b !== '(not set)');
     }
 
+    // Fetch event names
+    const eventsResponse = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: startDateStr, endDate: endDateStr }],
+          dimensions: [{ name: 'eventName' }],
+          metrics: [{ name: 'eventCount' }],
+          orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+          limit: 100,
+        }),
+      }
+    );
+
+    let events: string[] = [];
+    if (eventsResponse.ok) {
+      const eventsData = await eventsResponse.json();
+      events = (eventsData.rows || [])
+        .map((row: any) => row.dimensionValues[0].value)
+        .filter((e: string) => e && e !== '(not set)');
+    }
+
     return NextResponse.json({
       countries,
       devices,
       browsers,
+      events,
     });
 
   } catch (error) {

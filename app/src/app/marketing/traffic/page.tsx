@@ -96,10 +96,12 @@ export default function TrafficPage() {
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [selectedDevice, setSelectedDevice] = useState<string>("");
+  const [selectedEvent, setSelectedEvent] = useState<string>("");
   const [filterOptions, setFilterOptions] = useState<{
     countries: string[];
     devices: string[];
-  }>({ countries: [], devices: [] });
+    events: string[];
+  }>({ countries: [], devices: [], events: [] });
   const [filtersLoading, setFiltersLoading] = useState(false);
 
   const organizationId = currentOrg?.id || "";
@@ -145,6 +147,7 @@ export default function TrafficPage() {
           setFilterOptions({
             countries: data.countries || [],
             devices: data.devices || [],
+            events: data.events || [],
           });
         }
       } catch (err) {
@@ -188,6 +191,7 @@ export default function TrafficPage() {
         });
         if (selectedCountry) params.set("country", selectedCountry);
         if (selectedDevice) params.set("device", selectedDevice);
+        if (selectedEvent) params.set("event", selectedEvent);
 
         // Fetch real traffic data from API
         const response = await fetch(
@@ -211,7 +215,7 @@ export default function TrafficPage() {
     };
 
     fetchData();
-  }, [organizationId, viewMode, selectedYear, selectedCountry, selectedDevice]);
+  }, [organizationId, viewMode, selectedYear, selectedCountry, selectedDevice, selectedEvent]);
 
   // Get value for a source and month
   const getValue = (source: TrafficSourceData, month: string): number => {
@@ -473,6 +477,29 @@ export default function TrafficPage() {
                   {filterOptions.devices.map((device) => (
                     <option key={device} value={device}>
                       {device.charAt(0).toUpperCase() + device.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Event Filter */}
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                <select
+                  value={selectedEvent}
+                  onChange={(e) => setSelectedEvent(e.target.value)}
+                  disabled={filtersLoading}
+                  className="px-3 py-1.5 rounded-lg text-sm"
+                  style={{
+                    background: "var(--background-tertiary)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <option value="">All Events</option>
+                  {filterOptions.events.map((event) => (
+                    <option key={event} value={event}>
+                      {event}
                     </option>
                   ))}
                 </select>
