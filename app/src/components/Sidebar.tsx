@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "marketing";
+type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "marketing" | "metrics";
 
 interface NavItem {
   label: string;
@@ -60,6 +60,12 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
     icon: <DollarSign className="w-4 h-4" />, 
     color: "#10b981",
     href: "/revenue",
+  },
+  metrics: { 
+    label: "Metrics", 
+    icon: <Activity className="w-4 h-4" />, 
+    color: "#06b6d4",
+    href: "/metrics",
   },
   marketing: { 
     label: "Marketing", 
@@ -88,7 +94,7 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 };
 
 // Define the order for module selector dropdown
-const moduleOrder: Module[] = ["leadership", "revenue", "marketing", "initiatives", "planning", "resources"];
+const moduleOrder: Module[] = ["leadership", "revenue", "metrics", "marketing", "initiatives", "planning", "resources"];
 
 const navigationByModule: Record<Module, NavSection[]> = {
   initiatives: [
@@ -166,7 +172,6 @@ const navigationByModule: Record<Module, NavSection[]> = {
       items: [
         { label: "Dashboard", href: "/revenue", icon: <LayoutDashboard className="w-4 h-4" /> },
         { label: "Sales", href: "/revenue/sales", icon: <TrendingUp className="w-4 h-4" /> },
-        { label: "Metrics", href: "/revenue/metrics", icon: <Activity className="w-4 h-4" /> },
         { label: "Analytics", href: "/revenue/analytics", icon: <LineChart className="w-4 h-4" /> },
       ],
     },
@@ -175,6 +180,24 @@ const navigationByModule: Record<Module, NavSection[]> = {
       items: [
         { label: "QuickBooks", href: "/revenue/quickbooks", icon: <Receipt className="w-4 h-4" /> },
         { label: "Stripe", href: "/revenue/stripe", icon: <CreditCard className="w-4 h-4" /> },
+      ],
+    },
+  ],
+  metrics: [
+    {
+      title: "Overview",
+      items: [
+        { label: "Dashboard", href: "/metrics", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "All Metrics", href: "/metrics/all", icon: <Activity className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Categories",
+      items: [
+        { label: "Conversion", href: "/metrics/conversion", icon: <Percent className="w-4 h-4" /> },
+        { label: "Revenue", href: "/metrics/revenue", icon: <DollarSign className="w-4 h-4" /> },
+        { label: "Customer", href: "/metrics/customer", icon: <Users className="w-4 h-4" /> },
+        { label: "Marketing", href: "/metrics/marketing", icon: <Megaphone className="w-4 h-4" /> },
       ],
     },
   ],
@@ -213,6 +236,7 @@ export default function Sidebar() {
     if (pathname.startsWith("/resources")) return "resources";
     if (pathname.startsWith("/leadership")) return "leadership";
     if (pathname.startsWith("/revenue")) return "revenue";
+    if (pathname.startsWith("/metrics")) return "metrics";
     if (pathname.startsWith("/marketing")) return "marketing";
     return "initiatives"; // default
   };
