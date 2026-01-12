@@ -1,5 +1,17 @@
 import { Timestamp } from "firebase/firestore";
 
+// Expense entry for initiatives
+export interface InitiativeExpense {
+  id: string;
+  name: string;
+  amount: number;
+  category: "software" | "hardware" | "services" | "marketing" | "travel" | "other";
+  isRecurring: boolean;
+  frequency?: "monthly" | "quarterly" | "annual"; // If recurring
+  date?: Date | Timestamp;
+  notes?: string;
+}
+
 export interface Initiative {
   id: string;
   organizationId: string;
@@ -7,6 +19,7 @@ export interface Initiative {
   // Basic Info
   name: string;
   description: string;
+  type: "new" | "existing"; // NEW: New initiative or existing baseline work
   category: InitiativeCategory;
   priority: "critical" | "high" | "medium" | "low";
   
@@ -18,14 +31,33 @@ export interface Initiative {
   isAboveWaterline: boolean; // Can we afford this?
   waterlineScore: number; // Calculated score for ordering
   
-  // Resource Requirements
+  // Revenue Plans (linked to Stripe products or custom)
+  linkedProductIds: string[]; // Stripe product IDs from stripe_products collection
+  customRevenue?: number; // If not linked to products, custom revenue amount
+  actualRevenue?: number; // Tracked actual revenue (calculated from linked products)
+  
+  // Cost Breakdown - People
+  linkedPeopleIds: string[]; // People working on this initiative
+  peopleAllocation?: Record<string, number>; // personId -> hours or % allocation
+  actualPeopleCost?: number; // Calculated from linkedPeopleIds
+  
+  // Cost Breakdown - Tools
+  linkedToolIds: string[]; // Tools used for this initiative
+  toolAllocation?: Record<string, number>; // toolId -> % usage allocation
+  actualToolsCost?: number; // Calculated from linkedToolIds
+  
+  // Cost Breakdown - Other
+  expenses?: InitiativeExpense[]; // Custom expenses
+  actualExpensesCost?: number; // Sum of expenses
+  
+  // Legacy fields (kept for backward compatibility)
   estimatedCost: number; // Total estimated cost in org currency
   estimatedPeopleHours: number; // Total hours needed
   estimatedDuration: number; // Weeks
-  requiredPeopleIds: string[]; // People who need to work on this
-  requiredToolIds: string[]; // Tools needed
+  requiredPeopleIds: string[]; // Deprecated - use linkedPeopleIds
+  requiredToolIds: string[]; // Deprecated - use linkedToolIds
   
-  // Cost Breakdown
+  // Cost Breakdown (deprecated - use detailed breakdown above)
   costBreakdown?: {
     peopleTime: number;
     toolsOneTime: number;
@@ -113,6 +145,79 @@ export const priorityColors: Record<string, string> = {
   medium: "#3b82f6",
   low: "#8b5cf6",
 };
+
+/**
+ * Calculate actual costs from linked resources
+ */
+export function calculateInitiativeCosts(
+  initiative: Partial<Initiative>,
+  people: Array<{ id: string; salary: number; salaryType: string; hoursPerWeek: number }>,
+  tools: Array<{ id: string; cost: number; billingCycle: string }>
+): {
+  peopleCost: number;
+  toolsCost: number;
+  expensesCost: number;
+  totalCost: number;
+} {
+  // Calculate people cost
+  let peopleCost = 0;
+  if (initiative.linkedPeopleIds) {
+    initiative.linkedPeopleIds.forEach(personId => {
+      const person = people.find(p => p.id === personId);
+      if (person) {
+        let annualCost = 0;
+        if (person.salaryType === "annual") {
+          annualCost = person.salary;
+        } else if (person.salaryType === "monthly") {
+          annualCost = person.salary * 12;
+        } else {
+          // hourly
+          annualCost = person.salary * person.hoursPerWeek * 52;
+        }
+        
+        // Apply allocation percentage if specified
+        const allocation = initiative.peopleAllocation?.[personId] || 100;
+        peopleCost += (annualCost * allocation) / 100;
+      }
+    });
+  }
+
+  // Calculate tools cost (annualized)
+  let toolsCost = 0;
+  if (initiative.linkedToolIds) {
+    initiative.linkedToolIds.forEach(toolId => {
+      const tool = tools.find(t => t.id === toolId);
+      if (tool) {
+        let annualCost = 0;
+        if (tool.billingCycle === "annual") {
+          annualCost = tool.cost;
+        } else if (tool.billingCycle === "monthly") {
+          annualCost = tool.cost * 12;
+        }
+        // one_time costs are not recurring
+        
+        // Apply allocation percentage if specified
+        const allocation = initiative.toolAllocation?.[toolId] || 100;
+        toolsCost += (annualCost * allocation) / 100;
+      }
+    });
+  }
+
+  // Calculate expenses cost
+  const expensesCost = initiative.expenses?.reduce((sum, exp) => {
+    let annualized = exp.amount;
+    if (exp.isRecurring) {
+      if (exp.frequency === "monthly") annualized = exp.amount * 12;
+      else if (exp.frequency === "quarterly") annualized = exp.amount * 4;
+      // annual stays as is
+    }
+    return sum + annualized;
+  }, 0) || 0;
+
+  const totalCost = peopleCost + toolsCost + expensesCost;
+
+  return { peopleCost, toolsCost, expensesCost, totalCost };
+}
 
 /**
  * Calculate if an initiative is above the waterline based on available resources

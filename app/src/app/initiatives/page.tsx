@@ -21,7 +21,7 @@ import {
   TrendingDown,
   X,
 } from "lucide-react";
-import { Initiative, statusConfig, priorityColors, calculateWaterlinePosition, initiativeCategories, InitiativeStatus, InitiativeCategory } from "@/types/initiatives";
+import { Initiative, statusConfig, priorityColors, calculateWaterlinePosition, calculateInitiativeCosts, initiativeCategories, InitiativeStatus, InitiativeCategory } from "@/types/initiatives";
 import { Person, Tool } from "@/types/resources";
 import { db } from "@/lib/firebase";
 import { 
@@ -39,17 +39,29 @@ import {
 } from "firebase/firestore";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
+// Stripe Product interface
+interface StripeProduct {
+  id: string;
+  stripeId: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  organizationId: string;
+}
+
 export default function InitiativesDashboard() {
   const { currentOrg } = useOrganization();
   const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [products, setProducts] = useState<StripeProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   
   // Filter states
   const [filterStatus, setFilterStatus] = useState<InitiativeStatus | "all">("all");
   const [filterCategory, setFilterCategory] = useState<InitiativeCategory | "all">("all");
+  const [filterType, setFilterType] = useState<"new" | "existing" | "all">("all");
 
   // Load data from Firestore
   useEffect(() => {
@@ -71,6 +83,10 @@ export default function InitiativesDashboard() {
       collection(db, "tools"), 
       where("organizationId", "==", currentOrg.id)
     );
+    const productsQuery = query(
+      collection(db, "stripe_products"), 
+      where("organizationId", "==", currentOrg.id)
+    );
 
     const unsubInitiatives = onSnapshot(initiativesQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Initiative));
@@ -88,10 +104,16 @@ export default function InitiativesDashboard() {
       setTools(data);
     });
 
+    const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StripeProduct));
+      setProducts(data);
+    });
+
     return () => {
       unsubInitiatives();
       unsubPeople();
       unsubTools();
+      unsubProducts();
     };
   }, [currentOrg?.id]);
 
@@ -154,9 +176,10 @@ export default function InitiativesDashboard() {
     return initiativesWithWaterline.filter(i => {
       if (filterStatus !== "all" && i.status !== filterStatus) return false;
       if (filterCategory !== "all" && i.category !== filterCategory) return false;
+      if (filterType !== "all" && i.type !== filterType) return false;
       return true;
     });
-  }, [initiativesWithWaterline, filterStatus, filterCategory]);
+  }, [initiativesWithWaterline, filterStatus, filterCategory, filterType]);
 
   // Calculate stats
   const aboveWaterlineCount = initiativesWithWaterline.filter(i => i.isAboveWaterline && i.status !== "completed" && i.status !== "cancelled").length;
@@ -342,6 +365,22 @@ export default function InitiativesDashboard() {
               <option key={cat.value} value={cat.value}>{cat.label}</option>
             ))}
           </select>
+
+          {/* Type Filter */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as "new" | "existing" | "all")}
+            className="px-3 py-2 rounded-lg text-sm"
+            style={{ 
+              background: "var(--background-secondary)",
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
+            }}
+          >
+            <option value="all">All Types</option>
+            <option value="new">New Initiatives</option>
+            <option value="existing">Existing Baseline</option>
+          </select>
         </div>
 
         {/* Initiatives List with Waterline */}
@@ -502,6 +541,7 @@ export default function InitiativesDashboard() {
           organizationId={currentOrg?.id || ""}
           people={people}
           tools={tools}
+          products={products}
           resources={resources}
         />
       )}
@@ -515,33 +555,50 @@ function AddInitiativeModal({
   organizationId, 
   people, 
   tools, 
+  products,
   resources 
 }: { 
   onClose: () => void; 
   organizationId: string;
   people: Person[];
   tools: Tool[];
+  products: StripeProduct[];
   resources: any;
 }) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    type: "new" as "new" | "existing",
     category: "product" as InitiativeCategory,
     priority: "medium" as "critical" | "high" | "medium" | "low",
+    ownerId: "",
+    // Revenue plans
+    linkedProductIds: [] as string[],
+    customRevenue: 0,
+    // People & Tools
+    linkedPeopleIds: [] as string[],
+    linkedToolIds: [] as string[],
+    // Legacy fields (kept for backward compatibility)
     estimatedCost: 0,
     estimatedPeopleHours: 0,
     estimatedDuration: 0,
-    ownerId: "",
     expectedRevenue: 0,
     expectedSavings: 0,
   });
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Calculate actual costs from linked resources
+  const actualCosts = useMemo(() => {
+    return calculateInitiativeCosts(formData, people, tools);
+  }, [formData, people, tools]);
+
   // Calculate waterline position in real-time
   const waterlinePreview = useMemo(() => {
-    return calculateWaterlinePosition(formData, resources);
-  }, [formData, resources]);
+    // Use actual costs if available, otherwise use estimated
+    const costToUse = actualCosts.totalCost > 0 ? actualCosts.totalCost : formData.estimatedCost;
+    return calculateWaterlinePosition({ ...formData, estimatedCost: costToUse }, resources);
+  }, [formData, resources, actualCosts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,8 +616,14 @@ function AddInitiativeModal({
         progress: 0,
         isAboveWaterline: waterlinePreview.isAbove,
         waterlineScore: waterlinePreview.score,
-        requiredPeopleIds: [],
-        requiredToolIds: [],
+        // Store calculated actual costs
+        actualPeopleCost: actualCosts.peopleCost,
+        actualToolsCost: actualCosts.toolsCost,
+        actualExpensesCost: actualCosts.expensesCost,
+        // Legacy fields for backward compatibility
+        requiredPeopleIds: formData.linkedPeopleIds,
+        requiredToolIds: formData.linkedToolIds,
+        expenses: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -601,24 +664,44 @@ function AddInitiativeModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-              Initiative Name *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-2 rounded-lg"
-              style={{ 
-                background: "var(--background-secondary)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-              placeholder="e.g. Q1 Product Launch"
-            />
+          {/* Name & Type */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                Initiative Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-2 rounded-lg"
+                style={{ 
+                  background: "var(--background-secondary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+                placeholder="e.g. Q1 Product Launch"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                Type *
+              </label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as "new" | "existing" })}
+                className="w-full px-4 py-2 rounded-lg"
+                style={{ 
+                  background: "var(--background-secondary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                <option value="new">New</option>
+                <option value="existing">Existing</option>
+              </select>
+            </div>
           </div>
 
           {/* Description */}
@@ -706,7 +789,173 @@ function AddInitiativeModal({
             </select>
           </div>
 
-          {/* Resource Estimates */}
+          {/* Revenue Plans Section */}
+          <div 
+            className="p-4 rounded-lg space-y-3"
+            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+          >
+            <h3 className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
+              💰 Revenue Plans
+            </h3>
+            
+            {/* Linked Products */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                Linked Products (from Stripe)
+              </label>
+              <select
+                multiple
+                value={formData.linkedProductIds}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                  setFormData({ ...formData, linkedProductIds: selected });
+                }}
+                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
+                style={{ 
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {products.length === 0 ? (
+                  <option disabled>No Stripe products found. Connect Stripe first.</option>
+                ) : (
+                  products.map(product => (
+                    <option key={product.id} value={product.stripeId}>
+                      {product.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Hold Cmd/Ctrl to select multiple products
+              </p>
+            </div>
+
+            {/* Custom Revenue */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                Or Custom Revenue ($)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={formData.customRevenue}
+                onChange={(e) => setFormData({ ...formData, customRevenue: Number(e.target.value) })}
+                className="w-full px-4 py-2 rounded-lg"
+                style={{ 
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+                placeholder="If not linked to products..."
+              />
+            </div>
+          </div>
+
+          {/* People & Tools Section */}
+          <div 
+            className="p-4 rounded-lg space-y-3"
+            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+          >
+            <h3 className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
+              👥 People & Tools
+            </h3>
+            
+            {/* Linked People */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                People Working on This
+              </label>
+              <select
+                multiple
+                value={formData.linkedPeopleIds}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                  setFormData({ ...formData, linkedPeopleIds: selected });
+                }}
+                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
+                style={{ 
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {people.length === 0 ? (
+                  <option disabled>No people found. Add people first.</option>
+                ) : (
+                  people.map(person => (
+                    <option key={person.id} value={person.id}>
+                      {person.name} - {person.role}
+                    </option>
+                  ))
+                )}
+              </select>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Hold Cmd/Ctrl to select multiple people
+              </p>
+            </div>
+
+            {/* Linked Tools */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                Tools Needed
+              </label>
+              <select
+                multiple
+                value={formData.linkedToolIds}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                  setFormData({ ...formData, linkedToolIds: selected });
+                }}
+                className="w-full px-4 py-2 rounded-lg min-h-[80px]"
+                style={{ 
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {tools.length === 0 ? (
+                  <option disabled>No tools found. Add tools first.</option>
+                ) : (
+                  tools.map(tool => (
+                    <option key={tool.id} value={tool.id}>
+                      {tool.name} - ${tool.cost}/{tool.billingCycle}
+                    </option>
+                  ))
+                )}
+              </select>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Hold Cmd/Ctrl to select multiple tools
+              </p>
+            </div>
+
+            {/* Calculated Costs */}
+            {actualCosts.totalCost > 0 && (
+              <div className="p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                <p className="text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  📊 Calculated Annual Costs:
+                </p>
+                <div className="space-y-1 text-xs" style={{ color: "var(--foreground)" }}>
+                  <div className="flex justify-between">
+                    <span>People:</span>
+                    <span className="font-semibold">${actualCosts.peopleCost.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tools:</span>
+                    <span className="font-semibold">${actualCosts.toolsCost.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+                    <span className="font-semibold">Total:</span>
+                    <span className="font-semibold">${actualCosts.totalCost.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Resource Estimates (Legacy) */}
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
