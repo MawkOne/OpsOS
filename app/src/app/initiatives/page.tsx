@@ -663,14 +663,9 @@ function AddInitiativeModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-              New Initiative
-            </h2>
-            <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-              Start with why it matters, then plan the resources needed
-            </p>
-          </div>
+          <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+            New Initiative
+          </h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[var(--background-secondary)]"
@@ -778,9 +773,6 @@ function AddInitiativeModal({
               <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
                 1️⃣ What's Important
               </label>
-              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
-                Why does this matter? What problem are we solving?
-              </p>
               <textarea
                 value={formData.whatsImportant}
                 onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
@@ -800,9 +792,6 @@ function AddInitiativeModal({
               <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
                 2️⃣ How Are We Doing
               </label>
-              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
-                What's the current state? Where are we now?
-              </p>
               <textarea
                 value={formData.howAreWeDoing}
                 onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
@@ -822,9 +811,6 @@ function AddInitiativeModal({
               <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
                 3️⃣ Priorities to Improve
               </label>
-              <p className="text-xs mb-2" style={{ color: "var(--foreground-muted)" }}>
-                What needs to change? What are the key outcomes?
-              </p>
               <textarea
                 value={formData.prioritiesToImprove}
                 onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
