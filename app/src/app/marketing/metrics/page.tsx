@@ -195,12 +195,6 @@ export default function MarketingMetricsPage() {
                     >
                       Metric Name
                     </th>
-                    <th 
-                      className="text-center py-3 px-3 text-sm font-semibold"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Formula
-                    </th>
                     {monthLabels.map((label) => (
                       <th 
                         key={label}
@@ -246,27 +240,6 @@ export default function MarketingMetricsPage() {
                                 {metric.description}
                               </div>
                             )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <div 
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs"
-                            style={{ 
-                              background: "var(--background-tertiary)",
-                              color: "var(--foreground-muted)" 
-                            }}
-                          >
-                            <span style={{ color: "#10b981" }}>
-                              {metric.numerator.metricType === "event"
-                                ? metric.numerator.gaEventName
-                                : metric.numerator.gaMetric}
-                            </span>
-                            <span>/</span>
-                            <span style={{ color: "#3b82f6" }}>
-                              {metric.denominator.metricType === "event"
-                                ? metric.denominator.gaEventName
-                                : metric.denominator.gaMetric}
-                            </span>
                           </div>
                         </td>
                         {months.map(month => {
