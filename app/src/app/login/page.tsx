@@ -79,15 +79,17 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const { user, error } = await signInWithGoogle();
+      // Note: signInWithGoogle now uses redirect, so this function will redirect the page
+      // and we won't return to this code. The redirect result is handled in AuthContext.
+      const { error } = await signInWithGoogle();
       if (error) {
         setError(error);
-      } else if (user) {
-        redirectAfterAuth();
+        setLoading(false);
       }
-    } catch {
+      // If no error, the page will redirect to Google OAuth
+      // After successful auth, user will be redirected back and AuthContext will handle it
+    } catch (err) {
       setError("An unexpected error occurred");
-    } finally {
       setLoading(false);
     }
   };

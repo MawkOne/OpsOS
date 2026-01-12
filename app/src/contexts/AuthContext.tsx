@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
-import { onAuthChange, signIn, signUp, signOut, signInWithGoogle } from "@/lib/firebase-auth";
+import { onAuthChange, signIn, signUp, signOut, signInWithGoogle, checkRedirectResult } from "@/lib/firebase-auth";
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +20,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for redirect result first (from Google OAuth)
+    checkRedirectResult().then(({ user: redirectUser, error }) => {
+      if (error) {
+        console.error("Redirect sign-in error:", error);
+      }
+      if (redirectUser) {
+        setUser(redirectUser);
+        setLoading(false);
+      }
+    });
+
+    // Then set up the auth state listener
     const unsubscribe = onAuthChange((user) => {
       setUser(user);
       setLoading(false);

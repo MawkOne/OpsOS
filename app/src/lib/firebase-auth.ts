@@ -6,7 +6,8 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   User,
   updateProfile,
 } from "firebase/auth";
@@ -37,12 +38,35 @@ export const signUp = async (email: string, password: string, displayName?: stri
   }
 };
 
-// Sign in with Google
+// Sign in with Google - Uses redirect instead of popup for better compatibility
+// Works in embedded browsers (Cursor), mobile apps, and all desktop browsers
 export const signInWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    return { user: result.user, error: null };
+    // Force account selection every time
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    // Use redirect instead of popup - works everywhere
+    await signInWithRedirect(auth, provider);
+    // Note: This will redirect the page, so we don't return anything
+    // The redirect result is handled in checkRedirectResult()
+    return { user: null, error: null };
+  } catch (error: unknown) {
+    const firebaseError = error as { message: string };
+    return { user: null, error: firebaseError.message };
+  }
+};
+
+// Check for redirect result after Google sign-in
+// Call this on app initialization (e.g., in AuthContext)
+export const checkRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      return { user: result.user, error: null };
+    }
+    return { user: null, error: null };
   } catch (error: unknown) {
     const firebaseError = error as { message: string };
     return { user: null, error: firebaseError.message };
