@@ -173,8 +173,19 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (eventName) {
-        dimensionFilters.push({
+      // When filtering by event, we need event-scoped dimensions and metrics
+      const requestBody: any = eventName ? {
+        dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
+        dimensions: [
+          { name: 'sessionDefaultChannelGroup' },
+          { name: 'eventName' },
+        ],
+        metrics: [
+          { name: 'eventCount' },
+          { name: 'conversions' },
+          { name: 'totalRevenue' },
+        ],
+        dimensionFilter: {
           filter: {
             fieldName: 'eventName',
             stringFilter: {
@@ -182,10 +193,8 @@ export async function GET(request: NextRequest) {
               value: eventName,
             },
           },
-        });
-      }
-
-      const requestBody: any = {
+        },
+      } : {
         dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [
@@ -201,8 +210,9 @@ export async function GET(request: NextRequest) {
         ],
       };
 
-      // Add dimension filter if we have any filters
-      if (dimensionFilters.length > 0) {
+      // Add dimension filters for country and device (only if not filtering by event)
+      // When filtering by event, we handle it separately above
+      if (!eventName && dimensionFilters.length > 0) {
         if (dimensionFilters.length === 1) {
           requestBody.dimensionFilter = dimensionFilters[0];
         } else {
@@ -212,6 +222,17 @@ export async function GET(request: NextRequest) {
             },
           };
         }
+      } else if (eventName && dimensionFilters.length > 0) {
+        // Combine event filter with country/device filters
+        const allFilters = [
+          ...dimensionFilters,
+          requestBody.dimensionFilter,
+        ];
+        requestBody.dimensionFilter = {
+          andGroup: {
+            expressions: allFilters,
+          },
+        };
       }
 
       const response = await fetch(
@@ -248,18 +269,37 @@ export async function GET(request: NextRequest) {
           }
 
           const metrics = row.metricValues;
-          trafficData[sourceId].months[month.key] = {
-            users: parseInt(metrics[0]?.value || '0'),
-            newUsers: parseInt(metrics[1]?.value || '0'),
-            sessions: parseInt(metrics[2]?.value || '0'),
-            engagementRate: parseFloat(metrics[3]?.value || '0') * 100,
-            avgEngagementTime: parseFloat(metrics[4]?.value || '0'),
-            eventsPerSession: parseFloat(metrics[5]?.value || '0'),
-            events: parseInt(metrics[6]?.value || '0'),
-            conversions: parseInt(metrics[7]?.value || '0'),
-            conversionRate: 0, // Calculate below
-            revenue: parseFloat(metrics[8]?.value || '0'),
-          };
+          
+          // Different metric handling based on whether we're filtering by event
+          if (eventName) {
+            // Event-scoped metrics only
+            trafficData[sourceId].months[month.key] = {
+              users: 0,
+              newUsers: 0,
+              sessions: 0,
+              engagementRate: 0,
+              avgEngagementTime: 0,
+              eventsPerSession: 0,
+              events: parseInt(metrics[0]?.value || '0'),
+              conversions: parseInt(metrics[1]?.value || '0'),
+              conversionRate: 0,
+              revenue: parseFloat(metrics[2]?.value || '0'),
+            };
+          } else {
+            // All metrics available
+            trafficData[sourceId].months[month.key] = {
+              users: parseInt(metrics[0]?.value || '0'),
+              newUsers: parseInt(metrics[1]?.value || '0'),
+              sessions: parseInt(metrics[2]?.value || '0'),
+              engagementRate: parseFloat(metrics[3]?.value || '0') * 100,
+              avgEngagementTime: parseFloat(metrics[4]?.value || '0'),
+              eventsPerSession: parseFloat(metrics[5]?.value || '0'),
+              events: parseInt(metrics[6]?.value || '0'),
+              conversions: parseInt(metrics[7]?.value || '0'),
+              conversionRate: 0, // Calculate below
+              revenue: parseFloat(metrics[8]?.value || '0'),
+            };
+          }
 
           // Calculate conversion rate
           const monthData = trafficData[sourceId].months[month.key];

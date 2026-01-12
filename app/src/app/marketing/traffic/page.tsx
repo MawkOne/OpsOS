@@ -160,6 +160,16 @@ export default function TrafficPage() {
     fetchFilterOptions();
   }, [organizationId]);
 
+  // Auto-switch to compatible metric when event is selected/cleared
+  useEffect(() => {
+    const incompatibleMetrics: MetricType[] = ["users", "newUsers", "sessions", "engagementRate", "avgEngagementTime", "conversionRate"];
+    
+    if (selectedEvent && incompatibleMetrics.includes(selectedMetric)) {
+      // Switch to "events" when an event filter is applied
+      setSelectedMetric("events");
+    }
+  }, [selectedEvent, selectedMetric]);
+
   // Fetch traffic data when view mode, year, or filters change
   useEffect(() => {
     if (!organizationId) {
@@ -310,6 +320,27 @@ export default function TrafficPage() {
   return (
     <AppLayout title="Traffic" subtitle="Monthly traffic acquisition by source">
       <div className="max-w-full mx-auto space-y-6">
+        {/* Event Filter Notice */}
+        {selectedEvent && (
+          <div 
+            className="px-4 py-3 rounded-lg flex items-start gap-3"
+            style={{ 
+              background: "var(--background-secondary)", 
+              border: "1px solid var(--border)"
+            }}
+          >
+            <Activity className="w-5 h-5 mt-0.5" style={{ color: "var(--accent)" }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                Filtering by event: <span style={{ color: "var(--accent)" }}>{selectedEvent}</span>
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Only event-scoped metrics (Events, Conversions, Revenue) are available when filtering by specific events.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
@@ -424,14 +455,14 @@ export default function TrafficPage() {
                     color: "var(--foreground)",
                   }}
                 >
-                  <option value="users">Users</option>
-                  <option value="newUsers">New Users</option>
-                  <option value="sessions">Sessions</option>
-                  <option value="engagementRate">Engagement Rate</option>
-                  <option value="avgEngagementTime">Avg. Engagement Time</option>
+                  <option value="users" disabled={!!selectedEvent}>Users {selectedEvent ? "(N/A with event filter)" : ""}</option>
+                  <option value="newUsers" disabled={!!selectedEvent}>New Users {selectedEvent ? "(N/A with event filter)" : ""}</option>
+                  <option value="sessions" disabled={!!selectedEvent}>Sessions {selectedEvent ? "(N/A with event filter)" : ""}</option>
+                  <option value="engagementRate" disabled={!!selectedEvent}>Engagement Rate {selectedEvent ? "(N/A with event filter)" : ""}</option>
+                  <option value="avgEngagementTime" disabled={!!selectedEvent}>Avg. Engagement Time {selectedEvent ? "(N/A with event filter)" : ""}</option>
                   <option value="events">Events</option>
                   <option value="conversions">Conversions</option>
-                  <option value="conversionRate">Conversion Rate</option>
+                  <option value="conversionRate" disabled={!!selectedEvent}>Conversion Rate {selectedEvent ? "(N/A with event filter)" : ""}</option>
                   <option value="revenue">Revenue</option>
                 </select>
               </div>
