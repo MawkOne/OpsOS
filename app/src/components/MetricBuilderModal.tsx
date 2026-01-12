@@ -124,20 +124,25 @@ export default function MetricBuilderModal({
         filters: {},
       };
       
-      if (numeratorType === "metric" && numeratorMetric) {
+      // Only add metric/event fields if they have actual values
+      if (numeratorType === "metric" && numeratorMetric && numeratorMetric !== "") {
         numSelector.gaMetric = numeratorMetric;
-      }
-      
-      if (numeratorType === "event" && numeratorEvent) {
+      } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numSelector.gaEventName = numeratorEvent;
       }
       
-      if (numeratorCountry) {
+      // Only add filters if they have actual values
+      if (numeratorCountry && numeratorCountry !== "") {
         numSelector.filters.country = numeratorCountry;
       }
       
-      if (numeratorDevice) {
+      if (numeratorDevice && numeratorDevice !== "") {
         numSelector.filters.device = numeratorDevice;
+      }
+      
+      // Remove filters object if it's empty
+      if (Object.keys(numSelector.filters).length === 0) {
+        delete numSelector.filters;
       }
       
       // Build denominator selector (only include fields that have values)
@@ -147,20 +152,25 @@ export default function MetricBuilderModal({
         filters: {},
       };
       
-      if (denominatorType === "metric" && denominatorMetric) {
+      // Only add metric/event fields if they have actual values
+      if (denominatorType === "metric" && denominatorMetric && denominatorMetric !== "") {
         denSelector.gaMetric = denominatorMetric;
-      }
-      
-      if (denominatorType === "event" && denominatorEvent) {
+      } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denSelector.gaEventName = denominatorEvent;
       }
       
-      if (denominatorCountry) {
+      // Only add filters if they have actual values
+      if (denominatorCountry && denominatorCountry !== "") {
         denSelector.filters.country = denominatorCountry;
       }
       
-      if (denominatorDevice) {
+      if (denominatorDevice && denominatorDevice !== "") {
         denSelector.filters.device = denominatorDevice;
+      }
+      
+      // Remove filters object if it's empty
+      if (Object.keys(denSelector.filters).length === 0) {
+        delete denSelector.filters;
       }
       
       // Fetch preview from API
@@ -217,20 +227,25 @@ export default function MetricBuilderModal({
         filters: {},
       };
       
-      if (numeratorType === "metric" && numeratorMetric) {
+      // Only add metric/event fields if they have actual values
+      if (numeratorType === "metric" && numeratorMetric && numeratorMetric !== "") {
         numerator.gaMetric = numeratorMetric;
-      }
-      
-      if (numeratorType === "event" && numeratorEvent) {
+      } else if (numeratorType === "event" && numeratorEvent && numeratorEvent !== "") {
         numerator.gaEventName = numeratorEvent;
       }
       
-      if (numeratorCountry) {
+      // Only add filters if they have actual values
+      if (numeratorCountry && numeratorCountry !== "") {
         numerator.filters.country = numeratorCountry;
       }
       
-      if (numeratorDevice) {
+      if (numeratorDevice && numeratorDevice !== "") {
         numerator.filters.device = numeratorDevice;
+      }
+      
+      // Remove filters object if it's empty
+      if (Object.keys(numerator.filters).length === 0) {
+        delete numerator.filters;
       }
       
       // Build denominator (only include fields that have values)
@@ -240,20 +255,25 @@ export default function MetricBuilderModal({
         filters: {},
       };
       
-      if (denominatorType === "metric" && denominatorMetric) {
+      // Only add metric/event fields if they have actual values
+      if (denominatorType === "metric" && denominatorMetric && denominatorMetric !== "") {
         denominator.gaMetric = denominatorMetric;
-      }
-      
-      if (denominatorType === "event" && denominatorEvent) {
+      } else if (denominatorType === "event" && denominatorEvent && denominatorEvent !== "") {
         denominator.gaEventName = denominatorEvent;
       }
       
-      if (denominatorCountry) {
+      // Only add filters if they have actual values
+      if (denominatorCountry && denominatorCountry !== "") {
         denominator.filters.country = denominatorCountry;
       }
       
-      if (denominatorDevice) {
+      if (denominatorDevice && denominatorDevice !== "") {
         denominator.filters.device = denominatorDevice;
+      }
+      
+      // Remove filters object if it's empty
+      if (Object.keys(denominator.filters).length === 0) {
+        delete denominator.filters;
       }
       
       const metricData: any = {
@@ -273,6 +293,8 @@ export default function MetricBuilderModal({
       }
       
       console.log("Saving metric data:", metricData);
+      console.log("Numerator object:", JSON.stringify(numerator, null, 2));
+      console.log("Denominator object:", JSON.stringify(denominator, null, 2));
       
       const docRef = await addDoc(collection(db, "custom_metrics"), metricData);
       
