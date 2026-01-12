@@ -18,9 +18,10 @@ export type AdMetric =
   | "spend"
   | "cpc"
   | "ctr"
+  | "conversions"
+  | "revenue"
   | "conversionRate"
-  | "roas"
-  | "revenue";
+  | "roas";
 
 export type GAEventName = string; // Dynamic list from GA
 
