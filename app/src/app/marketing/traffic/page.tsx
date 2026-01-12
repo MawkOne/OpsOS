@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -12,6 +12,8 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Globe,
   Search,
   Mail,
@@ -23,6 +25,7 @@ import {
   HelpCircle,
   Activity,
   Monitor,
+  Loader2,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
@@ -92,6 +95,11 @@ export default function TrafficPage() {
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("users");
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Event breakdown states
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+  const [eventBreakdown, setEventBreakdown] = useState<Record<string, any[]>>({});
+  const [loadingBreakdown, setLoadingBreakdown] = useState<string | null>(null);
   
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
@@ -226,6 +234,61 @@ export default function TrafficPage() {
 
     fetchData();
   }, [organizationId, viewMode, selectedYear, selectedCountry, selectedDevice, selectedEvent]);
+
+  // Fetch event breakdown for a specific source
+  const fetchEventBreakdown = async (sourceId: string, channelGroup: string) => {
+    setLoadingBreakdown(sourceId);
+    try {
+      // Calculate date range based on view mode
+      const now = new Date();
+      let startDate: string;
+      let endDate: string;
+
+      if (viewMode === "ttm") {
+        const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        startDate = `${start.getFullYear()}-${(start.getMonth() + 1).toString().padStart(2, "0")}-01`;
+        endDate = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
+      } else {
+        startDate = `${selectedYear}-01-01`;
+        const isCurrentYear = selectedYear === now.getFullYear();
+        endDate = isCurrentYear 
+          ? `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`
+          : `${selectedYear}-12-31`;
+      }
+
+      const params = new URLSearchParams({
+        organizationId,
+        channelGroup,
+        startDate,
+        endDate,
+      });
+      if (selectedCountry) params.set("country", selectedCountry);
+      if (selectedDevice) params.set("device", selectedDevice);
+
+      const response = await fetch(`/api/google-analytics/event-breakdown?${params.toString()}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEventBreakdown(prev => ({ ...prev, [sourceId]: data.events || [] }));
+      }
+    } catch (err) {
+      console.error("Error fetching event breakdown:", err);
+    } finally {
+      setLoadingBreakdown(null);
+    }
+  };
+
+  // Toggle event breakdown expansion
+  const toggleEventBreakdown = (sourceId: string, channelGroup: string) => {
+    if (expandedSource === sourceId) {
+      setExpandedSource(null);
+    } else {
+      setExpandedSource(sourceId);
+      if (!eventBreakdown[sourceId]) {
+        fetchEventBreakdown(sourceId, channelGroup);
+      }
+    }
+  };
 
   // Get value for a source and month
   const getValue = (source: TrafficSourceData, month: string): number => {
@@ -634,50 +697,120 @@ export default function TrafficPage() {
                 <tbody>
                   {sortedData.map((source, idx) => {
                     const rowTotal = getRowTotal(source);
+                    const isExpanded = expandedSource === source.id;
+                    const canExpand = selectedMetric === "events" && !selectedEvent;
+                    
                     return (
-                      <motion.tr
-                        key={source.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.02 }}
-                        style={{ borderBottom: "1px solid var(--border)" }}
-                        className="hover:bg-[var(--background-tertiary)] transition-colors"
-                      >
-                        <td
-                          className="py-3 px-4 text-sm font-medium sticky left-0"
-                          style={{ color: "var(--foreground)", background: "inherit" }}
+                      <React.Fragment key={source.id}>
+                        <motion.tr
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.02 }}
+                          style={{ borderBottom: isExpanded ? "none" : "1px solid var(--border)" }}
+                          className={`hover:bg-[var(--background-tertiary)] transition-colors ${canExpand ? "cursor-pointer" : ""}`}
+                          onClick={() => canExpand && toggleEventBreakdown(source.id, source.name)}
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-8 h-8 rounded-lg flex items-center justify-center"
-                              style={{ background: `${getSourceColor(source.id)}20`, color: getSourceColor(source.id) }}
-                            >
-                              {getSourceIcon(source.id)}
+                          <td
+                            className="py-3 px-4 text-sm font-medium sticky left-0"
+                            style={{ color: "var(--foreground)", background: "inherit" }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                style={{ background: `${getSourceColor(source.id)}20`, color: getSourceColor(source.id) }}
+                              >
+                                {getSourceIcon(source.id)}
+                              </div>
+                              <span>{source.name}</span>
+                              {canExpand && (
+                                <div className="ml-auto">
+                                  {isExpanded ? (
+                                    <ChevronUp className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <span>{source.name}</span>
-                          </div>
-                        </td>
-                        {months.map((month) => {
-                          const value = getValue(source, month);
-                          return (
-                            <td
-                              key={month}
-                              className="py-3 px-3 text-sm text-right tabular-nums"
-                              style={{
-                                color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)",
-                              }}
-                            >
-                              {value > 0 ? metric.format(value) : "—"}
+                          </td>
+                          {months.map((month) => {
+                            const value = getValue(source, month);
+                            return (
+                              <td
+                                key={month}
+                                className="py-3 px-3 text-sm text-right tabular-nums"
+                                style={{
+                                  color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)",
+                                }}
+                              >
+                                {value > 0 ? metric.format(value) : "—"}
+                              </td>
+                            );
+                          })}
+                          <td
+                            className="py-3 px-4 text-sm text-right font-semibold tabular-nums"
+                            style={{ color: metric.color }}
+                          >
+                            {metric.format(rowTotal)}
+                          </td>
+                        </motion.tr>
+                        
+                        {/* Event Breakdown Expansion */}
+                        {isExpanded && (
+                          <motion.tr
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            style={{ borderBottom: "1px solid var(--border)" }}
+                          >
+                            <td colSpan={months.length + 2} className="px-4 py-3" style={{ background: "var(--background-tertiary)" }}>
+                              {loadingBreakdown === source.id ? (
+                                <div className="flex items-center justify-center py-4">
+                                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent)" }} />
+                                  <span className="ml-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                                    Loading event breakdown...
+                                  </span>
+                                </div>
+                              ) : eventBreakdown[source.id] && eventBreakdown[source.id].length > 0 ? (
+                                <div className="space-y-2">
+                                  <div className="text-xs font-semibold mb-3" style={{ color: "var(--foreground-muted)" }}>
+                                    Event Breakdown for {source.name}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {eventBreakdown[source.id].map((event: any) => (
+                                      <div
+                                        key={event.eventName}
+                                        className="px-3 py-2 rounded-lg"
+                                        style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-xs font-medium" style={{ color: "var(--foreground)" }}>
+                                            {event.eventName}
+                                          </span>
+                                          <Activity className="w-3 h-3" style={{ color: "var(--accent)" }} />
+                                        </div>
+                                        <div className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+                                          {formatNumber(event.eventCount)}
+                                        </div>
+                                        {(event.conversions > 0 || event.revenue > 0) && (
+                                          <div className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                                            {event.conversions > 0 && `${event.conversions} conversions`}
+                                            {event.revenue > 0 && ` • ${formatCurrency(event.revenue)}`}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-4 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                                  No event data available
+                                </div>
+                              )}
                             </td>
-                          );
-                        })}
-                        <td
-                          className="py-3 px-4 text-sm text-right font-semibold tabular-nums"
-                          style={{ color: metric.color }}
-                        >
-                          {metric.format(rowTotal)}
-                        </td>
-                      </motion.tr>
+                          </motion.tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
 
