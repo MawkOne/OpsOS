@@ -19,11 +19,17 @@ import {
   AlertCircle,
   ExternalLink,
   Package,
+  Plus,
+  Layers,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
+import { RevenueStream, RevenueStreamWithMetrics } from "@/types/revenue-streams";
+import RevenueStreamModal from "@/components/RevenueStreamModal";
 
 interface StripeConnection {
   status: "connected" | "disconnected" | "syncing" | "error";
@@ -56,6 +62,9 @@ export default function RevenueDashboard() {
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthlyRevenue, setMonthlyRevenue] = useState<{ month: string; amount: number }[]>([]);
+  const [revenueStreams, setRevenueStreams] = useState<RevenueStreamWithMetrics[]>([]);
+  const [showStreamModal, setShowStreamModal] = useState(false);
+  const [editingStream, setEditingStream] = useState<RevenueStream | undefined>(undefined);
 
   const organizationId = currentOrg?.id || "";
 
@@ -80,6 +89,38 @@ export default function RevenueDashboard() {
     return () => unsubscribe();
   }, [organizationId]);
 
+  // Listen to revenue streams
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const streamsQuery = query(
+      collection(db, "revenue_streams"),
+      where("organizationId", "==", organizationId)
+    );
+
+    const unsubscribe = onSnapshot(streamsQuery, async (snapshot) => {
+      const streams = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as RevenueStream[];
+
+      // Calculate metrics for each stream
+      if (streams.length > 0 && (stripeConnection?.status === "connected" || stripeConnection?.lastSyncAt)) {
+        const streamsWithMetrics = await calculateStreamMetrics(streams);
+        setRevenueStreams(streamsWithMetrics);
+      } else {
+        setRevenueStreams(streams.map(s => ({
+          ...s,
+          totalRevenue: 0,
+          monthlyRevenue: {},
+          productCount: s.productIds.length,
+        })));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [organizationId, stripeConnection]);
+
   // Fetch metrics when connected
   useEffect(() => {
     if (!organizationId) {
@@ -95,6 +136,55 @@ export default function RevenueDashboard() {
 
     fetchMetrics();
   }, [stripeConnection, organizationId]);
+
+  const calculateStreamMetrics = async (streams: RevenueStream[]): Promise<RevenueStreamWithMetrics[]> => {
+    try {
+      // Fetch all payments
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
+      );
+      const paymentsSnap = await getDocs(paymentsQuery);
+
+      const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
+        let totalRevenue = 0;
+        const monthlyRevenue: Record<string, number> = {};
+
+        paymentsSnap.docs.forEach(doc => {
+          const payment = doc.data();
+          const productId = payment.productId;
+
+          // Check if this payment is for a product in this stream
+          if (productId && stream.productIds.includes(productId)) {
+            const amount = (payment.amount || 0) / 100;
+            const date = payment.created?.toDate?.() || new Date();
+            const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+
+            totalRevenue += amount;
+            monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
+          }
+        });
+
+        return {
+          ...stream,
+          totalRevenue,
+          monthlyRevenue,
+          productCount: stream.productIds.length,
+        };
+      });
+
+      return streamsWithMetrics;
+    } catch (error) {
+      console.error("Error calculating stream metrics:", error);
+      return streams.map(s => ({
+        ...s,
+        totalRevenue: 0,
+        monthlyRevenue: {},
+        productCount: s.productIds.length,
+      }));
+    }
+  };
 
   const fetchMetrics = async () => {
     setLoading(true);
@@ -380,6 +470,147 @@ export default function RevenueDashboard() {
           </div>
         )}
 
+        {/* Revenue Streams */}
+        {isStripeConnected && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                  Revenue Streams
+                </h2>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  Group products into logical revenue streams
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingStream(undefined);
+                  setShowStreamModal(true);
+                }}
+                className="px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all"
+                style={{
+                  background: "var(--accent)",
+                  color: "#ffffff",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                New Stream
+              </button>
+            </div>
+
+            {revenueStreams.length === 0 ? (
+              <Card>
+                <div className="text-center py-8">
+                  <Layers className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--foreground-muted)" }} />
+                  <h4 className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                    No Revenue Streams Yet
+                  </h4>
+                  <p className="text-xs mb-4" style={{ color: "var(--foreground-muted)" }}>
+                    Create revenue streams to group products and track revenue by category
+                  </p>
+                  <button
+                    onClick={() => setShowStreamModal(true)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium"
+                    style={{
+                      background: "var(--background-secondary)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    Create Your First Stream
+                  </button>
+                </div>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {revenueStreams.map((stream, idx) => (
+                  <motion.div
+                    key={stream.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + idx * 0.05 }}
+                  >
+                    <Card className="hover:border-[var(--accent)] transition-all group">
+                      <div className="space-y-3">
+                        {/* Header */}
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div
+                              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ background: `${stream.color}20`, color: stream.color }}
+                            >
+                              <Layers className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold truncate" style={{ color: "var(--foreground)" }}>
+                                {stream.name}
+                              </h3>
+                              {stream.description && (
+                                <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
+                                  {stream.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => {
+                                setEditingStream(stream);
+                                setShowStreamModal(true);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Delete "${stream.name}"? This action cannot be undone.`)) {
+                                  try {
+                                    await deleteDoc(doc(db, "revenue_streams", stream.id));
+                                  } catch (error) {
+                                    console.error("Error deleting stream:", error);
+                                    alert("Failed to delete revenue stream");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-[var(--background-secondary)] transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" style={{ color: "#ef4444" }} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Metrics */}
+                        <div className="pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Total Revenue</p>
+                              <p className="text-lg font-bold" style={{ color: stream.color }}>
+                                {formatCurrency(stream.totalRevenue)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Products</p>
+                              <p className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                                {stream.productCount}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Revenue Sources */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -573,6 +804,18 @@ export default function RevenueDashboard() {
               </Link>
             </div>
           </motion.div>
+        )}
+
+        {/* Revenue Stream Modal */}
+        {showStreamModal && (
+          <RevenueStreamModal
+            organizationId={organizationId}
+            onClose={() => {
+              setShowStreamModal(false);
+              setEditingStream(undefined);
+            }}
+            existingStream={editingStream}
+          />
         )}
       </div>
     </AppLayout>
