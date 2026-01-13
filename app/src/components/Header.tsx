@@ -162,19 +162,22 @@ export default function Header({ title, subtitle }: HeaderProps) {
                     </div>
                   </button>
                 </div>
-                {!currencyLoading && (
-                  <div 
-                    className="px-3 py-2 text-xs border-t space-y-1"
-                    style={{ 
-                      color: "var(--foreground-muted)",
-                      borderColor: "var(--border)",
-                      background: "var(--muted)"
-                    }}
-                  >
-                    <div>{getExchangeRateDisplay().usdToCad}</div>
-                    <div>{getExchangeRateDisplay().cadToUsd}</div>
-                  </div>
-                )}
+                {!currencyLoading && (() => {
+                  const rates = getExchangeRateDisplay();
+                  return (
+                    <div 
+                      className="px-3 py-2 text-xs border-t space-y-1"
+                      style={{ 
+                        color: "var(--foreground-muted)",
+                        borderColor: "var(--border)",
+                        background: "var(--muted)"
+                      }}
+                    >
+                      <div>{rates.usdToCad}</div>
+                      <div>{rates.cadToUsd}</div>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>
