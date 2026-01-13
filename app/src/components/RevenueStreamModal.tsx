@@ -66,8 +66,7 @@ export default function RevenueStreamModal({
         // Fetch invoices to calculate revenue and last charged per product
         const invoicesQuery = query(
           collection(db, "stripe_invoices"),
-          where("organizationId", "==", organizationId),
-          where("status", "==", "paid")
+          where("organizationId", "==", organizationId)
         );
         const invoicesSnap = await getDocs(invoicesQuery);
         
@@ -77,6 +76,10 @@ export default function RevenueStreamModal({
         
         invoicesSnap.docs.forEach(doc => {
           const invoice = doc.data();
+          
+          // Only count paid invoices (match sales page behavior)
+          if (invoice.status !== 'paid') return;
+          
           const invoiceDate = invoice.created?.toDate?.() || new Date();
           const lineItems = invoice.lineItems || [];
           
@@ -110,6 +113,10 @@ export default function RevenueStreamModal({
         
         invoicesSnap.docs.forEach(doc => {
           const invoice = doc.data();
+          
+          // Only count paid invoices
+          if (invoice.status !== 'paid') return;
+          
           const invoiceDate = invoice.created?.toDate?.() || new Date();
           const lineItems = invoice.lineItems || [];
           

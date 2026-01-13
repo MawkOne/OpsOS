@@ -57,11 +57,10 @@ export default function RevenueStreamsPage() {
 
   const calculateStreamMetrics = async (streams: RevenueStream[]): Promise<RevenueStreamWithMetrics[]> => {
     try {
-      // Use stripe_invoices instead of stripe_payments (same as sales page!)
+      // Use stripe_invoices - query all and filter (same as sales page!)
       const invoicesQuery = query(
         collection(db, "stripe_invoices"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "paid")
+        where("organizationId", "==", organizationId)
       );
       const invoicesSnap = await getDocs(invoicesQuery);
 
@@ -73,6 +72,10 @@ export default function RevenueStreamsPage() {
         
         invoicesSnap.docs.forEach(doc => {
           const invoice = doc.data();
+          
+          // Only count paid invoices (same filter as sales page)
+          if (invoice.status !== 'paid') return;
+          
           const lineItems = invoice.lineItems || [];
           const date = invoice.created?.toDate?.() || new Date();
           const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
