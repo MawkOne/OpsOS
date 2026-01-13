@@ -22,7 +22,7 @@ interface CurrencyContextType {
   convertAmount: (amount: number, fromCurrency: Currency) => number;
   convertAmountHistorical: (amount: number, fromCurrency: Currency, monthKey: string) => number;
   formatAmount: (amount: number, sourceCurrency?: Currency) => string;
-  getExchangeRateDisplay: () => string;
+  getExchangeRateDisplay: () => { usdToCad: string; cadToUsd: string };
   getHistoricalRate: (monthKey: string) => Promise<number>;
   loading: boolean;
 }
