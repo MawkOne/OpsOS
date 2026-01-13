@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { RevenueStream, RevenueStreamWithMetrics } from "@/types/revenue-streams";
@@ -21,6 +22,7 @@ import RevenueStreamModal from "@/components/RevenueStreamModal";
 
 export default function RevenueStreamsPage() {
   const { currentOrg } = useOrganization();
+  const { convertAmount, selectedCurrency } = useCurrency();
   const [revenueStreams, setRevenueStreams] = useState<RevenueStreamWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStreamModal, setShowStreamModal] = useState(false);
@@ -145,13 +147,18 @@ export default function RevenueStreamsPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    if (amount >= 1000000) {
-      return `$${(amount / 1000000).toFixed(1)}M`;
+    // Convert from USD (Stripe's base currency) to selected currency
+    const convertedAmount = convertAmount(amount, "USD");
+    
+    const currencySymbol = selectedCurrency === "USD" ? "$" : "$";
+    
+    if (convertedAmount >= 1000000) {
+      return `${currencySymbol}${(convertedAmount / 1000000).toFixed(1)}M`;
     }
-    if (amount >= 1000) {
-      return `$${(amount / 1000).toFixed(1)}k`;
+    if (convertedAmount >= 1000) {
+      return `${currencySymbol}${(convertedAmount / 1000).toFixed(1)}k`;
     }
-    return `$${amount.toFixed(0)}`;
+    return `${currencySymbol}${convertedAmount.toFixed(0)}`;
   };
 
   // Calculate totals

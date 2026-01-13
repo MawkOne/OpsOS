@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 
@@ -52,6 +53,7 @@ interface RevenueMetrics {
 
 export default function RevenueDashboard() {
   const { currentOrg } = useOrganization();
+  const { convertAmount, selectedCurrency } = useCurrency();
   const [stripeConnection, setStripeConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -232,13 +234,18 @@ export default function RevenueDashboard() {
   };
 
   const formatCurrency = (amount: number) => {
-    if (amount >= 1000000) {
-      return `$${(amount / 1000000).toFixed(1)}M`;
+    // Convert from USD (Stripe's base currency) to selected currency
+    const convertedAmount = convertAmount(amount, "USD");
+    
+    const currencySymbol = selectedCurrency === "USD" ? "$" : "$";
+    
+    if (convertedAmount >= 1000000) {
+      return `${currencySymbol}${(convertedAmount / 1000000).toFixed(1)}M`;
     }
-    if (amount >= 1000) {
-      return `$${(amount / 1000).toFixed(1)}k`;
+    if (convertedAmount >= 1000) {
+      return `${currencySymbol}${(convertedAmount / 1000).toFixed(1)}k`;
     }
-    return `$${amount.toFixed(0)}`;
+    return `${currencySymbol}${convertedAmount.toFixed(0)}`;
   };
 
   const isStripeConnected = stripeConnection?.status === "connected" || stripeConnection?.lastSyncAt;
