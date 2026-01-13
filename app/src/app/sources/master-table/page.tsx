@@ -27,10 +27,54 @@ interface EntityRow {
   entityName: string;
   source: "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
   type: string;
-  metric: string; // "revenue", "spend", "clicks", "sends", etc.
+  metric: string; // Descriptive metric title
+  metricType: string; // Raw metric type for grouping
   months: Record<string, number>; // "2026-01": 1500
   total: number;
 }
+
+// Helper function to generate descriptive metric titles
+const getMetricTitle = (source: EntityRow['source'], type: string, metricType: string): string => {
+  if (source === "stripe") {
+    if (type === "Product") {
+      if (metricType === "revenue") return "Product Revenue";
+      if (metricType === "sales") return "Product Sales";
+    }
+    if (type === "Customer") return "Customer Revenue";
+  }
+  
+  if (source === "quickbooks") {
+    if (type === "Vendor") return "Vendor Expenses";
+    if (type === "Customer") return "Invoice Revenue";
+  }
+  
+  if (source === "google-analytics") {
+    if (metricType === "spend") return "Ad Spend";
+    if (metricType === "clicks") return "Ad Clicks";
+    if (metricType === "impressions") return "Ad Impressions";
+    if (metricType === "conversions") return "Ad Conversions";
+    if (metricType === "sessions") return "Sessions";
+    if (metricType === "revenue") return "Ad Revenue";
+  }
+  
+  if (source === "activecampaign") {
+    if (type === "Email Campaign") {
+      if (metricType === "sends") return "Email Sends";
+      if (metricType === "opens") return "Email Opens";
+      if (metricType === "clicks") return "Email Clicks";
+    }
+    if (type === "Pipeline") {
+      if (metricType === "dealValue") return "Deal Value";
+      if (metricType === "dealCount") return "Deal Count";
+      if (metricType === "wonValue") return "Won Value";
+      if (metricType === "wonCount") return "Won Count";
+    }
+    if (type === "Contacts" && metricType === "newContacts") return "New Contacts";
+  }
+  
+  // Fallback: capitalize first letter
+  return metricType.charAt(0).toUpperCase() + metricType.slice(1);
+};
 
 type ViewMode = "ttm" | "year" | "all";
 type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
@@ -283,7 +327,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "stripe",
           type: "Customer",
-          metric: "revenue",
+          metricType: "revenue",
+          metric: getMetricTitle("stripe", "Customer", "revenue"),
           months: data.months,
           total: data.total,
         });
@@ -296,7 +341,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "stripe",
           type: "Product",
-          metric: "revenue",
+          metricType: "revenue",
+          metric: getMetricTitle("stripe", "Product", "revenue"),
           months: data.months,
           total: data.total,
         });
@@ -309,7 +355,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "stripe",
             type: "Product",
-            metric: "sales",
+            metricType: "sales",
+            metric: getMetricTitle("stripe", "Product", "sales"),
             months: data.count,
             total: totalCount,
           });
@@ -457,7 +504,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "stripe",
           type: "Customer",
-          metric: "revenue",
+          metricType: "revenue",
+          metric: getMetricTitle("stripe", "Customer", "revenue"),
           months: data.months,
           total: data.total,
         });
@@ -471,7 +519,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "stripe",
           type: "Product",
-          metric: "revenue",
+          metricType: "revenue",
+          metric: getMetricTitle("stripe", "Product", "revenue"),
           months: data.months,
           total: data.total,
         });
@@ -484,7 +533,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "stripe",
             type: "Product",
-            metric: "sales",
+            metricType: "sales",
+            metric: getMetricTitle("stripe", "Product", "sales"),
             months: data.count,
             total: totalCount,
           });
@@ -542,7 +592,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "quickbooks",
           type: "Vendor",
-          metric: "expenses",
+          metricType: "expenses",
+          metric: getMetricTitle("quickbooks", "Vendor", "expenses"),
           months: data.months,
           total: data.total,
         });
@@ -593,7 +644,8 @@ export default function MasterTablePage() {
           entityName: data.name,
           source: "quickbooks",
           type: "Customer",
-          metric: "revenue",
+          metricType: "revenue",
+          metric: getMetricTitle("quickbooks", "Customer", "revenue"),
           months: data.months,
           total: data.total,
         });
@@ -723,7 +775,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Email Campaign",
-            metric: "sends",
+            metricType: "sends",
+            metric: getMetricTitle("activecampaign", "Email Campaign", "sends"),
             months: data.sends,
             total: totalSends,
           });
@@ -737,7 +790,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Email Campaign",
-            metric: "opens",
+            metricType: "opens",
+            metric: getMetricTitle("activecampaign", "Email Campaign", "opens"),
             months: data.opens,
             total: totalOpens,
           });
@@ -751,7 +805,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Email Campaign",
-            metric: "clicks",
+            metricType: "clicks",
+            metric: getMetricTitle("activecampaign", "Email Campaign", "clicks"),
             months: data.clicks,
             total: totalClicks,
           });
@@ -830,7 +885,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Pipeline",
-            metric: "dealValue",
+            metricType: "dealValue",
+            metric: getMetricTitle("activecampaign", "Pipeline", "dealValue"),
             months: data.dealValue,
             total: totalDealValue,
           });
@@ -844,7 +900,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Pipeline",
-            metric: "dealCount",
+            metricType: "dealCount",
+            metric: getMetricTitle("activecampaign", "Pipeline", "dealCount"),
             months: data.dealCount,
             total: totalDealCount,
           });
@@ -858,7 +915,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Pipeline",
-            metric: "wonValue",
+            metricType: "wonValue",
+            metric: getMetricTitle("activecampaign", "Pipeline", "wonValue"),
             months: data.wonValue,
             total: totalWonValue,
           });
@@ -872,7 +930,8 @@ export default function MasterTablePage() {
             entityName: data.name,
             source: "activecampaign",
             type: "Pipeline",
-            metric: "wonCount",
+            metricType: "wonCount",
+            metric: getMetricTitle("activecampaign", "Pipeline", "wonCount"),
             months: data.wonCount,
             total: totalWonCount,
           });
@@ -928,7 +987,8 @@ export default function MasterTablePage() {
           entityName: "Contact Growth",
           source: "activecampaign",
           type: "Contacts",
-          metric: "newContacts",
+          metricType: "newContacts",
+          metric: getMetricTitle("activecampaign", "Contacts", "newContacts"),
           months: contactGrowth,
           total: totalGrowth,
         });
@@ -992,9 +1052,9 @@ export default function MasterTablePage() {
     return filteredEntities;
   }, [filteredEntities, groupBy]);
 
-  const formatValue = (amount: number, metric: string, monthKey?: string) => {
+  const formatValue = (amount: number, metricType: string, monthKey?: string) => {
     // Currency metrics
-    if (metric === "revenue" || metric === "expenses" || metric === "spend" || metric === "dealValue" || metric === "wonValue") {
+    if (metricType === "revenue" || metricType === "expenses" || metricType === "spend" || metricType === "dealValue" || metricType === "wonValue") {
       if (monthKey) {
         return formatAmount(convertAmountHistorical(amount, "USD", monthKey));
       }
@@ -1002,7 +1062,7 @@ export default function MasterTablePage() {
     }
     
     // Percentage metrics
-    if (metric === "ctr" || metric === "conversionRate") {
+    if (metricType === "ctr" || metricType === "conversionRate") {
       return `${(amount * 100).toFixed(2)}%`;
     }
     
@@ -1277,12 +1337,12 @@ export default function MasterTablePage() {
                             const amount = entity.months[month] || 0;
                             return (
                               <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
-                                {amount > 0 ? formatValue(amount, entity.metric, month) : "—"}
+                                {amount > 0 ? formatValue(amount, entity.metricType, month) : "—"}
                               </td>
                             );
                           })}
                           <td className="text-right py-3 px-4 text-sm font-semibold sticky right-0 z-10" style={{ color: "var(--foreground)", background: "var(--card)" }}>
-                            {formatValue(entity.total, entity.metric)}
+                            {formatValue(entity.total, entity.metricType)}
                           </td>
                         </tr>
                       );
