@@ -67,11 +67,62 @@ export default function RevenueStreamModal({
           productId: doc.data().stripeId, // Field is called stripeId in Firestore
         }));
         
-        console.log("🛍️  Available products in modal:");
-        productsList.slice(0, 10).forEach((p, i) => {
-          console.log(`   ${i}. ${p.name}: ${p.productId}`);
+        // Fetch invoices to calculate revenue per product
+        const invoicesQuery = query(
+          collection(db, "stripe_invoices"),
+          where("organizationId", "==", organizationId),
+          where("status", "==", "paid")
+        );
+        const invoicesSnap = await getDocs(invoicesQuery);
+        
+        // Calculate revenue per product
+        const productRevenue = new Map<string, number>();
+        invoicesSnap.docs.forEach(doc => {
+          const invoice = doc.data();
+          const lineItems = invoice.lineItems || [];
+          lineItems.forEach((item: any) => {
+            const productId = item.productId;
+            if (productId) {
+              const amount = (item.amount || 0) / 100;
+              productRevenue.set(productId, (productRevenue.get(productId) || 0) + amount);
+            }
+          });
         });
-        console.log(`   ... and ${productsList.length - 10} more`);
+        
+        console.log("🛍️  Products with Revenue (All Time):");
+        console.log("==========================================");
+        
+        // Sort by revenue descending
+        const sortedProducts = [...productsList].sort((a, b) => {
+          const revA = productRevenue.get(a.productId) || 0;
+          const revB = productRevenue.get(b.productId) || 0;
+          return revB - revA;
+        });
+        
+        sortedProducts.forEach((p, i) => {
+          const revenue = productRevenue.get(p.productId) || 0;
+          if (revenue > 0) {
+            console.log(`${i + 1}. ${p.name}: $${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+          }
+        });
+        
+        const productsWithRevenue = sortedProducts.filter(p => (productRevenue.get(p.productId) || 0) > 0);
+        const productsWithoutRevenue = sortedProducts.filter(p => (productRevenue.get(p.productId) || 0) === 0);
+        
+        console.log("==========================================");
+        console.log(`✅ Products with revenue: ${productsWithRevenue.length}`);
+        console.log(`❌ Products with $0 revenue: ${productsWithoutRevenue.length}`);
+        console.log(`💰 Total all-time revenue: $${Array.from(productRevenue.values()).reduce((sum, val) => sum + val, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        
+        if (productsWithoutRevenue.length > 0) {
+          console.log("\n❌ Products with $0 revenue:");
+          productsWithoutRevenue.slice(0, 10).forEach((p, i) => {
+            console.log(`   ${i + 1}. ${p.name} (${p.productId})`);
+          });
+          if (productsWithoutRevenue.length > 10) {
+            console.log(`   ... and ${productsWithoutRevenue.length - 10} more`);
+          }
+        }
         
         setProducts(productsList);
       } catch (error) {
