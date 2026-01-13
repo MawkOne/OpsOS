@@ -13,6 +13,8 @@ import {
   Activity,
   TrendingUp,
   Package,
+  Mail,
+  Megaphone,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -22,14 +24,14 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 interface EntityRow {
   entityId: string;
   entityName: string;
-  source: "stripe" | "quickbooks" | "google-analytics";
+  source: "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
   type: string;
   months: Record<string, number>; // "2026-01": 1500
   total: number;
 }
 
 type ViewMode = "ttm" | "year" | "all";
-type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics";
+type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
 
 export default function MasterTablePage() {
   const { currentOrg } = useOrganization();
@@ -98,6 +100,12 @@ export default function MasterTablePage() {
       
       // Fetch QuickBooks data (vendors & customers)
       await fetchQuickBooksEntities(entities);
+      
+      // Fetch Advertising data (campaigns)
+      await fetchAdvertisingEntities(entities);
+      
+      // Fetch Email data (campaigns)
+      await fetchEmailEntities(entities);
       
       setEntityData(entities);
     } catch (error) {
@@ -271,6 +279,97 @@ export default function MasterTablePage() {
     }
   };
 
+  const fetchAdvertisingEntities = async (entities: EntityRow[]) => {
+    try {
+      // Fetch advertising campaign data from Google Analytics
+      const response = await fetch(
+        `/api/google-analytics/ads?organizationId=${organizationId}&viewMode=${viewMode}&year=${selectedYear}`
+      );
+
+      if (!response.ok) {
+        console.warn("Could not fetch advertising data");
+        return;
+      }
+
+      const data = await response.json();
+      const campaigns = data.campaigns || [];
+
+      campaigns.forEach((campaign: any) => {
+        const campaignMonths: Record<string, number> = {};
+        let total = 0;
+
+        // Extract spend for each month
+        Object.entries(campaign.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+          const spend = metrics.spend || 0;
+          
+          // Only include if in our month range
+          if (months.includes(monthKey) || (isAllTime && months.includes(monthKey.split('-')[0]))) {
+            const key = isAllTime ? monthKey.split('-')[0] : monthKey;
+            campaignMonths[key] = (campaignMonths[key] || 0) + spend;
+            total += spend;
+          }
+        });
+
+        if (total > 0) {
+          entities.push({
+            entityId: campaign.id || campaign.name,
+            entityName: campaign.name || 'Unknown Campaign',
+            source: "google-analytics",
+            type: "Ad Campaign",
+            months: campaignMonths,
+            total,
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching advertising entities:", error);
+    }
+  };
+
+  const fetchEmailEntities = async (entities: EntityRow[]) => {
+    try {
+      // Fetch email campaigns from ActiveCampaign
+      const campaignsQuery = query(
+        collection(db, "activecampaign_campaigns"),
+        where("organizationId", "==", organizationId)
+      );
+      const campaignsSnap = await getDocs(campaignsQuery);
+
+      campaignsSnap.docs.forEach(doc => {
+        const campaign = doc.data();
+        const sentDate = campaign.send_date?.toDate?.() || campaign.sdate?.toDate?.();
+        
+        if (!sentDate) return;
+
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = sentDate.getFullYear().toString();
+        } else {
+          monthKey = `${sentDate.getFullYear()}-${(sentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+
+        // Only include if in our month range
+        if (!months.includes(monthKey)) return;
+
+        // Use total_sent as the value (could also use opens, clicks, etc.)
+        const value = campaign.total_sent || 0;
+
+        if (value > 0) {
+          entities.push({
+            entityId: doc.id,
+            entityName: campaign.name || 'Untitled Campaign',
+            source: "activecampaign",
+            type: "Email Campaign",
+            months: { [monthKey]: value },
+            total: value,
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching email entities:", error);
+    }
+  };
+
   // Filter and sort entities
   const filteredEntities = useMemo(() => {
     let filtered = entityData;
@@ -283,20 +382,29 @@ export default function MasterTablePage() {
     return filtered.sort((a, b) => b.total - a.total);
   }, [entityData, sourceFilter]);
 
-  // Calculate monthly totals
+  // Calculate monthly totals (currency sources only)
   const monthlyTotals = useMemo(() => {
     return months.map(month => {
-      const total = filteredEntities.reduce((sum, entity) => sum + (entity.months[month] || 0), 0);
+      const total = filteredEntities
+        .filter(entity => entity.source !== "activecampaign") // Exclude count-based sources
+        .reduce((sum, entity) => sum + (entity.months[month] || 0), 0);
       return { month, total };
     });
   }, [filteredEntities, months]);
 
   const periodTotal = useMemo(() => {
-    return filteredEntities.reduce((sum, entity) => sum + entity.total, 0);
+    return filteredEntities
+      .filter(entity => entity.source !== "activecampaign") // Exclude count-based sources
+      .reduce((sum, entity) => sum + entity.total, 0);
   }, [filteredEntities]);
 
-  const formatCurrency = (amount: number, monthKey?: string) => {
-    // Most data is in USD (Stripe) or CAD (QB) - using USD as default for now
+  const formatValue = (amount: number, source: EntityRow["source"], monthKey?: string) => {
+    // Email campaigns show count, not currency
+    if (source === "activecampaign") {
+      return new Intl.NumberFormat("en-US").format(Math.round(amount));
+    }
+    
+    // Currency for Stripe, QuickBooks, and Advertising
     if (monthKey) {
       return formatAmount(convertAmountHistorical(amount, "USD", monthKey));
     }
@@ -306,13 +414,15 @@ export default function MasterTablePage() {
   const sourceIcons = {
     stripe: <CreditCard className="w-4 h-4" />,
     quickbooks: <Receipt className="w-4 h-4" />,
-    "google-analytics": <Activity className="w-4 h-4" />,
+    "google-analytics": <Megaphone className="w-4 h-4" />,
+    activecampaign: <Mail className="w-4 h-4" />,
   };
 
   const sourceColors = {
     stripe: "#635BFF",
     quickbooks: "#2CA01C",
     "google-analytics": "#E37400",
+    activecampaign: "#356AE6",
   };
 
   return (
@@ -328,7 +438,7 @@ export default function MasterTablePage() {
                     Period Total
                   </p>
                   <p className="text-2xl font-bold" style={{ color: "#10b981" }}>
-                    {loading ? "..." : formatCurrency(periodTotal)}
+                    {loading ? "..." : formatValue(periodTotal, "stripe")}
                   </p>
                 </div>
                 <div
@@ -370,7 +480,7 @@ export default function MasterTablePage() {
                     Monthly Average
                   </p>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {loading ? "..." : formatCurrency(periodTotal / months.length)}
+                    {loading ? "..." : formatValue(periodTotal / months.length, "stripe")}
                   </p>
                 </div>
                 <div
@@ -403,6 +513,8 @@ export default function MasterTablePage() {
                   <option value="all">All Sources</option>
                   <option value="stripe">Stripe</option>
                   <option value="quickbooks">QuickBooks</option>
+                  <option value="google-analytics">Advertising</option>
+                  <option value="activecampaign">Email Marketing</option>
                 </select>
               </div>
 
@@ -532,12 +644,12 @@ export default function MasterTablePage() {
                             const amount = entity.months[month] || 0;
                             return (
                               <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
-                                {amount > 0 ? formatCurrency(amount, month) : "—"}
+                                {amount > 0 ? formatValue(amount, entity.source, month) : "—"}
                               </td>
                             );
                           })}
                           <td className="text-right py-3 px-4 text-sm font-semibold sticky right-0 z-10" style={{ color: "#10b981", background: "var(--card)" }}>
-                            {formatCurrency(entity.total)}
+                            {formatValue(entity.total, entity.source)}
                           </td>
                         </tr>
                       ))}
@@ -553,11 +665,11 @@ export default function MasterTablePage() {
                             className="text-right py-3 px-3 text-xs font-bold"
                             style={{ color: mt.total > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
                           >
-                            {mt.total > 0 ? formatCurrency(mt.total, mt.month) : "—"}
+                            {mt.total > 0 ? formatValue(mt.total, "stripe", mt.month) : "—"}
                           </td>
                         ))}
                         <td className="text-right py-3 px-4 text-sm font-bold sticky right-0 z-10" style={{ color: "#10b981", background: "var(--muted)" }}>
-                          {formatCurrency(periodTotal)}
+                          {formatValue(periodTotal, "stripe")}
                         </td>
                       </tr>
                     </>
