@@ -47,14 +47,14 @@ export default function RevenueStreamModal({
   const [color, setColor] = useState(existingStream?.color || colorOptions[0].value);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>(existingStream?.productIds || []);
   
+  // Available products
+  const [products, setProducts] = useState<Product[]>([]);
+  
   // Debug logging
   useEffect(() => {
     console.log("Selected Product IDs:", selectedProductIds);
     console.log("Products:", products.map(p => ({ name: p.name, id: p.productId })));
   }, [selectedProductIds, products]);
-  
-  // Available products
-  const [products, setProducts] = useState<Product[]>([]);
 
   // Fetch available products
   useEffect(() => {
