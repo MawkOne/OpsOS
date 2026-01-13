@@ -19,6 +19,8 @@ interface Product {
   id: string;
   name: string;
   productId: string;
+  totalRevenue: number;
+  lastCharged: Date | null;
 }
 
 const colorOptions = [
@@ -61,13 +63,7 @@ export default function RevenueStreamModal({
         );
         const productsSnap = await getDocs(productsQuery);
         
-        const productsList: Product[] = productsSnap.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name || "Unnamed Product",
-          productId: doc.data().stripeId, // Field is called stripeId in Firestore
-        }));
-        
-        // Fetch invoices to calculate revenue per product
+        // Fetch invoices to calculate revenue and last charged per product
         const invoicesQuery = query(
           collection(db, "stripe_invoices"),
           where("organizationId", "==", organizationId),
@@ -75,56 +71,48 @@ export default function RevenueStreamModal({
         );
         const invoicesSnap = await getDocs(invoicesQuery);
         
-        // Calculate revenue per product
+        // Calculate revenue and last charged per product
         const productRevenue = new Map<string, number>();
+        const productLastCharged = new Map<string, Date>();
+        
         invoicesSnap.docs.forEach(doc => {
           const invoice = doc.data();
+          const invoiceDate = invoice.created?.toDate?.() || new Date();
           const lineItems = invoice.lineItems || [];
+          
           lineItems.forEach((item: any) => {
             const productId = item.productId;
             if (productId) {
               const amount = (item.amount || 0) / 100;
               productRevenue.set(productId, (productRevenue.get(productId) || 0) + amount);
+              
+              // Update last charged if this is more recent
+              const currentLast = productLastCharged.get(productId);
+              if (!currentLast || invoiceDate > currentLast) {
+                productLastCharged.set(productId, invoiceDate);
+              }
             }
           });
         });
         
-        console.log("🛍️  Products with Revenue (All Time):");
-        console.log("==========================================");
+        // Map products with revenue and last charged data
+        const productsList: Product[] = productsSnap.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name || "Unnamed Product",
+          productId: doc.data().stripeId,
+          totalRevenue: productRevenue.get(doc.data().stripeId) || 0,
+          lastCharged: productLastCharged.get(doc.data().stripeId) || null,
+        }));
         
-        // Sort by revenue descending
-        const sortedProducts = [...productsList].sort((a, b) => {
-          const revA = productRevenue.get(a.productId) || 0;
-          const revB = productRevenue.get(b.productId) || 0;
-          return revB - revA;
+        // Sort by revenue descending (products with revenue first, then alphabetically)
+        const sortedProducts = productsList.sort((a, b) => {
+          if (a.totalRevenue !== b.totalRevenue) {
+            return b.totalRevenue - a.totalRevenue; // Higher revenue first
+          }
+          return a.name.localeCompare(b.name); // Alphabetical for same revenue
         });
         
-        sortedProducts.forEach((p, i) => {
-          const revenue = productRevenue.get(p.productId) || 0;
-          if (revenue > 0) {
-            console.log(`${i + 1}. ${p.name}: $${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-          }
-        });
-        
-        const productsWithRevenue = sortedProducts.filter(p => (productRevenue.get(p.productId) || 0) > 0);
-        const productsWithoutRevenue = sortedProducts.filter(p => (productRevenue.get(p.productId) || 0) === 0);
-        
-        console.log("==========================================");
-        console.log(`✅ Products with revenue: ${productsWithRevenue.length}`);
-        console.log(`❌ Products with $0 revenue: ${productsWithoutRevenue.length}`);
-        console.log(`💰 Total all-time revenue: $${Array.from(productRevenue.values()).reduce((sum, val) => sum + val, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-        
-        if (productsWithoutRevenue.length > 0) {
-          console.log("\n❌ Products with $0 revenue:");
-          productsWithoutRevenue.slice(0, 10).forEach((p, i) => {
-            console.log(`   ${i + 1}. ${p.name} (${p.productId})`);
-          });
-          if (productsWithoutRevenue.length > 10) {
-            console.log(`   ... and ${productsWithoutRevenue.length - 10} more`);
-          }
-        }
-        
-        setProducts(productsList);
+        setProducts(sortedProducts);
       } catch (error) {
         console.error("Error fetching products:", error);
       } finally {
@@ -322,9 +310,14 @@ export default function RevenueStreamModal({
             
             {/* Products */}
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Products ({selectedProductIds.length} selected)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                  Products ({selectedProductIds.length} selected)
+                </label>
+                <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {products.filter(p => p.totalRevenue > 0).length} with revenue
+                </span>
+              </div>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
@@ -369,6 +362,15 @@ export default function RevenueStreamModal({
                       const isChecked = selectedProductIds.includes(product.productId);
                       const checkboxId = `product-checkbox-${product.productId}`;
                       
+                      // Format last charged date
+                      const lastChargedText = product.lastCharged
+                        ? new Intl.DateTimeFormat('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: product.lastCharged.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                          }).format(product.lastCharged)
+                        : 'Never';
+                      
                       return (
                         <label
                           key={product.productId}
@@ -383,12 +385,21 @@ export default function RevenueStreamModal({
                               e.stopPropagation();
                               toggleProduct(product.productId);
                             }}
-                            className="w-4 h-4 rounded"
+                            className="w-4 h-4 rounded flex-shrink-0"
                             style={{ accentColor: "var(--accent)" }}
                           />
-                          <span className="text-sm" style={{ color: "var(--foreground)" }}>
-                            {product.name}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm" style={{ color: "var(--foreground)" }}>
+                              {product.name}
+                            </div>
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                              <span className={product.totalRevenue > 0 ? "font-medium" : ""}>
+                                ${product.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                              <span>•</span>
+                              <span>Last: {lastChargedText}</span>
+                            </div>
+                          </div>
                         </label>
                       );
                     })}
