@@ -436,53 +436,50 @@ export default function ExpensesPage() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-4 gap-4"
         >
-          {/* Bank Balances by Currency */}
-          {loading ? (
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    Bank Balance
-                  </p>
+          {/* Bank Balances - Combined */}
+          <Card>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Bank Balances
+                </p>
+                {loading ? (
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                     ...
                   </p>
-                </div>
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}
-                >
-                  <CreditCard className="w-5 h-5" />
-                </div>
+                ) : (
+                  <div className="space-y-1">
+                    {Object.entries(metrics?.bankBalances || {}).map(([currency, balance]) => (
+                      <div key={currency} className="flex items-baseline gap-2">
+                        <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: currency,
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          }).format(balance)}
+                        </p>
+                        <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                          {currency}
+                        </p>
+                      </div>
+                    ))}
+                    {Object.keys(metrics?.bankBalances || {}).length === 0 && (
+                      <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                        $0
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
-            </Card>
-          ) : (
-            Object.entries(metrics?.bankBalances || {}).map(([currency, balance]) => (
-              <Card key={currency}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                      Bank Balance ({currency})
-                    </p>
-                    <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                      {new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: currency,
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      }).format(balance)}
-                    </p>
-                  </div>
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}
-                  >
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}
+              >
+                <CreditCard className="w-5 h-5" />
+              </div>
+            </div>
+          </Card>
 
           <Card>
             <div className="flex items-start justify-between">
