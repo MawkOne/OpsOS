@@ -49,14 +49,6 @@ export default function RevenueStreamModal({
   
   // Available products
   const [products, setProducts] = useState<Product[]>([]);
-  
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("⚡ selectedProductIds changed:");
-    console.log("   Length:", selectedProductIds.length);
-    console.log("   IDs:", selectedProductIds);
-    console.log("   Total products:", products.length);
-  }, [selectedProductIds, products.length]);
 
   // Fetch available products
   useEffect(() => {
@@ -72,7 +64,7 @@ export default function RevenueStreamModal({
         const productsList: Product[] = productsSnap.docs.map(doc => ({
           id: doc.id,
           name: doc.data().name || "Unnamed Product",
-          productId: doc.data().productId,
+          productId: doc.data().stripeId, // Field is called stripeId in Firestore
         }));
         
         setProducts(productsList);
@@ -89,16 +81,6 @@ export default function RevenueStreamModal({
   }, [organizationId]);
 
   const handleSave = async () => {
-    // Debug ALL state values
-    console.log("=== SAVE ATTEMPT DEBUG ===");
-    console.log("name:", name, "type:", typeof name);
-    console.log("color:", color, "type:", typeof color);
-    console.log("organizationId:", organizationId, "type:", typeof organizationId);
-    console.log("user:", user);
-    console.log("user.uid:", user?.uid, "type:", typeof user?.uid);
-    console.log("selectedProductIds:", selectedProductIds, "length:", selectedProductIds.length);
-    console.log("========================");
-    
     if (!name.trim()) {
       alert("Please provide a stream name.");
       return;
@@ -121,24 +103,14 @@ export default function RevenueStreamModal({
 
     setSaving(true);
     try {
-      // Build clean data object with EXPLICIT values only
-      const streamData: Record<string, any> = {};
-      
-      // Only add fields that are NOT undefined
-      streamData.organizationId = organizationId;
-      streamData.name = name.trim();
-      streamData.color = color;
-      streamData.productIds = selectedProductIds;
-      streamData.updatedAt = serverTimestamp();
-
-      // Debug log to see what we're trying to save
-      console.log("Stream data before save:", JSON.stringify({
-        organizationId: streamData.organizationId,
-        name: streamData.name,
-        color: streamData.color,
-        productIds: streamData.productIds,
-        productCount: streamData.productIds.length
-      }, null, 2));
+      // Build clean data object
+      const streamData: Record<string, any> = {
+        organizationId,
+        name: name.trim(),
+        color,
+        productIds: selectedProductIds,
+        updatedAt: serverTimestamp(),
+      };
 
       if (existingStream) {
         // Update existing stream
@@ -151,16 +123,6 @@ export default function RevenueStreamModal({
         // Create new stream - add creation fields
         streamData.createdAt = serverTimestamp();
         streamData.createdBy = user.uid;
-        
-        // Final validation before save
-        Object.keys(streamData).forEach(key => {
-          if (streamData[key] === undefined) {
-            console.error(`UNDEFINED FIELD DETECTED: ${key}`);
-            throw new Error(`Field "${key}" is undefined and cannot be saved to Firestore`);
-          }
-        });
-        
-        console.log("Final stream data keys:", Object.keys(streamData));
         
         const docRef = await addDoc(collection(db, "revenue_streams"), streamData);
         
@@ -179,38 +141,20 @@ export default function RevenueStreamModal({
   };
 
   const toggleProduct = (productId: string) => {
-    console.log("🔵 toggleProduct called for:", productId);
-    console.log("🔵 Current selected IDs:", selectedProductIds);
-    
-    setSelectedProductIds(prev => {
-      const isCurrentlySelected = prev.includes(productId);
-      const newSelection = isCurrentlySelected
+    setSelectedProductIds(prev => 
+      prev.includes(productId)
         ? prev.filter(id => id !== productId)
-        : [...prev, productId];
-      
-      console.log("🔵 Was selected:", isCurrentlySelected);
-      console.log("🔵 New selection:", newSelection);
-      console.log("🔵 New selection length:", newSelection.length);
-      
-      return newSelection;
-    });
+        : [...prev, productId]
+    );
   };
 
   const toggleSelectAll = () => {
-    console.log("🟢 toggleSelectAll called");
-    console.log("🟢 Current selected count:", selectedProductIds.length);
-    console.log("🟢 Total products:", products.length);
-    
     if (selectedProductIds.length === products.length) {
       // Deselect all
-      console.log("🟢 Action: DESELECT ALL");
       setSelectedProductIds([]);
     } else {
       // Select all
-      const allIds = products.map(p => p.productId);
-      console.log("🟢 Action: SELECT ALL");
-      console.log("🟢 Selecting IDs:", allIds);
-      setSelectedProductIds(allIds);
+      setSelectedProductIds(products.map(p => p.productId));
     }
   };
 
@@ -343,12 +287,7 @@ export default function RevenueStreamModal({
                       id="select-all-products-checkbox"
                       type="checkbox"
                       checked={allSelected}
-                      onChange={(e) => {
-                        console.log("🟡 Select All checkbox clicked");
-                        console.log("🟡 Current allSelected:", allSelected);
-                        e.stopPropagation();
-                        toggleSelectAll();
-                      }}
+                      onChange={toggleSelectAll}
                       className="w-4 h-4 rounded"
                       style={{ accentColor: "var(--accent)" }}
                     />
@@ -359,17 +298,9 @@ export default function RevenueStreamModal({
                   
                   {/* Individual Products */}
                   <div className="space-y-1">
-                    {products.map((product, index) => {
+                    {products.map((product) => {
                       const isChecked = selectedProductIds.includes(product.productId);
                       const checkboxId = `product-checkbox-${product.productId}`;
-                      
-                      // Log rendering state for first 3 products
-                      if (index < 3) {
-                        console.log(`📦 Rendering product ${index}: ${product.name}`);
-                        console.log(`   productId: ${product.productId}`);
-                        console.log(`   isChecked: ${isChecked}`);
-                        console.log(`   in selectedProductIds: ${selectedProductIds.includes(product.productId)}`);
-                      }
                       
                       return (
                         <label
@@ -382,7 +313,6 @@ export default function RevenueStreamModal({
                             type="checkbox"
                             checked={isChecked}
                             onChange={(e) => {
-                              console.log("🔴 Checkbox onChange fired for:", product.name, product.productId);
                               e.stopPropagation();
                               toggleProduct(product.productId);
                             }}
