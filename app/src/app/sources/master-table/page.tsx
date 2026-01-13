@@ -121,35 +121,55 @@ export default function MasterTablePage() {
 
   const fetchStripeEntities = async (entities: EntityRow[]) => {
     try {
+      console.log("💳 Fetching Stripe data for org:", organizationId);
+      
+      // Fetch products for name lookup
+      const productsQuery = query(
+        collection(db, "stripe_products"),
+        where("organizationId", "==", organizationId)
+      );
+      const productsSnap = await getDocs(productsQuery);
+      const products = new Map<string, string>();
+      productsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        products.set(data.stripeId, data.name);
+      });
+      console.log("📦 Found", products.size, "Stripe products");
+
       // Fetch all Stripe invoices
       const invoicesQuery = query(
         collection(db, "stripe_invoices"),
         where("organizationId", "==", organizationId)
       );
       const invoicesSnap = await getDocs(invoicesQuery);
+      console.log("📄 Found", invoicesSnap.size, "Stripe invoices");
       
-      // Group by customer
+      // Group by customer AND product
       const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+      const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
       
-      invoicesSnap.docs.forEach(doc => {
+      invoicesSnap.docs.forEach((doc, idx) => {
         const invoice = doc.data();
         if (invoice.status !== 'paid') return;
         
-        const customerId = invoice.customerId || 'unknown';
-        const customerName = invoice.customerName || invoice.customerEmail || 'Unknown Customer';
-        const amount = (invoice.total || 0) / 100; // Convert from cents
-        const date = invoice.created?.toDate?.() || new Date();
+        const invoiceDate = invoice.created?.toDate?.() || new Date();
         
         // Determine month key
         let monthKey: string;
         if (isAllTime) {
-          monthKey = date.getFullYear().toString();
+          monthKey = invoiceDate.getFullYear().toString();
         } else {
-          monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+          monthKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
         }
         
         // Only include if in our month range
         if (!months.includes(monthKey)) return;
+
+        const invoiceAmount = (invoice.total || 0) / 100;
+
+        // Track by customer
+        const customerId = invoice.customerId || 'unknown';
+        const customerName = invoice.customerName || invoice.customerEmail || 'Unknown Customer';
         
         if (!customerRevenue[customerId]) {
           customerRevenue[customerId] = {
@@ -159,14 +179,58 @@ export default function MasterTablePage() {
           };
         }
         
-        customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + amount;
-        customerRevenue[customerId].total += amount;
+        customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + invoiceAmount;
+        customerRevenue[customerId].total += invoiceAmount;
+
+        // Track by product (from line items)
+        const lineItems = invoice.lineItems || [];
+        
+        if (lineItems.length > 0) {
+          lineItems.forEach((item: any) => {
+            const productId = item.productId;
+            if (!productId) return;
+            
+            const productName = products.get(productId) || item.description || 'Unknown Product';
+            const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+            
+            if (!productRevenue[productId]) {
+              productRevenue[productId] = {
+                name: productName,
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            
+            productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+            productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+            productRevenue[productId].total += itemAmount;
+          });
+        } else {
+          // No line items - use "Unlabeled Revenue"
+          const unlabeledId = 'unlabeled';
+          if (!productRevenue[unlabeledId]) {
+            productRevenue[unlabeledId] = {
+              name: 'Unlabeled Revenue',
+              months: {},
+              total: 0,
+              count: {},
+            };
+          }
+          productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+          productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+          productRevenue[unlabeledId].total += invoiceAmount;
+        }
+
+        if (idx < 3) {
+          console.log(`  Invoice ${idx + 1}:`, invoice.number, "- amount:", invoiceAmount, "- lineItems:", lineItems.length);
+        }
       });
       
-      // Convert to entity rows
+      // Add customer revenue entities
       Object.entries(customerRevenue).forEach(([customerId, data]) => {
         entities.push({
-          entityId: customerId,
+          entityId: `stripe_customer_${customerId}`,
           entityName: data.name,
           source: "stripe",
           type: "Customer",
@@ -175,6 +239,35 @@ export default function MasterTablePage() {
           total: data.total,
         });
       });
+
+      // Add product revenue entities
+      Object.entries(productRevenue).forEach(([productId, data]) => {
+        entities.push({
+          entityId: `stripe_product_${productId}`,
+          entityName: data.name,
+          source: "stripe",
+          type: "Product",
+          metric: "revenue",
+          months: data.months,
+          total: data.total,
+        });
+
+        // Also add product count metric
+        const totalCount = Object.values(data.count).reduce((sum, val) => sum + val, 0);
+        if (totalCount > 0) {
+          entities.push({
+            entityId: `stripe_product_${productId}_count`,
+            entityName: data.name,
+            source: "stripe",
+            type: "Product",
+            metric: "sales",
+            months: data.count,
+            total: totalCount,
+          });
+        }
+      });
+
+      console.log("✅ Added", Object.keys(customerRevenue).length, "customers and", Object.keys(productRevenue).length, "products from Stripe");
     } catch (error) {
       console.error("Error fetching Stripe entities:", error);
     }
@@ -682,7 +775,7 @@ export default function MasterTablePage() {
       return `${(amount * 100).toFixed(2)}%`;
     }
     
-    // Count metrics (including dealCount, wonCount, newContacts)
+    // Count metrics (including sales, dealCount, wonCount, newContacts, clicks, etc.)
     return new Intl.NumberFormat("en-US").format(Math.round(amount));
   };
 
