@@ -460,6 +460,7 @@ export default function MasterTablePage() {
 
       // Add product revenue entities (invoices + payments)
       Object.entries(productRevenue).forEach(([productId, data]) => {
+        console.log(`📦 Adding product: "${data.name}" (${productId}) - Total: $${data.total.toFixed(2)}`);
         entities.push({
           entityId: `stripe_product_${productId}`,
           entityName: data.name,
