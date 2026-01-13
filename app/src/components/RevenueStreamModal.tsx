@@ -82,8 +82,18 @@ export default function RevenueStreamModal({
   }, [organizationId]);
 
   const handleSave = async () => {
-    if (!name.trim() || !user) {
-      alert("Please provide a stream name and ensure you are logged in.");
+    if (!name.trim()) {
+      alert("Please provide a stream name.");
+      return;
+    }
+    
+    if (!user || !user.uid) {
+      alert("Please ensure you are logged in.");
+      return;
+    }
+    
+    if (!organizationId) {
+      alert("Organization ID is required.");
       return;
     }
 
@@ -186,6 +196,17 @@ export default function RevenueStreamModal({
           
           {/* Content */}
           <div className="p-6 space-y-6">
+            {!organizationId && (
+              <div 
+                className="p-4 rounded-lg mb-4"
+                style={{ background: "var(--background-secondary)", borderLeft: "4px solid var(--accent)" }}
+              >
+                <p className="text-sm" style={{ color: "var(--foreground)" }}>
+                  Unable to create revenue stream: Organization not found. Please refresh the page.
+                </p>
+              </div>
+            )}
+            
             {/* Name */}
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
@@ -321,7 +342,7 @@ export default function RevenueStreamModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || !organizationId}
               className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 background: "var(--accent)",
