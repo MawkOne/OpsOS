@@ -86,6 +86,21 @@ export default function RevenueStreamsPage() {
       
       console.log("📊 Loaded subscriptions:", subscriptionToProducts.size);
       console.log("   First 3 subscription mappings:", Array.from(subscriptionToProducts.entries()).slice(0, 3));
+      
+      // Check if any subscription has the Job Listing product
+      const jobListingProductId = 'prod_MgvGuhDR8gUGmF';
+      const subsWithJobListing = Array.from(subscriptionToProducts.entries())
+        .filter(([_, productIds]) => productIds.includes(jobListingProductId));
+      console.log(`   Subscriptions with ${jobListingProductId}:`, subsWithJobListing.length);
+      if (subsWithJobListing.length > 0) {
+        console.log("   Examples:", subsWithJobListing.slice(0, 3));
+      }
+      
+      // Check how many payments have subscriptionId
+      const paymentsWithSub = paymentsSnap.docs.filter(doc => doc.data().subscriptionId).length;
+      const paymentsWithLineItems = paymentsSnap.docs.filter(doc => doc.data().lineItems?.length > 0).length;
+      console.log(`   Payments with subscriptionId: ${paymentsWithSub} / ${paymentsSnap.docs.length}`);
+      console.log(`   Payments with lineItems: ${paymentsWithLineItems} / ${paymentsSnap.docs.length}`);
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
@@ -158,22 +173,31 @@ export default function RevenueStreamsPage() {
         console.log("   Total revenue:", totalRevenue);
         console.log("   Total payments checked:", paymentsSnap.docs.length);
 
-        // Debug: Show first 3 payments with subscription IDs
+        // Debug: Show first 5 payments with subscription IDs
         if (matchedPayments === 0 && paymentsSnap.docs.length > 0) {
-          console.log("   ⚠️ No matches found. First 3 payments:");
-          paymentsSnap.docs.slice(0, 3).forEach((doc, i) => {
+          console.log("   ⚠️ No matches found. First 5 payments:");
+          paymentsSnap.docs.slice(0, 5).forEach((doc, i) => {
             const payment = doc.data();
             const subProducts = payment.subscriptionId ? subscriptionToProducts.get(payment.subscriptionId) : null;
             console.log(`   Payment ${i}:`, {
               amount: payment.amount,
               subscriptionId: payment.subscriptionId,
               subscriptionProducts: subProducts,
+              hasLineItems: payment.lineItems?.length > 0,
               lineItems: payment.lineItems?.map((li: any) => ({
                 productId: li.productId,
                 amount: li.amount
               }))
             });
           });
+          
+          // Show all unique product IDs across all subscriptions
+          const allSubProductIds = new Set<string>();
+          subscriptionToProducts.forEach((productIds) => {
+            productIds.forEach(pid => allSubProductIds.add(pid));
+          });
+          console.log("   All unique product IDs in subscriptions:", Array.from(allSubProductIds));
+          console.log("   Looking for:", stream.productIds);
         }
 
         return {
