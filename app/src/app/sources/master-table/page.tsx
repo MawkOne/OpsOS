@@ -34,7 +34,7 @@ interface EntityRow {
 
 type ViewMode = "ttm" | "year" | "all";
 type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
-type MetricFilter = "all" | "revenue" | "expenses" | "spend" | "clicks" | "impressions" | "conversions" | "sessions" | "sends" | "opens";
+type MetricFilter = "all" | "revenue" | "expenses" | "spend" | "clicks" | "impressions" | "conversions" | "sessions" | "sends" | "opens" | "dealValue" | "dealCount" | "wonValue" | "wonCount" | "newContacts";
 
 export default function MasterTablePage() {
   const { currentOrg } = useOrganization();
@@ -341,7 +341,7 @@ export default function MasterTablePage() {
 
   const fetchEmailEntities = async (entities: EntityRow[]) => {
     try {
-      // Fetch email campaigns from ActiveCampaign
+      // 1. Fetch email campaigns from ActiveCampaign
       const campaignsQuery = query(
         collection(db, "activecampaign_campaigns"),
         where("organizationId", "==", organizationId)
@@ -389,7 +389,7 @@ export default function MasterTablePage() {
         campaignMetrics[campaignId].clicks[monthKey] = (campaignMetrics[campaignId].clicks[monthKey] || 0) + (campaign.total_clicks || 0);
       });
 
-      // Create entity rows for each metric
+      // Create entity rows for each campaign metric
       Object.entries(campaignMetrics).forEach(([campaignId, data]) => {
         // Sends
         const totalSends = Object.values(data.sends).reduce((sum, val) => sum + val, 0);
@@ -433,6 +433,176 @@ export default function MasterTablePage() {
           });
         }
       });
+
+      // 2. Fetch Deals from ActiveCampaign
+      const dealsQuery = query(
+        collection(db, "activecampaign_deals"),
+        where("organizationId", "==", organizationId)
+      );
+      const dealsSnap = await getDocs(dealsQuery);
+
+      // Group deals by pipeline/status
+      const dealMetrics: Record<string, {
+        name: string;
+        dealValue: Record<string, number>;
+        dealCount: Record<string, number>;
+        wonValue: Record<string, number>;
+        wonCount: Record<string, number>;
+      }> = {};
+
+      dealsSnap.docs.forEach(doc => {
+        const deal = doc.data();
+        const createdDate = deal.cdate?.toDate?.() || deal.created_date?.toDate?.();
+        
+        if (!createdDate) return;
+
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = createdDate.getFullYear().toString();
+        } else {
+          monthKey = `${createdDate.getFullYear()}-${(createdDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+
+        // Only include if in our month range
+        if (!months.includes(monthKey)) return;
+
+        const pipelineName = deal.group || deal.pipeline || 'Sales Pipeline';
+        const dealValue = (deal.value || 0) / 100; // Convert from cents
+        const status = deal.status;
+
+        if (!dealMetrics[pipelineName]) {
+          dealMetrics[pipelineName] = {
+            name: pipelineName,
+            dealValue: {},
+            dealCount: {},
+            wonValue: {},
+            wonCount: {},
+          };
+        }
+
+        // Track all deals
+        dealMetrics[pipelineName].dealValue[monthKey] = (dealMetrics[pipelineName].dealValue[monthKey] || 0) + dealValue;
+        dealMetrics[pipelineName].dealCount[monthKey] = (dealMetrics[pipelineName].dealCount[monthKey] || 0) + 1;
+
+        // Track won deals (status === 1)
+        if (status === 1) {
+          dealMetrics[pipelineName].wonValue[monthKey] = (dealMetrics[pipelineName].wonValue[monthKey] || 0) + dealValue;
+          dealMetrics[pipelineName].wonCount[monthKey] = (dealMetrics[pipelineName].wonCount[monthKey] || 0) + 1;
+        }
+      });
+
+      // Create entity rows for each pipeline metric
+      Object.entries(dealMetrics).forEach(([pipelineId, data]) => {
+        // Total Deal Value
+        const totalDealValue = Object.values(data.dealValue).reduce((sum, val) => sum + val, 0);
+        if (totalDealValue > 0) {
+          entities.push({
+            entityId: `${pipelineId}_dealValue`,
+            entityName: data.name,
+            source: "activecampaign",
+            type: "Pipeline",
+            metric: "dealValue",
+            months: data.dealValue,
+            total: totalDealValue,
+          });
+        }
+
+        // Deal Count
+        const totalDealCount = Object.values(data.dealCount).reduce((sum, val) => sum + val, 0);
+        if (totalDealCount > 0) {
+          entities.push({
+            entityId: `${pipelineId}_dealCount`,
+            entityName: data.name,
+            source: "activecampaign",
+            type: "Pipeline",
+            metric: "dealCount",
+            months: data.dealCount,
+            total: totalDealCount,
+          });
+        }
+
+        // Won Value
+        const totalWonValue = Object.values(data.wonValue).reduce((sum, val) => sum + val, 0);
+        if (totalWonValue > 0) {
+          entities.push({
+            entityId: `${pipelineId}_wonValue`,
+            entityName: data.name,
+            source: "activecampaign",
+            type: "Pipeline",
+            metric: "wonValue",
+            months: data.wonValue,
+            total: totalWonValue,
+          });
+        }
+
+        // Won Count
+        const totalWonCount = Object.values(data.wonCount).reduce((sum, val) => sum + val, 0);
+        if (totalWonCount > 0) {
+          entities.push({
+            entityId: `${pipelineId}_wonCount`,
+            entityName: data.name,
+            source: "activecampaign",
+            type: "Pipeline",
+            metric: "wonCount",
+            months: data.wonCount,
+            total: totalWonCount,
+          });
+        }
+      });
+
+      // 3. Fetch Contact Growth from ActiveCampaign
+      const contactCountsQuery = query(
+        collection(db, "activecampaign_contact_counts"),
+        where("organizationId", "==", organizationId)
+      );
+      const contactCountsSnap = await getDocs(contactCountsQuery);
+
+      const contactGrowth: Record<string, number> = {};
+      const contactHistory: Array<{ date: string; count: number }> = [];
+
+      contactCountsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        contactHistory.push({
+          date: data.date,
+          count: data.count,
+        });
+      });
+
+      // Sort by date
+      contactHistory.sort((a, b) => a.date.localeCompare(b.date));
+
+      // Calculate growth per month
+      for (let i = 1; i < contactHistory.length; i++) {
+        const current = contactHistory[i];
+        const previous = contactHistory[i - 1];
+        const growth = current.count - previous.count;
+
+        // Parse date to get month key
+        const date = new Date(current.date);
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = date.getFullYear().toString();
+        } else {
+          monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+
+        if (months.includes(monthKey) && growth > 0) {
+          contactGrowth[monthKey] = (contactGrowth[monthKey] || 0) + growth;
+        }
+      }
+
+      const totalGrowth = Object.values(contactGrowth).reduce((sum, val) => sum + val, 0);
+      if (totalGrowth > 0) {
+        entities.push({
+          entityId: "contacts_growth",
+          entityName: "Contact Growth",
+          source: "activecampaign",
+          type: "Contacts",
+          metric: "newContacts",
+          months: contactGrowth,
+          total: totalGrowth,
+        });
+      }
     } catch (error) {
       console.error("Error fetching email entities:", error);
     }
@@ -462,7 +632,7 @@ export default function MasterTablePage() {
 
   const formatValue = (amount: number, metric: string, monthKey?: string) => {
     // Currency metrics
-    if (metric === "revenue" || metric === "expenses" || metric === "spend") {
+    if (metric === "revenue" || metric === "expenses" || metric === "spend" || metric === "dealValue" || metric === "wonValue") {
       if (monthKey) {
         return formatAmount(convertAmountHistorical(amount, "USD", monthKey));
       }
@@ -474,7 +644,7 @@ export default function MasterTablePage() {
       return `${(amount * 100).toFixed(2)}%`;
     }
     
-    // Count metrics
+    // Count metrics (including dealCount, wonCount, newContacts)
     return new Intl.NumberFormat("en-US").format(Math.round(amount));
   };
 
