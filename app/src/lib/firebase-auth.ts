@@ -7,6 +7,7 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   User,
   updateProfile,
@@ -38,8 +39,8 @@ export const signUp = async (email: string, password: string, displayName?: stri
   }
 };
 
-// Sign in with Google - Uses redirect instead of popup for better compatibility
-// Works in embedded browsers (Cursor), mobile apps, and all desktop browsers
+// Sign in with Google - Tries popup first, falls back to redirect
+// Popup works in browser automation, redirect works in embedded browsers
 export const signInWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider();
@@ -47,11 +48,24 @@ export const signInWithGoogle = async () => {
     provider.setCustomParameters({
       prompt: 'select_account'
     });
-    // Use redirect instead of popup - works everywhere
-    await signInWithRedirect(auth, provider);
-    // Note: This will redirect the page, so we don't return anything
-    // The redirect result is handled in checkRedirectResult()
-    return { user: null, error: null };
+    
+    // Try popup first (works in browser automation and most contexts)
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return { user: result.user, error: null };
+    } catch (popupError: unknown) {
+      const popupFirebaseError = popupError as { code?: string; message: string };
+      // If popup is blocked or fails, fall back to redirect
+      if (popupFirebaseError.code === 'auth/popup-blocked' || 
+          popupFirebaseError.code === 'auth/popup-closed-by-user' ||
+          popupFirebaseError.code === 'auth/cancelled-popup-request') {
+        // Use redirect as fallback
+        await signInWithRedirect(auth, provider);
+        return { user: null, error: null };
+      }
+      // Re-throw other errors
+      throw popupError;
+    }
   } catch (error: unknown) {
     const firebaseError = error as { message: string };
     return { user: null, error: firebaseError.message };
