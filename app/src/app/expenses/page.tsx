@@ -38,6 +38,8 @@ interface ExpenseMetrics {
   totalPurchases: number;
   accountsPayable: number;
   topVendorCount: number;
+  bankBalance: number;
+  bankAccountCount: number;
 }
 
 interface ExpenseRow {
@@ -158,6 +160,25 @@ export default function ExpensesPage() {
       const ttmStart = new Date(now.getFullYear(), now.getMonth() - 12, 1);
       const ttmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       
+      // Fetch bank accounts from QuickBooks
+      const accountsQuery = query(
+        collection(db, "quickbooks_accounts"),
+        where("organizationId", "==", organizationId),
+        where("accountType", "==", "Bank")
+      );
+      const accountsSnap = await getDocs(accountsQuery);
+      
+      let bankBalance = 0;
+      let bankAccountCount = 0;
+      
+      accountsSnap.docs.forEach(doc => {
+        const account = doc.data();
+        if (account.active !== false) {
+          bankBalance += account.currentBalance || 0;
+          bankAccountCount++;
+        }
+      });
+      
       // Fetch expenses from QuickBooks
       const expensesQuery = query(
         collection(db, "quickbooks_expenses"),
@@ -274,6 +295,8 @@ export default function ExpensesPage() {
         totalPurchases,
         accountsPayable,
         topVendorCount: vendors.size,
+        bankBalance,
+        bankAccountCount,
       });
       setMonthlyExpenses(monthlyWithTrends);
       setExpenseData(expenseRows);
@@ -420,6 +443,28 @@ export default function ExpensesPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Bank Balance
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {loading ? "..." : formatCurrency(metrics?.bankBalance || 0)}
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                  {metrics?.bankAccountCount || 0} {metrics?.bankAccountCount === 1 ? "account" : "accounts"}
+                </p>
+              </div>
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}
+              >
+                <CreditCard className="w-5 h-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
                   Total Expenses
                 </p>
                 <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
@@ -468,26 +513,7 @@ export default function ExpensesPage() {
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
                 style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
               >
-                <CreditCard className="w-5 h-5" />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                  Unique Vendors
-                </p>
-                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {loading ? "..." : metrics?.topVendorCount || 0}
-                </p>
-              </div>
-              <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center"
-                style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
-              >
-                <Package className="w-5 h-5" />
+                <FileText className="w-5 h-5" />
               </div>
             </div>
           </Card>
