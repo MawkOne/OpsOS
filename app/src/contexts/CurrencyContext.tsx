@@ -151,8 +151,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         dateStr = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
       }
 
-      // Fetch historical rate from exchangerate-api.com (free, no key required)
-      const response = await fetch(`https://api.exchangerate-api.com/v4/history/USD/${dateStr}`);
+      // Use our server-side API to avoid CORS issues
+      const response = await fetch(`/api/exchange-rates?date=${dateStr}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -166,8 +166,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         return exchangeRates?.CAD || 1.35;
       }
     } catch (error) {
-      console.error(`Failed to fetch historical rate for ${monthKey}:`, error);
-      // Fallback to current rate
+      // Silent fallback - don't log to avoid console spam
       return exchangeRates?.CAD || 1.35;
     }
   };
