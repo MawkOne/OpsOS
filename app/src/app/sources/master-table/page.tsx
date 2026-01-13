@@ -341,12 +341,15 @@ export default function MasterTablePage() {
 
   const fetchEmailEntities = async (entities: EntityRow[]) => {
     try {
+      console.log("🔍 Fetching ActiveCampaign data for org:", organizationId);
+      
       // 1. Fetch email campaigns from ActiveCampaign
       const campaignsQuery = query(
         collection(db, "activecampaign_campaigns"),
         where("organizationId", "==", organizationId)
       );
       const campaignsSnap = await getDocs(campaignsQuery);
+      console.log("📧 Found", campaignsSnap.size, "ActiveCampaign campaigns");
 
       // Group campaigns by month and aggregate metrics
       const campaignMetrics: Record<string, {
@@ -356,9 +359,13 @@ export default function MasterTablePage() {
         clicks: Record<string, number>;
       }> = {};
 
-      campaignsSnap.docs.forEach(doc => {
+      campaignsSnap.docs.forEach((doc, idx) => {
         const campaign = doc.data();
         const sentDate = campaign.send_date?.toDate?.() || campaign.sdate?.toDate?.();
+        
+        if (idx < 3) {
+          console.log(`  Campaign ${idx + 1}:`, campaign.name, "- sent_date:", campaign.send_date, "- sdate:", campaign.sdate, "- parsed:", sentDate);
+        }
         
         if (!sentDate) return;
 
@@ -440,6 +447,7 @@ export default function MasterTablePage() {
         where("organizationId", "==", organizationId)
       );
       const dealsSnap = await getDocs(dealsQuery);
+      console.log("💼 Found", dealsSnap.size, "ActiveCampaign deals");
 
       // Group deals by pipeline/status
       const dealMetrics: Record<string, {
@@ -450,9 +458,13 @@ export default function MasterTablePage() {
         wonCount: Record<string, number>;
       }> = {};
 
-      dealsSnap.docs.forEach(doc => {
+      dealsSnap.docs.forEach((doc, idx) => {
         const deal = doc.data();
         const createdDate = deal.cdate?.toDate?.() || deal.created_date?.toDate?.();
+        
+        if (idx < 3) {
+          console.log(`  Deal ${idx + 1}:`, deal.title, "- cdate:", deal.cdate, "- created_date:", deal.created_date, "- parsed:", createdDate);
+        }
         
         if (!createdDate) return;
 
@@ -556,6 +568,7 @@ export default function MasterTablePage() {
         where("organizationId", "==", organizationId)
       );
       const contactCountsSnap = await getDocs(contactCountsQuery);
+      console.log("👥 Found", contactCountsSnap.size, "contact count records");
 
       const contactGrowth: Record<string, number> = {};
       const contactHistory: Array<{ date: string; count: number }> = [];
@@ -603,6 +616,10 @@ export default function MasterTablePage() {
           total: totalGrowth,
         });
       }
+
+      // Count ActiveCampaign entities added
+      const acEntities = entities.filter(e => e.source === "activecampaign");
+      console.log("✅ Added", acEntities.length, "ActiveCampaign entity rows to master table");
     } catch (error) {
       console.error("Error fetching email entities:", error);
     }
