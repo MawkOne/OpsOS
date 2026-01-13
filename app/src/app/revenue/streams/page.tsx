@@ -67,6 +67,45 @@ export default function RevenueStreamsPage() {
       
       console.log("💰 Using stripe_invoices for revenue calculation");
       console.log(`   Total invoices: ${invoicesSnap.docs.length}`);
+      
+      // Check for line items without productId
+      let lineItemsWithProduct = 0;
+      let lineItemsWithoutProduct = 0;
+      let unlabeledRevenue = 0;
+      
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        const lineItems = invoice.lineItems || [];
+        lineItems.forEach((item: any) => {
+          if (item.productId) {
+            lineItemsWithProduct++;
+          } else {
+            lineItemsWithoutProduct++;
+            unlabeledRevenue += (item.amount || 0) / 100;
+          }
+        });
+      });
+      
+      console.log(`   📦 Line items with productId: ${lineItemsWithProduct}`);
+      console.log(`   ⚠️  Line items WITHOUT productId: ${lineItemsWithoutProduct}`);
+      console.log(`   💵 Revenue from unlabeled items: $${unlabeledRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      
+      if (lineItemsWithoutProduct > 0) {
+        console.log(`   📋 Sample unlabeled line items:`);
+        let samplesShown = 0;
+        invoicesSnap.docs.some(doc => {
+          const invoice = doc.data();
+          const lineItems = invoice.lineItems || [];
+          lineItems.forEach((item: any) => {
+            if (!item.productId && samplesShown < 5) {
+              console.log(`      - ${item.description || 'No description'}: $${((item.amount || 0) / 100).toFixed(2)}`);
+              console.log(`        priceId: ${item.priceId || 'None'}, productName: ${item.productName || 'None'}`);
+              samplesShown++;
+            }
+          });
+          return samplesShown >= 5;
+        });
+      }
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
@@ -76,22 +115,28 @@ export default function RevenueStreamsPage() {
         console.log("   Stream product IDs:", stream.productIds);
 
         let matchedInvoices = 0;
+        const hasUnlabeledProduct = stream.productIds.includes('unlabeled-payments');
         
         invoicesSnap.docs.forEach(doc => {
           const invoice = doc.data();
           const lineItems = invoice.lineItems || [];
+          const date = invoice.created?.toDate?.() || new Date();
+          const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
           
           if (lineItems.length > 0) {
             lineItems.forEach((lineItem: any) => {
               const productId = lineItem.productId;
+              const amount = (lineItem.amount || 0) / 100;
               
               // Check if this line item's product is in this stream
               if (productId && stream.productIds.includes(productId)) {
                 matchedInvoices++;
-                const amount = (lineItem.amount || 0) / 100;
-                const date = invoice.created?.toDate?.() || new Date();
-                const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-
+                totalRevenue += amount;
+                monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
+              }
+              // Handle unlabeled payments if stream includes the unlabeled pseudo-product
+              else if (!productId && hasUnlabeledProduct) {
+                matchedInvoices++;
                 totalRevenue += amount;
                 monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
               }

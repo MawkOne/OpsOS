@@ -104,6 +104,38 @@ export default function RevenueStreamModal({
           lastCharged: productLastCharged.get(doc.data().stripeId) || null,
         }));
         
+        // Check for unlabeled revenue (line items without productId)
+        let unlabeledRevenue = 0;
+        let unlabeledLastCharged: Date | null = null;
+        
+        invoicesSnap.docs.forEach(doc => {
+          const invoice = doc.data();
+          const invoiceDate = invoice.created?.toDate?.() || new Date();
+          const lineItems = invoice.lineItems || [];
+          
+          lineItems.forEach((item: any) => {
+            if (!item.productId) {
+              const amount = (item.amount || 0) / 100;
+              unlabeledRevenue += amount;
+              
+              if (!unlabeledLastCharged || invoiceDate > unlabeledLastCharged) {
+                unlabeledLastCharged = invoiceDate;
+              }
+            }
+          });
+        });
+        
+        // Add "Unlabeled Payments" pseudo-product if there's unlabeled revenue
+        if (unlabeledRevenue > 0) {
+          productsList.push({
+            id: 'unlabeled-payments',
+            name: '⚠️ Unlabeled Payments',
+            productId: 'unlabeled-payments',
+            totalRevenue: unlabeledRevenue,
+            lastCharged: unlabeledLastCharged,
+          });
+        }
+        
         // Sort by revenue descending (products with revenue first, then alphabetically)
         const sortedProducts = productsList.sort((a, b) => {
           if (a.totalRevenue !== b.totalRevenue) {
