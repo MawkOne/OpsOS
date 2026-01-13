@@ -57,103 +57,16 @@ export default function RevenueStreamsPage() {
 
   const calculateStreamMetrics = async (streams: RevenueStream[]): Promise<RevenueStreamWithMetrics[]> => {
     try {
-      // Fetch all payments
-      const paymentsQuery = query(
-        collection(db, "stripe_payments"),
+      // Use stripe_invoices instead of stripe_payments (same as sales page!)
+      const invoicesQuery = query(
+        collection(db, "stripe_invoices"),
         where("organizationId", "==", organizationId),
-        where("status", "==", "succeeded")
+        where("status", "==", "paid")
       );
-      const paymentsSnap = await getDocs(paymentsQuery);
-
-      // Fetch all subscriptions (for payments without lineItems)
-      const subscriptionsQuery = query(
-        collection(db, "stripe_subscriptions"),
-        where("organizationId", "==", organizationId)
-      );
-      const subscriptionsSnap = await getDocs(subscriptionsQuery);
+      const invoicesSnap = await getDocs(invoicesQuery);
       
-      // Build subscription ID -> product IDs map
-      const subscriptionToProducts = new Map<string, string[]>();
-      
-      console.log("🔎 Inspecting subscription items structure:");
-      subscriptionsSnap.docs.slice(0, 3).forEach((doc, i) => {
-        const sub = doc.data();
-        console.log(`   Subscription ${i} (${sub.stripeId}):`);
-        console.log(`      Items array:`, sub.items);
-        if (sub.items && sub.items.length > 0) {
-          sub.items.forEach((item: any, idx: number) => {
-            console.log(`         Item ${idx}:`, {
-              priceId: item.priceId,
-              productId: item.productId,
-              productName: item.productName,
-              allKeys: Object.keys(item)
-            });
-          });
-        }
-      });
-      
-      subscriptionsSnap.docs.forEach(doc => {
-        const sub = doc.data();
-        const productIds = (sub.items || [])
-          .map((item: any) => item.productId)
-          .filter((id: string) => id);
-        if (productIds.length > 0) {
-          subscriptionToProducts.set(sub.stripeId, productIds);
-        }
-      });
-      
-      console.log("📊 Loaded subscriptions:", subscriptionToProducts.size);
-      
-      // Show first 3 subscription mappings with explicit formatting
-      const first3Subs = Array.from(subscriptionToProducts.entries()).slice(0, 3);
-      first3Subs.forEach(([subId, productIds], i) => {
-        console.log(`   Subscription ${i}: ${subId} -> Products: [${productIds.join(', ')}]`);
-      });
-      
-      // Check if any subscription has the Job Listing product
-      const jobListingProductId = 'prod_MgvGuhDR8gUGmF';
-      const subsWithJobListing = Array.from(subscriptionToProducts.entries())
-        .filter(([_, productIds]) => productIds.includes(jobListingProductId));
-      console.log(`   ⭐ Subscriptions with ${jobListingProductId}: ${subsWithJobListing.length}`);
-      if (subsWithJobListing.length > 0) {
-        subsWithJobListing.slice(0, 3).forEach(([subId, productIds]) => {
-          console.log(`      - ${subId}: [${productIds.join(', ')}]`);
-        });
-      }
-      
-      // Check how many payments have subscriptionId
-      const paymentsWithSub = paymentsSnap.docs.filter(doc => doc.data().subscriptionId).length;
-      const paymentsWithLineItems = paymentsSnap.docs.filter(doc => doc.data().lineItems?.length > 0).length;
-      console.log(`   📋 Payments with subscriptionId: ${paymentsWithSub} / ${paymentsSnap.docs.length}`);
-      console.log(`   📋 Payments with lineItems: ${paymentsWithLineItems} / ${paymentsSnap.docs.length}`);
-      
-      // Show all unique product IDs
-      const allSubProductIds = new Set<string>();
-      subscriptionToProducts.forEach((productIds) => {
-        productIds.forEach(pid => allSubProductIds.add(pid));
-      });
-      console.log(`   🏷️  All unique product IDs in subscriptions (${allSubProductIds.size} total):`);
-      console.log(`      ${Array.from(allSubProductIds).join(', ')}`);
-      
-      // Check for any overlap with stripe_products
-      // (This requires fetching products here for comparison)
-      const productsQuery = query(
-        collection(db, "stripe_products"),
-        where("organizationId", "==", organizationId)
-      );
-      const productsSnap = await getDocs(productsQuery);
-      const availableProductIds = productsSnap.docs.map(doc => doc.data().stripeId);
-      
-      console.log(`   🛍️  Product IDs in stripe_products (${availableProductIds.length} total):`);
-      console.log(`      ${availableProductIds.slice(0, 10).join(', ')}${availableProductIds.length > 10 ? '...' : ''}`);
-      
-      const overlap = availableProductIds.filter(pid => allSubProductIds.has(pid));
-      console.log(`   ✅ OVERLAP between products and subscriptions: ${overlap.length} matches`);
-      if (overlap.length > 0) {
-        console.log(`      Matching IDs: ${overlap.slice(0, 5).join(', ')}${overlap.length > 5 ? '...' : ''}`);
-      } else {
-        console.log(`      ❌ NO OVERLAP! This is the problem!`);
-      }
+      console.log("💰 Using stripe_invoices for revenue calculation");
+      console.log(`   Total invoices: ${invoicesSnap.docs.length}`);
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
@@ -162,98 +75,32 @@ export default function RevenueStreamsPage() {
         console.log("🔍 Calculating revenue for stream:", stream.name);
         console.log("   Stream product IDs:", stream.productIds);
 
-        let matchedPayments = 0;
-        let subscriptionFallbacks = 0;
+        let matchedInvoices = 0;
         
-        paymentsSnap.docs.forEach(doc => {
-          const payment = doc.data();
-          const lineItems = payment.lineItems || [];
-          let matched = false;
-
-          // Try 1: Check line items
+        invoicesSnap.docs.forEach(doc => {
+          const invoice = doc.data();
+          const lineItems = invoice.lineItems || [];
+          
           if (lineItems.length > 0) {
             lineItems.forEach((lineItem: any) => {
               const productId = lineItem.productId;
               
+              // Check if this line item's product is in this stream
               if (productId && stream.productIds.includes(productId)) {
-                matched = true;
-                matchedPayments++;
+                matchedInvoices++;
                 const amount = (lineItem.amount || 0) / 100;
-                const date = payment.created?.toDate?.() || new Date();
+                const date = invoice.created?.toDate?.() || new Date();
                 const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-
-                console.log("   ✅ Matched payment (lineItem):", {
-                  productId,
-                  amount,
-                  monthKey
-                });
 
                 totalRevenue += amount;
                 monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
               }
             });
           }
-          
-          // Try 2: If no line items, check subscription
-          if (!matched && payment.subscriptionId) {
-            const subProductIds = subscriptionToProducts.get(payment.subscriptionId) || [];
-            const matchingProducts = subProductIds.filter(pid => stream.productIds.includes(pid));
-            
-            if (matchingProducts.length > 0) {
-              matched = true;
-              matchedPayments++;
-              subscriptionFallbacks++;
-              const amount = (payment.amount || 0) / 100;
-              const date = payment.created?.toDate?.() || new Date();
-              const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
-
-              console.log("   ✅ Matched payment (subscription):", {
-                subscriptionId: payment.subscriptionId,
-                matchingProducts,
-                amount,
-                monthKey
-              });
-
-              totalRevenue += amount;
-              monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
-            }
-          }
         });
 
-        console.log("   Total matched payments:", matchedPayments);
-        console.log("   Matched via lineItems:", matchedPayments - subscriptionFallbacks);
-        console.log("   Matched via subscription:", subscriptionFallbacks);
-        console.log("   Total revenue:", totalRevenue);
-        console.log("   Total payments checked:", paymentsSnap.docs.length);
-
-        // Debug: Show first 5 payments with ALL relevant fields
-        if (matchedPayments === 0 && paymentsSnap.docs.length > 0) {
-          console.log("   ⚠️ No matches found. First 5 payments:");
-          paymentsSnap.docs.slice(0, 5).forEach((doc, i) => {
-            const payment = doc.data();
-            const subProducts = payment.subscriptionId ? subscriptionToProducts.get(payment.subscriptionId) : null;
-            console.log(`   Payment ${i}:`);
-            console.log(`      Amount: $${(payment.amount / 100).toFixed(2)}`);
-            console.log(`      Description: ${payment.description || 'NONE'}`);
-            console.log(`      Statement Descriptor: ${payment.statementDescriptor || payment.calculatedStatementDescriptor || 'NONE'}`);
-            console.log(`      Subscription ID: ${payment.subscriptionId || 'NONE'}`);
-            console.log(`      Subscription Products: ${subProducts ? `[${subProducts.join(', ')}]` : 'N/A'}`);
-            console.log(`      Has LineItems: ${payment.lineItems?.length > 0 ? 'YES' : 'NO'}`);
-            console.log(`      Metadata:`, payment.metadata);
-            if (payment.lineItems?.length > 0) {
-              payment.lineItems.forEach((li: any, idx: number) => {
-                console.log(`         LineItem ${idx}: productId=${li.productId}, amount=$${(li.amount / 100).toFixed(2)}`);
-              });
-            }
-          });
-          
-          console.log(`   🎯 Looking for product IDs: [${stream.productIds.join(', ')}]`);
-          console.log(`   💡 SUGGESTION: Payments have no product attribution. May need to:`);
-          console.log(`      1. Parse description field for product info`);
-          console.log(`      2. Use metadata to link products`);
-          console.log(`      3. Link via payment_intents collection`);
-          console.log(`      4. Re-sync Stripe with better product tracking`);
-        }
+        console.log("   ✅ Matched line items:", matchedInvoices);
+        console.log("   💰 Total revenue:", totalRevenue);
 
         return {
           ...stream,
