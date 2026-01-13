@@ -272,16 +272,11 @@ export default function RevenueStreamsPage() {
                         >
                           <Layers className="w-6 h-6" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-base truncate" style={{ color: "var(--foreground)" }}>
-                            {stream.name}
-                          </h3>
-                          {stream.description && (
-                            <p className="text-sm mt-1 line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
-                              {stream.description}
-                            </p>
-                          )}
-                        </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-base truncate" style={{ color: "var(--foreground)" }}>
+                                {stream.name}
+                              </h3>
+                            </div>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button

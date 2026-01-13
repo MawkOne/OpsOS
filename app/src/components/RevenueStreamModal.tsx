@@ -44,7 +44,6 @@ export default function RevenueStreamModal({
   
   // Form state
   const [name, setName] = useState(existingStream?.name || "");
-  const [description, setDescription] = useState(existingStream?.description || "");
   const [color, setColor] = useState(existingStream?.color || colorOptions[0].value);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>(existingStream?.productIds || []);
   
@@ -92,7 +91,6 @@ export default function RevenueStreamModal({
       const streamData: any = {
         organizationId,
         name: name.trim(),
-        description: description.trim() || undefined,
         color,
         productIds: selectedProductIds,
         updatedAt: serverTimestamp(),
@@ -133,6 +131,18 @@ export default function RevenueStreamModal({
         : [...prev, productId]
     );
   };
+
+  const toggleSelectAll = () => {
+    if (selectedProductIds.length === products.length) {
+      // Deselect all
+      setSelectedProductIds([]);
+    } else {
+      // Select all
+      setSelectedProductIds(products.map(p => p.productId));
+    }
+  };
+
+  const allSelected = products.length > 0 && selectedProductIds.length === products.length;
 
   return (
     <AnimatePresence>
@@ -194,25 +204,6 @@ export default function RevenueStreamModal({
               />
             </div>
             
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                Description (Optional)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe what this revenue stream represents..."
-                rows={3}
-                className="w-full px-4 py-2 rounded-lg"
-                style={{
-                  background: "var(--background-secondary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-            </div>
-            
             {/* Color */}
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
@@ -256,26 +247,46 @@ export default function RevenueStreamModal({
                 </div>
               ) : (
                 <div 
-                  className="max-h-64 overflow-y-auto rounded-lg p-4 space-y-2"
+                  className="max-h-64 overflow-y-auto rounded-lg p-3"
                   style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
                 >
-                  {products.map((product) => (
-                    <label
-                      key={product.id}
-                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedProductIds.includes(product.productId)}
-                        onChange={() => toggleProduct(product.productId)}
-                        className="w-4 h-4 rounded"
-                        style={{ accentColor: "var(--accent)" }}
-                      />
-                      <span className="text-sm" style={{ color: "var(--foreground)" }}>
-                        {product.name}
-                      </span>
-                    </label>
-                  ))}
+                  {/* Select All */}
+                  <label
+                    className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors mb-2 border-b"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded"
+                      style={{ accentColor: "var(--accent)" }}
+                    />
+                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      Select All
+                    </span>
+                  </label>
+                  
+                  {/* Individual Products */}
+                  <div className="space-y-1">
+                    {products.map((product) => (
+                      <label
+                        key={product.id}
+                        className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.includes(product.productId)}
+                          onChange={() => toggleProduct(product.productId)}
+                          className="w-4 h-4 rounded"
+                          style={{ accentColor: "var(--accent)" }}
+                        />
+                        <span className="text-sm" style={{ color: "var(--foreground)" }}>
+                          {product.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
