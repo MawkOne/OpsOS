@@ -68,7 +68,11 @@ export default function RevenueStreamsPage() {
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
         const monthlyRevenue: Record<string, number> = {};
+        
+        console.log("🔍 Calculating revenue for stream:", stream.name);
+        console.log("   Stream product IDs:", stream.productIds);
 
+        let matchedPayments = 0;
         paymentsSnap.docs.forEach(doc => {
           const payment = doc.data();
           const lineItems = payment.lineItems || [];
@@ -78,15 +82,41 @@ export default function RevenueStreamsPage() {
             const productId = lineItem.productId;
             
             if (productId && stream.productIds.includes(productId)) {
+              matchedPayments++;
               const amount = (lineItem.amount || 0) / 100;
               const date = payment.created?.toDate?.() || new Date();
               const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+
+              console.log("   ✅ Matched payment:", {
+                productId,
+                amount,
+                monthKey,
+                lineItemAmount: lineItem.amount
+              });
 
               totalRevenue += amount;
               monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
             }
           });
         });
+
+        console.log("   Total matched payments:", matchedPayments);
+        console.log("   Total revenue:", totalRevenue);
+        console.log("   Total payments checked:", paymentsSnap.docs.length);
+
+        // Debug: Show first 3 payments and their line items
+        if (matchedPayments === 0 && paymentsSnap.docs.length > 0) {
+          console.log("   ⚠️ No matches found. First 3 payments:");
+          paymentsSnap.docs.slice(0, 3).forEach((doc, i) => {
+            const payment = doc.data();
+            console.log(`   Payment ${i}:`, {
+              lineItems: payment.lineItems?.map((li: any) => ({
+                productId: li.productId,
+                amount: li.amount
+              }))
+            });
+          });
+        }
 
         return {
           ...stream,

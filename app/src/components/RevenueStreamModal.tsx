@@ -103,6 +103,16 @@ export default function RevenueStreamModal({
 
     setSaving(true);
     try {
+      // Debug: Log what we're saving
+      console.log("💾 Saving revenue stream:");
+      console.log("   Name:", name.trim());
+      console.log("   Selected product IDs:", selectedProductIds);
+      console.log("   Number of products:", selectedProductIds.length);
+      
+      // Show which products were selected
+      const selectedProducts = products.filter(p => selectedProductIds.includes(p.productId));
+      console.log("   Selected products:", selectedProducts.map(p => ({ name: p.name, stripeId: p.productId })));
+      
       // Build clean data object
       const streamData: Record<string, any> = {
         organizationId,
