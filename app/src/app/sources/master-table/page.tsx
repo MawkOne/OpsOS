@@ -440,6 +440,52 @@ export default function MasterTablePage() {
       });
 
       console.log("✅ Processed", paymentsSnap.size, "payments");
+
+      // Re-add all customer and product entities (now including payment data)
+      // Clear previous entries and re-add with updated totals
+      entities = entities.filter(e => e.source !== "stripe");
+
+      // Add customer revenue entities (invoices + payments)
+      Object.entries(customerRevenue).forEach(([customerId, data]) => {
+        entities.push({
+          entityId: `stripe_customer_${customerId}`,
+          entityName: data.name,
+          source: "stripe",
+          type: "Customer",
+          metric: "revenue",
+          months: data.months,
+          total: data.total,
+        });
+      });
+
+      // Add product revenue entities (invoices + payments)
+      Object.entries(productRevenue).forEach(([productId, data]) => {
+        entities.push({
+          entityId: `stripe_product_${productId}`,
+          entityName: data.name,
+          source: "stripe",
+          type: "Product",
+          metric: "revenue",
+          months: data.months,
+          total: data.total,
+        });
+
+        // Also add product count metric
+        const totalCount = Object.values(data.count).reduce((sum, val) => sum + val, 0);
+        if (totalCount > 0) {
+          entities.push({
+            entityId: `stripe_product_${productId}_count`,
+            entityName: data.name,
+            source: "stripe",
+            type: "Product",
+            metric: "sales",
+            months: data.count,
+            total: totalCount,
+          });
+        }
+      });
+
+      console.log("✅ Final totals:", Object.keys(customerRevenue).length, "customers and", Object.keys(productRevenue).length, "products (including payments)");
     } catch (error) {
       console.error("Error fetching Stripe entities:", error);
     }
