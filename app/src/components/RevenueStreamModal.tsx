@@ -50,6 +50,13 @@ export default function RevenueStreamModal({
   // Available products
   const [products, setProducts] = useState<Product[]>([]);
   
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log("⚡ selectedProductIds changed:");
+    console.log("   Length:", selectedProductIds.length);
+    console.log("   IDs:", selectedProductIds);
+    console.log("   Total products:", products.length);
+  }, [selectedProductIds, products.length]);
 
   // Fetch available products
   useEffect(() => {
@@ -172,20 +179,38 @@ export default function RevenueStreamModal({
   };
 
   const toggleProduct = (productId: string) => {
-    setSelectedProductIds(prev => 
-      prev.includes(productId)
+    console.log("🔵 toggleProduct called for:", productId);
+    console.log("🔵 Current selected IDs:", selectedProductIds);
+    
+    setSelectedProductIds(prev => {
+      const isCurrentlySelected = prev.includes(productId);
+      const newSelection = isCurrentlySelected
         ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
+        : [...prev, productId];
+      
+      console.log("🔵 Was selected:", isCurrentlySelected);
+      console.log("🔵 New selection:", newSelection);
+      console.log("🔵 New selection length:", newSelection.length);
+      
+      return newSelection;
+    });
   };
 
   const toggleSelectAll = () => {
+    console.log("🟢 toggleSelectAll called");
+    console.log("🟢 Current selected count:", selectedProductIds.length);
+    console.log("🟢 Total products:", products.length);
+    
     if (selectedProductIds.length === products.length) {
       // Deselect all
+      console.log("🟢 Action: DESELECT ALL");
       setSelectedProductIds([]);
     } else {
       // Select all
-      setSelectedProductIds(products.map(p => p.productId));
+      const allIds = products.map(p => p.productId);
+      console.log("🟢 Action: SELECT ALL");
+      console.log("🟢 Selecting IDs:", allIds);
+      setSelectedProductIds(allIds);
     }
   };
 
@@ -310,15 +335,20 @@ export default function RevenueStreamModal({
                 >
                   {/* Select All */}
                   <label
-                    htmlFor="select-all-products"
+                    htmlFor="select-all-products-checkbox"
                     className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors mb-2 border-b"
                     style={{ borderColor: "var(--border)" }}
                   >
                     <input
-                      id="select-all-products"
+                      id="select-all-products-checkbox"
                       type="checkbox"
                       checked={allSelected}
-                      onChange={toggleSelectAll}
+                      onChange={(e) => {
+                        console.log("🟡 Select All checkbox clicked");
+                        console.log("🟡 Current allSelected:", allSelected);
+                        e.stopPropagation();
+                        toggleSelectAll();
+                      }}
                       className="w-4 h-4 rounded"
                       style={{ accentColor: "var(--accent)" }}
                     />
@@ -329,9 +359,18 @@ export default function RevenueStreamModal({
                   
                   {/* Individual Products */}
                   <div className="space-y-1">
-                    {products.map((product) => {
+                    {products.map((product, index) => {
                       const isChecked = selectedProductIds.includes(product.productId);
-                      const checkboxId = `product-${product.productId}`;
+                      const checkboxId = `product-checkbox-${product.productId}`;
+                      
+                      // Log rendering state for first 3 products
+                      if (index < 3) {
+                        console.log(`📦 Rendering product ${index}: ${product.name}`);
+                        console.log(`   productId: ${product.productId}`);
+                        console.log(`   isChecked: ${isChecked}`);
+                        console.log(`   in selectedProductIds: ${selectedProductIds.includes(product.productId)}`);
+                      }
+                      
                       return (
                         <label
                           key={product.productId}
@@ -343,7 +382,9 @@ export default function RevenueStreamModal({
                             type="checkbox"
                             checked={isChecked}
                             onChange={(e) => {
+                              console.log("🔴 Checkbox onChange fired for:", product.name, product.productId);
                               e.stopPropagation();
+                              e.preventDefault();
                               toggleProduct(product.productId);
                             }}
                             className="w-4 h-4 rounded"
