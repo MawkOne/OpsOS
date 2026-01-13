@@ -43,12 +43,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch exchange rates from ratesdb.com
+  // Fetch exchange rates from our API
   useEffect(() => {
     const fetchRates = async () => {
       try {
-        // Fetch USD and CAD rates (base is EUR by default)
-        const response = await fetch("https://ratesdb.com/api/latest?base=USD&currencies=CAD");
+        // Use our server-side API to fetch latest rates
+        const response = await fetch("/api/exchange-rates?date=latest");
         const data = await response.json();
         
         if (data && data.rates) {
@@ -59,8 +59,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           });
         }
       } catch (error) {
-        console.error("Failed to fetch exchange rates:", error);
-        // Fallback to approximate rates
+        // Silent fallback to approximate rates
         setExchangeRates({
           USD: 1,
           CAD: 1.35,

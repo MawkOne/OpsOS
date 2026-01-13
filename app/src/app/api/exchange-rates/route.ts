@@ -3,13 +3,31 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date"); // Format: YYYY-MM-DD
+    const date = searchParams.get("date"); // Format: YYYY-MM-DD or "latest"
     
-    if (!date) {
-      return NextResponse.json(
-        { error: "Date parameter is required" },
-        { status: 400 }
-      );
+    // If no date or "latest", fetch current rates
+    if (!date || date === "latest") {
+      try {
+        const response = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch latest rates");
+        }
+
+        const data = await response.json();
+        
+        return NextResponse.json({
+          rates: { USD: 1, CAD: data.rates?.CAD || 1.35 },
+          date: new Date().toISOString().split('T')[0],
+          fallback: false,
+        });
+      } catch (error) {
+        console.error("Error fetching latest rates:", error);
+        return NextResponse.json({
+          rates: { USD: 1, CAD: 1.35 },
+          fallback: true,
+        });
+      }
     }
 
     // Parse the date to ensure it's not in the future
