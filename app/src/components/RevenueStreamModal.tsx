@@ -252,46 +252,50 @@ export default function RevenueStreamModal({
                   style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
                 >
                   {/* Select All */}
-                  <div
+                  <label
+                    htmlFor="select-all-products"
                     className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors mb-2 border-b"
                     style={{ borderColor: "var(--border)" }}
-                    onClick={toggleSelectAll}
                   >
                     <input
+                      id="select-all-products"
                       type="checkbox"
                       checked={allSelected}
-                      onChange={() => {}} // Controlled by parent div onClick
-                      readOnly
-                      className="w-4 h-4 rounded pointer-events-none"
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded"
                       style={{ accentColor: "var(--accent)" }}
                     />
                     <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
                       Select All
                     </span>
-                  </div>
+                  </label>
                   
                   {/* Individual Products */}
                   <div className="space-y-1">
                     {products.map((product) => {
                       const isChecked = selectedProductIds.includes(product.productId);
+                      const checkboxId = `product-${product.productId}`;
                       return (
-                        <div
+                        <label
                           key={product.productId}
+                          htmlFor={checkboxId}
                           className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors"
-                          onClick={() => toggleProduct(product.productId)}
                         >
                           <input
+                            id={checkboxId}
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}} // Controlled by parent div onClick
-                            readOnly
-                            className="w-4 h-4 rounded pointer-events-none"
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleProduct(product.productId);
+                            }}
+                            className="w-4 h-4 rounded"
                             style={{ accentColor: "var(--accent)" }}
                           />
                           <span className="text-sm" style={{ color: "var(--foreground)" }}>
                             {product.name}
                           </span>
-                        </div>
+                        </label>
                       );
                     })}
                   </div>
