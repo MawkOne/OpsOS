@@ -67,6 +67,12 @@ export default function RevenueStreamModal({
           productId: doc.data().stripeId, // Field is called stripeId in Firestore
         }));
         
+        console.log("🛍️  Available products in modal:");
+        productsList.slice(0, 10).forEach((p, i) => {
+          console.log(`   ${i}. ${p.name}: ${p.productId}`);
+        });
+        console.log(`   ... and ${productsList.length - 10} more`);
+        
         setProducts(productsList);
       } catch (error) {
         console.error("Error fetching products:", error);

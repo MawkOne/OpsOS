@@ -74,6 +74,24 @@ export default function RevenueStreamsPage() {
       
       // Build subscription ID -> product IDs map
       const subscriptionToProducts = new Map<string, string[]>();
+      
+      console.log("🔎 Inspecting subscription items structure:");
+      subscriptionsSnap.docs.slice(0, 3).forEach((doc, i) => {
+        const sub = doc.data();
+        console.log(`   Subscription ${i} (${sub.stripeId}):`);
+        console.log(`      Items array:`, sub.items);
+        if (sub.items && sub.items.length > 0) {
+          sub.items.forEach((item: any, idx: number) => {
+            console.log(`         Item ${idx}:`, {
+              priceId: item.priceId,
+              productId: item.productId,
+              productName: item.productName,
+              allKeys: Object.keys(item)
+            });
+          });
+        }
+      });
+      
       subscriptionsSnap.docs.forEach(doc => {
         const sub = doc.data();
         const productIds = (sub.items || [])
@@ -116,6 +134,26 @@ export default function RevenueStreamsPage() {
       });
       console.log(`   🏷️  All unique product IDs in subscriptions (${allSubProductIds.size} total):`);
       console.log(`      ${Array.from(allSubProductIds).join(', ')}`);
+      
+      // Check for any overlap with stripe_products
+      // (This requires fetching products here for comparison)
+      const productsQuery = query(
+        collection(db, "stripe_products"),
+        where("organizationId", "==", organizationId)
+      );
+      const productsSnap = await getDocs(productsQuery);
+      const availableProductIds = productsSnap.docs.map(doc => doc.data().stripeId);
+      
+      console.log(`   🛍️  Product IDs in stripe_products (${availableProductIds.length} total):`);
+      console.log(`      ${availableProductIds.slice(0, 10).join(', ')}${availableProductIds.length > 10 ? '...' : ''}`);
+      
+      const overlap = availableProductIds.filter(pid => allSubProductIds.has(pid));
+      console.log(`   ✅ OVERLAP between products and subscriptions: ${overlap.length} matches`);
+      if (overlap.length > 0) {
+        console.log(`      Matching IDs: ${overlap.slice(0, 5).join(', ')}${overlap.length > 5 ? '...' : ''}`);
+      } else {
+        console.log(`      ❌ NO OVERLAP! This is the problem!`);
+      }
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
