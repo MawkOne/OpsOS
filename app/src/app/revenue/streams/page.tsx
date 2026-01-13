@@ -63,10 +63,30 @@ export default function RevenueStreamsPage() {
         where("organizationId", "==", organizationId)
       );
       const invoicesSnap = await getDocs(invoicesQuery);
+      
+      console.log("📊 Invoice Query Results:");
+      console.log(`   Total invoices fetched: ${invoicesSnap.docs.length}`);
+      
+      // Check status distribution
+      const statusCounts: Record<string, number> = {};
+      let paidCount = 0;
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        const status = invoice.status || 'null';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+        if (invoice.status === 'paid') paidCount++;
+      });
+      
+      console.log(`   Status distribution:`, statusCounts);
+      console.log(`   Paid invoices: ${paidCount}`);
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
         const monthlyRevenue: Record<string, number> = {};
+        let matchedLineItems = 0;
+        
+        console.log(`\n💰 Calculating: ${stream.name}`);
+        console.log(`   Product IDs in stream: [${stream.productIds.join(', ')}]`);
         
         const hasUnlabeledProduct = stream.productIds.includes('unlabeled-payments');
         
@@ -87,17 +107,22 @@ export default function RevenueStreamsPage() {
               
               // Check if this line item's product is in this stream
               if (productId && stream.productIds.includes(productId)) {
+                matchedLineItems++;
                 totalRevenue += amount;
                 monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
               }
               // Handle unlabeled payments if stream includes the unlabeled pseudo-product
               else if (!productId && hasUnlabeledProduct) {
+                matchedLineItems++;
                 totalRevenue += amount;
                 monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
               }
             });
           }
         });
+
+        console.log(`   ✅ Matched line items: ${matchedLineItems}`);
+        console.log(`   💵 Total revenue: $${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
         return {
           ...stream,
