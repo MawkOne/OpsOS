@@ -71,17 +71,21 @@ export default function RevenueStreamsPage() {
 
         paymentsSnap.docs.forEach(doc => {
           const payment = doc.data();
-          const productId = payment.productId;
+          const lineItems = payment.lineItems || [];
 
-          // Check if this payment is for a product in this stream
-          if (productId && stream.productIds.includes(productId)) {
-            const amount = (payment.amount || 0) / 100;
-            const date = payment.created?.toDate?.() || new Date();
-            const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+          // Check each line item for products in this stream
+          lineItems.forEach((lineItem: any) => {
+            const productId = lineItem.productId;
+            
+            if (productId && stream.productIds.includes(productId)) {
+              const amount = (lineItem.amount || 0) / 100;
+              const date = payment.created?.toDate?.() || new Date();
+              const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
 
-            totalRevenue += amount;
-            monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
-          }
+              totalRevenue += amount;
+              monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
+            }
+          });
         });
 
         return {
