@@ -6,46 +6,78 @@ import Card from "@/components/Card";
 import { motion } from "framer-motion";
 import {
   Filter,
-  Search,
-  Download,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Receipt,
   Activity,
-  Mail,
-  Search as SearchIcon,
-  ChevronDown,
-  ChevronUp,
+  TrendingUp,
+  Package,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
-interface MasterRecord {
-  id: string;
-  source: "stripe" | "quickbooks" | "google-analytics" | "activecampaign" | "dataforseo";
+interface EntityRow {
+  entityId: string;
+  entityName: string;
+  source: "stripe" | "quickbooks" | "google-analytics";
   type: string;
-  date: Date;
-  amount?: number;
-  currency?: string;
-  description: string;
-  status?: string;
-  metadata: Record<string, any>;
+  months: Record<string, number>; // "2026-01": 1500
+  total: number;
 }
 
-type SortField = "date" | "amount" | "source" | "type";
-type SortDirection = "asc" | "desc";
+type ViewMode = "ttm" | "year" | "all";
+type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics";
 
 export default function MasterTablePage() {
   const { currentOrg } = useOrganization();
-  const [records, setRecords] = useState<MasterRecord[]>([]);
+  const { convertAmountHistorical, formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>("date");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [entityData, setEntityData] = useState<EntityRow[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("ttm");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   const organizationId = currentOrg?.id || "";
+
+  // Generate months based on view mode (same as sales page)
+  const { months, monthLabels, isAllTime } = useMemo(() => {
+    if (viewMode === "all") {
+      const currentYear = new Date().getFullYear();
+      const allYears: string[] = [];
+      const allLabels: string[] = [];
+      
+      for (let year = 2018; year <= currentYear; year++) {
+        allYears.push(year.toString());
+        allLabels.push(year.toString());
+      }
+      
+      return { months: allYears, monthLabels: allLabels, isAllTime: true };
+    } else if (viewMode === "ttm") {
+      const now = new Date();
+      const ttmMonths: string[] = [];
+      const ttmLabels: string[] = [];
+      
+      for (let i = 12; i >= 1; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        ttmMonths.push(monthKey);
+        ttmLabels.push(label);
+      }
+      
+      return { months: ttmMonths, monthLabels: ttmLabels, isAllTime: false };
+    } else {
+      const yearMonths = Array.from({ length: 12 }, (_, i) => {
+        const month = (i + 1).toString().padStart(2, "0");
+        return `${selectedYear}-${month}`;
+      });
+      const yearLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return { months: yearMonths, monthLabels: yearLabels, isAllTime: false };
+    }
+  }, [viewMode, selectedYear]);
 
   useEffect(() => {
     if (!organizationId) {
@@ -53,24 +85,21 @@ export default function MasterTablePage() {
       return;
     }
 
-    fetchAllData();
-  }, [organizationId]);
+    fetchAllEntities();
+  }, [organizationId, viewMode, selectedYear]);
 
-  const fetchAllData = async () => {
+  const fetchAllEntities = async () => {
     setLoading(true);
-    const allRecords: MasterRecord[] = [];
+    const entities: EntityRow[] = [];
 
     try {
-      // Fetch Stripe data
-      await fetchStripeData(allRecords);
+      // Fetch Stripe data (customers)
+      await fetchStripeEntities(entities);
       
-      // Fetch QuickBooks data
-      await fetchQuickBooksData(allRecords);
+      // Fetch QuickBooks data (vendors & customers)
+      await fetchQuickBooksEntities(entities);
       
-      // Fetch Google Analytics data (limited sample)
-      await fetchGoogleAnalyticsData(allRecords);
-      
-      setRecords(allRecords);
+      setEntityData(entities);
     } catch (error) {
       console.error("Error fetching master table data:", error);
     } finally {
@@ -78,505 +107,460 @@ export default function MasterTablePage() {
     }
   };
 
-  const fetchStripeData = async (allRecords: MasterRecord[]) => {
+  const fetchStripeEntities = async (entities: EntityRow[]) => {
     try {
-      // Fetch Stripe Payments
-      const paymentsQuery = query(
-        collection(db, "stripe_payments"),
-        where("organizationId", "==", organizationId),
-        orderBy("created", "desc"),
-        limit(500)
-      );
-      const paymentsSnap = await getDocs(paymentsQuery);
-      
-      paymentsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
-          source: "stripe",
-          type: "Payment",
-          date: data.created?.toDate?.() || new Date(),
-          amount: data.amount / 100, // Convert from cents
-          currency: data.currency?.toUpperCase() || "USD",
-          description: data.description || `Payment from ${data.customer?.email || "customer"}`,
-          status: data.status,
-          metadata: {
-            customerId: data.customer?.id,
-            customerEmail: data.customer?.email,
-            paymentMethod: data.paymentMethod,
-          },
-        });
-      });
-
-      // Fetch Stripe Invoices
+      // Fetch all Stripe invoices
       const invoicesQuery = query(
         collection(db, "stripe_invoices"),
-        where("organizationId", "==", organizationId),
-        orderBy("created", "desc"),
-        limit(500)
+        where("organizationId", "==", organizationId)
       );
       const invoicesSnap = await getDocs(invoicesQuery);
       
+      // Group by customer
+      const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+      
       invoicesSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
+        const invoice = doc.data();
+        if (invoice.status !== 'paid') return;
+        
+        const customerId = invoice.customerId || 'unknown';
+        const customerName = invoice.customerName || invoice.customerEmail || 'Unknown Customer';
+        const amount = (invoice.total || 0) / 100; // Convert from cents
+        const date = invoice.created?.toDate?.() || new Date();
+        
+        // Determine month key
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = date.getFullYear().toString();
+        } else {
+          monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+        
+        // Only include if in our month range
+        if (!months.includes(monthKey)) return;
+        
+        if (!customerRevenue[customerId]) {
+          customerRevenue[customerId] = {
+            name: customerName,
+            months: {},
+            total: 0,
+          };
+        }
+        
+        customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + amount;
+        customerRevenue[customerId].total += amount;
+      });
+      
+      // Convert to entity rows
+      Object.entries(customerRevenue).forEach(([customerId, data]) => {
+        entities.push({
+          entityId: customerId,
+          entityName: data.name,
           source: "stripe",
-          type: "Invoice",
-          date: data.created?.toDate?.() || new Date(),
-          amount: data.total / 100,
-          currency: data.currency?.toUpperCase() || "USD",
-          description: `Invoice #${data.number || data.stripeId}`,
-          status: data.status,
-          metadata: {
-            customerId: data.customerId,
-            subscriptionId: data.subscriptionId,
-          },
+          type: "Customer",
+          months: data.months,
+          total: data.total,
         });
       });
     } catch (error) {
-      console.error("Error fetching Stripe data:", error);
+      console.error("Error fetching Stripe entities:", error);
     }
   };
 
-  const fetchQuickBooksData = async (allRecords: MasterRecord[]) => {
+  const fetchQuickBooksEntities = async (entities: EntityRow[]) => {
     try {
-      // Fetch QuickBooks Invoices
-      const invoicesQuery = query(
-        collection(db, "quickbooks_invoices"),
-        where("organizationId", "==", organizationId),
-        limit(500)
-      );
-      const invoicesSnap = await getDocs(invoicesQuery);
-      
-      invoicesSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
-          source: "quickbooks",
-          type: "Invoice",
-          date: data.txnDate?.toDate?.() || new Date(),
-          amount: data.totalAmount || 0,
-          currency: data.currency || "CAD",
-          description: `Invoice #${data.docNumber || data.quickbooksId}`,
-          status: data.status,
-          metadata: {
-            customerId: data.customerId,
-            customerName: data.customerName,
-          },
-        });
-      });
-
-      // Fetch QuickBooks Expenses
+      // Fetch QB Expenses grouped by vendor
       const expensesQuery = query(
         collection(db, "quickbooks_expenses"),
-        where("organizationId", "==", organizationId),
-        limit(500)
+        where("organizationId", "==", organizationId)
       );
       const expensesSnap = await getDocs(expensesQuery);
       
+      const vendorExpenses: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+      
       expensesSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
+        const expense = doc.data();
+        const vendorId = expense.vendorId || 'unknown';
+        const vendorName = expense.vendorName || 'Unknown Vendor';
+        const amount = expense.totalAmount || 0;
+        const date = expense.txnDate?.toDate?.() || new Date();
+        
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = date.getFullYear().toString();
+        } else {
+          monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+        
+        if (!months.includes(monthKey)) return;
+        
+        if (!vendorExpenses[vendorId]) {
+          vendorExpenses[vendorId] = {
+            name: vendorName,
+            months: {},
+            total: 0,
+          };
+        }
+        
+        vendorExpenses[vendorId].months[monthKey] = (vendorExpenses[vendorId].months[monthKey] || 0) + amount;
+        vendorExpenses[vendorId].total += amount;
+      });
+      
+      Object.entries(vendorExpenses).forEach(([vendorId, data]) => {
+        entities.push({
+          entityId: vendorId,
+          entityName: data.name,
           source: "quickbooks",
-          type: data.type === "bill" ? "Bill" : "Expense",
-          date: data.txnDate?.toDate?.() || new Date(),
-          amount: -(data.totalAmount || 0), // Negative for expenses
-          currency: data.currency || "CAD",
-          description: `${data.vendorName || "Vendor"} - ${data.accountName || data.categoryName || "Expense"}`,
-          status: data.status,
-          metadata: {
-            vendorId: data.vendorId,
-            vendorName: data.vendorName,
-            category: data.accountName || data.categoryName,
-          },
+          type: "Vendor",
+          months: data.months,
+          total: data.total,
         });
       });
 
-      // Fetch QuickBooks Payments
-      const paymentsQuery = query(
-        collection(db, "quickbooks_payments"),
-        where("organizationId", "==", organizationId),
-        limit(500)
+      // Fetch QB Invoices grouped by customer
+      const invoicesQuery = query(
+        collection(db, "quickbooks_invoices"),
+        where("organizationId", "==", organizationId)
       );
-      const paymentsSnap = await getDocs(paymentsQuery);
+      const invoicesSnap = await getDocs(invoicesQuery);
       
-      paymentsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
+      const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+      
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        if (invoice.status !== 'paid') return;
+        
+        const customerId = invoice.customerId || 'unknown';
+        const customerName = invoice.customerName || 'Unknown Customer';
+        const amount = invoice.totalAmount || 0;
+        const date = invoice.txnDate?.toDate?.() || new Date();
+        
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = date.getFullYear().toString();
+        } else {
+          monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+        
+        if (!months.includes(monthKey)) return;
+        
+        if (!customerRevenue[customerId]) {
+          customerRevenue[customerId] = {
+            name: customerName,
+            months: {},
+            total: 0,
+          };
+        }
+        
+        customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + amount;
+        customerRevenue[customerId].total += amount;
+      });
+      
+      Object.entries(customerRevenue).forEach(([customerId, data]) => {
+        entities.push({
+          entityId: customerId,
+          entityName: data.name,
           source: "quickbooks",
-          type: "Payment",
-          date: data.txnDate?.toDate?.() || new Date(),
-          amount: data.totalAmount || 0,
-          currency: data.currency || "CAD",
-          description: `Payment ${data.paymentMethod || ""}`,
-          status: "completed",
-          metadata: {
-            paymentMethod: data.paymentMethod,
-            customerId: data.customerId,
-          },
+          type: "Customer",
+          months: data.months,
+          total: data.total,
         });
       });
     } catch (error) {
-      console.error("Error fetching QuickBooks data:", error);
+      console.error("Error fetching QuickBooks entities:", error);
     }
   };
 
-  const fetchGoogleAnalyticsData = async (allRecords: MasterRecord[]) => {
-    try {
-      // Note: GA data is typically stored differently
-      // This is a placeholder for event-based data
-      const eventsQuery = query(
-        collection(db, "ga4_events"),
-        where("organizationId", "==", organizationId),
-        limit(100) // Limit GA events as they can be numerous
-      );
-      const eventsSnap = await getDocs(eventsQuery);
-      
-      eventsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        allRecords.push({
-          id: doc.id,
-          source: "google-analytics",
-          type: "Event",
-          date: data.timestamp?.toDate?.() || new Date(),
-          description: `${data.eventName || "Event"} - ${data.pagePath || ""}`,
-          metadata: {
-            eventName: data.eventName,
-            pagePath: data.pagePath,
-            sessionId: data.sessionId,
-            userId: data.userId,
-          },
-        });
-      });
-    } catch (error) {
-      console.error("Error fetching Google Analytics data:", error);
-    }
-  };
+  // Filter and sort entities
+  const filteredEntities = useMemo(() => {
+    let filtered = entityData;
 
-  // Filter and sort records
-  const filteredAndSortedRecords = useMemo(() => {
-    let filtered = records;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(record =>
-        record.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.id.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Source filter
     if (sourceFilter !== "all") {
-      filtered = filtered.filter(record => record.source === sourceFilter);
+      filtered = filtered.filter(entity => entity.source === sourceFilter);
     }
 
-    // Type filter
-    if (typeFilter !== "all") {
-      filtered = filtered.filter(record => record.type === typeFilter);
-    }
+    // Sort by total descending
+    return filtered.sort((a, b) => b.total - a.total);
+  }, [entityData, sourceFilter]);
 
-    // Sort
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortField) {
-        case "date":
-          comparison = a.date.getTime() - b.date.getTime();
-          break;
-        case "amount":
-          comparison = (a.amount || 0) - (b.amount || 0);
-          break;
-        case "source":
-          comparison = a.source.localeCompare(b.source);
-          break;
-        case "type":
-          comparison = a.type.localeCompare(b.type);
-          break;
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison;
+  // Calculate monthly totals
+  const monthlyTotals = useMemo(() => {
+    return months.map(month => {
+      const total = filteredEntities.reduce((sum, entity) => sum + (entity.months[month] || 0), 0);
+      return { month, total };
     });
+  }, [filteredEntities, months]);
 
-    return filtered;
-  }, [records, searchTerm, sourceFilter, typeFilter, sortField, sortDirection]);
+  const periodTotal = useMemo(() => {
+    return filteredEntities.reduce((sum, entity) => sum + entity.total, 0);
+  }, [filteredEntities]);
 
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("desc");
+  const formatCurrency = (amount: number, monthKey?: string) => {
+    // Most data is in USD (Stripe) or CAD (QB) - using USD as default for now
+    if (monthKey) {
+      return formatAmount(convertAmountHistorical(amount, "USD", monthKey));
     }
+    return formatAmount(amount, "USD");
   };
 
   const sourceIcons = {
     stripe: <CreditCard className="w-4 h-4" />,
     quickbooks: <Receipt className="w-4 h-4" />,
     "google-analytics": <Activity className="w-4 h-4" />,
-    activecampaign: <Mail className="w-4 h-4" />,
-    dataforseo: <SearchIcon className="w-4 h-4" />,
   };
 
   const sourceColors = {
     stripe: "#635BFF",
     quickbooks: "#2CA01C",
     "google-analytics": "#E37400",
-    activecampaign: "#356AE6",
-    dataforseo: "#0066FF",
-  };
-
-  const uniqueTypes = useMemo(() => {
-    const types = new Set(records.map(r => r.type));
-    return Array.from(types).sort();
-  }, [records]);
-
-  const formatCurrency = (amount: number | undefined, currency: string | undefined) => {
-    if (amount === undefined) return "—";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   return (
-    <AppLayout title="Master Table" subtitle="All records from all data sources">
+    <AppLayout title="Master Table" subtitle="All entities across all data sources">
       <div className="space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
-              <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                Total Records
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {loading ? "..." : records.length.toLocaleString()}
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                    Period Total
+                  </p>
+                  <p className="text-2xl font-bold" style={{ color: "#10b981" }}>
+                    {loading ? "..." : formatCurrency(periodTotal)}
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}
+                >
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
             </Card>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card>
-              <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                Filtered Records
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {filteredAndSortedRecords.length.toLocaleString()}
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                    Total Entities
+                  </p>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {loading ? "..." : filteredEntities.length}
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-between"
+                  style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}
+                >
+                  <Package className="w-5 h-5" />
+                </div>
+              </div>
             </Card>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Card>
-              <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                Data Sources
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {new Set(records.map(r => r.source)).size}
-              </p>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <Card>
-              <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                Record Types
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {uniqueTypes.length}
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                    Monthly Average
+                  </p>
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {loading ? "..." : formatCurrency(periodTotal / months.length)}
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6" }}
+                >
+                  <Activity className="w-5 h-5" />
+                </div>
+              </div>
             </Card>
           </motion.div>
         </div>
 
         {/* Filters */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card>
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Search */}
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-                  <input
-                    type="text"
-                    placeholder="Search records..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border text-sm"
-                    style={{
-                      background: "var(--background)",
-                      borderColor: "var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+                  className="px-3 py-1.5 rounded-lg text-xs border transition-all duration-200"
+                  style={{
+                    background: "var(--card)",
+                    color: "var(--foreground)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  <option value="all">All Sources</option>
+                  <option value="stripe">Stripe</option>
+                  <option value="quickbooks">QuickBooks</option>
+                </select>
               </div>
 
-              {/* Source Filter */}
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value)}
-                className="px-4 py-2 rounded-lg border text-sm"
-                style={{
-                  background: "var(--background)",
-                  borderColor: "var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                <option value="all">All Sources</option>
-                <option value="stripe">Stripe</option>
-                <option value="quickbooks">QuickBooks</option>
-                <option value="google-analytics">Google Analytics</option>
-              </select>
+              <div className="flex items-center gap-2">
+                {/* View Mode */}
+                <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: "var(--muted)" }}>
+                  <button
+                    onClick={() => setViewMode("ttm")}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                      viewMode === "ttm" ? "shadow-sm" : ""
+                    }`}
+                    style={{
+                      background: viewMode === "ttm" ? "var(--card)" : "transparent",
+                      color: viewMode === "ttm" ? "var(--foreground)" : "var(--foreground-muted)",
+                    }}
+                  >
+                    TTM
+                  </button>
+                  <button
+                    onClick={() => setViewMode("year")}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                      viewMode === "year" ? "shadow-sm" : ""
+                    }`}
+                    style={{
+                      background: viewMode === "year" ? "var(--card)" : "transparent",
+                      color: viewMode === "year" ? "var(--foreground)" : "var(--foreground-muted)",
+                    }}
+                  >
+                    Year
+                  </button>
+                  <button
+                    onClick={() => setViewMode("all")}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                      viewMode === "all" ? "shadow-sm" : ""
+                    }`}
+                    style={{
+                      background: viewMode === "all" ? "var(--card)" : "transparent",
+                      color: viewMode === "all" ? "var(--foreground)" : "var(--foreground-muted)",
+                    }}
+                  >
+                    All Time
+                  </button>
+                </div>
 
-              {/* Type Filter */}
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="px-4 py-2 rounded-lg border text-sm"
-                style={{
-                  background: "var(--background)",
-                  borderColor: "var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                <option value="all">All Types</option>
-                {uniqueTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-
-              {/* Export Button */}
-              <button
-                className="px-4 py-2 rounded-lg border text-sm font-medium flex items-center gap-2 transition-all duration-200 hover:bg-[var(--sidebar-hover)]"
-                style={{
-                  background: "var(--background)",
-                  borderColor: "var(--border)",
-                  color: "var(--foreground)",
-                }}
-              >
-                <Download className="w-4 h-4" />
-                Export CSV
-              </button>
+                {/* Year Navigation */}
+                {viewMode === "year" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedYear(selectedYear - 1)}
+                      className="p-1 rounded transition-all duration-200 hover:bg-gray-100"
+                      style={{ color: "var(--foreground-muted)" }}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {selectedYear}
+                    </span>
+                    <button
+                      onClick={() => setSelectedYear(selectedYear + 1)}
+                      disabled={selectedYear >= new Date().getFullYear()}
+                      className="p-1 rounded transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
+                      style={{ color: "var(--foreground-muted)" }}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         </motion.div>
 
         {/* Table */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left py-3 px-4 text-xs font-medium cursor-pointer hover:bg-[var(--sidebar-hover)]" style={{ color: "var(--foreground-muted)" }} onClick={() => toggleSort("source")}>
-                      <div className="flex items-center gap-2">
-                        Source
-                        {sortField === "source" && (
-                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                        )}
-                      </div>
+                    <th className="text-left py-3 px-4 text-xs font-medium sticky left-0 z-10" style={{ color: "var(--foreground-muted)", background: "var(--card)" }}>
+                      Entity
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium cursor-pointer hover:bg-[var(--sidebar-hover)]" style={{ color: "var(--foreground-muted)" }} onClick={() => toggleSort("type")}>
-                      <div className="flex items-center gap-2">
-                        Type
-                        {sortField === "type" && (
-                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                        )}
-                      </div>
+                    <th className="text-left py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      Type
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium cursor-pointer hover:bg-[var(--sidebar-hover)]" style={{ color: "var(--foreground-muted)" }} onClick={() => toggleSort("date")}>
-                      <div className="flex items-center gap-2">
-                        Date
-                        {sortField === "date" && (
-                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                      Description
-                    </th>
-                    <th className="text-right py-3 px-4 text-xs font-medium cursor-pointer hover:bg-[var(--sidebar-hover)]" style={{ color: "var(--foreground-muted)" }} onClick={() => toggleSort("amount")}>
-                      <div className="flex items-center justify-end gap-2">
-                        Amount
-                        {sortField === "amount" && (
-                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                      Status
+                    {monthLabels.map((label, index) => (
+                      <th key={index} className="text-right py-3 px-3 text-xs font-medium whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
+                        {label}
+                      </th>
+                    ))}
+                    <th className="text-right py-3 px-4 text-xs font-medium sticky right-0 z-10" style={{ color: "var(--foreground-muted)", background: "var(--card)" }}>
+                      Total
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                        Loading records...
+                      <td colSpan={monthLabels.length + 3} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Loading entities...
                       </td>
                     </tr>
-                  ) : filteredAndSortedRecords.length === 0 ? (
+                  ) : filteredEntities.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                        No records found
+                      <td colSpan={monthLabels.length + 3} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        No entities found
                       </td>
                     </tr>
                   ) : (
-                    filteredAndSortedRecords.map((record) => (
-                      <tr key={record.id} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--sidebar-hover)] transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <div style={{ color: sourceColors[record.source] }}>
-                              {sourceIcons[record.source]}
+                    <>
+                      {filteredEntities.map((entity) => (
+                        <tr key={`${entity.source}_${entity.entityId}`} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--sidebar-hover)] transition-colors">
+                          <td className="py-3 px-4 sticky left-0 z-10" style={{ background: "var(--card)" }}>
+                            <div className="flex items-center gap-2">
+                              <div style={{ color: sourceColors[entity.source] }}>
+                                {sourceIcons[entity.source]}
+                              </div>
+                              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                                {entity.entityName}
+                              </span>
                             </div>
-                            <span className="text-xs capitalize" style={{ color: "var(--foreground)" }}>
-                              {record.source.replace("-", " ")}
-                            </span>
-                          </div>
+                          </td>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {entity.type}
+                          </td>
+                          {months.map((month) => {
+                            const amount = entity.months[month] || 0;
+                            return (
+                              <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
+                                {amount > 0 ? formatCurrency(amount, month) : "—"}
+                              </td>
+                            );
+                          })}
+                          <td className="text-right py-3 px-4 text-sm font-semibold sticky right-0 z-10" style={{ color: "#10b981", background: "var(--card)" }}>
+                            {formatCurrency(entity.total)}
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Total Row */}
+                      <tr style={{ borderTop: "2px solid var(--border)", background: "var(--muted)" }}>
+                        <td className="py-3 px-4 text-sm font-bold sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--muted)" }}>
+                          Total
                         </td>
-                        <td className="py-3 px-4 text-xs" style={{ color: "var(--foreground)" }}>
-                          {record.type}
-                        </td>
-                        <td className="py-3 px-4 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                          {formatDate(record.date)}
-                        </td>
-                        <td className="py-3 px-4 text-xs" style={{ color: "var(--foreground)" }}>
-                          {record.description}
-                        </td>
-                        <td className="py-3 px-4 text-xs text-right font-semibold" style={{ color: record.amount && record.amount < 0 ? "#ef4444" : "#10b981" }}>
-                          {formatCurrency(record.amount, record.currency)}
-                        </td>
-                        <td className="py-3 px-4">
-                          {record.status && (
-                            <span
-                              className="text-xs px-2 py-1 rounded-full"
-                              style={{
-                                background: record.status === "paid" || record.status === "succeeded" ? "#10b98120" : "var(--muted)",
-                                color: record.status === "paid" || record.status === "succeeded" ? "#10b981" : "var(--foreground-muted)",
-                              }}
-                            >
-                              {record.status}
-                            </span>
-                          )}
+                        <td className="py-3 px-3"></td>
+                        {monthlyTotals.map((mt) => (
+                          <td 
+                            key={mt.month}
+                            className="text-right py-3 px-3 text-xs font-bold"
+                            style={{ color: mt.total > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
+                          >
+                            {mt.total > 0 ? formatCurrency(mt.total, mt.month) : "—"}
+                          </td>
+                        ))}
+                        <td className="text-right py-3 px-4 text-sm font-bold sticky right-0 z-10" style={{ color: "#10b981", background: "var(--muted)" }}>
+                          {formatCurrency(periodTotal)}
                         </td>
                       </tr>
-                    ))
+                    </>
                   )}
                 </tbody>
               </table>
