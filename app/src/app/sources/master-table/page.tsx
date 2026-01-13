@@ -1212,10 +1212,10 @@ export default function MasterTablePage() {
               <table className="w-full">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left py-3 px-4 text-xs font-medium sticky left-0 z-10" style={{ color: "var(--foreground-muted)", background: "var(--card)" }}>
+                    <th className="text-left py-3 px-4 text-xs font-medium sticky left-0 z-10" style={{ color: "var(--foreground-muted)", background: "var(--card)", minWidth: "180px", maxWidth: "250px", width: "200px" }}>
                       Entity
                     </th>
-                    <th className="text-left py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    <th className="text-left py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)", width: "80px" }}>
                       Metric
                     </th>
                     {monthLabels.map((label, index) => (
@@ -1260,17 +1260,17 @@ export default function MasterTablePage() {
                       const entity = item as EntityRow;
                       return (
                         <tr key={entity.entityId} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--sidebar-hover)] transition-colors">
-                          <td className="py-3 px-4 sticky left-0 z-10" style={{ background: "var(--card)" }}>
-                            <div className="flex items-center gap-2">
-                              <div style={{ color: sourceColors[entity.source] }}>
+                          <td className="py-3 px-4 sticky left-0 z-10" style={{ background: "var(--card)", minWidth: "180px", maxWidth: "250px", width: "200px" }}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex-shrink-0" style={{ color: sourceColors[entity.source] }}>
                                 {sourceIcons[entity.source]}
                               </div>
-                              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                              <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }} title={entity.entityName}>
                                 {entity.entityName}
                               </span>
                             </div>
                           </td>
-                          <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)", width: "80px" }}>
                             {groupBy === "none" ? entity.metric : ""}
                           </td>
                           {months.map((month) => {
