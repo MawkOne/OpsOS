@@ -33,6 +33,7 @@ import {
   Plus,
   Percent,
   Layers,
+  Table,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -167,6 +168,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/sources", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Master Table", href: "/sources/master-table", icon: <Table className="w-4 h-4" /> },
       ],
     },
     {
