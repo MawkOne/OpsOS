@@ -449,21 +449,21 @@ export default function ExpensesPage() {
                   </p>
                 ) : (
                   <div className="space-y-1">
-                    {Object.entries(metrics?.bankBalances || {}).map(([currency, balance]) => (
-                      <div key={currency} className="flex items-baseline gap-2">
-                        <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                          {new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: currency,
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          }).format(balance)}
-                        </p>
-                        <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                          {currency}
-                        </p>
-                      </div>
-                    ))}
+                    {Object.entries(metrics?.bankBalances || {}).map(([currency, balance]) => {
+                      const locale = currency === 'USD' ? 'en-US' : 'en-CA';
+                      return (
+                        <div key={currency} className="flex items-baseline gap-2">
+                          <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                            {new Intl.NumberFormat(locale, {
+                              style: "currency",
+                              currency: currency,
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            }).format(balance)}
+                          </p>
+                        </div>
+                      );
+                    })}
                     {Object.keys(metrics?.bankBalances || {}).length === 0 && (
                       <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
                         $0
