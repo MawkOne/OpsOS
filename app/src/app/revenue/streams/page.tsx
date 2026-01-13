@@ -85,22 +85,37 @@ export default function RevenueStreamsPage() {
       });
       
       console.log("📊 Loaded subscriptions:", subscriptionToProducts.size);
-      console.log("   First 3 subscription mappings:", Array.from(subscriptionToProducts.entries()).slice(0, 3));
+      
+      // Show first 3 subscription mappings with explicit formatting
+      const first3Subs = Array.from(subscriptionToProducts.entries()).slice(0, 3);
+      first3Subs.forEach(([subId, productIds], i) => {
+        console.log(`   Subscription ${i}: ${subId} -> Products: [${productIds.join(', ')}]`);
+      });
       
       // Check if any subscription has the Job Listing product
       const jobListingProductId = 'prod_MgvGuhDR8gUGmF';
       const subsWithJobListing = Array.from(subscriptionToProducts.entries())
         .filter(([_, productIds]) => productIds.includes(jobListingProductId));
-      console.log(`   Subscriptions with ${jobListingProductId}:`, subsWithJobListing.length);
+      console.log(`   ⭐ Subscriptions with ${jobListingProductId}: ${subsWithJobListing.length}`);
       if (subsWithJobListing.length > 0) {
-        console.log("   Examples:", subsWithJobListing.slice(0, 3));
+        subsWithJobListing.slice(0, 3).forEach(([subId, productIds]) => {
+          console.log(`      - ${subId}: [${productIds.join(', ')}]`);
+        });
       }
       
       // Check how many payments have subscriptionId
       const paymentsWithSub = paymentsSnap.docs.filter(doc => doc.data().subscriptionId).length;
       const paymentsWithLineItems = paymentsSnap.docs.filter(doc => doc.data().lineItems?.length > 0).length;
-      console.log(`   Payments with subscriptionId: ${paymentsWithSub} / ${paymentsSnap.docs.length}`);
-      console.log(`   Payments with lineItems: ${paymentsWithLineItems} / ${paymentsSnap.docs.length}`);
+      console.log(`   📋 Payments with subscriptionId: ${paymentsWithSub} / ${paymentsSnap.docs.length}`);
+      console.log(`   📋 Payments with lineItems: ${paymentsWithLineItems} / ${paymentsSnap.docs.length}`);
+      
+      // Show all unique product IDs
+      const allSubProductIds = new Set<string>();
+      subscriptionToProducts.forEach((productIds) => {
+        productIds.forEach(pid => allSubProductIds.add(pid));
+      });
+      console.log(`   🏷️  All unique product IDs in subscriptions (${allSubProductIds.size} total):`);
+      console.log(`      ${Array.from(allSubProductIds).join(', ')}`);
 
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
@@ -179,25 +194,19 @@ export default function RevenueStreamsPage() {
           paymentsSnap.docs.slice(0, 5).forEach((doc, i) => {
             const payment = doc.data();
             const subProducts = payment.subscriptionId ? subscriptionToProducts.get(payment.subscriptionId) : null;
-            console.log(`   Payment ${i}:`, {
-              amount: payment.amount,
-              subscriptionId: payment.subscriptionId,
-              subscriptionProducts: subProducts,
-              hasLineItems: payment.lineItems?.length > 0,
-              lineItems: payment.lineItems?.map((li: any) => ({
-                productId: li.productId,
-                amount: li.amount
-              }))
-            });
+            console.log(`   Payment ${i}:`);
+            console.log(`      Amount: $${(payment.amount / 100).toFixed(2)}`);
+            console.log(`      Subscription ID: ${payment.subscriptionId || 'NONE'}`);
+            console.log(`      Subscription Products: ${subProducts ? `[${subProducts.join(', ')}]` : 'N/A'}`);
+            console.log(`      Has LineItems: ${payment.lineItems?.length > 0 ? 'YES' : 'NO'}`);
+            if (payment.lineItems?.length > 0) {
+              payment.lineItems.forEach((li: any, idx: number) => {
+                console.log(`         LineItem ${idx}: productId=${li.productId}, amount=$${(li.amount / 100).toFixed(2)}`);
+              });
+            }
           });
           
-          // Show all unique product IDs across all subscriptions
-          const allSubProductIds = new Set<string>();
-          subscriptionToProducts.forEach((productIds) => {
-            productIds.forEach(pid => allSubProductIds.add(pid));
-          });
-          console.log("   All unique product IDs in subscriptions:", Array.from(allSubProductIds));
-          console.log("   Looking for:", stream.productIds);
+          console.log(`   🎯 Looking for product IDs: [${stream.productIds.join(', ')}]`);
         }
 
         return {
