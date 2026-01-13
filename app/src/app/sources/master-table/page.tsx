@@ -34,7 +34,7 @@ interface EntityRow {
 
 type ViewMode = "ttm" | "year" | "all";
 type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
-type MetricFilter = "all" | "revenue" | "expenses" | "spend" | "clicks" | "impressions" | "conversions" | "sessions" | "sends" | "opens" | "dealValue" | "dealCount" | "wonValue" | "wonCount" | "newContacts";
+type GroupBy = "none" | "metric";
 
 export default function MasterTablePage() {
   const { currentOrg } = useOrganization();
@@ -44,7 +44,7 @@ export default function MasterTablePage() {
   const [viewMode, setViewMode] = useState<ViewMode>("ttm");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [metricFilter, setMetricFilter] = useState<MetricFilter>("all");
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
 
   const organizationId = currentOrg?.id || "";
 
@@ -633,19 +633,40 @@ export default function MasterTablePage() {
       filtered = filtered.filter(entity => entity.source === sourceFilter);
     }
 
-    if (metricFilter !== "all") {
-      filtered = filtered.filter(entity => entity.metric === metricFilter);
+    // Sort by total descending if not grouped, or by metric then total if grouped
+    if (groupBy === "metric") {
+      return filtered.sort((a, b) => {
+        // First sort by metric name
+        if (a.metric !== b.metric) {
+          return a.metric.localeCompare(b.metric);
+        }
+        // Then by total descending within same metric
+        return b.total - a.total;
+      });
+    } else {
+      return filtered.sort((a, b) => b.total - a.total);
     }
+  }, [entityData, sourceFilter, groupBy]);
 
-    // Sort by total descending
-    return filtered.sort((a, b) => b.total - a.total);
-  }, [entityData, sourceFilter, metricFilter]);
-
-  // Get unique metrics for filter
-  const availableMetrics = useMemo(() => {
-    const metrics = new Set(entityData.map(e => e.metric));
-    return Array.from(metrics).sort();
-  }, [entityData]);
+  // Group entities by metric if needed
+  const displayEntities = useMemo(() => {
+    if (groupBy === "metric") {
+      // Group entities by metric and add section headers
+      const grouped: Array<EntityRow | { isHeader: true; metric: string }> = [];
+      let currentMetric = "";
+      
+      filteredEntities.forEach(entity => {
+        if (entity.metric !== currentMetric) {
+          currentMetric = entity.metric;
+          grouped.push({ isHeader: true, metric: currentMetric });
+        }
+        grouped.push(entity);
+      });
+      
+      return grouped;
+    }
+    return filteredEntities;
+  }, [filteredEntities, groupBy]);
 
   const formatValue = (amount: number, metric: string, monthKey?: string) => {
     // Currency metrics
@@ -731,10 +752,10 @@ export default function MasterTablePage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    Active Metrics
+                    Data Sources
                   </p>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {loading ? "..." : availableMetrics.length}
+                    {loading ? "..." : new Set(filteredEntities.map(e => e.source)).size}
                   </p>
                 </div>
                 <div
@@ -771,23 +792,24 @@ export default function MasterTablePage() {
                   <option value="activecampaign">ActiveCampaign</option>
                 </select>
 
-                <select
-                  value={metricFilter}
-                  onChange={(e) => setMetricFilter(e.target.value as MetricFilter)}
-                  className="px-3 py-1.5 rounded-lg text-xs border transition-all duration-200"
-                  style={{
-                    background: "var(--card)",
-                    color: "var(--foreground)",
-                    borderColor: "var(--border)",
-                  }}
-                >
-                  <option value="all">All Metrics</option>
-                  {availableMetrics.map(metric => (
-                    <option key={metric} value={metric}>
-                      {metric.charAt(0).toUpperCase() + metric.slice(1)}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    Group by:
+                  </span>
+                  <select
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                    className="px-3 py-1.5 rounded-lg text-xs border transition-all duration-200"
+                    style={{
+                      background: "var(--card)",
+                      color: "var(--foreground)",
+                      borderColor: "var(--border)",
+                    }}
+                  >
+                    <option value="none">None</option>
+                    <option value="metric">Metric</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -889,41 +911,58 @@ export default function MasterTablePage() {
                         Loading data...
                       </td>
                     </tr>
-                  ) : filteredEntities.length === 0 ? (
+                  ) : displayEntities.length === 0 ? (
                     <tr>
                       <td colSpan={monthLabels.length + 3} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
                         No data found
                       </td>
                     </tr>
                   ) : (
-                    filteredEntities.map((entity) => (
-                      <tr key={entity.entityId} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--sidebar-hover)] transition-colors">
-                        <td className="py-3 px-4 sticky left-0 z-10" style={{ background: "var(--card)" }}>
-                          <div className="flex items-center gap-2">
-                            <div style={{ color: sourceColors[entity.source] }}>
-                              {sourceIcons[entity.source]}
-                            </div>
-                            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                              {entity.entityName}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                          {entity.metric}
-                        </td>
-                        {months.map((month) => {
-                          const amount = entity.months[month] || 0;
-                          return (
-                            <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
-                              {amount > 0 ? formatValue(amount, entity.metric, month) : "—"}
+                    displayEntities.map((item, index) => {
+                      // Type guard to check if it's a header
+                      if ('isHeader' in item && item.isHeader) {
+                        return (
+                          <tr key={`header-${item.metric}`} style={{ background: "var(--muted)", borderTop: "2px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+                            <td colSpan={monthLabels.length + 3} className="py-2 px-4">
+                              <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--foreground)" }}>
+                                {item.metric}
+                              </span>
                             </td>
-                          );
-                        })}
-                        <td className="text-right py-3 px-4 text-sm font-semibold sticky right-0 z-10" style={{ color: "var(--foreground)", background: "var(--card)" }}>
-                          {formatValue(entity.total, entity.metric)}
-                        </td>
-                      </tr>
-                    ))
+                          </tr>
+                        );
+                      }
+                      
+                      // It's an entity row
+                      const entity = item as EntityRow;
+                      return (
+                        <tr key={entity.entityId} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--sidebar-hover)] transition-colors">
+                          <td className="py-3 px-4 sticky left-0 z-10" style={{ background: "var(--card)" }}>
+                            <div className="flex items-center gap-2">
+                              <div style={{ color: sourceColors[entity.source] }}>
+                                {sourceIcons[entity.source]}
+                              </div>
+                              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                                {entity.entityName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {groupBy === "none" ? entity.metric : ""}
+                          </td>
+                          {months.map((month) => {
+                            const amount = entity.months[month] || 0;
+                            return (
+                              <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
+                                {amount > 0 ? formatValue(amount, entity.metric, month) : "—"}
+                              </td>
+                            );
+                          })}
+                          <td className="text-right py-3 px-4 text-sm font-semibold sticky right-0 z-10" style={{ color: "var(--foreground)", background: "var(--card)" }}>
+                            {formatValue(entity.total, entity.metric)}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
