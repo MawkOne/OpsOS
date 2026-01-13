@@ -22,7 +22,7 @@ import RevenueStreamModal from "@/components/RevenueStreamModal";
 
 export default function RevenueStreamsPage() {
   const { currentOrg } = useOrganization();
-  const { convertAmount, selectedCurrency } = useCurrency();
+  const { convertAmount, convertAmountHistorical, selectedCurrency } = useCurrency();
   const [revenueStreams, setRevenueStreams] = useState<RevenueStreamWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStreamModal, setShowStreamModal] = useState(false);
@@ -146,9 +146,12 @@ export default function RevenueStreamsPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, monthKey?: string) => {
     // Convert from USD (Stripe's base currency) to selected currency
-    const convertedAmount = convertAmount(amount, "USD");
+    // Use historical rate if month is provided, otherwise use current rate
+    const convertedAmount = monthKey 
+      ? convertAmountHistorical(amount, "USD", monthKey)
+      : convertAmount(amount, "USD");
     
     const currencySymbol = selectedCurrency === "USD" ? "$" : "$";
     
@@ -400,7 +403,7 @@ export default function RevenueStreamsPage() {
                                       background: stream.color,
                                       opacity: 0.7,
                                     }}
-                                    title={`${month}: ${formatCurrency(amount)}`}
+                                    title={`${month}: ${formatCurrency(amount, month)}`}
                                   />
                                 </div>
                               );

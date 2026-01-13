@@ -53,7 +53,7 @@ interface RevenueMetrics {
 
 export default function RevenueDashboard() {
   const { currentOrg } = useOrganization();
-  const { convertAmount, selectedCurrency } = useCurrency();
+  const { convertAmount, convertAmountHistorical, selectedCurrency } = useCurrency();
   const [stripeConnection, setStripeConnection] = useState<StripeConnection | null>(null);
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,9 +233,12 @@ export default function RevenueDashboard() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, monthKey?: string) => {
     // Convert from USD (Stripe's base currency) to selected currency
-    const convertedAmount = convertAmount(amount, "USD");
+    // Use historical rate if month is provided, otherwise use current rate
+    const convertedAmount = monthKey 
+      ? convertAmountHistorical(amount, "USD", monthKey)
+      : convertAmount(amount, "USD");
     
     const currencySymbol = selectedCurrency === "USD" ? "$" : "$";
     
@@ -510,7 +513,7 @@ export default function RevenueDashboard() {
                     <div key={item.month} className="flex-1 flex flex-col items-center gap-2">
                       <div className="w-full flex flex-col items-center justify-end h-36">
                         <span className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                          {formatCurrency(item.amount)}
+                          {formatCurrency(item.amount, item.month)}
                         </span>
                         <motion.div
                           initial={{ height: 0 }}

@@ -62,7 +62,7 @@ type ViewMode = "ttm" | "year" | "all";
 
 export default function ExpensesPage() {
   const { currentOrg } = useOrganization();
-  const { formatAmount } = useCurrency();
+  const { formatAmount, convertAmountHistorical } = useCurrency();
   const [qbConnection, setQbConnection] = useState<QuickBooksConnection | null>(null);
   const [metrics, setMetrics] = useState<ExpenseMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -331,7 +331,11 @@ export default function ExpensesPage() {
 
   // Format currency using global currency context
   // QuickBooks expenses are in CAD by default
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, monthKey?: string) => {
+    if (monthKey) {
+      // Use historical conversion for monthly amounts
+      return formatAmount(convertAmountHistorical(amount, "CAD", monthKey));
+    }
     return formatAmount(amount, "CAD");
   };
 
@@ -691,7 +695,7 @@ export default function ExpensesPage() {
                             const amount = row.months[month] || 0;
                             return (
                               <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: "var(--foreground)" }}>
-                                {amount > 0 ? formatCurrency(amount) : "-"}
+                                {amount > 0 ? formatCurrency(amount, month) : "-"}
                               </td>
                             );
                           })}
@@ -710,7 +714,7 @@ export default function ExpensesPage() {
                           const total = monthlyTotals[month] || 0;
                           return (
                             <td key={month} className="text-right py-3 px-3 text-xs font-bold" style={{ color: "var(--foreground)" }}>
-                              {total > 0 ? formatCurrency(total) : "-"}
+                              {total > 0 ? formatCurrency(total, month) : "-"}
                             </td>
                           );
                         })}

@@ -49,7 +49,7 @@ interface TypedRevenueRow {
 
 export default function SalesPage() {
   const { currentOrg } = useOrganization();
-  const { convertAmount, selectedCurrency } = useCurrency();
+  const { convertAmount, convertAmountHistorical, selectedCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<RevenueRow[]>([]); // Product/Plan data
   const [priceData, setPriceData] = useState<RevenueRow[]>([]); // Price data
@@ -681,9 +681,12 @@ export default function SalesPage() {
   // Calculate YoY growth (placeholder - would need previous year data)
   const yoyGrowth = 0; // TODO: Calculate when historical data available
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, monthKey?: string) => {
     // Convert from USD (Stripe's base currency) to selected currency
-    const convertedAmount = convertAmount(amount, "USD");
+    // Use historical rate if month is provided, otherwise use current rate
+    const convertedAmount = monthKey 
+      ? convertAmountHistorical(amount, "USD", monthKey)
+      : convertAmount(amount, "USD");
     
     const currencySymbol = selectedCurrency === "USD" ? "$" : "$";
     
@@ -989,7 +992,7 @@ export default function SalesPage() {
                                   className="py-4 px-3 text-sm text-right tabular-nums"
                                   style={{ color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
                                 >
-                                  {amount > 0 ? formatCurrency(amount) : "—"}
+                                  {amount > 0 ? formatCurrency(amount, month) : "—"}
                                 </td>
                               );
                             })}
@@ -1021,7 +1024,7 @@ export default function SalesPage() {
                             className="py-4 px-3 text-sm text-right font-bold tabular-nums"
                             style={{ color: mt.total > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
                           >
-                            {mt.total > 0 ? formatCurrency(mt.total) : "—"}
+                            {mt.total > 0 ? formatCurrency(mt.total, mt.month) : "—"}
                           </td>
                         ))}
                         <td 
@@ -1067,7 +1070,7 @@ export default function SalesPage() {
                                   color: amount > 0 ? "var(--foreground)" : "var(--foreground-subtle)",
                                 }}
                               >
-                                {amount > 0 ? formatCurrency(amount) : "—"}
+                                {amount > 0 ? formatCurrency(amount, month) : "—"}
                               </td>
                             );
                           })}
@@ -1100,7 +1103,7 @@ export default function SalesPage() {
                               className="py-4 px-3 text-sm text-right font-bold tabular-nums"
                               style={{ color: mt.total > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}
                             >
-                              {mt.total > 0 ? formatCurrency(mt.total) : "—"}
+                              {mt.total > 0 ? formatCurrency(mt.total, mt.month) : "—"}
                             </td>
                           ))}
                           <td 
