@@ -962,6 +962,13 @@ export default function MasterTablePage() {
 
   // Group entities by metric if needed
   const displayEntities = useMemo(() => {
+    // Log Stripe products for debugging
+    const stripeProducts = filteredEntities.filter(e => e.source === "stripe" && e.type === "Product");
+    console.log("🔍 Stripe Products in filteredEntities:", stripeProducts.length);
+    stripeProducts.forEach(p => {
+      console.log(`  - ${p.entityName}: $${p.total.toFixed(2)}`);
+    });
+
     if (groupBy === "metric") {
       // Group entities by metric and add section headers
       const grouped: Array<EntityRow | { isHeader: true; metric: string }> = [];
