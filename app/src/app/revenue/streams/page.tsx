@@ -65,6 +65,28 @@ export default function RevenueStreamsPage() {
       );
       const paymentsSnap = await getDocs(paymentsQuery);
 
+      // Fetch all subscriptions (for payments without lineItems)
+      const subscriptionsQuery = query(
+        collection(db, "stripe_subscriptions"),
+        where("organizationId", "==", organizationId)
+      );
+      const subscriptionsSnap = await getDocs(subscriptionsQuery);
+      
+      // Build subscription ID -> product IDs map
+      const subscriptionToProducts = new Map<string, string[]>();
+      subscriptionsSnap.docs.forEach(doc => {
+        const sub = doc.data();
+        const productIds = (sub.items || [])
+          .map((item: any) => item.productId)
+          .filter((id: string) => id);
+        if (productIds.length > 0) {
+          subscriptionToProducts.set(sub.stripeId, productIds);
+        }
+      });
+      
+      console.log("📊 Loaded subscriptions:", subscriptionToProducts.size);
+      console.log("   First 3 subscription mappings:", Array.from(subscriptionToProducts.entries()).slice(0, 3));
+
       const streamsWithMetrics: RevenueStreamWithMetrics[] = streams.map(stream => {
         let totalRevenue = 0;
         const monthlyRevenue: Record<string, number> = {};
@@ -73,43 +95,79 @@ export default function RevenueStreamsPage() {
         console.log("   Stream product IDs:", stream.productIds);
 
         let matchedPayments = 0;
+        let subscriptionFallbacks = 0;
+        
         paymentsSnap.docs.forEach(doc => {
           const payment = doc.data();
           const lineItems = payment.lineItems || [];
+          let matched = false;
 
-          // Check each line item for products in this stream
-          lineItems.forEach((lineItem: any) => {
-            const productId = lineItem.productId;
+          // Try 1: Check line items
+          if (lineItems.length > 0) {
+            lineItems.forEach((lineItem: any) => {
+              const productId = lineItem.productId;
+              
+              if (productId && stream.productIds.includes(productId)) {
+                matched = true;
+                matchedPayments++;
+                const amount = (lineItem.amount || 0) / 100;
+                const date = payment.created?.toDate?.() || new Date();
+                const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+
+                console.log("   ✅ Matched payment (lineItem):", {
+                  productId,
+                  amount,
+                  monthKey
+                });
+
+                totalRevenue += amount;
+                monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
+              }
+            });
+          }
+          
+          // Try 2: If no line items, check subscription
+          if (!matched && payment.subscriptionId) {
+            const subProductIds = subscriptionToProducts.get(payment.subscriptionId) || [];
+            const matchingProducts = subProductIds.filter(pid => stream.productIds.includes(pid));
             
-            if (productId && stream.productIds.includes(productId)) {
+            if (matchingProducts.length > 0) {
+              matched = true;
               matchedPayments++;
-              const amount = (lineItem.amount || 0) / 100;
+              subscriptionFallbacks++;
+              const amount = (payment.amount || 0) / 100;
               const date = payment.created?.toDate?.() || new Date();
               const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
 
-              console.log("   ✅ Matched payment:", {
-                productId,
+              console.log("   ✅ Matched payment (subscription):", {
+                subscriptionId: payment.subscriptionId,
+                matchingProducts,
                 amount,
-                monthKey,
-                lineItemAmount: lineItem.amount
+                monthKey
               });
 
               totalRevenue += amount;
               monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amount;
             }
-          });
+          }
         });
 
         console.log("   Total matched payments:", matchedPayments);
+        console.log("   Matched via lineItems:", matchedPayments - subscriptionFallbacks);
+        console.log("   Matched via subscription:", subscriptionFallbacks);
         console.log("   Total revenue:", totalRevenue);
         console.log("   Total payments checked:", paymentsSnap.docs.length);
 
-        // Debug: Show first 3 payments and their line items
+        // Debug: Show first 3 payments with subscription IDs
         if (matchedPayments === 0 && paymentsSnap.docs.length > 0) {
           console.log("   ⚠️ No matches found. First 3 payments:");
           paymentsSnap.docs.slice(0, 3).forEach((doc, i) => {
             const payment = doc.data();
+            const subProducts = payment.subscriptionId ? subscriptionToProducts.get(payment.subscriptionId) : null;
             console.log(`   Payment ${i}:`, {
+              amount: payment.amount,
+              subscriptionId: payment.subscriptionId,
+              subscriptionProducts: subProducts,
               lineItems: payment.lineItems?.map((li: any) => ({
                 productId: li.productId,
                 amount: li.amount
