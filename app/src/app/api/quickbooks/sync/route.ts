@@ -314,6 +314,7 @@ export async function POST(request: NextRequest) {
             accountSubType: account.AccountSubType || '',
             classification: account.Classification || '',
             currentBalance: account.CurrentBalance || 0,
+            currencyCode: account.CurrencyRef?.value || 'CAD',
             active: account.Active ?? true,
             syncedAt: serverTimestamp(),
           });
