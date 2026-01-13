@@ -442,8 +442,13 @@ export default function MasterTablePage() {
       console.log("✅ Processed", paymentsSnap.size, "payments");
 
       // Re-add all customer and product entities (now including payment data)
-      // Clear previous entries and re-add with updated totals
-      entities = entities.filter(e => e.source !== "stripe");
+      // Clear previous Stripe entries and re-add with updated totals
+      // Use splice to modify array in-place (preserving the reference)
+      for (let i = entities.length - 1; i >= 0; i--) {
+        if (entities[i].source === "stripe") {
+          entities.splice(i, 1);
+        }
+      }
 
       // Add customer revenue entities (invoices + payments)
       Object.entries(customerRevenue).forEach(([customerId, data]) => {
