@@ -82,6 +82,16 @@ export default function RevenueStreamModal({
   }, [organizationId]);
 
   const handleSave = async () => {
+    // Debug ALL state values
+    console.log("=== SAVE ATTEMPT DEBUG ===");
+    console.log("name:", name, "type:", typeof name);
+    console.log("color:", color, "type:", typeof color);
+    console.log("organizationId:", organizationId, "type:", typeof organizationId);
+    console.log("user:", user);
+    console.log("user.uid:", user?.uid, "type:", typeof user?.uid);
+    console.log("selectedProductIds:", selectedProductIds, "length:", selectedProductIds.length);
+    console.log("========================");
+    
     if (!name.trim()) {
       alert("Please provide a stream name.");
       return;
@@ -92,20 +102,36 @@ export default function RevenueStreamModal({
       return;
     }
     
-    if (!organizationId) {
+    if (!organizationId || organizationId.trim() === "") {
       alert("Organization ID is required.");
+      return;
+    }
+    
+    if (!color || color.trim() === "") {
+      alert("Please select a color.");
       return;
     }
 
     setSaving(true);
     try {
-      const streamData: any = {
-        organizationId,
-        name: name.trim(),
-        color,
-        productIds: selectedProductIds,
-        updatedAt: serverTimestamp(),
-      };
+      // Build clean data object with EXPLICIT values only
+      const streamData: Record<string, any> = {};
+      
+      // Only add fields that are NOT undefined
+      streamData.organizationId = organizationId;
+      streamData.name = name.trim();
+      streamData.color = color;
+      streamData.productIds = selectedProductIds;
+      streamData.updatedAt = serverTimestamp();
+
+      // Debug log to see what we're trying to save
+      console.log("Stream data before save:", JSON.stringify({
+        organizationId: streamData.organizationId,
+        name: streamData.name,
+        color: streamData.color,
+        productIds: streamData.productIds,
+        productCount: streamData.productIds.length
+      }, null, 2));
 
       if (existingStream) {
         // Update existing stream
@@ -115,9 +141,19 @@ export default function RevenueStreamModal({
           onSave({ ...existingStream, ...streamData } as RevenueStream);
         }
       } else {
-        // Create new stream
+        // Create new stream - add creation fields
         streamData.createdAt = serverTimestamp();
         streamData.createdBy = user.uid;
+        
+        // Final validation before save
+        Object.keys(streamData).forEach(key => {
+          if (streamData[key] === undefined) {
+            console.error(`UNDEFINED FIELD DETECTED: ${key}`);
+            throw new Error(`Field "${key}" is undefined and cannot be saved to Firestore`);
+          }
+        });
+        
+        console.log("Final stream data keys:", Object.keys(streamData));
         
         const docRef = await addDoc(collection(db, "revenue_streams"), streamData);
         
