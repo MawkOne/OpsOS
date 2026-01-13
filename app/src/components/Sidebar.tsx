@@ -32,6 +32,7 @@ import {
   Check,
   Plus,
   Percent,
+  Layers,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -172,6 +173,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/revenue", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Streams", href: "/revenue/streams", icon: <Layers className="w-4 h-4" /> },
         { label: "Sales", href: "/revenue/sales", icon: <TrendingUp className="w-4 h-4" /> },
         { label: "Analytics", href: "/revenue/analytics", icon: <LineChart className="w-4 h-4" /> },
       ],
