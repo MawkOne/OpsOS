@@ -94,12 +94,24 @@ export default function QuickBooksPage() {
       return;
     }
 
+    console.log("🔍 QuickBooks Debug:");
+    console.log(`   Organization ID: ${organizationId}`);
+
     const unsubscribe = onSnapshot(
       doc(db, "quickbooks_connections", organizationId),
       (snapshot) => {
+        console.log(`   Connection document exists: ${snapshot.exists()}`);
         if (snapshot.exists()) {
-          setConnection(snapshot.data() as QuickBooksConnection);
+          const data = snapshot.data() as QuickBooksConnection;
+          console.log(`   Status: ${data.status}`);
+          console.log(`   Company: ${data.companyName}`);
+          console.log(`   Last Sync: ${data.lastSyncAt?.toDate?.().toLocaleString() || 'Never'}`);
+          if (data.lastSyncResults) {
+            console.log(`   Last Sync Results:`, data.lastSyncResults);
+          }
+          setConnection(data);
         } else {
+          console.log(`   No connection document found`);
           setConnection(null);
         }
         setLoading(false);
@@ -147,6 +159,8 @@ export default function QuickBooksPage() {
     setIsSyncing(true);
     setError(null);
 
+    console.log("🔄 Starting QuickBooks sync...");
+
     try {
       const syncResponse = await fetch("/api/quickbooks/sync", {
         method: "POST",
@@ -155,15 +169,20 @@ export default function QuickBooksPage() {
       });
 
       const syncData = await syncResponse.json();
+      
+      console.log("📊 Sync response:", syncData);
 
       if (!syncResponse.ok) {
         throw new Error(syncData.error || "Failed to sync QuickBooks data");
       }
 
+      console.log("✅ Sync completed:", syncData.results);
+
       await fetchMetrics();
       setSuccess("Sync completed successfully!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
+      console.error("❌ Sync error:", err);
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setIsSyncing(false);

@@ -11,12 +11,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
     }
 
+    console.log(`📊 Fetching QuickBooks metrics for org: ${organizationId}`);
+
     // Get all invoices for this organization
     const invoicesQuery = query(
       collection(db, 'quickbooks_invoices'),
       where('organizationId', '==', organizationId)
     );
     const invoicesSnapshot = await getDocs(invoicesQuery);
+    
+    console.log(`   Invoices found: ${invoicesSnapshot.size}`);
     
     let totalRevenue = 0;
     let accountsReceivable = 0;
@@ -33,6 +37,8 @@ export async function GET(request: NextRequest) {
       where('organizationId', '==', organizationId)
     );
     const expensesSnapshot = await getDocs(expensesQuery);
+    
+    console.log(`   Expenses found: ${expensesSnapshot.size}`);
     
     let totalExpenses = 0;
     let accountsPayable = 0;
@@ -52,16 +58,22 @@ export async function GET(request: NextRequest) {
     const customersSnapshot = await getDocs(customersQuery);
     const customerCount = customersSnapshot.size;
 
+    console.log(`   Customers found: ${customerCount}`);
+
     const netIncome = totalRevenue - totalExpenses;
 
-    return NextResponse.json({
+    const metrics = {
       totalRevenue,
       totalExpenses,
       netIncome,
       accountsReceivable,
       accountsPayable,
       customerCount,
-    });
+    };
+
+    console.log(`   Metrics calculated:`, metrics);
+
+    return NextResponse.json(metrics);
   } catch (error) {
     console.error('QuickBooks metrics error:', error);
     return NextResponse.json(
