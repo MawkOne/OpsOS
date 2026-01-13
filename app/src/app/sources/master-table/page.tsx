@@ -316,7 +316,130 @@ export default function MasterTablePage() {
         }
       });
 
-      console.log("✅ Added", Object.keys(customerRevenue).length, "customers and", Object.keys(productRevenue).length, "products from Stripe");
+      console.log("✅ Added", Object.keys(customerRevenue).length, "customers and", Object.keys(productRevenue).length, "products from Stripe invoices");
+
+      // Also fetch stripe_payments (direct charges without invoices)
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
+      );
+      const paymentsSnap = await getDocs(paymentsQuery);
+      console.log("💳 Found", paymentsSnap.size, "Stripe payments (charges)");
+
+      // Track which invoices we've already counted
+      const countedInvoiceIds = new Set<string>();
+      invoicesSnap.docs.forEach(doc => {
+        const invoice = doc.data();
+        if (invoice.stripeId) countedInvoiceIds.add(invoice.stripeId);
+      });
+
+      paymentsSnap.docs.forEach((doc, idx) => {
+        const payment = doc.data();
+        
+        // Skip if this payment's invoice was already counted
+        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) {
+          return;
+        }
+
+        const paymentDate = payment.created?.toDate?.() || new Date();
+        
+        let monthKey: string;
+        if (isAllTime) {
+          monthKey = paymentDate.getFullYear().toString();
+        } else {
+          monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
+        
+        if (!months.includes(monthKey)) return;
+
+        const paymentAmount = (payment.amount || 0) / 100;
+
+        // Track by customer
+        const customerId = payment.customerId || 'unknown';
+        const customerName = payment.customerName || payment.customerEmail || 'Unknown Customer';
+        
+        if (!customerRevenue[customerId]) {
+          customerRevenue[customerId] = {
+            name: customerName,
+            months: {},
+            total: 0,
+          };
+        }
+        
+        customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + paymentAmount;
+        customerRevenue[customerId].total += paymentAmount;
+
+        // Track by product - use calculatedStatementDescriptor or metadata
+        const lineItems = payment.lineItems || [];
+        
+        if (lineItems.length > 0) {
+          // Has line items
+          lineItems.forEach((item: any) => {
+            const productId = item.productId;
+            
+            if (productId) {
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0,
+                  count: {},
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+              productRevenue[productId].total += itemAmount;
+            }
+          });
+        } else {
+          // No line items - use statement descriptor or categorize as unlabeled
+          const statementDescriptor = payment.calculatedStatementDescriptor || payment.statementDescriptor;
+          
+          if (statementDescriptor) {
+            // Use statement descriptor as product identifier
+            const productId = `descriptor_${statementDescriptor}`;
+            const productName = statementDescriptor;
+            
+            if (!productRevenue[productId]) {
+              productRevenue[productId] = {
+                name: productName,
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            
+            productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + 1;
+            productRevenue[productId].total += paymentAmount;
+          } else {
+            // Truly unlabeled
+            const unlabeledId = 'unlabeled';
+            if (!productRevenue[unlabeledId]) {
+              productRevenue[unlabeledId] = {
+                name: 'Unlabeled Revenue',
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+            productRevenue[unlabeledId].total += paymentAmount;
+          }
+
+          if (idx < 3) {
+            console.log(`  Payment ${idx + 1}:`, payment.stripeId, "- amount:", paymentAmount, "- descriptor:", statementDescriptor);
+          }
+        }
+      });
+
+      console.log("✅ Processed", paymentsSnap.size, "payments");
     } catch (error) {
       console.error("Error fetching Stripe entities:", error);
     }
