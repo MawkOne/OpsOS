@@ -750,8 +750,8 @@ export default function MasterTablePage() {
                   <option value="all">All Sources</option>
                   <option value="stripe">Stripe</option>
                   <option value="quickbooks">QuickBooks</option>
-                  <option value="google-analytics">Advertising</option>
-                  <option value="activecampaign">Email Marketing</option>
+                  <option value="google-analytics">Advertising (GA)</option>
+                  <option value="activecampaign">ActiveCampaign</option>
                 </select>
 
                 <select
