@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, MessageSquare, LogOut, ChevronDown } from "lucide-react";
+import { Bell, Search, MessageSquare, LogOut, ChevronDown, DollarSign } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface HeaderProps {
@@ -13,8 +14,10 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const { selectedCurrency, setSelectedCurrency, getExchangeRateDisplay, loading: currencyLoading } = useCurrency();
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -88,6 +91,93 @@ export default function Header({ title, subtitle }: HeaderProps) {
             5
           </span>
         </button>
+
+        {/* Currency Selector */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowCurrencyMenu(!showCurrencyMenu)}
+            className="flex items-center gap-2 px-3 h-9 rounded-lg transition-all duration-150"
+            style={{ 
+              background: "var(--background-secondary)",
+              border: "1px solid var(--border)"
+            }}
+          >
+            <DollarSign className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              {selectedCurrency}
+            </span>
+            <ChevronDown 
+              className={`w-3 h-3 transition-transform duration-200 ${showCurrencyMenu ? 'rotate-180' : ''}`}
+              style={{ color: "var(--foreground-muted)" }}
+            />
+          </button>
+
+          <AnimatePresence>
+            {showCurrencyMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full right-0 mt-2 w-56 rounded-lg overflow-hidden z-50"
+                style={{ 
+                  background: "var(--background-secondary)",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+                }}
+              >
+                <div className="p-2">
+                  <button
+                    onClick={() => {
+                      setSelectedCurrency("CAD");
+                      setShowCurrencyMenu(false);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg text-left transition-all duration-150 ${
+                      selectedCurrency === "CAD" ? "bg-[var(--sidebar-hover)]" : ""
+                    }`}
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">CAD - Canadian Dollar</span>
+                      {selectedCurrency === "CAD" && (
+                        <div className="w-2 h-2 rounded-full" style={{ background: "var(--accent)" }} />
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedCurrency("USD");
+                      setShowCurrencyMenu(false);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg text-left transition-all duration-150 ${
+                      selectedCurrency === "USD" ? "bg-[var(--sidebar-hover)]" : ""
+                    }`}
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">USD - US Dollar</span>
+                      {selectedCurrency === "USD" && (
+                        <div className="w-2 h-2 rounded-full" style={{ background: "var(--accent)" }} />
+                      )}
+                    </div>
+                  </button>
+                </div>
+                {!currencyLoading && (
+                  <div 
+                    className="px-3 py-2 text-xs border-t"
+                    style={{ 
+                      color: "var(--foreground-muted)",
+                      borderColor: "var(--border)",
+                      background: "var(--muted)"
+                    }}
+                  >
+                    Exchange Rate: {getExchangeRateDisplay()}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Divider */}
         <div className="w-px h-8 mx-2" style={{ background: "var(--border)" }} />

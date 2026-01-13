@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 
@@ -61,6 +62,7 @@ type ViewMode = "ttm" | "year" | "all";
 
 export default function ExpensesPage() {
   const { currentOrg } = useOrganization();
+  const { formatAmount } = useCurrency();
   const [qbConnection, setQbConnection] = useState<QuickBooksConnection | null>(null);
   const [metrics, setMetrics] = useState<ExpenseMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -327,13 +329,10 @@ export default function ExpensesPage() {
     return totals;
   }, [filteredExpenseData]);
 
+  // Format currency using global currency context
+  // QuickBooks expenses are in CAD by default
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-CA", {
-      style: "currency",
-      currency: "CAD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatAmount(amount, "CAD");
   };
 
   const formatMonth = (monthKey: string) => {
@@ -450,16 +449,14 @@ export default function ExpensesPage() {
                 ) : (
                   <div className="space-y-1">
                     {Object.entries(metrics?.bankBalances || {}).map(([currency, balance]) => {
-                      const locale = currency === 'USD' ? 'en-US' : 'en-CA';
+                      const sourceCurrency = currency as "USD" | "CAD";
                       return (
                         <div key={currency} className="flex items-baseline gap-2">
                           <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                            {new Intl.NumberFormat(locale, {
-                              style: "currency",
-                              currency: currency,
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0,
-                            }).format(balance)}
+                            {formatAmount(balance, sourceCurrency)}
+                          </p>
+                          <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {currency}
                           </p>
                         </div>
                       );
