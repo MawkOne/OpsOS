@@ -186,28 +186,66 @@ export default function MasterTablePage() {
         const lineItems = invoice.lineItems || [];
         
         if (lineItems.length > 0) {
+          let hasValidProduct = false;
+          
           lineItems.forEach((item: any) => {
             const productId = item.productId;
-            if (!productId) return;
             
-            const productName = products.get(productId) || item.description || 'Unknown Product';
-            const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
-            
-            if (!productRevenue[productId]) {
-              productRevenue[productId] = {
-                name: productName,
+            if (productId) {
+              hasValidProduct = true;
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0,
+                  count: {},
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+              productRevenue[productId].total += itemAmount;
+            }
+          });
+          
+          // If line items exist but none have productId, categorize by description
+          if (!hasValidProduct) {
+            const unlabeledId = 'unlabeled';
+            if (!productRevenue[unlabeledId]) {
+              productRevenue[unlabeledId] = {
+                name: 'Unlabeled Revenue',
                 months: {},
                 total: 0,
                 count: {},
               };
             }
+            productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+            productRevenue[unlabeledId].total += invoiceAmount;
             
-            productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
-            productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
-            productRevenue[productId].total += itemAmount;
-          });
+            // Log sample unlabeled invoice for analysis
+            if (productRevenue[unlabeledId].count[monthKey] <= 3) {
+              console.log('🔍 Unlabeled invoice sample:', {
+                stripeId: invoice.stripeId,
+                amount: invoiceAmount,
+                subscriptionId: invoice.subscriptionId || null,
+                billingReason: invoice.billingReason || null,
+                customerName: invoice.customerName,
+                lineItems: lineItems.map((item: any) => ({
+                  description: item.description,
+                  amount: (item.amount || 0) / 100,
+                  type: item.type,
+                  productId: item.productId,
+                  priceId: item.priceId,
+                })),
+              });
+            }
+          }
         } else {
-          // No line items - use "Unlabeled Revenue"
+          // No line items at all
           const unlabeledId = 'unlabeled';
           if (!productRevenue[unlabeledId]) {
             productRevenue[unlabeledId] = {
@@ -220,6 +258,17 @@ export default function MasterTablePage() {
           productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
           productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
           productRevenue[unlabeledId].total += invoiceAmount;
+          
+          // Log sample unlabeled invoice for analysis
+          if (productRevenue[unlabeledId].count[monthKey] <= 3) {
+            console.log('🔍 Unlabeled invoice (no line items):', {
+              stripeId: invoice.stripeId,
+              amount: invoiceAmount,
+              subscriptionId: invoice.subscriptionId || null,
+              billingReason: invoice.billingReason || null,
+              customerName: invoice.customerName,
+            });
+          }
         }
 
         if (idx < 3) {
