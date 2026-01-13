@@ -384,7 +384,6 @@ export default function RevenueStreamModal({
                             onChange={(e) => {
                               console.log("🔴 Checkbox onChange fired for:", product.name, product.productId);
                               e.stopPropagation();
-                              e.preventDefault();
                               toggleProduct(product.productId);
                             }}
                             className="w-4 h-4 rounded"
