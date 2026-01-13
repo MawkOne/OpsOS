@@ -53,7 +53,14 @@ export default function RevenueStreamModal({
   // Debug logging
   useEffect(() => {
     console.log("Selected Product IDs:", selectedProductIds);
-    console.log("Products:", products.map(p => ({ name: p.name, id: p.productId })));
+    console.log("Total products:", products.length);
+    if (products.length > 0) {
+      console.log("First 3 products:", products.slice(0, 3).map(p => ({ 
+        name: p.name, 
+        productId: p.productId,
+        isSelected: selectedProductIds.includes(p.productId)
+      })));
+    }
   }, [selectedProductIds, products]);
 
   // Fetch available products
@@ -258,10 +265,12 @@ export default function RevenueStreamModal({
                 >
                   {/* Select All */}
                   <label
+                    htmlFor="select-all-products"
                     className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors mb-2 border-b"
                     style={{ borderColor: "var(--border)" }}
                   >
                     <input
+                      id="select-all-products"
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
@@ -275,23 +284,32 @@ export default function RevenueStreamModal({
                   
                   {/* Individual Products */}
                   <div className="space-y-1">
-                    {products.map((product) => (
-                      <label
-                        key={product.id}
-                        className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedProductIds.includes(product.productId)}
-                          onChange={() => toggleProduct(product.productId)}
-                          className="w-4 h-4 rounded"
-                          style={{ accentColor: "var(--accent)" }}
-                        />
-                        <span className="text-sm" style={{ color: "var(--foreground)" }}>
-                          {product.name}
-                        </span>
-                      </label>
-                    ))}
+                    {products.map((product) => {
+                      const isChecked = selectedProductIds.includes(product.productId);
+                      const checkboxId = `product-${product.productId}`;
+                      return (
+                        <label
+                          key={product.id}
+                          htmlFor={checkboxId}
+                          className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          <input
+                            id={checkboxId}
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleProduct(product.productId);
+                            }}
+                            className="w-4 h-4 rounded"
+                            style={{ accentColor: "var(--accent)" }}
+                          />
+                          <span className="text-sm" style={{ color: "var(--foreground)" }}>
+                            {product.name}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               )}
