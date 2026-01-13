@@ -193,17 +193,17 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return amount;
   };
 
-  // Get exchange rate display string
-  const getExchangeRateDisplay = (): string => {
-    if (!exchangeRates) return "";
+  // Get exchange rate display strings (both directions)
+  const getExchangeRateDisplay = (): { usdToCad: string; cadToUsd: string } => {
+    if (!exchangeRates) return { usdToCad: "", cadToUsd: "" };
 
-    if (selectedCurrency === "USD") {
-      const rate = (1 / exchangeRates.CAD).toFixed(4);
-      return `1 CAD = ${rate} USD`;
-    } else {
-      const rate = exchangeRates.CAD.toFixed(4);
-      return `1 USD = ${rate} CAD`;
-    }
+    const usdToCadRate = exchangeRates.CAD.toFixed(4);
+    const cadToUsdRate = (1 / exchangeRates.CAD).toFixed(4);
+
+    return {
+      usdToCad: `1 USD = ${usdToCadRate} CAD`,
+      cadToUsd: `1 CAD = ${cadToUsdRate} USD`,
+    };
   };
 
   return (

@@ -164,14 +164,15 @@ export default function Header({ title, subtitle }: HeaderProps) {
                 </div>
                 {!currencyLoading && (
                   <div 
-                    className="px-3 py-2 text-xs border-t"
+                    className="px-3 py-2 text-xs border-t space-y-1"
                     style={{ 
                       color: "var(--foreground-muted)",
                       borderColor: "var(--border)",
                       background: "var(--muted)"
                     }}
                   >
-                    Exchange Rate: {getExchangeRateDisplay()}
+                    <div>{getExchangeRateDisplay().usdToCad}</div>
+                    <div>{getExchangeRateDisplay().cadToUsd}</div>
                   </div>
                 )}
               </motion.div>
