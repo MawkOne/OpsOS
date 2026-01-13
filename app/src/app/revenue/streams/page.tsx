@@ -226,7 +226,7 @@ export default function RevenueStreamsPage() {
         console.log("   Total revenue:", totalRevenue);
         console.log("   Total payments checked:", paymentsSnap.docs.length);
 
-        // Debug: Show first 5 payments with subscription IDs
+        // Debug: Show first 5 payments with ALL relevant fields
         if (matchedPayments === 0 && paymentsSnap.docs.length > 0) {
           console.log("   ⚠️ No matches found. First 5 payments:");
           paymentsSnap.docs.slice(0, 5).forEach((doc, i) => {
@@ -234,9 +234,12 @@ export default function RevenueStreamsPage() {
             const subProducts = payment.subscriptionId ? subscriptionToProducts.get(payment.subscriptionId) : null;
             console.log(`   Payment ${i}:`);
             console.log(`      Amount: $${(payment.amount / 100).toFixed(2)}`);
+            console.log(`      Description: ${payment.description || 'NONE'}`);
+            console.log(`      Statement Descriptor: ${payment.statementDescriptor || payment.calculatedStatementDescriptor || 'NONE'}`);
             console.log(`      Subscription ID: ${payment.subscriptionId || 'NONE'}`);
             console.log(`      Subscription Products: ${subProducts ? `[${subProducts.join(', ')}]` : 'N/A'}`);
             console.log(`      Has LineItems: ${payment.lineItems?.length > 0 ? 'YES' : 'NO'}`);
+            console.log(`      Metadata:`, payment.metadata);
             if (payment.lineItems?.length > 0) {
               payment.lineItems.forEach((li: any, idx: number) => {
                 console.log(`         LineItem ${idx}: productId=${li.productId}, amount=$${(li.amount / 100).toFixed(2)}`);
@@ -245,6 +248,11 @@ export default function RevenueStreamsPage() {
           });
           
           console.log(`   🎯 Looking for product IDs: [${stream.productIds.join(', ')}]`);
+          console.log(`   💡 SUGGESTION: Payments have no product attribution. May need to:`);
+          console.log(`      1. Parse description field for product info`);
+          console.log(`      2. Use metadata to link products`);
+          console.log(`      3. Link via payment_intents collection`);
+          console.log(`      4. Re-sync Stripe with better product tracking`);
         }
 
         return {
