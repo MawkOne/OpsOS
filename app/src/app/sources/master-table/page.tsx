@@ -361,10 +361,10 @@ export default function MasterTablePage() {
 
       campaignsSnap.docs.forEach((doc, idx) => {
         const campaign = doc.data();
-        const sentDate = campaign.send_date?.toDate?.() || campaign.sdate?.toDate?.();
+        const sentDate = campaign.sentAt?.toDate?.() || campaign.createdAt?.toDate?.();
         
         if (idx < 3) {
-          console.log(`  Campaign ${idx + 1}:`, campaign.name, "- sent_date:", campaign.send_date, "- sdate:", campaign.sdate, "- parsed:", sentDate);
+          console.log(`  Campaign ${idx + 1}:`, campaign.name, "- sentAt:", campaign.sentAt, "- createdAt:", campaign.createdAt, "- parsed:", sentDate);
         }
         
         if (!sentDate) return;
@@ -391,9 +391,9 @@ export default function MasterTablePage() {
           };
         }
 
-        campaignMetrics[campaignId].sends[monthKey] = (campaignMetrics[campaignId].sends[monthKey] || 0) + (campaign.total_sent || 0);
-        campaignMetrics[campaignId].opens[monthKey] = (campaignMetrics[campaignId].opens[monthKey] || 0) + (campaign.total_opens || 0);
-        campaignMetrics[campaignId].clicks[monthKey] = (campaignMetrics[campaignId].clicks[monthKey] || 0) + (campaign.total_clicks || 0);
+        campaignMetrics[campaignId].sends[monthKey] = (campaignMetrics[campaignId].sends[monthKey] || 0) + (campaign.sendAmt || 0);
+        campaignMetrics[campaignId].opens[monthKey] = (campaignMetrics[campaignId].opens[monthKey] || 0) + (campaign.opens || 0);
+        campaignMetrics[campaignId].clicks[monthKey] = (campaignMetrics[campaignId].clicks[monthKey] || 0) + (campaign.linkClicks || 0);
       });
 
       // Create entity rows for each campaign metric
@@ -460,10 +460,10 @@ export default function MasterTablePage() {
 
       dealsSnap.docs.forEach((doc, idx) => {
         const deal = doc.data();
-        const createdDate = deal.cdate?.toDate?.() || deal.created_date?.toDate?.();
+        const createdDate = deal.createdAt?.toDate?.();
         
         if (idx < 3) {
-          console.log(`  Deal ${idx + 1}:`, deal.title, "- cdate:", deal.cdate, "- created_date:", deal.created_date, "- parsed:", createdDate);
+          console.log(`  Deal ${idx + 1}:`, deal.title, "- createdAt:", deal.createdAt, "- parsed:", createdDate, "- value:", deal.value, "- status:", deal.status);
         }
         
         if (!createdDate) return;
@@ -478,7 +478,7 @@ export default function MasterTablePage() {
         // Only include if in our month range
         if (!months.includes(monthKey)) return;
 
-        const pipelineName = deal.group || deal.pipeline || 'Sales Pipeline';
+        const pipelineName = deal.pipelineId || 'Sales Pipeline';
         const dealValue = (deal.value || 0) / 100; // Convert from cents
         const status = deal.status;
 
