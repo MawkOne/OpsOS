@@ -371,7 +371,7 @@ export default function ExpensesPage() {
                 Connect your QuickBooks account to view expense data.
               </p>
               <Link
-                href="/revenue/quickbooks"
+                href="/sources/quickbooks"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
                 style={{
                   background: "var(--accent)",
@@ -418,7 +418,7 @@ export default function ExpensesPage() {
                 </div>
               </div>
               <Link
-                href="/revenue/quickbooks"
+                href="/sources/quickbooks"
                 className="text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
                 style={{
                   background: "var(--card)",

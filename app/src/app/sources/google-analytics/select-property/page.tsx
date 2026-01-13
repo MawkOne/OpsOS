@@ -99,7 +99,7 @@ function SelectPropertyContent() {
       console.log("Connection successful:", responseData);
       
       // Redirect to GA page with success
-      window.location.href = "/marketing/google-analytics?connected=true";
+      window.location.href = "/sources/google-analytics?connected=true";
     } catch (err: any) {
       console.error("Connection error:", err);
       setError(err.message || "Failed to connect. Please try again.");
@@ -134,7 +134,7 @@ function SelectPropertyContent() {
               <Activity className="w-12 h-12 mx-auto mb-4" style={{ color: "#F9AB00" }} />
               <p className="text-red-400 mb-4">{error}</p>
               <button
-                onClick={() => window.location.href = "/marketing/google-analytics"}
+                onClick={() => window.location.href = "/sources/google-analytics"}
                 className="px-4 py-2 rounded-lg text-sm font-semibold"
                 style={{ background: "#F9AB00", color: "#1a1a1a" }}
               >
@@ -281,7 +281,7 @@ function SelectPropertyContent() {
           className="flex gap-3"
         >
           <button
-            onClick={() => router.push("/marketing/google-analytics")}
+            onClick={() => router.push("/sources/google-analytics")}
             className="px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
             style={{
               background: "var(--background-tertiary)",

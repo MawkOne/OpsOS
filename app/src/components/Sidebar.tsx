@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-type Module = "initiatives" | "planning" | "resources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
+type Module = "initiatives" | "planning" | "resources" | "sources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
 
 interface NavItem {
   label: string;
@@ -99,10 +99,16 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
     color: "#f59e0b",
     href: "/resources",
   },
+  sources: { 
+    label: "Sources", 
+    icon: <Zap className="w-4 h-4" />, 
+    color: "#8b5cf6",
+    href: "/sources",
+  },
 };
 
 // Define the order for module selector dropdown
-const moduleOrder: Module[] = ["leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources"];
+const moduleOrder: Module[] = ["leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
 
 const navigationByModule: Record<Module, NavSection[]> = {
   initiatives: [
@@ -156,6 +162,29 @@ const navigationByModule: Record<Module, NavSection[]> = {
       ],
     },
   ],
+  sources: [
+    {
+      title: "Overview",
+      items: [
+        { label: "Dashboard", href: "/sources", icon: <LayoutDashboard className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Financial",
+      items: [
+        { label: "Stripe", href: "/sources/stripe", icon: <CreditCard className="w-4 h-4" /> },
+        { label: "QuickBooks", href: "/sources/quickbooks", icon: <Receipt className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Marketing",
+      items: [
+        { label: "Google Analytics", href: "/sources/google-analytics", icon: <Activity className="w-4 h-4" /> },
+        { label: "ActiveCampaign", href: "/sources/activecampaign", icon: <Mail className="w-4 h-4" /> },
+        { label: "DataForSEO", href: "/sources/dataforseo", icon: <Search className="w-4 h-4" /> },
+      ],
+    },
+  ],
   leadership: [
     {
       title: "Overview",
@@ -184,25 +213,12 @@ const navigationByModule: Record<Module, NavSection[]> = {
         { label: "Analytics", href: "/revenue/analytics", icon: <LineChart className="w-4 h-4" /> },
       ],
     },
-    {
-      title: "Sources",
-      items: [
-        { label: "QuickBooks", href: "/revenue/quickbooks", icon: <Receipt className="w-4 h-4" /> },
-        { label: "Stripe", href: "/revenue/stripe", icon: <CreditCard className="w-4 h-4" /> },
-      ],
-    },
   ],
   expenses: [
     {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/expenses", icon: <LayoutDashboard className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: "Sources",
-      items: [
-        { label: "QuickBooks", href: "/revenue/quickbooks", icon: <Receipt className="w-4 h-4" /> },
       ],
     },
   ],
@@ -236,14 +252,6 @@ const navigationByModule: Record<Module, NavSection[]> = {
         { label: "SEO", href: "/marketing/seo", icon: <Search className="w-4 h-4" /> },
       ],
     },
-    {
-      title: "Sources",
-      items: [
-        { label: "Google Analytics", href: "/marketing/google-analytics", icon: <Activity className="w-4 h-4" /> },
-        { label: "ActiveCampaign", href: "/marketing/activecampaign", icon: <Mail className="w-4 h-4" /> },
-        { label: "DataForSEO", href: "/marketing/dataforseo", icon: <Search className="w-4 h-4" /> },
-      ],
-    },
   ],
 };
 
@@ -258,6 +266,7 @@ export default function Sidebar() {
   const getCurrentModule = (): Module => {
     if (pathname.startsWith("/planning")) return "planning";
     if (pathname.startsWith("/resources")) return "resources";
+    if (pathname.startsWith("/sources")) return "sources";
     if (pathname.startsWith("/leadership")) return "leadership";
     if (pathname.startsWith("/revenue")) return "revenue";
     if (pathname.startsWith("/expenses")) return "expenses";

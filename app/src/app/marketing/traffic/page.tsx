@@ -718,7 +718,7 @@ export default function TrafficPage() {
                 Connect your Google Analytics account to see traffic acquisition data.
               </p>
               <a
-                href="/marketing/google-analytics"
+                href="/sources/google-analytics"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
                 style={{ background: "#F9AB00", color: "#1a1a1a" }}
               >

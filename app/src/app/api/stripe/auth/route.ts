@@ -8,11 +8,11 @@ export async function GET(request: NextRequest) {
   const organizationId = searchParams.get('organizationId');
 
   if (!organizationId) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/stripe?error=missing_organization`);
+    return NextResponse.redirect(`${BASE_URL}/sources/stripe?error=missing_organization`);
   }
 
   if (!STRIPE_CONNECT_CLIENT_ID) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/stripe?error=stripe_not_configured`);
+    return NextResponse.redirect(`${BASE_URL}/sources/stripe?error=stripe_not_configured`);
   }
 
   // Build the Stripe Connect OAuth URL

@@ -69,7 +69,7 @@ export default function QuickBooksPage() {
 
     if (connected === "true") {
       setSuccess("Successfully connected to QuickBooks!");
-      window.history.replaceState({}, "", "/revenue/quickbooks");
+      window.history.replaceState({}, "", "/sources/quickbooks");
     }
 
     if (errorParam) {
@@ -83,7 +83,7 @@ export default function QuickBooksPage() {
         invalid_state: "Invalid session. Please try again.",
       };
       setError(errorMessages[errorParam] || decodeURIComponent(errorParam));
-      window.history.replaceState({}, "", "/revenue/quickbooks");
+      window.history.replaceState({}, "", "/sources/quickbooks");
     }
   }, []);
 

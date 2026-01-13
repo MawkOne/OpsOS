@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   // Handle OAuth errors
   if (errorParam) {
     console.error('QuickBooks OAuth error:', errorParam, errorDescription);
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=${errorParam}`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=${errorParam}`);
   }
 
   // Parse state to get organizationId
@@ -29,23 +29,23 @@ export async function GET(request: NextRequest) {
     const stateData = JSON.parse(decodeURIComponent(state || '{}'));
     organizationId = stateData.organizationId;
   } catch {
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=invalid_state`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=invalid_state`);
   }
 
   if (!organizationId) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=missing_organization`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=missing_organization`);
   }
 
   if (!code) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=missing_code`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=missing_code`);
   }
 
   if (!realmId) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=missing_realm_id`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=missing_realm_id`);
   }
 
   if (!QUICKBOOKS_CLIENT_ID || !QUICKBOOKS_CLIENT_SECRET) {
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=quickbooks_not_configured`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=quickbooks_not_configured`);
   }
 
   try {
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error('QuickBooks token exchange failed:', errorData);
-      return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=token_exchange_failed`);
+      return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=token_exchange_failed`);
     }
 
     const tokenData = await tokenResponse.json();
@@ -119,11 +119,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect back to the QuickBooks page with success
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?connected=true`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?connected=true`);
   } catch (error) {
     console.error('QuickBooks OAuth callback error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.redirect(`${BASE_URL}/revenue/quickbooks?error=${encodeURIComponent(message)}`);
+    return NextResponse.redirect(`${BASE_URL}/sources/quickbooks?error=${encodeURIComponent(message)}`);
   }
 }
 

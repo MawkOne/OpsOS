@@ -84,12 +84,12 @@ function GoogleAnalyticsContent() {
     if (connected === "true") {
       setSuccess("Successfully connected to Google Analytics!");
       // Clear URL params
-      window.history.replaceState({}, "", "/marketing/google-analytics");
+      window.history.replaceState({}, "", "/sources/google-analytics");
     }
 
     if (errorParam) {
       setError(decodeURIComponent(errorParam));
-      window.history.replaceState({}, "", "/marketing/google-analytics");
+      window.history.replaceState({}, "", "/sources/google-analytics");
     }
   }, [searchParams]);
 

@@ -230,7 +230,7 @@ export default function MarketingDashboard() {
                 icon={<Activity className="w-6 h-6" />}
                 color="#F9AB00"
                 status={isGAConnected ? "connected" : gaConnection?.status || "disconnected"}
-                href="/marketing/google-analytics"
+                href="/sources/google-analytics"
                 lastSync={gaConnection?.lastSyncAt?.toDate()}
                 propertyName={gaConnection?.propertyName}
               />
@@ -248,7 +248,7 @@ export default function MarketingDashboard() {
                 icon={<Mail className="w-6 h-6" />}
                 color="#356AE6"
                 status={isACConnected ? "connected" : acConnection?.status || "disconnected"}
-                href="/marketing/activecampaign"
+                href="/sources/activecampaign"
                 lastSync={acConnection?.lastSyncAt?.toDate()}
                 propertyName={acConnection?.accountName}
               />
@@ -279,7 +279,7 @@ export default function MarketingDashboard() {
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <Link
-                    href="/marketing/google-analytics"
+                    href="/sources/google-analytics"
                     className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200"
                     style={{ background: "#F9AB00", color: "#1a1a1a" }}
                   >
@@ -323,7 +323,7 @@ export default function MarketingDashboard() {
                   </div>
                 </Card>
               </Link>
-              <Link href="/marketing/google-analytics">
+              <Link href="/sources/google-analytics">
                 <Card className="hover:border-[var(--accent)] transition-all duration-200 cursor-pointer group">
                   <div className="flex items-center gap-4">
                     <div
@@ -343,7 +343,7 @@ export default function MarketingDashboard() {
                   </div>
                 </Card>
               </Link>
-              <Link href="/marketing/activecampaign">
+              <Link href="/sources/activecampaign">
                 <Card className="hover:border-[var(--accent)] transition-all duration-200 cursor-pointer group">
                   <div className="flex items-center gap-4">
                     <div

@@ -411,7 +411,7 @@ export default function RevenueDashboard() {
                 icon={<Receipt className="w-6 h-6" />}
                 color="#2CA01C"
                 status="disconnected"
-                href="/revenue/quickbooks"
+                href="/sources/quickbooks"
               />
             </motion.div>
 
@@ -427,7 +427,7 @@ export default function RevenueDashboard() {
                 icon={<CreditCard className="w-6 h-6" />}
                 color="#635BFF"
                 status={isStripeConnected ? "connected" : stripeConnection?.status || "disconnected"}
-                href="/revenue/stripe"
+                href="/sources/stripe"
                 lastSync={stripeConnection?.lastSyncAt?.toDate()}
                 syncResults={stripeConnection?.lastSyncResults}
               />
@@ -458,7 +458,7 @@ export default function RevenueDashboard() {
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <Link
-                    href="/revenue/quickbooks"
+                    href="/sources/quickbooks"
                     className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200"
                     style={{ background: "#2CA01C", color: "white" }}
                   >
@@ -466,7 +466,7 @@ export default function RevenueDashboard() {
                     Connect QuickBooks
                   </Link>
                   <Link
-                    href="/revenue/stripe"
+                    href="/sources/stripe"
                     className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200"
                     style={{ background: "#635BFF", color: "white" }}
                   >
@@ -568,7 +568,7 @@ export default function RevenueDashboard() {
                   </div>
                 </Card>
               </Link>
-              <Link href="/revenue/stripe">
+              <Link href="/sources/stripe">
                 <Card className="hover:border-[var(--accent)] transition-all cursor-pointer">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#635BFF20", color: "#635BFF" }}>

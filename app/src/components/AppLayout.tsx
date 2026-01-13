@@ -31,7 +31,7 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
   // Redirect to onboarding if no organization (except if already on onboarding, settings, or select-property)
   useEffect(() => {
     if (!authLoading && !orgLoading && user && organizations.length === 0) {
-      const excludedPaths = ["/onboarding", "/settings", "/marketing/google-analytics/select-property"];
+      const excludedPaths = ["/onboarding", "/settings", "/sources/google-analytics/select-property"];
       const shouldRedirect = !excludedPaths.some(path => pathname.startsWith(path));
       if (shouldRedirect) {
         window.location.href = "/onboarding";

@@ -375,7 +375,7 @@ export default function SEOPage() {
                         Page Health ({pagesHealth.length} pages)
                       </h3>
                       <Link
-                        href="/marketing/dataforseo"
+                        href="/sources/dataforseo"
                         className="text-sm flex items-center gap-1 hover:underline"
                         style={{ color: "#3b82f6" }}
                       >
@@ -472,7 +472,7 @@ export default function SEOPage() {
                     </div>
                   </div>
                   <Link
-                    href="/marketing/dataforseo"
+                    href="/sources/dataforseo"
                     className="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2"
                     style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
                   >
@@ -645,7 +645,7 @@ export default function SEOPage() {
                 Connect your Google Analytics account to see Search Console data.
               </p>
               <a
-                href="/marketing/google-analytics"
+                href="/sources/google-analytics"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
                 style={{ background: "#F9AB00", color: "#1a1a1a" }}
               >

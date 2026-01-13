@@ -72,7 +72,7 @@ export default function StripePage() {
 
     if (connected === "true") {
       setSuccess("Successfully connected to Stripe!");
-      window.history.replaceState({}, "", "/revenue/stripe");
+      window.history.replaceState({}, "", "/sources/stripe");
     }
 
     if (errorParam) {
@@ -84,7 +84,7 @@ export default function StripePage() {
         access_denied: "Access was denied. Please try again.",
       };
       setError(errorMessages[errorParam] || decodeURIComponent(errorParam));
-      window.history.replaceState({}, "", "/revenue/stripe");
+      window.history.replaceState({}, "", "/sources/stripe");
     }
   }, []);
 

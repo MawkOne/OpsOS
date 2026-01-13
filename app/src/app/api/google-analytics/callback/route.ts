@@ -47,13 +47,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error('OAuth error:', error);
     return NextResponse.redirect(
-      `${baseUrl}/marketing/google-analytics?error=${encodeURIComponent(error)}`
+      `${baseUrl}/sources/google-analytics?error=${encodeURIComponent(error)}`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${baseUrl}/marketing/google-analytics?error=missing_params`
+      `${baseUrl}/sources/google-analytics?error=missing_params`
     );
   }
 
@@ -190,14 +190,14 @@ export async function GET(request: NextRequest) {
     // Redirect to property selection page
     const encodedData = encodeURIComponent(JSON.stringify(selectionData));
     return NextResponse.redirect(
-      `${baseUrl}/marketing/google-analytics/select-property?data=${encodedData}`
+      `${baseUrl}/sources/google-analytics/select-property?data=${encodedData}`
     );
 
   } catch (error) {
     console.error('OAuth callback error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.redirect(
-      `${baseUrl}/marketing/google-analytics?error=${encodeURIComponent(errorMessage)}`
+      `${baseUrl}/sources/google-analytics?error=${encodeURIComponent(errorMessage)}`
     );
   }
 }

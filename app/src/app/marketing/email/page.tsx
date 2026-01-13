@@ -394,7 +394,7 @@ export default function EmailPage() {
             Connect your ActiveCampaign account to see email marketing analytics.
           </p>
           <Link
-            href="/marketing/activecampaign"
+            href="/sources/activecampaign"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
             style={{ background: "#356AE6", color: "white" }}
           >
