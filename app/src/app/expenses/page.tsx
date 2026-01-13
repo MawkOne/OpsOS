@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -15,6 +15,9 @@ import {
   FileText,
   AlertCircle,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -37,6 +40,14 @@ interface ExpenseMetrics {
   topVendorCount: number;
 }
 
+interface ExpenseRow {
+  vendorId: string;
+  vendorName: string;
+  category: string;
+  months: Record<string, number>; // "2026-01": 1500
+  total: number;
+}
+
 interface MonthlyExpense {
   month: string;
   amount: number;
@@ -45,14 +56,61 @@ interface MonthlyExpense {
   trend?: number;
 }
 
+type ViewMode = "ttm" | "year" | "all";
+
 export default function ExpensesPage() {
   const { currentOrg } = useOrganization();
   const [qbConnection, setQbConnection] = useState<QuickBooksConnection | null>(null);
   const [metrics, setMetrics] = useState<ExpenseMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthlyExpenses, setMonthlyExpenses] = useState<MonthlyExpense[]>([]);
+  const [expenseData, setExpenseData] = useState<ExpenseRow[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("ttm");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const organizationId = currentOrg?.id || "";
+
+  // Generate months based on view mode
+  const { months, monthLabels, isAllTime } = useMemo(() => {
+    if (viewMode === "all") {
+      // All time - generate years from 2018 to current year
+      const currentYear = new Date().getFullYear();
+      const allYears: string[] = [];
+      const allLabels: string[] = [];
+      
+      for (let year = 2018; year <= currentYear; year++) {
+        allYears.push(year.toString());
+        allLabels.push(year.toString());
+      }
+      
+      return { months: allYears, monthLabels: allLabels, isAllTime: true };
+    } else if (viewMode === "ttm") {
+      // Trailing 12 COMPLETE months (excluding current partial month)
+      const now = new Date();
+      const ttmMonths: string[] = [];
+      const ttmLabels: string[] = [];
+      
+      // Start from 12 months ago, end at LAST month (not current month)
+      for (let i = 12; i >= 1; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        ttmMonths.push(monthKey);
+        ttmLabels.push(label);
+      }
+      
+      return { months: ttmMonths, monthLabels: ttmLabels, isAllTime: false };
+    } else {
+      // Calendar year
+      const yearMonths = Array.from({ length: 12 }, (_, i) => {
+        const month = (i + 1).toString().padStart(2, "0");
+        return `${selectedYear}-${month}`;
+      });
+      const yearLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return { months: yearMonths, monthLabels: yearLabels, isAllTime: false };
+    }
+  }, [viewMode, selectedYear]);
 
   // Listen to QuickBooks connection
   useEffect(() => {
@@ -88,11 +146,11 @@ export default function ExpensesPage() {
       return;
     }
 
-    fetchMetrics();
+    fetchExpenseData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qbConnection, organizationId]);
+  }, [qbConnection, organizationId, viewMode, selectedYear]);
 
-  const fetchMetrics = async () => {
+  const fetchExpenseData = async () => {
     setLoading(true);
     try {
       // Calculate TTM date range - last 12 COMPLETE months
@@ -115,11 +173,17 @@ export default function ExpensesPage() {
       const monthlyData: Record<string, { amount: number; bills: number; purchases: number }> = {};
       const vendors = new Set<string>();
       
+      // Group expenses by vendor
+      const vendorExpenses: Record<string, ExpenseRow> = {};
+      
       expensesSnap.docs.forEach(doc => {
         const expense = doc.data();
         const amount = expense.totalAmount || 0;
         const date = expense.txnDate?.toDate?.() || new Date();
         const type = expense.type || "expense";
+        const vendorName = expense.vendorName || "Unknown Vendor";
+        const vendorId = expense.vendorId || "unknown";
+        const category = expense.accountName || expense.categoryName || "Uncategorized";
         
         totalExpenses += amount;
         accountsPayable += expense.balance || 0;
@@ -141,7 +205,7 @@ export default function ExpensesPage() {
           ttmExpenses += amount;
         }
         
-        // Group by month
+        // Group by month for summary
         const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`;
         if (!monthlyData[monthKey]) {
           monthlyData[monthKey] = { amount: 0, bills: 0, purchases: 0 };
@@ -152,6 +216,27 @@ export default function ExpensesPage() {
         } else {
           monthlyData[monthKey].purchases++;
         }
+        
+        // Group by vendor for table
+        const key = `${vendorId}_${category}`;
+        if (!vendorExpenses[key]) {
+          vendorExpenses[key] = {
+            vendorId,
+            vendorName,
+            category,
+            months: {},
+            total: 0,
+          };
+        }
+        
+        // For all-time view, group by year
+        if (isAllTime) {
+          const yearKey = date.getFullYear().toString();
+          vendorExpenses[key].months[yearKey] = (vendorExpenses[key].months[yearKey] || 0) + amount;
+        } else {
+          vendorExpenses[key].months[monthKey] = (vendorExpenses[key].months[monthKey] || 0) + amount;
+        }
+        vendorExpenses[key].total += amount;
       });
 
       // Calculate monthly average (TTM / 12)
@@ -177,6 +262,10 @@ export default function ExpensesPage() {
         return item;
       });
 
+      // Convert vendor expenses to array and sort by total
+      const expenseRows = Object.values(vendorExpenses)
+        .sort((a, b) => b.total - a.total);
+
       setMetrics({
         totalExpenses,
         ttmExpenses,
@@ -187,12 +276,36 @@ export default function ExpensesPage() {
         topVendorCount: vendors.size,
       });
       setMonthlyExpenses(monthlyWithTrends);
+      setExpenseData(expenseRows);
     } catch (error) {
       console.error("Error fetching expenses:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Filter expense data
+  const filteredExpenseData = useMemo(() => {
+    if (categoryFilter === "all") return expenseData;
+    return expenseData.filter(row => row.category === categoryFilter);
+  }, [expenseData, categoryFilter]);
+
+  // Get unique categories
+  const categories = useMemo(() => {
+    const cats = new Set(expenseData.map(row => row.category));
+    return Array.from(cats).sort();
+  }, [expenseData]);
+
+  // Calculate monthly totals
+  const monthlyTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    filteredExpenseData.forEach(row => {
+      Object.entries(row.months).forEach(([month, amount]) => {
+        totals[month] = (totals[month] || 0) + amount;
+      });
+    });
+    return totals;
+  }, [filteredExpenseData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
@@ -267,24 +380,16 @@ export default function ExpensesPage() {
                   className="w-10 h-10 rounded-lg flex items-center justify-center"
                   style={{ background: "#2CA01C20", color: "#2CA01C" }}
                 >
-                  <Package className="w-5 h-5" />
+                  <CheckCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      QuickBooks
-                    </h3>
-                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
-                      <CheckCircle className="w-3 h-3" />
-                      Connected
-                    </span>
-                  </div>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    QuickBooks Connected
+                  </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                    {qbConnection?.companyName || "Connected to QuickBooks"}
+                    {qbConnection?.companyName || "Company"}
                     {qbConnection?.lastSyncAt && (
-                      <span className="ml-2">
-                        • Last synced {qbConnection.lastSyncAt.toDate().toLocaleDateString()}
-                      </span>
+                      <> · Last synced {new Date(qbConnection.lastSyncAt.toDate()).toLocaleString()}</>
                     )}
                   </p>
                 </div>
@@ -293,250 +398,291 @@ export default function ExpensesPage() {
                 href="/revenue/quickbooks"
                 className="text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
                 style={{
-                  background: "var(--background-tertiary)",
+                  background: "var(--card)",
                   color: "var(--foreground-muted)",
                   border: "1px solid var(--border)",
                 }}
               >
-                Manage Connection
+                Manage
               </Link>
             </div>
           </Card>
         </motion.div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Total Expenses
-                </span>
-                <Receipt className="w-4 h-4" style={{ color: "#ef4444" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "#ef4444" }}>
-                {loading ? "..." : formatCurrency(metrics?.totalExpenses || 0)}
-              </p>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  TTM Expenses
-                </span>
-                <TrendingUp className="w-4 h-4" style={{ color: "#f59e0b" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                {loading ? "..." : formatCurrency(metrics?.ttmExpenses || 0)}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>
-                Last 12 months
-              </p>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Monthly Average
-                </span>
-                <CreditCard className="w-4 h-4" style={{ color: "#8b5cf6" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
-                {loading ? "..." : formatCurrency(metrics?.monthlyAverage || 0)}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>
-                TTM average
-              </p>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Accounts Payable
-                </span>
-                <FileText className="w-4 h-4" style={{ color: "#06b6d4" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "#06b6d4" }}>
-                {loading ? "..." : formatCurrency(metrics?.accountsPayable || 0)}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>
-                Outstanding balance
-              </p>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Monthly Expenses Table */}
+        {/* Metrics Cards */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-4 gap-4"
         >
           <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                Monthly Expenses
-              </h3>
-              <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>
-                {metrics?.totalBills || 0} bills • {metrics?.totalPurchases || 0} purchases
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Total Expenses
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {loading ? "..." : formatCurrency(metrics?.totalExpenses || 0)}
+                </p>
+              </div>
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
+              >
+                <Receipt className="w-5 h-5" />
               </div>
             </div>
-            {loading ? (
-              <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
-                Loading expenses...
+          </Card>
+
+          <Card>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  TTM Expenses
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {loading ? "..." : formatCurrency(metrics?.ttmExpenses || 0)}
+                </p>
               </div>
-            ) : monthlyExpenses.length === 0 ? (
-              <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
-                No expense data available
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
+              >
+                <TrendingDown className="w-5 h-5" />
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                        Month
-                      </th>
-                      <th className="text-right py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                        Total Expenses
-                      </th>
-                      <th className="text-right py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                        Bills
-                      </th>
-                      <th className="text-right py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                        Purchases
-                      </th>
-                      <th className="text-right py-3 px-4 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                        Trend
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyExpenses.map((item, index) => (
-                      <tr
-                        key={item.month}
-                        style={{
-                          borderBottom: index < monthlyExpenses.length - 1 ? "1px solid var(--border)" : "none",
-                        }}
-                      >
-                        <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground)" }}>
-                          {formatMonth(item.month)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right font-medium" style={{ color: "#ef4444" }}>
-                          {formatCurrency(item.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                          {item.bills}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                          {item.purchases}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right">
-                          {item.trend !== undefined && (
-                            <span
-                              className="flex items-center justify-end gap-1"
-                              style={{
-                                color: item.trend > 0 ? "#ef4444" : "#10b981",
-                              }}
-                            >
-                              {item.trend > 0 ? (
-                                <ArrowUpRight className="w-3 h-3" />
-                              ) : (
-                                <ArrowDownRight className="w-3 h-3" />
-                              )}
-                              {Math.abs(item.trend).toFixed(1)}%
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Monthly Average
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {loading ? "..." : formatCurrency(metrics?.monthlyAverage || 0)}
+                </p>
               </div>
-            )}
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
+              >
+                <CreditCard className="w-5 h-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Unique Vendors
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {loading ? "..." : metrics?.topVendorCount || 0}
+                </p>
+              </div>
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
+              >
+                <Package className="w-5 h-5" />
+              </div>
+            </div>
           </Card>
         </motion.div>
 
-        {/* Additional Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Total Bills
-                </span>
-                <FileText className="w-4 h-4" style={{ color: "var(--accent)" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {loading ? "..." : metrics?.totalBills || 0}
-              </p>
-            </Card>
-          </motion.div>
+        {/* Detailed Expense Table */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card>
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                    Expenses by Vendor
+                  </h3>
+                  <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                    Detailed breakdown of expenses by vendor and category
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Category Filter */}
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg text-xs border transition-all duration-200"
+                      style={{
+                        background: "var(--card)",
+                        color: "var(--foreground)",
+                        borderColor: "var(--border)",
+                      }}
+                    >
+                      <option value="all">All Categories</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Total Purchases
-                </span>
-                <CreditCard className="w-4 h-4" style={{ color: "var(--accent)" }} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {loading ? "..." : metrics?.totalPurchases || 0}
-              </p>
-            </Card>
-          </motion.div>
+                  {/* View Mode */}
+                  <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: "var(--muted)" }}>
+                    <button
+                      onClick={() => setViewMode("ttm")}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                        viewMode === "ttm" ? "shadow-sm" : ""
+                      }`}
+                      style={{
+                        background: viewMode === "ttm" ? "var(--card)" : "transparent",
+                        color: viewMode === "ttm" ? "var(--foreground)" : "var(--foreground-muted)",
+                      }}
+                    >
+                      TTM
+                    </button>
+                    <button
+                      onClick={() => setViewMode("year")}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                        viewMode === "year" ? "shadow-sm" : ""
+                      }`}
+                      style={{
+                        background: viewMode === "year" ? "var(--card)" : "transparent",
+                        color: viewMode === "year" ? "var(--foreground)" : "var(--foreground-muted)",
+                      }}
+                    >
+                      Year
+                    </button>
+                    <button
+                      onClick={() => setViewMode("all")}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                        viewMode === "all" ? "shadow-sm" : ""
+                      }`}
+                      style={{
+                        background: viewMode === "all" ? "var(--card)" : "transparent",
+                        color: viewMode === "all" ? "var(--foreground)" : "var(--foreground-muted)",
+                      }}
+                    >
+                      All Time
+                    </button>
+                  </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-          >
-            <Card>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Active Vendors
-                </span>
-                <Package className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                  {/* Year Navigation (only for year view) */}
+                  {viewMode === "year" && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedYear(selectedYear - 1)}
+                        className="p-1 rounded transition-all duration-200 hover:bg-gray-100"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                        {selectedYear}
+                      </span>
+                      <button
+                        onClick={() => setSelectedYear(selectedYear + 1)}
+                        disabled={selectedYear >= new Date().getFullYear()}
+                        className="p-1 rounded transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {loading ? "..." : metrics?.topVendorCount || 0}
-              </p>
-            </Card>
-          </motion.div>
-        </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="text-left py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      Vendor
+                    </th>
+                    <th className="text-left py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      Category
+                    </th>
+                    {monthLabels.map((label, index) => (
+                      <th key={index} className="text-right py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                        {label}
+                      </th>
+                    ))}
+                    <th className="text-right py-3 px-3 text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={monthLabels.length + 3} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        Loading expenses...
+                      </td>
+                    </tr>
+                  ) : filteredExpenseData.length === 0 ? (
+                    <tr>
+                      <td colSpan={monthLabels.length + 3} className="text-center py-8 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        No expense data available
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {filteredExpenseData.map((row, index) => (
+                        <tr key={`${row.vendorId}_${row.category}_${index}`} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td className="py-3 px-3 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                            {row.vendorName}
+                          </td>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {row.category}
+                          </td>
+                          {months.map((month) => {
+                            const amount = row.months[month] || 0;
+                            return (
+                              <td key={month} className="text-right py-3 px-3 text-xs" style={{ color: "var(--foreground)" }}>
+                                {amount > 0 ? formatCurrency(amount) : "-"}
+                              </td>
+                            );
+                          })}
+                          <td className="text-right py-3 px-3 text-sm font-semibold" style={{ color: "#ef4444" }}>
+                            {formatCurrency(row.total)}
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Totals Row */}
+                      <tr style={{ borderTop: "2px solid var(--border)", background: "var(--muted)" }}>
+                        <td className="py-3 px-3 text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                          Total
+                        </td>
+                        <td className="py-3 px-3"></td>
+                        {months.map((month) => {
+                          const total = monthlyTotals[month] || 0;
+                          return (
+                            <td key={month} className="text-right py-3 px-3 text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                              {total > 0 ? formatCurrency(total) : "-"}
+                            </td>
+                          );
+                        })}
+                        <td className="text-right py-3 px-3 text-sm font-bold" style={{ color: "#ef4444" }}>
+                          {formatCurrency(filteredExpenseData.reduce((sum, row) => sum + row.total, 0))}
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </motion.div>
       </div>
     </AppLayout>
   );
 }
-

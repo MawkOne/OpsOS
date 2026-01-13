@@ -260,6 +260,7 @@ export default function Sidebar() {
     if (pathname.startsWith("/resources")) return "resources";
     if (pathname.startsWith("/leadership")) return "leadership";
     if (pathname.startsWith("/revenue")) return "revenue";
+    if (pathname.startsWith("/expenses")) return "expenses";
     if (pathname.startsWith("/metrics")) return "metrics";
     if (pathname.startsWith("/marketing")) return "marketing";
     return "initiatives"; // default
