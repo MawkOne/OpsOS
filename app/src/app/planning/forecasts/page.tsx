@@ -1257,9 +1257,6 @@ export default function ForecastsPage() {
                   <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
                     Revenue Forecast
                   </h2>
-                  <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                    Historical revenue with projected growth patterns
-                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
@@ -1316,22 +1313,21 @@ export default function ForecastsPage() {
                         borderRadius: "8px",
                         color: "var(--foreground)",
                       }}
-                      formatter={(value) => [`$${value ?? 0}K`, ""]}
+                      formatter={(value) => `$${value ?? 0}K`}
                     />
-                    <Legend />
                     <Area
                       type="monotone"
                       dataKey="upper"
                       stroke="transparent"
                       fill="url(#colorConfidence)"
-                      name="Upper Bound"
+                      name=""
                     />
                     <Area
                       type="monotone"
                       dataKey="lower"
                       stroke="transparent"
                       fill="var(--background)"
-                      name="Lower Bound"
+                      name=""
                     />
                     <Line
                       type="monotone"
@@ -1339,7 +1335,7 @@ export default function ForecastsPage() {
                       stroke="#00d4aa"
                       strokeWidth={3}
                       dot={{ fill: "#00d4aa", strokeWidth: 2, r: 4 }}
-                      name="Actual Revenue"
+                      name=""
                     />
                     <Line
                       type="monotone"
@@ -1348,66 +1344,49 @@ export default function ForecastsPage() {
                       strokeWidth={3}
                       strokeDasharray="5 5"
                       dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
-                      name="Forecast"
+                      name=""
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
 
-              {/* Monthly Revenue Totals */}
+              {/* Revenue Totals */}
               <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-                <div className="mb-3">
-                  <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    Total Forecast Revenue
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <div className="flex gap-3 pb-2">
-                    {/* Historical months */}
-                    {monthKeys.map((key) => {
-                      const [year, month] = key.split('-');
-                      const date = new Date(parseInt(year), parseInt(month) - 1);
-                      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                      
-                      // Sum all revenue entities for this month
-                      const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
-                      const total = revenueEntities.reduce((sum, entity) => sum + (entity.months[key] || 0), 0);
-                      
-                      return (
-                        <div key={key} className="flex flex-col items-center gap-1 min-w-[70px]">
-                          <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                            {monthLabel}
-                          </span>
-                          <span className="text-sm font-bold" style={{ color: "#00d4aa" }}>
-                            {total > 0 ? formatAmount(total) : "—"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {/* Forecast months */}
-                    {forecastMonthKeys.map((key) => {
-                      const [year, month] = key.split('-');
-                      const date = new Date(parseInt(year), parseInt(month) - 1);
-                      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                      
-                      // Sum all revenue entity forecasts for this month
-                      const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
-                      const total = revenueEntities.reduce((sum, entity) => {
-                        const entityForecast = entityForecasts.get(entity.entityId)?.[key] || 0;
-                        return sum + entityForecast;
-                      }, 0);
-                      
-                      return (
-                        <div key={key} className="flex flex-col items-center gap-1 min-w-[70px]" style={{ background: "rgba(59, 130, 246, 0.05)", borderRadius: "4px", padding: "4px" }}>
-                          <span className="text-xs font-medium" style={{ color: "#3b82f6" }}>
-                            {monthLabel}
-                          </span>
-                          <span className="text-sm font-bold" style={{ color: "#3b82f6" }}>
-                            {total > 0 ? formatAmount(total) : "—"}
-                          </span>
-                        </div>
-                      );
-                    })}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Historical Total */}
+                  <div className="text-center p-4 rounded-lg" style={{ background: "rgba(0, 212, 170, 0.05)" }}>
+                    <div className="text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                      Historical Revenue (12 months)
+                    </div>
+                    <div className="text-2xl font-bold" style={{ color: "#00d4aa" }}>
+                      {(() => {
+                        const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
+                        const lastTwelveMonths = monthKeys.slice(-12);
+                        const total = revenueEntities.reduce((sum, entity) => {
+                          return sum + lastTwelveMonths.reduce((monthSum, key) => monthSum + (entity.months[key] || 0), 0);
+                        }, 0);
+                        return formatAmount(total);
+                      })()}
+                    </div>
+                  </div>
+                  
+                  {/* Forecast Total */}
+                  <div className="text-center p-4 rounded-lg" style={{ background: "rgba(59, 130, 246, 0.05)" }}>
+                    <div className="text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                      Projected Revenue (12 months)
+                    </div>
+                    <div className="text-2xl font-bold" style={{ color: "#3b82f6" }}>
+                      {(() => {
+                        const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
+                        const total = revenueEntities.reduce((sum, entity) => {
+                          return sum + forecastMonthKeys.reduce((monthSum, key) => {
+                            const entityForecast = entityForecasts.get(entity.entityId)?.[key] || 0;
+                            return monthSum + entityForecast;
+                          }, 0);
+                        }, 0);
+                        return formatAmount(total);
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
