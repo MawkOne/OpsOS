@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import PriorityModal from "@/components/PriorityModal";
 import { motion } from "framer-motion";
 import {
   Target,
-  Users,
   Zap,
   AlertTriangle,
   ArrowRight,
@@ -28,8 +27,9 @@ import {
   deleteDoc, 
   doc,
   serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
 
 interface Priority {
   id?: string;
@@ -42,85 +42,9 @@ interface Priority {
   alignedInitiatives: string[];
   priority?: number;
   organizationId?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
-
-const samplePriorities: Priority[] = [
-  {
-    id: "1",
-    title: "Accelerate Revenue Growth",
-    whatsImportant: "Revenue growth has plateaued at 15% YoY. We need to reach 40% growth to meet Series B targets and maintain market leadership position.",
-    howAreWeDoing: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
-    prioritiesToImprove: [
-      "Accelerate enterprise sales motion",
-      "Expand into 3 new European markets by Q2",
-      "Launch premium tier pricing model",
-    ],
-    category: "growth",
-    owner: "CEO",
-    alignedInitiatives: ["Launch New Product Line", "Expand to European Markets"],
-  },
-  {
-    id: "2",
-    title: "Improve Customer Retention",
-    whatsImportant: "Churn rate increased to 8% monthly, up from 5% last quarter. Customer lifetime value is declining, impacting unit economics and investor confidence.",
-    howAreWeDoing: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
-    prioritiesToImprove: [
-      "Redesign onboarding flow to improve completion rate",
-      "Implement proactive CSM outreach at risk indicators",
-      "Build automated engagement campaigns",
-      "Create customer success playbooks",
-    ],
-    category: "efficiency",
-    owner: "VP Customer Success",
-    alignedInitiatives: ["Customer Success Platform"],
-  },
-  {
-    id: "3",
-    title: "Build Competitive Moat",
-    whatsImportant: "Two major competitors launched similar core features last quarter. We need AI/ML-powered differentiation to maintain our premium positioning and pricing power.",
-    howAreWeDoing: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
-    prioritiesToImprove: [
-      "Ship AI recommendations engine by Q2",
-      "Build predictive forecasting capabilities",
-      "Patent key ML algorithms",
-    ],
-    category: "innovation",
-    owner: "CTO",
-    alignedInitiatives: ["AI-Powered Analytics Dashboard"],
-  },
-  {
-    id: "4",
-    title: "Scale Team Efficiency",
-    whatsImportant: "Cost per customer acquisition is rising 20% YoY while team productivity is declining. We're burning $400K monthly on inefficient processes that need automation.",
-    howAreWeDoing: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
-    prioritiesToImprove: [
-      "Automate lead qualification and routing",
-      "Implement self-service support portal",
-      "Standardize cross-functional workflows",
-      "Build operational dashboards for each team",
-    ],
-    category: "efficiency",
-    owner: "COO",
-    alignedInitiatives: [],
-  },
-  {
-    id: "5",
-    title: "Reduce Technical Debt",
-    whatsImportant: "System performance is degrading. 15% of engineering time is spent firefighting incidents. Platform reliability issues are causing customer escalations and threatening renewals.",
-    howAreWeDoing: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
-    prioritiesToImprove: [
-      "Migrate to microservices architecture",
-      "Upgrade database infrastructure",
-      "Implement comprehensive monitoring",
-      "Establish technical debt sprints",
-    ],
-    category: "risk",
-    owner: "VP Engineering",
-    alignedInitiatives: [],
-  },
-];
 
 const categoryColors = {
   growth: "#00d4aa",
@@ -140,17 +64,7 @@ export default function PrioritiesPage() {
 
   const organizationId = currentOrg?.id || "";
 
-  // Fetch priorities from Firestore
-  useEffect(() => {
-    if (!organizationId) {
-      setLoading(false);
-      return;
-    }
-
-    fetchPriorities();
-  }, [organizationId]);
-
-  const fetchPriorities = async () => {
+  const fetchPriorities = useCallback(async () => {
     if (!organizationId) return;
     
     setLoading(true);
@@ -185,7 +99,17 @@ export default function PrioritiesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  // Fetch priorities from Firestore
+  useEffect(() => {
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
+
+    fetchPriorities();
+  }, [organizationId, fetchPriorities]);
 
   const handleSavePriority = async (priorityData: Priority) => {
     if (!organizationId) {
@@ -235,7 +159,7 @@ export default function PrioritiesPage() {
     }
   };
 
-  const handleDragEnd = async (result: any) => {
+  const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
     const items = Array.from(filteredPriorities);
@@ -399,7 +323,7 @@ export default function PrioritiesPage() {
                 >
                   {filteredPriorities.map((priority, index) => (
                     <Draggable key={priority.id || `temp-${index}`} draggableId={priority.id || `temp-${index}`} index={index}>
-                      {(provided, snapshot) => (
+                      {(provided) => (
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
@@ -464,7 +388,7 @@ export default function PrioritiesPage() {
                                 {/* What's Important */}
                                 <div>
                                   <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
-                                    What's Important
+                                    What&apos;s Important
                                   </h4>
                                   <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
                                     {priority.whatsImportant}
