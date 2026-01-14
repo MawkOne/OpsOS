@@ -95,20 +95,21 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4" 
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.75)" }}
+      style={{ background: "rgba(0, 0, 0, 0.7)" }}
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl bg-white dark:bg-gray-900"
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl overflow-hidden"
         style={{ 
+          background: "var(--background-secondary)", 
           border: "1px solid var(--border)"
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b bg-white dark:bg-gray-900" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(59, 130, 246, 0.1)" }}>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(59, 130, 246, 0.1)" }}>
               <Target className="w-5 h-5" style={{ color: "#3b82f6" }} />
             </div>
             <div>
@@ -143,8 +144,9 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="e.g., Accelerate Revenue Growth"
                 required
-                className="w-full px-4 py-2 rounded-lg border text-sm bg-white dark:bg-gray-800"
+                className="w-full px-4 py-2 rounded-lg border text-sm"
                 style={{ 
+                  background: "var(--background-tertiary)",
                   borderColor: "var(--border)",
                   color: "var(--foreground)"
                 }}
@@ -160,8 +162,9 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
                   required
-                  className="w-full px-4 py-2 rounded-lg border text-sm capitalize bg-white dark:bg-gray-800"
+                  className="w-full px-4 py-2 rounded-lg border text-sm capitalize"
                   style={{ 
+                    background: "var(--background-tertiary)",
                     borderColor: "var(--border)",
                     color: "var(--foreground)"
                   }}
@@ -215,7 +218,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
           </div>
 
           {/* How Are We Doing */}
-          <div className="space-y-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
             <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
               How Are We Doing
             </h3>
@@ -232,8 +235,9 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                     howAreWeDoing: { ...formData.howAreWeDoing, status: e.target.value as any }
                   })}
                   required
-                  className="w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-800"
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
                   style={{ 
+                    background: "var(--background-tertiary)",
                     borderColor: "var(--border)",
                     color: "var(--foreground)"
                   }}
@@ -318,7 +322,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                       className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                       style={{ 
                         color: "#ef4444",
-                        backgroundColor: "rgba(239, 68, 68, 0.1)"
+                        background: "rgba(239, 68, 68, 0.1)"
                       }}
                     >
                       Remove
@@ -332,7 +336,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                 className="text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 style={{ 
                   color: "#3b82f6",
-                  backgroundColor: "rgba(59, 130, 246, 0.1)"
+                  background: "rgba(59, 130, 246, 0.1)"
                 }}
               >
                 + Add Item
