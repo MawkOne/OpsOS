@@ -66,7 +66,7 @@ const getMetricTitle = (source: EntityRow['source'], type: string, metricType: s
     }
     if (type === "Page") {
       if (metricType === "pageviews") return "Pageviews";
-      if (metricType === "uniquePageviews") return "Unique Pageviews";
+      if (metricType === "sessions") return "Page Sessions";
       if (metricType === "avgTimeOnPage") return "Avg Time on Page";
     }
   }
@@ -170,6 +170,9 @@ export default function MasterTablePage() {
       
       // Fetch Google Analytics organic/traffic data
       await fetchGoogleAnalyticsOrganicEntities(entities);
+      
+      // Fetch Google Analytics pages data
+      await fetchGoogleAnalyticsPagesEntities(entities);
       
       // Fetch Email data (campaigns)
       await fetchEmailEntities(entities);
@@ -816,6 +819,75 @@ export default function MasterTablePage() {
     }
   };
 
+  const fetchGoogleAnalyticsPagesEntities = async (entities: EntityRow[]) => {
+    try {
+      console.log("📄 Fetching Google Analytics pages data for org:", organizationId);
+      
+      // Fetch pages data from Google Analytics
+      const response = await fetch(
+        `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=${viewMode}&year=${selectedYear}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn("❌ Could not fetch Google Analytics pages data:", response.status, errorData.error);
+        return;
+      }
+
+      const data = await response.json();
+      const pages = data.pages || [];
+      console.log("📄 Found", pages.length, "Google Analytics pages");
+
+      let addedEntities = 0;
+      
+      // Process each page
+      pages.forEach((pageData: any) => {
+        const pageName = pageData.name || 'Unknown Page';
+        
+        // Metrics to track for each page
+        const metricsToTrack = [
+          { key: 'pageviews', metricType: 'pageviews' },
+          { key: 'sessions', metricType: 'sessions' },
+        ];
+        
+        metricsToTrack.forEach(({ key, metricType }) => {
+          const pageMonths: Record<string, number> = {};
+          let total = 0;
+
+          // Extract metric value for each month
+          Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+            const value = metrics[key] || 0;
+            
+            // Only include if in our month range
+            if (months.includes(monthKey) || (isAllTime && months.includes(monthKey.split('-')[0]))) {
+              const finalKey = isAllTime ? monthKey.split('-')[0] : monthKey;
+              pageMonths[finalKey] = (pageMonths[finalKey] || 0) + value;
+              total += value;
+            }
+          });
+
+          if (total > 0) {
+            entities.push({
+              entityId: `ga_page_${pageData.id}_${metricType}`,
+              entityName: pageName,
+              source: "google-analytics-organic",
+              type: "Page",
+              metricType: metricType,
+              metric: getMetricTitle("google-analytics-organic", "Page", metricType),
+              months: pageMonths,
+              total,
+            });
+            addedEntities++;
+          }
+        });
+      });
+      
+      console.log("✅ Added", addedEntities, "Google Analytics pages entity rows to master table");
+    } catch (error) {
+      console.error("❌ Error fetching Google Analytics pages entities:", error);
+    }
+  };
+
   const fetchEmailEntities = async (entities: EntityRow[]) => {
     try {
       console.log("🔍 Fetching ActiveCampaign data for org:", organizationId);
@@ -1174,7 +1246,17 @@ export default function MasterTablePage() {
       return `${(amount * 100).toFixed(2)}%`;
     }
     
-    // Count metrics (including sales, dealCount, wonCount, newContacts, clicks, etc.)
+    // Duration metrics (in seconds)
+    if (metricType === "avgTimeOnPage" || metricType === "avgSessionDuration") {
+      const minutes = Math.floor(amount / 60);
+      const seconds = Math.round(amount % 60);
+      if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      }
+      return `${seconds}s`;
+    }
+    
+    // Count metrics (including sales, dealCount, wonCount, newContacts, clicks, pageviews, etc.)
     return new Intl.NumberFormat("en-US").format(Math.round(amount));
   };
 
