@@ -327,6 +327,19 @@ export default function InitiativesDashboard() {
             <Plus className="w-4 h-4" />
             New Initiative
           </button>
+          
+          <button 
+            onClick={() => {
+              if (confirm("This will add 11 initiatives from your Growth Ideas document. Continue?")) {
+                seedInitiatives(currentOrg?.id || "");
+              }
+            }}
+            className="px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all duration-200"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            <Zap className="w-4 h-4" />
+            Seed Growth Ideas
+          </button>
 
           {/* Status Filter */}
           <select
@@ -547,6 +560,194 @@ export default function InitiativesDashboard() {
       )}
     </AppLayout>
   );
+}
+
+// Seed function to populate initiatives from markdown
+async function seedInitiatives(organizationId: string) {
+  if (!organizationId) return;
+  
+  const initiativesData = [
+    // MARKETING
+    {
+      name: "Improve PPC",
+      category: "marketing" as InitiativeCategory,
+      type: "existing" as "new" | "existing",
+      priority: "p1" as any,
+      status: "active" as InitiativeStatus,
+      whatsImportant: "The current campaigns / spend not only is profitable at 2x ROI, but brings in at least 1 whale size client each month.",
+      howAreWeDoing: "Current PPC performance: 2x ROI with consistent whale client acquisition",
+      prioritiesToImprove: "Tune campaigns and increase spend to scale a high touch team. Explore ways to improve conversion rates and customer acquisition efficiency.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Curate Matching / Concierge Hiring",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p1" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "High-touch service for companies seeking quality talent matches",
+      howAreWeDoing: "2% uptake of ACTIVE companies (6K MAU x 2% = 120 potential clients)",
+      prioritiesToImprove: "Build matching algorithm, create concierge workflow, establish pricing tiers",
+      expectedRevenue: 60000, // 120 clients * $500 average
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Bundled Hiring Campaigns",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p2" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Premium package combining multiple promotion channels",
+      howAreWeDoing: "5% of paying company uptake potential",
+      prioritiesToImprove: "Package includes: 1 email spotlight, 30-day featured job, homepage placement, social amplification",
+      expectedRevenue: 5000,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Featured / Sponsored Job Listings",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p1" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Tiered job promotion options for increased visibility",
+      howAreWeDoing: "10% of purchased jobs uptake potential",
+      prioritiesToImprove: "Create pricing tiers: 7-day featured ($50-$300), 30-day featured ($200-$1,000), premium placement + email ($500-$2,500)",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Sponsored Talent / Agency Spotlights",
+      category: "marketing" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p2" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Monetize talent and agency visibility through sponsored profiles",
+      howAreWeDoing: "Used by talent agencies, recruiters, and companies",
+      prioritiesToImprove: "Pricing: $300-$1,500/week (profile highlight), $1,500-$5,000/month (persistent feature)",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    // MARKETPLACE MONETIZATION
+    {
+      name: "Recruiter / Agency Accounts",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p1" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Power tools for recruiters and agencies - aligns with existing roadmap",
+      howAreWeDoing: "Planned features: bulk outreach, team seats, ATS tools, paid verification",
+      prioritiesToImprove: "Build recruiter dashboard, implement bulk messaging, create verification system",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Talent Pro Memberships",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p2" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Optional upgrades for better visibility, analytics, and status signaling",
+      howAreWeDoing: "5% uptake expected. Aligns with personalization initiatives.",
+      prioritiesToImprove: "Pricing: $8-$30/month for individuals. Build premium features and analytics dashboard.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Company Access Subscriptions",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p1" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Companies pay monthly to search, filter, and message talent directly",
+      howAreWeDoing: "5% uptake expected",
+      prioritiesToImprove: "Pricing tiers: $99-$499/month (SMB), $1k-$5k+/year (enterprise). Build search and messaging tools.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Payments, Escrow & Compliance Tools",
+      category: "product" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p3" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Optional infrastructure for paying talent and managing contracts",
+      howAreWeDoing: "Opt-in only",
+      prioritiesToImprove: "Build payment processing, escrow system, contract management. Revenue: 2%-8% transaction fee.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    // PARTNERSHIP SALES
+    {
+      name: "Hiring Data & Market Insights",
+      category: "partnership" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p2" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Sell aggregated (no personal data), exclusive, recurring hiring market data",
+      howAreWeDoing: "Target: Enterprise HR, Recruiting Agencies, VC/PE Firms, Consulting Firms, Government/NGOs",
+      prioritiesToImprove: "Package insights on salaries, skills, and hiring trends. Pricing: $5K-$15K/year. Less than 1% company uptake.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+    {
+      name: "Sponsorship Money",
+      category: "partnership" as InitiativeCategory,
+      type: "new" as "new" | "existing",
+      priority: "p3" as any,
+      status: "planning" as InitiativeStatus,
+      whatsImportant: "Make YT Jobs the central industry source that everyone can co-support",
+      howAreWeDoing: "Explore YouTuber sponsorships, industry reporting, become the source of news",
+      prioritiesToImprove: "Ideas: Will YouTubers sponsor the service? Mr Beast as promoter? Top 10 YouTubers this week feature. Build industry reporting.",
+      expectedRevenue: 0,
+      expectedSavings: 0,
+      estimatedCost: 0,
+    },
+  ];
+
+  try {
+    for (const initiative of initiativesData) {
+      const combinedDescription = [
+        initiative.whatsImportant ? `What's Important: ${initiative.whatsImportant}` : "",
+        initiative.howAreWeDoing ? `How We're Doing: ${initiative.howAreWeDoing}` : "",
+        initiative.prioritiesToImprove ? `Priorities to Improve: ${initiative.prioritiesToImprove}` : "",
+      ].filter(Boolean).join("\n\n");
+
+      await addDoc(collection(db, "initiatives"), {
+        ...initiative,
+        description: combinedDescription,
+        organizationId,
+        ownerName: "",
+        ownerId: "",
+        linkedPeopleIds: [],
+        linkedToolIds: [],
+        linkedProductIds: [],
+        waterlineScore: 0,
+        actualPeopleCost: 0,
+        actualToolsCost: 0,
+        actualExpensesCost: 0,
+        requiredPeopleIds: [],
+        requiredToolIds: [],
+        expenses: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    alert(`✅ Successfully added ${initiativesData.length} initiatives!`);
+  } catch (error) {
+    console.error("Error seeding initiatives:", error);
+    alert("❌ Error adding initiatives");
+  }
 }
 
 // Add Initiative Modal Component
