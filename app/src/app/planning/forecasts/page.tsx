@@ -218,14 +218,22 @@ export default function ForecastsPage() {
     
     processedBaselineEntities.forEach(entity => {
       const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
-      const lastMonthKey = monthKeys[monthKeys.length - 1];
-      const lastValue = entity.months[lastMonthKey] || 0;
       
-      console.log(`📊 Forecast for ${entity.entityName}:`, {
-        cmgr: (cmgr * 100).toFixed(2) + '%',
-        lastValue,
-        seasonalFactors
-      });
+      // Find the last month with actual data (not zero)
+      let lastMonthKey = monthKeys[monthKeys.length - 1];
+      let lastValue = entity.months[lastMonthKey] || 0;
+      
+      // If last month is zero, find the most recent month with data
+      if (lastValue === 0) {
+        for (let i = monthKeys.length - 2; i >= 0; i--) {
+          const value = entity.months[monthKeys[i]] || 0;
+          if (value > 0) {
+            lastMonthKey = monthKeys[i];
+            lastValue = value;
+            break;
+          }
+        }
+      }
       
       if (lastValue === 0) {
         forecasts.set(entity.entityId, {});
@@ -246,8 +254,6 @@ export default function ForecastsPage() {
         const monthNum = parseInt(forecastKey.split('-')[1]);
         const seasonalFactor = seasonalFactors[monthNum] || 1.0;
         const forecastValue = projectedValue * seasonalFactor;
-        
-        console.log(`  ${forecastKey}: monthsAhead=${monthsAhead}, projected=${projectedValue.toFixed(2)}, seasonal=${seasonalFactor.toFixed(2)}, final=${forecastValue.toFixed(2)}`);
         
         entityForecastValues[forecastKey] = forecastValue;
       });
