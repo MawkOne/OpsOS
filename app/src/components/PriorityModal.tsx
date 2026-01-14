@@ -11,6 +11,7 @@ interface Priority {
   prioritiesToImprove: string[];
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
+  priority?: number;
   alignedInitiatives: string[];
 }
 
@@ -139,7 +140,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
                   Category *
@@ -174,11 +175,32 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                   required
                   className="w-full px-4 py-2 rounded-lg border text-sm"
                   style={{ 
-                    background: "var(--card)",
+                    background: "var(--background-tertiary)",
                     borderColor: "var(--border)",
                     color: "var(--foreground)"
                   }}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  Priority #
+                </label>
+                <select
+                  value={formData.priority || ""}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value ? Number(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 rounded-lg border text-sm"
+                  style={{ 
+                    background: "var(--background-tertiary)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)"
+                  }}
+                >
+                  <option value="">None</option>
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

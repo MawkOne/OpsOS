@@ -13,7 +13,6 @@ import {
   Plus,
   Edit2,
   Trash2,
-  GripVertical,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
@@ -29,7 +28,6 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
 
 interface Priority {
   id?: string;
@@ -159,40 +157,6 @@ export default function PrioritiesPage() {
     }
   };
 
-  const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination) return;
-
-    const items = Array.from(filteredPriorities);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    // Update local state immediately for smooth UX
-    const updatedPriorities = priorities.map(p => {
-      const newIndex = items.findIndex(item => item.id === p.id);
-      if (newIndex !== -1) {
-        return { ...p, priority: newIndex };
-      }
-      return p;
-    });
-    setPriorities(updatedPriorities);
-
-    // Update Firestore in background
-    try {
-      const updatePromises = items.map((item, index) => {
-        if (item.id) {
-          return updateDoc(doc(db, "priorities", item.id), {
-            priority: index,
-            updatedAt: serverTimestamp(),
-          });
-        }
-      });
-      await Promise.all(updatePromises);
-    } catch (error) {
-      console.error("Error updating priority order:", error);
-      // Revert on error
-      await fetchPriorities();
-    }
-  };
 
   const handleEditClick = (priority: Priority) => {
     setEditingPriority(priority);
@@ -313,39 +277,19 @@ export default function PrioritiesPage() {
             </Card>
           </motion.div>
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="priorities">
-              {(provided) => (
-                <div 
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-                >
-                  {filteredPriorities.map((priority, index) => (
-                    <Draggable key={priority.id || `temp-${index}`} draggableId={priority.id || `temp-${index}`} index={index}>
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                        >
-                          <motion.div 
-                            initial={{ opacity: 0, y: 20 }} 
-                            animate={{ opacity: 1, y: 0 }} 
-                            transition={{ delay: 0.5 + (index * 0.1) }}
-                          >
-                            <Card>
-                              <div className="space-y-4">
-                                {/* Header */}
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex items-center gap-2">
-                                    <div 
-                                      {...provided.dragHandleProps}
-                                      className="p-1 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded"
-                                      style={{ color: "var(--foreground-muted)" }}
-                                    >
-                                      <GripVertical className="w-4 h-4" />
-                                    </div>
-                                    <div className="flex-1">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredPriorities.map((priority, index) => (
+              <motion.div 
+                key={priority.id}
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={{ delay: 0.5 + (index * 0.1) }}
+              >
+                <Card>
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
                                       <div className="flex items-center gap-2 mb-2">
                                         <div 
                                           className="px-2 py-1 rounded-full text-xs font-medium capitalize"
@@ -460,18 +404,11 @@ export default function PrioritiesPage() {
                                     </div>
                                   </>
                                 )}
-                                </div>
-                              </Card>
-                            </motion.div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
                   </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
         )}
 
         {/* Link to Initiatives */}
