@@ -97,13 +97,13 @@ export default function ForecastsPage() {
     const keys: string[] = [];
     const now = new Date();
     
-    // Last 17 completed months (18 months back through last month, excluding current)
-    for (let i = 17; i >= 1; i--) {
+    // Last 14 completed months (Nov 2024 through Dec 2025)
+    for (let i = 14; i >= 1; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
     
-    console.log('📅 Generated monthKeys (last 17 completed months):', keys);
+    console.log('📅 Generated monthKeys (last 14 completed months, Nov 24 onwards):', keys);
     return keys;
   }, []);
 
@@ -376,7 +376,7 @@ export default function ForecastsPage() {
       );
       const invoicesSnapshot = await getDocs(invoicesQuery);
 
-      // Calculate revenue by product and month (only within 18-month window)
+      // Calculate revenue by product and month (only within historical window)
       const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
       const monthKeysSet = new Set(monthKeys); // For faster lookup
       
@@ -394,7 +394,7 @@ export default function ForecastsPage() {
 
         const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
         
-        // Only include invoices within the 18-month window
+        // Only include invoices within the historical window
         if (!monthKeysSet.has(monthKey)) return;
         
         const invoiceAmount = (invoice.total || 0) / 100;
@@ -478,7 +478,7 @@ export default function ForecastsPage() {
         const paymentDate = payment.created?.toDate?.() || new Date();
         const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
         
-        // Only include payments within the 18-month window
+        // Only include payments within the historical window
         if (!monthKeysSet.has(monthKey)) return;
         
         const paymentAmount = (payment.amount || 0) / 100;
@@ -581,7 +581,7 @@ export default function ForecastsPage() {
               let totalSessions = 0;
               
               Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, number]) => {
-                // Only include sessions within the 18-month window
+                // Only include sessions within the historical window
                 if (monthKeysSet.has(monthKey)) {
                   sessionMonths[monthKey] = value as number;
                   totalSessions += value as number;
@@ -608,7 +608,7 @@ export default function ForecastsPage() {
               let totalUsers = 0;
               
               Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, number]) => {
-                // Only include users within the 18-month window
+                // Only include users within the historical window
                 if (monthKeysSet.has(monthKey)) {
                   userMonths[monthKey] = value as number;
                   totalUsers += value as number;
@@ -636,7 +636,7 @@ export default function ForecastsPage() {
         console.warn("Could not fetch GA organic data:", error);
       }
 
-      // Fetch Google Analytics page data (trailing 18 months - need both years)
+      // Fetch Google Analytics page data (trailing 14 months - need both years)
       const startMonth = monthKeys[0];
       const endMonth = monthKeys[monthKeys.length - 1];
       const [startYear] = startMonth.split('-');
@@ -685,7 +685,7 @@ export default function ForecastsPage() {
             let totalSessions = 0;
             
             Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
-              // Only include page sessions within the 18-month window
+              // Only include page sessions within the historical window
               if (monthKeysSet.has(monthKey)) {
                 const sessions = metrics.sessions || 0;
                 sessionMonths[monthKey] = sessions;
@@ -711,7 +711,7 @@ export default function ForecastsPage() {
             let totalPageviews = 0;
             
             Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
-              // Only include pageviews within the 18-month window
+              // Only include pageviews within the historical window
               if (monthKeysSet.has(monthKey)) {
                 const pageviews = metrics.pageviews || 0;
                 pageviewMonths[monthKey] = pageviews;
@@ -760,7 +760,7 @@ export default function ForecastsPage() {
             const date = new Date(current.date);
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-            // Only include contact growth within the 18-month window
+            // Only include contact growth within the historical window
             if (growth > 0 && monthKeysSet.has(monthKey)) {
               contactGrowth[monthKey] = (contactGrowth[monthKey] || 0) + growth;
             }
@@ -859,7 +859,7 @@ export default function ForecastsPage() {
         await deleteDoc(doc.ref);
       }
 
-      // Fetch Homepage data from Google Analytics (18 months - need both years)
+      // Fetch Homepage data from Google Analytics (14 months - need both years)
       let homepageRow: BaselineEntity | null = null;
       try {
         const startMonth = monthKeys[0];
@@ -909,7 +909,7 @@ export default function ForecastsPage() {
           const sessionMonths: Record<string, number> = {};
           let totalSessions = 0;
           
-          // Extract sessions per month (only within 18-month window)
+          // Extract sessions per month (only within historical window)
           const monthKeysSet = new Set(monthKeys);
           Object.entries(homepageData.months || {}).forEach(([monthKey, metrics]) => {
             if (monthKeysSet.has(monthKey)) {
@@ -1162,7 +1162,7 @@ export default function ForecastsPage() {
   return (
     <AppLayout 
       title="Forecasting Model" 
-      subtitle="18-month history with 12-month projection using CMGR and seasonal patterns"
+      subtitle="14-month history (Nov '24 - Dec '25) with 12-month projection using CMGR and seasonal patterns"
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Revenue Forecast Visualization */}
