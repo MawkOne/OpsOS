@@ -696,7 +696,8 @@ export default function MasterTablePage() {
               entityName: campaign.name || 'Unknown Campaign',
               source: "google-analytics",
               type: "Ad Campaign",
-              metric: metricName,
+              metricType: metricName,
+              metric: getMetricTitle("google-analytics", "Ad Campaign", metricName),
               months: campaignMonths,
               total,
             });
