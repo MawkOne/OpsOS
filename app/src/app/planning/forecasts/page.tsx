@@ -103,6 +103,7 @@ export default function ForecastsPage() {
       keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
     
+    console.log('📅 Generated monthKeys (trailing 18 months):', keys);
     return keys;
   }, []);
 
@@ -118,6 +119,7 @@ export default function ForecastsPage() {
       keys.push(nextMonthKey);
     }
     
+    console.log('🔮 Generated forecastMonthKeys (next 12 months):', keys);
     return keys;
   }, []);
 
@@ -172,6 +174,11 @@ export default function ForecastsPage() {
     const ytJobsEntity = baselineEntities.find(e => e.entityName === "YT JOBS" && e.metricType === "revenue");
     const unlabeledEntity = baselineEntities.find(e => e.entityName === "Unlabeled Revenue" && e.metricType === "revenue");
     
+    console.log('🔍 Found entities for combining:', {
+      ytJobs: ytJobsEntity ? { name: ytJobsEntity.entityName, months: Object.keys(ytJobsEntity.months) } : null,
+      unlabeled: unlabeledEntity ? { name: unlabeledEntity.entityName, months: Object.keys(unlabeledEntity.months) } : null
+    });
+    
     // If both exist, combine them
     if (ytJobsEntity && unlabeledEntity) {
       const combinedMonths: Record<string, number> = {};
@@ -182,9 +189,13 @@ export default function ForecastsPage() {
         const ytValue = ytJobsEntity.months[key] || 0;
         const unlabeledValue = unlabeledEntity.months[key] || 0;
         const combined = ytValue + unlabeledValue;
-        combinedMonths[key] = combined;
+        if (combined > 0) {
+          combinedMonths[key] = combined;
+        }
         combinedTotal += combined;
       });
+      
+      console.log('✅ Combined entity months:', Object.keys(combinedMonths), 'Total:', combinedTotal);
       
       // Create combined entity
       const combinedEntity: BaselineEntity = {
@@ -214,6 +225,7 @@ export default function ForecastsPage() {
 
   // Pre-calculate forecasts for all entities (memoized for performance)
   const entityForecasts = useMemo(() => {
+    console.log('🔮 Starting forecast calculation for', processedBaselineEntities.length, 'entities');
     const forecasts = new Map<string, Record<string, number>>();
     
     processedBaselineEntities.forEach(entity => {
@@ -235,7 +247,15 @@ export default function ForecastsPage() {
         }
       }
       
+      console.log(`📊 ${entity.entityName}:`, {
+        cmgr: (cmgr * 100).toFixed(2) + '%',
+        lastMonthKey,
+        lastValue,
+        forecastMonths: forecastMonthKeys.length
+      });
+      
       if (lastValue === 0) {
+        console.warn(`⚠️ ${entity.entityName} has no data, skipping forecast`);
         forecasts.set(entity.entityId, {});
         return;
       }
@@ -258,9 +278,11 @@ export default function ForecastsPage() {
         entityForecastValues[forecastKey] = forecastValue;
       });
       
+      console.log(`  → Generated ${Object.keys(entityForecastValues).length} forecast months`);
       forecasts.set(entity.entityId, entityForecastValues);
     });
     
+    console.log('✅ Forecast calculation complete. Total forecasts:', forecasts.size);
     return forecasts;
   }, [processedBaselineEntities, monthKeys, forecastMonthKeys]);
 
@@ -279,7 +301,7 @@ export default function ForecastsPage() {
       
       baselineSnapshot.forEach((doc) => {
         const data = doc.data();
-        entities.push({
+        const entity = {
           id: doc.id,
           entityId: data.entityId,
           entityName: data.entityName,
@@ -289,9 +311,15 @@ export default function ForecastsPage() {
           metricType: data.metricType,
           months: data.months || {},
           total: data.total || 0,
+        };
+        console.log(`📥 Loaded from Firestore: ${entity.entityName}`, {
+          months: Object.keys(entity.months),
+          total: entity.total
         });
+        entities.push(entity);
       });
       
+      console.log(`✅ Loaded ${entities.length} baseline entities from Firestore`);
       setBaselineEntities(entities);
     } catch (error) {
       console.error("Error fetching baseline entities:", error);
