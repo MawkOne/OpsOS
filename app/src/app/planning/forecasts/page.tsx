@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -13,7 +13,20 @@ import {
   Plus,
   X,
   Check,
+  Download,
+  Share2,
 } from "lucide-react";
+import {
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+  Legend,
+} from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { db } from "@/lib/firebase";
@@ -785,6 +798,33 @@ export default function ForecastsPage() {
     return value.toLocaleString();
   };
 
+  // Prepare chart data for revenue entities
+  const revenueChartData = useMemo(() => {
+    const revenueEntities = baselineEntities.filter(e => e.metricType === "revenue");
+    if (revenueEntities.length === 0) return [];
+
+    const chartData = monthKeys.map((monthKey: string) => {
+      const [year, month] = monthKey.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      const monthLabel = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      let totalRevenue = 0;
+      revenueEntities.forEach(entity => {
+        totalRevenue += entity.months[monthKey] || 0;
+      });
+
+      return {
+        month: monthLabel,
+        actual: totalRevenue > 0 ? Math.round(totalRevenue / 1000) : null, // Convert to thousands
+        forecast: null,
+        lower: null,
+        upper: null,
+      };
+    });
+
+    return chartData;
+  }, [baselineEntities, monthKeys]);
+
   // Get unique sources and metrics from available entities
   const uniqueSources = Array.from(new Set(availableEntities.map(e => e.source)));
   const uniqueMetrics = Array.from(new Set(availableEntities.map(e => e.metric)));
@@ -1070,6 +1110,131 @@ export default function ForecastsPage() {
             )}
           </Card>
         </motion.div>
+
+        {/* Revenue Forecast Visualization */}
+        {revenueChartData.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                    Revenue Forecast
+                  </h2>
+                  <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                    Historical revenue with projected growth patterns
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    className="p-2 rounded-lg transition-all duration-200"
+                    style={{ 
+                      background: "var(--muted)",
+                      color: "var(--foreground-muted)",
+                    }}
+                    title="Download chart"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button 
+                    className="p-2 rounded-lg transition-all duration-200"
+                    style={{ 
+                      background: "var(--muted)",
+                      color: "var(--foreground-muted)",
+                    }}
+                    title="Share chart"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-80 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueChartData}>
+                    <defs>
+                      <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="var(--foreground-muted)"
+                      tick={{ fill: "var(--foreground-muted)", fontSize: 12 }}
+                    />
+                    <YAxis 
+                      stroke="var(--foreground-muted)"
+                      tick={{ fill: "var(--foreground-muted)", fontSize: 12 }}
+                      tickFormatter={(value: number) => `$${value}K`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        background: "var(--card)", 
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        color: "var(--foreground)",
+                      }}
+                      formatter={(value) => [`$${value ?? 0}K`, ""]}
+                    />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="upper"
+                      stroke="transparent"
+                      fill="url(#colorConfidence)"
+                      name="Upper Bound"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="lower"
+                      stroke="transparent"
+                      fill="var(--background)"
+                      name="Lower Bound"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="actual"
+                      stroke="#00d4aa"
+                      strokeWidth={3}
+                      dot={{ fill: "#00d4aa", strokeWidth: 2, r: 4 }}
+                      name="Actual Revenue"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="forecast"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      strokeDasharray="5 5"
+                      dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                      name="Forecast"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ background: "#00d4aa" }} />
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Historical Revenue</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ background: "#3b82f6" }} />
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Forecast</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-3 rounded" style={{ background: "rgba(59, 130, 246, 0.2)" }} />
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>95% Confidence</span>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Initiative Forecasts Section */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
