@@ -282,26 +282,30 @@ export default function ForecastsPage() {
       forecastMonthKeys.forEach((forecastKey, idx) => {
         const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
         
-        // Step 1: Apply CMGR growth from previous month
-        let forecastValue = previousValue * (1 + cmgr);
-        
-        // Step 2: Apply historical month-over-month pattern if available
+        // Step 1: Apply historical month-over-month change pattern
+        // e.g., Dec '24 → Jan '25 was +2.7%, so apply that to Dec '25 → Jan '26
         const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
-        const momPattern = momPatterns[transitionKey];
+        const historicalChange = momPatterns[transitionKey];
         
-        if (momPattern !== undefined) {
-          // Apply historical pattern (but dampen it to avoid wild swings)
-          const dampenedPattern = momPattern * 0.3; // Use 30% of historical pattern
-          forecastValue = forecastValue * (1 + dampenedPattern);
+        let forecastValue;
+        if (historicalChange !== undefined) {
+          // Apply historical percentage change: New = Old × (1 + historical %)
+          forecastValue = previousValue * (1 + historicalChange);
+        } else {
+          // No historical pattern, just keep same value
+          forecastValue = previousValue;
         }
+        
+        // Step 2: Multiply by CMGR growth
+        forecastValue = forecastValue * (1 + cmgr);
         
         // Log first forecast month (Jan '26) for debugging
         if (idx === 0) {
           console.log(`  🔮 First forecast (${forecastKey}):`, {
             previousValue: `$${previousValue.toFixed(0)}`,
-            cmgrGrowth: `${(cmgr * 100).toFixed(2)}%`,
-            afterCMGR: `$${(previousValue * (1 + cmgr)).toFixed(0)}`,
-            momPattern: momPattern ? `${(momPattern * 100).toFixed(2)}%` : 'none',
+            historicalChange: historicalChange ? `${(historicalChange * 100).toFixed(2)}%` : 'none',
+            afterHistorical: historicalChange ? `$${(previousValue * (1 + historicalChange)).toFixed(0)}` : 'same',
+            cmgrMultiplier: `×${(1 + cmgr).toFixed(4)}`,
             finalForecast: `$${forecastValue.toFixed(0)}`
           });
         }
