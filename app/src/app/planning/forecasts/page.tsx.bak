@@ -24,6 +24,7 @@ import {
   ResponsiveContainer,
   Area,
   AreaChart,
+  Legend,
 } from "recharts";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -395,6 +396,444 @@ export default function ForecastsPage() {
 
   // Add entity to baseline
   const handleAddEntity = async (entity: BaselineEntity) => {
+    if (!organizationId) return;
+    
+    try {
+      await addDoc(collection(db, "forecast_baseline_rows"), {
+        organizationId,
+        entityId: entity.entityId,
+        entityName: entity.entityName,
+        source: entity.source,
+        type: entity.type,
+        metric: entity.metric,
+        metricType: entity.metricType,
+        months: entity.months,
+        total: entity.total,
+        createdAt: serverTimestamp(),
+      });
+      
+      setSelectedEntityIds(prev => new Set(prev).add(entity.entityId));
+      await fetchBaselineEntities();
+    } catch (error) {
+      console.error("Error adding baseline entity:", error);
+    }
+  };
+
+  // Remove entity from baseline
+  const handleRemoveEntity = async (entityId: string) => {
+    if (!organizationId) return;
+    
+    try {
+      const entity = baselineEntities.find(e => e.entityId === entityId);
+      if (entity && entity.id) {
+        await deleteDoc(doc(db, "forecast_baseline_rows", entity.id));
+        setSelectedEntityIds(prev => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+        await fetchBaselineEntities();
+      }
+    } catch (error) {
+      console.error("Error removing baseline entity:", error);
+    }
+  };
+
+  // Manually seed specific baseline rows (temporary function)
+  const seedManualBaseline = async () => {
+    if (!organizationId) return;
+    
+    try {
+      setLoading(true);
+
+        const lineItems = invoice.lineItems || [];
+        
+        if (lineItems.length > 0) {
+          let hasValidProduct = false;
+          
+          lineItems.forEach((item: LineItem) => {
+            const productId = item.productId;
+            
+            if (productId) {
+              hasValidProduct = true;
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0,
+                  count: {},
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+              productRevenue[productId].total += itemAmount;
+            }
+          });
+          
+          // If line items exist but none have productId
+          if (!hasValidProduct) {
+            const unlabeledId = 'unlabeled';
+            if (!productRevenue[unlabeledId]) {
+              productRevenue[unlabeledId] = {
+                name: 'Unlabeled Revenue',
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+            productRevenue[unlabeledId].total += invoiceAmount;
+          }
+        } else {
+          // No line items at all
+          const unlabeledId = 'unlabeled';
+          if (!productRevenue[unlabeledId]) {
+            productRevenue[unlabeledId] = {
+              name: 'Unlabeled Revenue',
+              months: {},
+              total: 0,
+              count: {},
+            };
+          }
+          productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+          productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+          productRevenue[unlabeledId].total += invoiceAmount;
+        }
+      });
+
+      // Fetch Stripe payments (direct charges without invoices)
+      const paymentsQuery = query(
+        collection(db, "stripe_payments"),
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
+      );
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+      
+      paymentsSnapshot.forEach((doc) => {
+        const payment = doc.data();
+        
+        // Skip if this payment's invoice was already counted
+        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) {
+          return;
+        }
+        
+        const paymentDate = payment.created?.toDate?.() || new Date();
+        const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        // Only include payments within the historical window
+        if (!monthKeysSet.has(monthKey)) return;
+        
+        const paymentAmount = (payment.amount || 0) / 100;
+        
+        const lineItems = payment.lineItems || [];
+        
+        if (lineItems.length > 0) {
+          // Has line items
+          lineItems.forEach((item: LineItem) => {
+            const productId = item.productId;
+            
+            if (productId) {
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0,
+                  count: {},
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+              productRevenue[productId].total += itemAmount;
+            }
+          });
+        } else {
+          // No line items - use statement descriptor or categorize as unlabeled
+          const statementDescriptor = payment.calculatedStatementDescriptor || payment.statementDescriptor;
+          
+          if (statementDescriptor) {
+            // Use statement descriptor as product identifier
+            const productId = `descriptor_${statementDescriptor}`;
+            const productName = statementDescriptor;
+            
+            if (!productRevenue[productId]) {
+              productRevenue[productId] = {
+                name: productName,
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            
+            productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + 1;
+            productRevenue[productId].total += paymentAmount;
+          } else {
+            // Truly unlabeled
+            const unlabeledId = 'unlabeled';
+            if (!productRevenue[unlabeledId]) {
+              productRevenue[unlabeledId] = {
+                name: 'Unlabeled Revenue',
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+            productRevenue[unlabeledId].total += paymentAmount;
+          }
+        }
+      });
+
+      // Convert Stripe products to entities
+      Object.entries(productRevenue).forEach(([productId, data]) => {
+        entities.push({
+          entityId: `stripe_product_${productId}`,
+          entityName: data.name,
+          source: "stripe",
+          type: "Product",
+          metric: "Product Revenue",
+          metricType: "revenue",
+          months: data.months,
+          total: data.total,
+        });
+      });
+
+      console.log(`✅ Added ${Object.keys(productRevenue).length} Stripe product entities`);
+
+      // Fetch Google Analytics traffic/organic data
+      try {
+        const gaResponse = await fetch(
+          `/api/google-analytics/organic?organizationId=${organizationId}`
+        );
+        if (gaResponse.ok) {
+          const gaData = await gaResponse.json();
+          const sources = gaData.data || [];
+          
+          sources.forEach((sourceData: GASource) => {
+            const sourceName = sourceData.name || "Unknown Source";
+            
+            // Sessions metric
+            if (sourceData.sessions) {
+              const sessionMonths: Record<string, number> = {};
+              let totalSessions = 0;
+              
+              Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, number]) => {
+                // Only include sessions within the historical window
+                if (monthKeysSet.has(monthKey)) {
+                  sessionMonths[monthKey] = value as number;
+                  totalSessions += value as number;
+                }
+              });
+              
+              if (totalSessions > 0) {
+                entities.push({
+                  entityId: `ga_organic_${sourceName}_sessions`,
+                  entityName: sourceName,
+                  source: "google-analytics-organic",
+                  type: "Traffic Source",
+                  metric: "Sessions",
+                  metricType: "sessions",
+                  months: sessionMonths,
+                  total: totalSessions,
+                });
+              }
+            }
+            
+            // Users metric
+            if (sourceData.users) {
+              const userMonths: Record<string, number> = {};
+              let totalUsers = 0;
+              
+              Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, number]) => {
+                // Only include users within the historical window
+                if (monthKeysSet.has(monthKey)) {
+                  userMonths[monthKey] = value as number;
+                  totalUsers += value as number;
+                }
+              });
+              
+              if (totalUsers > 0) {
+                entities.push({
+                  entityId: `ga_organic_${sourceName}_users`,
+                  entityName: sourceName,
+                  source: "google-analytics-organic",
+                  type: "Traffic Source",
+                  metric: "Users",
+                  metricType: "users",
+                  months: userMonths,
+                  total: totalUsers,
+                });
+              }
+            }
+          });
+          
+          console.log(`✅ Added ${sources.length * 2} Google Analytics traffic entities`);
+        }
+      } catch (error) {
+        console.warn("Could not fetch GA organic data:", error);
+      }
+
+      // Fetch Google Analytics page data (trailing 14 months - need both years)
+      const startMonth = monthKeys[0];
+      const endMonth = monthKeys[monthKeys.length - 1];
+      const [startYear] = startMonth.split('-');
+      const [endYear] = endMonth.split('-');
+      
+      const allPages: GAPage[] = [];
+      
+      try {
+        // Fetch data for all years in the 18-month range
+        const yearsToFetch = [parseInt(startYear)];
+        if (parseInt(endYear) !== parseInt(startYear)) {
+          yearsToFetch.push(parseInt(endYear));
+        }
+        
+        for (const year of yearsToFetch) {
+          const gaPagesResponse = await fetch(
+            `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${year}`
+          );
+          if (gaPagesResponse.ok) {
+            const gaData = await gaPagesResponse.json();
+            const pages = gaData.pages || [];
+            
+            // Merge pages by pagePath
+            pages.forEach((newPage: GAPage) => {
+              const existingPage = allPages.find(p => p.id === newPage.id);
+              if (existingPage) {
+                // Merge months
+                if (newPage.months) {
+                  Object.assign(existingPage.months || {}, newPage.months);
+                }
+              } else {
+                allPages.push(newPage);
+              }
+            });
+          }
+        }
+        
+        if (allPages.length > 0) {
+          const pages = allPages;
+          
+          pages.forEach((pageData: GAPage) => {
+            const pageName = pageData.name || "Unknown Page";
+            
+            // Page Sessions
+            const sessionMonths: Record<string, number> = {};
+            let totalSessions = 0;
+            
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
+              // Only include page sessions within the historical window
+              if (monthKeysSet.has(monthKey)) {
+                const sessions = metrics.sessions || 0;
+                sessionMonths[monthKey] = sessions;
+                totalSessions += sessions;
+              }
+            });
+            
+            if (totalSessions > 0) {
+              entities.push({
+                entityId: `ga_page_${pageData.id}_sessions`,
+                entityName: pageName,
+                source: "google-analytics-organic",
+                type: "Page",
+                metric: "Page Sessions",
+                metricType: "sessions",
+                months: sessionMonths,
+                total: totalSessions,
+              });
+            }
+            
+            // Pageviews
+            const pageviewMonths: Record<string, number> = {};
+            let totalPageviews = 0;
+            
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
+              // Only include pageviews within the historical window
+              if (monthKeysSet.has(monthKey)) {
+                const pageviews = metrics.pageviews || 0;
+                pageviewMonths[monthKey] = pageviews;
+                totalPageviews += pageviews;
+              }
+            });
+            
+            if (totalPageviews > 0) {
+              entities.push({
+                entityId: `ga_page_${pageData.id}_pageviews`,
+                entityName: pageName,
+                source: "google-analytics-organic",
+                type: "Page",
+                metric: "Pageviews",
+                metricType: "pageviews",
+                months: pageviewMonths,
+                total: totalPageviews,
+              });
+            }
+          });
+          
+          console.log(`✅ Added ${pages.length * 2} Google Analytics page entities`);
+        }
+      } catch (error) {
+        console.warn("Could not fetch GA pages data:", error);
+      }
+
+      // Fetch ActiveCampaign contact growth (signups)
+      try {
+        const contactCountsQuery = query(
+          collection(db, "activecampaign_contact_counts"),
+          where("organizationId", "==", organizationId)
+        );
+        const contactCountsSnapshot = await getDocs(contactCountsQuery);
+        
+        if (contactCountsSnapshot.size > 0) {
+          const contactGrowth: Record<string, number> = {};
+          const sortedCounts = contactCountsSnapshot.docs
+            .map((doc) => doc.data())
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          for (let i = 1; i < sortedCounts.length; i++) {
+            const current = sortedCounts[i];
+            const previous = sortedCounts[i - 1];
+            const growth = Math.max(0, current.count - previous.count);
+            const date = new Date(current.date);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+            // Only include contact growth within the historical window
+            if (growth > 0 && monthKeysSet.has(monthKey)) {
+              contactGrowth[monthKey] = (contactGrowth[monthKey] || 0) + growth;
+            }
+          }
+
+          const totalGrowth = Object.values(contactGrowth).reduce((sum, val) => sum + val, 0);
+          if (totalGrowth > 0) {
+            entities.push({
+              entityId: "activecampaign_contacts_growth",
+              entityName: "Contact Growth",
+              source: "activecampaign",
+              type: "Contacts",
+              metric: "New Contacts",
+              metricType: "newContacts",
+              months: contactGrowth,
+              total: totalGrowth,
+            });
+            console.log(`✅ Added ActiveCampaign contact growth entity`);
+          }
+        }
+      } catch (error) {
+        console.warn("Could not fetch ActiveCampaign contact data:", error);
+      }
+
+  // Manually seed specific baseline rows (temporary function)
+  const seedManualBaseline = async () => {
     if (!organizationId) return;
     
     try {
