@@ -401,8 +401,62 @@ export default function ForecastsPage() {
         await deleteDoc(doc.ref);
       }
 
-      // Manually add the 3 specific Stripe rows with hardcoded data (Row 1 - Homepage will be added later)
-      const manualRows: BaselineEntity[] = [
+      // Fetch Homepage data from Google Analytics
+      let homepageRow: BaselineEntity | null = null;
+      try {
+        const gaResponse = await fetch(
+          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=2025`
+        );
+        if (gaResponse.ok) {
+          const gaData = await gaResponse.json();
+          const pages = gaData.pages || [];
+          
+          // Find homepage (pagePath === "/" or contains "home")
+          const homepage = pages.find((p: any) => 
+            p.name === "Homepage" || 
+            p.name === "/" || 
+            p.name?.toLowerCase().includes("home")
+          );
+          
+          if (homepage) {
+            const sessionMonths: Record<string, number> = {};
+            let totalSessions = 0;
+            
+            // Extract sessions per month
+            Object.entries(homepage.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+              const sessions = metrics.sessions || 0;
+              sessionMonths[monthKey] = sessions;
+              totalSessions += sessions;
+            });
+            
+            if (totalSessions > 0) {
+              homepageRow = {
+                entityId: `ga_page_${homepage.id}_sessions`,
+                entityName: "Homepage",
+                source: "google-analytics-organic",
+                type: "Page",
+                metric: "Page Sessions",
+                metricType: "sessions",
+                months: sessionMonths,
+                total: totalSessions,
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Could not fetch Homepage data:", error);
+      }
+
+      // Build the baseline rows array
+      const manualRows: BaselineEntity[] = [];
+      
+      // Row 1: Homepage (if found)
+      if (homepageRow) {
+        manualRows.push(homepageRow);
+      }
+      
+      // Rows 2-4: Stripe products with hardcoded data
+      manualRows.push(
         {
           entityId: "stripe_product_descriptor_YT JOBS",
           entityName: "YT JOBS",
