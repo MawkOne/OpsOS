@@ -117,6 +117,46 @@ export default function ForecastsPage() {
 
   const monthKeys = getMonthKeys();
 
+  // Generate forecast month keys (next 6 months)
+  const forecastMonthKeys = useMemo(() => {
+    const keys: string[] = [];
+    const lastMonthKey = monthKeys[monthKeys.length - 1];
+    const [year, month] = lastMonthKey.split('-');
+    const lastDate = new Date(parseInt(year), parseInt(month) - 1);
+    
+    for (let i = 1; i <= 6; i++) {
+      const nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + i);
+      const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+      keys.push(nextMonthKey);
+    }
+    
+    return keys;
+  }, [monthKeys]);
+
+  // Calculate forecast values for an entity
+  const calculateEntityForecast = useCallback((entity: BaselineEntity, forecastKey: string) => {
+    const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
+    const lastMonthKey = monthKeys[monthKeys.length - 1];
+    const lastValue = entity.months[lastMonthKey] || 0;
+    
+    if (lastValue === 0) return 0;
+    
+    // Find months ahead
+    const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
+    const forecastDate = new Date(parseInt(forecastKey.split('-')[0]), parseInt(forecastKey.split('-')[1]) - 1);
+    const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
+    
+    // Apply CMGR growth
+    const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
+    
+    // Apply seasonal factor
+    const monthNum = parseInt(forecastKey.split('-')[1]);
+    const seasonalFactor = seasonalFactors[monthNum] || 1.0;
+    const forecastValue = projectedValue * seasonalFactor;
+    
+    return forecastValue;
+  }, [monthKeys]);
+
   // Fetch saved baseline entities from Firestore
   const fetchBaselineEntities = useCallback(async () => {
     if (!organizationId) return;
@@ -1205,6 +1245,15 @@ export default function ForecastsPage() {
                           </th>
                         );
                       })}
+                      {forecastMonthKeys.map((key) => {
+                        const [year, month] = key.split('-');
+                        const date = new Date(parseInt(year), parseInt(month) - 1);
+                        return (
+                          <th key={key} className="text-right py-3 px-4 text-xs font-semibold whitespace-nowrap" style={{ color: "#3b82f6", background: "rgba(59, 130, 246, 0.05)" }}>
+                            {date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
+                          </th>
+                        );
+                      })}
                       <th className="text-center py-3 px-4 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
                         Actions
                       </th>
@@ -1236,6 +1285,14 @@ export default function ForecastsPage() {
                             return (
                               <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-muted)" }}>
                                 {value > 0 ? formatValue(value, entity.metricType) : "—"}
+                              </td>
+                            );
+                          })}
+                          {forecastMonthKeys.map((key) => {
+                            const forecastValue = calculateEntityForecast(entity, key);
+                            return (
+                              <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap font-medium" style={{ color: "#3b82f6", background: "rgba(59, 130, 246, 0.05)" }}>
+                                {forecastValue > 0 ? formatValue(forecastValue, entity.metricType) : "—"}
                               </td>
                             );
                           })}
