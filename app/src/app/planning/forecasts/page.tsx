@@ -568,17 +568,46 @@ export default function ForecastsPage() {
         console.warn("Could not fetch GA organic data:", error);
       }
 
-      // Fetch Google Analytics page data (trailing 18 months)
+      // Fetch Google Analytics page data (trailing 18 months - need both years)
+      const startMonth = monthKeys[0];
       const endMonth = monthKeys[monthKeys.length - 1];
+      const [startYear] = startMonth.split('-');
       const [endYear] = endMonth.split('-');
       
+      const allPages: GAPage[] = [];
+      
       try {
-        const gaPagesResponse = await fetch(
-          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${endYear}`
-        );
-        if (gaPagesResponse.ok) {
-          const gaData = await gaPagesResponse.json();
-          const pages = gaData.pages || [];
+        // Fetch data for all years in the 18-month range
+        const yearsToFetch = [parseInt(startYear)];
+        if (parseInt(endYear) !== parseInt(startYear)) {
+          yearsToFetch.push(parseInt(endYear));
+        }
+        
+        for (const year of yearsToFetch) {
+          const gaPagesResponse = await fetch(
+            `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${year}`
+          );
+          if (gaPagesResponse.ok) {
+            const gaData = await gaPagesResponse.json();
+            const pages = gaData.pages || [];
+            
+            // Merge pages by pagePath
+            pages.forEach((newPage: GAPage) => {
+              const existingPage = allPages.find(p => p.id === newPage.id);
+              if (existingPage) {
+                // Merge months
+                if (newPage.months) {
+                  Object.assign(existingPage.months || {}, newPage.months);
+                }
+              } else {
+                allPages.push(newPage);
+              }
+            });
+          }
+        }
+        
+        if (allPages.length > 0) {
+          const pages = allPages;
           
           pages.forEach((pageData: GAPage) => {
             const pageName = pageData.name || "Unknown Page";
@@ -755,48 +784,75 @@ export default function ForecastsPage() {
         await deleteDoc(doc.ref);
       }
 
-      // Fetch Homepage data from Google Analytics
+      // Fetch Homepage data from Google Analytics (18 months - need both years)
       let homepageRow: BaselineEntity | null = null;
       try {
-        const currentYear = new Date().getFullYear();
-        const gaResponse = await fetch(
-          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${currentYear}`
-        );
-        if (gaResponse.ok) {
-          const gaData = await gaResponse.json();
-          const pages = gaData.pages || [];
-          
-          // Find homepage (pagePath === "/" or contains "home")
-          const homepage = pages.find((p: GAPage) => 
-            p.name === "Homepage" || 
-            p.name === "/" || 
-            p.name?.toLowerCase().includes("home")
+        const startMonth = monthKeys[0];
+        const endMonth = monthKeys[monthKeys.length - 1];
+        const [startYear] = startMonth.split('-');
+        const [endYear] = endMonth.split('-');
+        
+        const yearsToFetch = [parseInt(startYear)];
+        if (parseInt(endYear) !== parseInt(startYear)) {
+          yearsToFetch.push(parseInt(endYear));
+        }
+        
+        let homepageData: GAPage | null = null;
+        
+        for (const year of yearsToFetch) {
+          const gaResponse = await fetch(
+            `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${year}`
           );
-          
-          if (homepage) {
-            const sessionMonths: Record<string, number> = {};
-            let totalSessions = 0;
+          if (gaResponse.ok) {
+            const gaData = await gaResponse.json();
+            const pages = gaData.pages || [];
             
-            // Extract sessions per month
-            Object.entries(homepage.months || {}).forEach(([monthKey, metrics]) => {
-              const gaMetrics = metrics as GAMetrics;
-              const sessions = gaMetrics.sessions || 0;
-              sessionMonths[monthKey] = sessions;
-              totalSessions += sessions;
-            });
+            // Find homepage (pagePath === "/" or contains "home")
+            const homepage = pages.find((p: GAPage) => 
+              p.name === "Homepage" || 
+              p.name === "/" || 
+              p.name?.toLowerCase().includes("home")
+            );
             
-            if (totalSessions > 0) {
-              homepageRow = {
-                entityId: `ga_page_${homepage.id}_sessions`,
-                entityName: "Homepage",
-                source: "google-analytics-organic",
-                type: "Page",
-                metric: "Page Sessions",
-                metricType: "sessions",
-                months: sessionMonths,
-                total: totalSessions,
-              };
+            if (homepage) {
+              if (!homepageData) {
+                homepageData = homepage;
+              } else {
+                // Merge months from multiple years
+                if (homepage.months) {
+                  if (!homepageData.months) {
+                    homepageData.months = {};
+                  }
+                  Object.assign(homepageData.months, homepage.months);
+                }
+              }
             }
+          }
+        }
+        
+        if (homepageData) {
+          const sessionMonths: Record<string, number> = {};
+          let totalSessions = 0;
+          
+          // Extract sessions per month
+          Object.entries(homepageData.months || {}).forEach(([monthKey, metrics]) => {
+            const gaMetrics = metrics as GAMetrics;
+            const sessions = gaMetrics.sessions || 0;
+            sessionMonths[monthKey] = sessions;
+            totalSessions += sessions;
+          });
+          
+          if (totalSessions > 0) {
+            homepageRow = {
+              entityId: `ga_page_${homepageData.id}_sessions`,
+              entityName: "Homepage",
+              source: "google-analytics-organic",
+              type: "Page",
+              metric: "Page Sessions",
+              metricType: "sessions",
+              months: sessionMonths,
+              total: totalSessions,
+            };
           }
         }
       } catch (error) {
