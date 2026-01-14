@@ -84,7 +84,6 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4" 
       style={{ background: "rgba(0, 0, 0, 0.7)" }}
-      onClick={onClose}
     >
       <div 
         className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl overflow-hidden"
@@ -92,7 +91,6 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
           background: "var(--background-secondary)", 
           border: "1px solid var(--border)"
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
