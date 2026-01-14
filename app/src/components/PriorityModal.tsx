@@ -93,16 +93,23 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0, 0, 0, 0.5)" }}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4" 
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.75)" }}
+      onClick={onClose}
+    >
       <div 
         className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl"
-        style={{ background: "var(--card)" }}
+        style={{ 
+          backgroundColor: "var(--card)",
+          border: "1px solid var(--border)"
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b" style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(59, 130, 246, 0.1)" }}>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(59, 130, 246, 0.1)" }}>
               <Target className="w-5 h-5" style={{ color: "#3b82f6" }} />
             </div>
             <div>
@@ -139,7 +146,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                 required
                 className="w-full px-4 py-2 rounded-lg border text-sm"
                 style={{ 
-                  background: "var(--card)",
+                  backgroundColor: "var(--card)",
                   borderColor: "var(--border)",
                   color: "var(--foreground)"
                 }}
@@ -211,7 +218,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
           </div>
 
           {/* How Are We Doing */}
-          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--muted)" }}>
+          <div className="space-y-4 p-4 rounded-lg" style={{ backgroundColor: "var(--muted)" }}>
             <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
               How Are We Doing
             </h3>
@@ -316,7 +323,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                       className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                       style={{ 
                         color: "#ef4444",
-                        background: "rgba(239, 68, 68, 0.1)"
+                        backgroundColor: "rgba(239, 68, 68, 0.1)"
                       }}
                     >
                       Remove
@@ -330,7 +337,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
                 className="text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 style={{ 
                   color: "#3b82f6",
-                  background: "rgba(59, 130, 246, 0.1)"
+                  backgroundColor: "rgba(59, 130, 246, 0.1)"
                 }}
               >
                 + Add Item
@@ -346,7 +353,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
               className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
               style={{ 
                 color: "var(--foreground-muted)",
-                background: "var(--muted)"
+                backgroundColor: "var(--muted)"
               }}
             >
               Cancel
@@ -355,7 +362,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
               type="submit"
               className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80"
               style={{ 
-                background: "#3b82f6",
+                backgroundColor: "#3b82f6",
                 color: "white"
               }}
             >
