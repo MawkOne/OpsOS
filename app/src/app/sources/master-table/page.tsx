@@ -770,7 +770,7 @@ export default function MasterTablePage() {
       
       // Process each traffic source (e.g., "Organic Search", "Direct", "Referral")
       trafficSources.forEach((sourceData: any) => {
-        const sourceName = sourceData.source || 'Unknown Source';
+        const sourceName = sourceData.name || 'Unknown Source';
         
         // Metrics to track for each traffic source
         const metricsToTrack = [
