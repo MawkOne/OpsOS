@@ -133,6 +133,51 @@ export default function ForecastsPage() {
     return keys;
   }, [monthKeys]);
 
+  // Calculate CMGR (Compound Monthly Growth Rate) and seasonal patterns
+  const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
+    const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
+    if (values.length < 3) return { cmgr: 0, seasonalFactors: {} };
+
+    // Calculate CMGR (Compound Monthly Growth Rate)
+    const firstValue = values[0];
+    const lastValue = values[values.length - 1];
+    const months = values.length - 1;
+    const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
+
+    // Calculate seasonal factors (average for each month position)
+    const monthlyAverages: Record<number, number[]> = {};
+    monthKeys.forEach((key) => {
+      const value = entity.months[key] || 0;
+      if (value > 0) {
+        const monthNum = parseInt(key.split('-')[1]);
+        if (!monthlyAverages[monthNum]) monthlyAverages[monthNum] = [];
+        monthlyAverages[monthNum].push(value);
+      }
+    });
+
+    // Calculate average for each month and normalize
+    const avgByMonth: Record<number, number> = {};
+    let overallAvg = 0;
+    let monthCount = 0;
+    
+    Object.entries(monthlyAverages).forEach(([month, vals]) => {
+      const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+      avgByMonth[parseInt(month)] = avg;
+      overallAvg += avg;
+      monthCount++;
+    });
+    
+    overallAvg = overallAvg / monthCount;
+
+    // Normalize seasonal factors (1.0 = average, >1 = above average, <1 = below average)
+    const seasonalFactors: Record<number, number> = {};
+    Object.entries(avgByMonth).forEach(([month, avg]) => {
+      seasonalFactors[parseInt(month)] = overallAvg > 0 ? avg / overallAvg : 1.0;
+    });
+
+    return { cmgr, seasonalFactors };
+  };
+
   // Pre-calculate forecasts for all entities (memoized for performance)
   const entityForecasts = useMemo(() => {
     const forecasts = new Map<string, Record<string, number>>();
@@ -850,52 +895,6 @@ export default function ForecastsPage() {
     // For counts (sessions, users, pageviews, contacts, etc.)
     return value.toLocaleString();
   };
-
-  // Calculate CMGR (Compound Monthly Growth Rate) and seasonal patterns
-  const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
-    const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
-    if (values.length < 3) return { cmgr: 0, seasonalFactors: {} };
-
-    // Calculate CMGR (Compound Monthly Growth Rate)
-    const firstValue = values[0];
-    const lastValue = values[values.length - 1];
-    const months = values.length - 1;
-    const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
-
-    // Calculate seasonal factors (average for each month position)
-    const monthlyAverages: Record<number, number[]> = {};
-    monthKeys.forEach((key) => {
-      const value = entity.months[key] || 0;
-      if (value > 0) {
-        const monthNum = parseInt(key.split('-')[1]);
-        if (!monthlyAverages[monthNum]) monthlyAverages[monthNum] = [];
-        monthlyAverages[monthNum].push(value);
-      }
-    });
-
-    // Calculate average for each month and normalize
-    const avgByMonth: Record<number, number> = {};
-    let overallAvg = 0;
-    let monthCount = 0;
-    
-    Object.entries(monthlyAverages).forEach(([month, vals]) => {
-      const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
-      avgByMonth[parseInt(month)] = avg;
-      overallAvg += avg;
-      monthCount++;
-    });
-    
-    overallAvg = overallAvg / monthCount;
-
-    // Normalize seasonal factors (1.0 = average, >1 = above average, <1 = below average)
-    const seasonalFactors: Record<number, number> = {};
-    Object.entries(avgByMonth).forEach(([month, avg]) => {
-      seasonalFactors[parseInt(month)] = overallAvg > 0 ? avg / overallAvg : 1.0;
-    });
-
-    return { cmgr, seasonalFactors };
-  };
-
   // Prepare chart data for revenue entities with forecasts
   const revenueChartData = useMemo(() => {
     const revenueEntities = baselineEntities.filter(e => e.metricType === "revenue");
