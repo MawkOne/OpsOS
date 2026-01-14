@@ -329,8 +329,9 @@ export default function ForecastsPage() {
       );
       const invoicesSnapshot = await getDocs(invoicesQuery);
 
-      // Calculate revenue by product and month
+      // Calculate revenue by product and month (only within 18-month window)
       const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
+      const monthKeysSet = new Set(monthKeys); // For faster lookup
       
       // Track which invoices we've processed
       const countedInvoiceIds = new Set<string>();
@@ -345,6 +346,10 @@ export default function ForecastsPage() {
         if (!invoiceDate) return;
 
         const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        // Only include invoices within the 18-month window
+        if (!monthKeysSet.has(monthKey)) return;
+        
         const invoiceAmount = (invoice.total || 0) / 100;
 
         const lineItems = invoice.lineItems || [];
@@ -425,6 +430,10 @@ export default function ForecastsPage() {
         
         const paymentDate = payment.created?.toDate?.() || new Date();
         const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        
+        // Only include payments within the 18-month window
+        if (!monthKeysSet.has(monthKey)) return;
+        
         const paymentAmount = (payment.amount || 0) / 100;
         
         const lineItems = payment.lineItems || [];
@@ -525,8 +534,11 @@ export default function ForecastsPage() {
               let totalSessions = 0;
               
               Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, number]) => {
-                sessionMonths[monthKey] = value as number;
-                totalSessions += value as number;
+                // Only include sessions within the 18-month window
+                if (monthKeysSet.has(monthKey)) {
+                  sessionMonths[monthKey] = value as number;
+                  totalSessions += value as number;
+                }
               });
               
               if (totalSessions > 0) {
@@ -549,8 +561,11 @@ export default function ForecastsPage() {
               let totalUsers = 0;
               
               Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, number]) => {
-                userMonths[monthKey] = value as number;
-                totalUsers += value as number;
+                // Only include users within the 18-month window
+                if (monthKeysSet.has(monthKey)) {
+                  userMonths[monthKey] = value as number;
+                  totalUsers += value as number;
+                }
               });
               
               if (totalUsers > 0) {
@@ -623,9 +638,12 @@ export default function ForecastsPage() {
             let totalSessions = 0;
             
             Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
-              const sessions = metrics.sessions || 0;
-              sessionMonths[monthKey] = sessions;
-              totalSessions += sessions;
+              // Only include page sessions within the 18-month window
+              if (monthKeysSet.has(monthKey)) {
+                const sessions = metrics.sessions || 0;
+                sessionMonths[monthKey] = sessions;
+                totalSessions += sessions;
+              }
             });
             
             if (totalSessions > 0) {
@@ -646,9 +664,12 @@ export default function ForecastsPage() {
             let totalPageviews = 0;
             
             Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
-              const pageviews = metrics.pageviews || 0;
-              pageviewMonths[monthKey] = pageviews;
-              totalPageviews += pageviews;
+              // Only include pageviews within the 18-month window
+              if (monthKeysSet.has(monthKey)) {
+                const pageviews = metrics.pageviews || 0;
+                pageviewMonths[monthKey] = pageviews;
+                totalPageviews += pageviews;
+              }
             });
             
             if (totalPageviews > 0) {
@@ -692,7 +713,8 @@ export default function ForecastsPage() {
             const date = new Date(current.date);
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-            if (growth > 0) {
+            // Only include contact growth within the 18-month window
+            if (growth > 0 && monthKeysSet.has(monthKey)) {
               contactGrowth[monthKey] = (contactGrowth[monthKey] || 0) + growth;
             }
           }
@@ -840,12 +862,15 @@ export default function ForecastsPage() {
           const sessionMonths: Record<string, number> = {};
           let totalSessions = 0;
           
-          // Extract sessions per month
+          // Extract sessions per month (only within 18-month window)
+          const monthKeysSet = new Set(monthKeys);
           Object.entries(homepageData.months || {}).forEach(([monthKey, metrics]) => {
-            const gaMetrics = metrics as GAMetrics;
-            const sessions = gaMetrics.sessions || 0;
-            sessionMonths[monthKey] = sessions;
-            totalSessions += sessions;
+            if (monthKeysSet.has(monthKey)) {
+              const gaMetrics = metrics as GAMetrics;
+              const sessions = gaMetrics.sessions || 0;
+              sessionMonths[monthKey] = sessions;
+              totalSessions += sessions;
+            }
           });
           
           if (totalSessions > 0) {
