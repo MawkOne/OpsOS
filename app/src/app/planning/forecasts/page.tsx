@@ -133,29 +133,43 @@ export default function ForecastsPage() {
     return keys;
   }, [monthKeys]);
 
-  // Calculate forecast values for an entity
-  const calculateEntityForecast = useCallback((entity: BaselineEntity, forecastKey: string) => {
-    const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
-    const lastMonthKey = monthKeys[monthKeys.length - 1];
-    const lastValue = entity.months[lastMonthKey] || 0;
+  // Pre-calculate forecasts for all entities (memoized for performance)
+  const entityForecasts = useMemo(() => {
+    const forecasts = new Map<string, Record<string, number>>();
     
-    if (lastValue === 0) return 0;
+    baselineEntities.forEach(entity => {
+      const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
+      const lastMonthKey = monthKeys[monthKeys.length - 1];
+      const lastValue = entity.months[lastMonthKey] || 0;
+      
+      if (lastValue === 0) {
+        forecasts.set(entity.entityId, {});
+        return;
+      }
+      
+      const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
+      const entityForecastValues: Record<string, number> = {};
+      
+      forecastMonthKeys.forEach(forecastKey => {
+        const forecastDate = new Date(parseInt(forecastKey.split('-')[0]), parseInt(forecastKey.split('-')[1]) - 1);
+        const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
+        
+        // Apply CMGR growth
+        const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
+        
+        // Apply seasonal factor
+        const monthNum = parseInt(forecastKey.split('-')[1]);
+        const seasonalFactor = seasonalFactors[monthNum] || 1.0;
+        const forecastValue = projectedValue * seasonalFactor;
+        
+        entityForecastValues[forecastKey] = forecastValue;
+      });
+      
+      forecasts.set(entity.entityId, entityForecastValues);
+    });
     
-    // Find months ahead
-    const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
-    const forecastDate = new Date(parseInt(forecastKey.split('-')[0]), parseInt(forecastKey.split('-')[1]) - 1);
-    const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
-    
-    // Apply CMGR growth
-    const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
-    
-    // Apply seasonal factor
-    const monthNum = parseInt(forecastKey.split('-')[1]);
-    const seasonalFactor = seasonalFactors[monthNum] || 1.0;
-    const forecastValue = projectedValue * seasonalFactor;
-    
-    return forecastValue;
-  }, [monthKeys]);
+    return forecasts;
+  }, [baselineEntities, monthKeys, forecastMonthKeys]);
 
   // Fetch saved baseline entities from Firestore
   const fetchBaselineEntities = useCallback(async () => {
@@ -887,38 +901,18 @@ export default function ForecastsPage() {
     const revenueEntities = baselineEntities.filter(e => e.metricType === "revenue");
     if (revenueEntities.length === 0) return [];
 
-    // Get last actual month key for projection baseline
-    const lastMonthKey = monthKeys[monthKeys.length - 1];
-
-    // Calculate forecast for each entity
-    const entityForecasts = revenueEntities.map(entity => {
-      const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
-      return { entity, cmgr, seasonalFactors };
-    });
-
-    // Generate 6 months of forecast
-    const forecastMonths = 6;
-    const extendedMonthKeys = [...monthKeys];
-    const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
-    
-    for (let i = 1; i <= forecastMonths; i++) {
-      const nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + i);
-      const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-      extendedMonthKeys.push(nextMonthKey);
-    }
+    // Combine historical and forecast month keys
+    const extendedMonthKeys = [...monthKeys, ...forecastMonthKeys];
 
     const chartData = extendedMonthKeys.map((monthKey: string, index) => {
       const [year, month] = monthKey.split('-');
       const date = new Date(parseInt(year), parseInt(month) - 1);
       const monthLabel = date.toLocaleDateString('en-US', { month: 'short' });
-      const monthNum = parseInt(month);
       const isHistorical = index < monthKeys.length;
       
-      let totalRevenue = 0;
-      let forecastRevenue = 0;
-      
       if (isHistorical) {
-        // Historical data
+        // Historical data - sum actual values
+        let totalRevenue = 0;
         revenueEntities.forEach(entity => {
           totalRevenue += entity.months[monthKey] || 0;
         });
@@ -931,21 +925,11 @@ export default function ForecastsPage() {
           upper: null,
         };
       } else {
-        // Forecast data
-        const monthsAhead = index - monthKeys.length + 1;
-        
-        entityForecasts.forEach(({ entity, cmgr, seasonalFactors }) => {
-          const lastValue = entity.months[lastMonthKey] || 0;
-          if (lastValue > 0) {
-            // Apply CMGR growth
-            const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
-            
-            // Apply seasonal factor if available
-            const seasonalFactor = seasonalFactors[monthNum] || 1.0;
-            const forecastValue = projectedValue * seasonalFactor;
-            
-            forecastRevenue += forecastValue;
-          }
+        // Forecast data - use pre-calculated forecasts
+        let forecastRevenue = 0;
+        revenueEntities.forEach(entity => {
+          const entityForecast = entityForecasts.get(entity.entityId)?.[monthKey] || 0;
+          forecastRevenue += entityForecast;
         });
         
         const forecast = Math.round(forecastRevenue / 1000);
@@ -961,7 +945,7 @@ export default function ForecastsPage() {
     });
 
     return chartData;
-  }, [baselineEntities, monthKeys]);
+  }, [baselineEntities, monthKeys, forecastMonthKeys, entityForecasts]);
 
   // Get unique sources and metrics from available entities
   const uniqueSources = Array.from(new Set(availableEntities.map(e => e.source)));
@@ -1289,7 +1273,7 @@ export default function ForecastsPage() {
                             );
                           })}
                           {forecastMonthKeys.map((key) => {
-                            const forecastValue = calculateEntityForecast(entity, key);
+                            const forecastValue = entityForecasts.get(entity.entityId)?.[key] || 0;
                             return (
                               <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap font-medium" style={{ color: "#3b82f6", background: "rgba(59, 130, 246, 0.05)" }}>
                                 {forecastValue > 0 ? formatValue(forecastValue, entity.metricType) : "—"}
