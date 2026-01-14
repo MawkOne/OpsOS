@@ -61,6 +61,8 @@ export default function ForecastsPage() {
   const [availableEntities, setAvailableEntities] = useState<BaselineEntity[]>([]);
   const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
   const [modalLoading, setModalLoading] = useState(false);
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterMetric, setFilterMetric] = useState<string>("all");
 
   const organizationId = currentOrg?.id || "";
 
@@ -421,6 +423,17 @@ export default function ForecastsPage() {
 
   const totalBaseline = baselineTotals.reduce((sum, val) => sum + val, 0);
 
+  // Get unique sources and metrics from available entities
+  const uniqueSources = Array.from(new Set(availableEntities.map(e => e.source)));
+  const uniqueMetrics = Array.from(new Set(availableEntities.map(e => e.metric)));
+
+  // Filter entities based on source and metric
+  const filteredAvailableEntities = availableEntities.filter(entity => {
+    const matchesSource = filterSource === "all" || entity.source === filterSource;
+    const matchesMetric = filterMetric === "all" || entity.metric === filterMetric;
+    return matchesSource && matchesMetric;
+  });
+
   return (
     <AppLayout 
       title="Revenue Forecasts" 
@@ -564,6 +577,8 @@ export default function ForecastsPage() {
               <button
                 onClick={() => {
                   setShowSelectorModal(true);
+                  setFilterSource("all");
+                  setFilterMetric("all");
                   fetchAvailableEntities();
                 }}
                 className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80 flex items-center gap-2"
@@ -740,7 +755,7 @@ export default function ForecastsPage() {
           >
             {/* Modal Header */}
             <div className="px-6 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
                     Select Baseline Rows
@@ -757,10 +772,78 @@ export default function ForecastsPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Filter Controls */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-medium mb-1.5 block" style={{ color: "var(--foreground-muted)" }}>
+                    Source
+                  </label>
+                  <select
+                    value={filterSource}
+                    onChange={(e) => setFilterSource(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm border transition-colors"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--background)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value="all">All Sources ({availableEntities.length})</option>
+                    {uniqueSources.map((source) => {
+                      const count = availableEntities.filter(e => e.source === source).length;
+                      return (
+                        <option key={source} value={source}>
+                          {source.charAt(0).toUpperCase() + source.slice(1)} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="text-xs font-medium mb-1.5 block" style={{ color: "var(--foreground-muted)" }}>
+                    Metric
+                  </label>
+                  <select
+                    value={filterMetric}
+                    onChange={(e) => setFilterMetric(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm border transition-colors"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--background)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value="all">All Metrics ({availableEntities.length})</option>
+                    {uniqueMetrics.map((metric) => {
+                      const count = availableEntities.filter(e => e.metric === metric).length;
+                      return (
+                        <option key={metric} value={metric}>
+                          {metric} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {(filterSource !== "all" || filterMetric !== "all") && (
+                  <button
+                    onClick={() => {
+                      setFilterSource("all");
+                      setFilterMetric("all");
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-gray-100 self-end"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
               {modalLoading ? (
                 <div className="text-center py-12">
                   <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Loading available entities...</p>
@@ -775,60 +858,77 @@ export default function ForecastsPage() {
                     Connect data sources to view available entities
                   </p>
                 </div>
+              ) : filteredAvailableEntities.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                    No entities match your filters
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Try adjusting your source or metric filters
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  {availableEntities.map((entity) => {
-                    const isSelected = selectedEntityIds.has(entity.entityId);
-                    
-                    return (
-                      <div
-                        key={entity.entityId}
-                        className="flex items-center justify-between p-4 rounded-lg border transition-all hover:shadow-sm cursor-pointer"
-                        style={{
-                          borderColor: isSelected ? "#3b82f6" : "var(--border)",
-                          background: isSelected ? "rgba(59, 130, 246, 0.05)" : "var(--background)",
-                        }}
-                        onClick={() => {
-                          if (isSelected) {
-                            handleRemoveEntity(entity.entityId);
-                          } else {
-                            handleAddEntity(entity);
-                          }
-                        }}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                              style={{ 
-                                background: isSelected ? "rgba(59, 130, 246, 0.1)" : "var(--muted)",
-                                color: isSelected ? "#3b82f6" : "var(--foreground-muted)"
-                              }}
-                            >
-                              {isSelected ? <Check className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-                                {entity.entityName}
-                              </p>
-                              <p className="text-xs truncate" style={{ color: "var(--foreground-muted)" }}>
-                                {entity.metric} • {entity.source.toUpperCase()}
-                              </p>
+                <>
+                  <div className="mb-3 pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <p className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      Showing {filteredAvailableEntities.length} of {availableEntities.length} entities
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {filteredAvailableEntities.map((entity) => {
+                      const isSelected = selectedEntityIds.has(entity.entityId);
+                      
+                      return (
+                        <div
+                          key={entity.entityId}
+                          className="flex items-center justify-between p-4 rounded-lg border transition-all hover:shadow-sm cursor-pointer"
+                          style={{
+                            borderColor: isSelected ? "#3b82f6" : "var(--border)",
+                            background: isSelected ? "rgba(59, 130, 246, 0.05)" : "var(--background)",
+                          }}
+                          onClick={() => {
+                            if (isSelected) {
+                              handleRemoveEntity(entity.entityId);
+                            } else {
+                              handleAddEntity(entity);
+                            }
+                          }}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                style={{ 
+                                  background: isSelected ? "rgba(59, 130, 246, 0.1)" : "var(--muted)",
+                                  color: isSelected ? "#3b82f6" : "var(--foreground-muted)"
+                                }}
+                              >
+                                {isSelected ? <Check className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                                  {entity.entityName}
+                                </p>
+                                <p className="text-xs truncate" style={{ color: "var(--foreground-muted)" }}>
+                                  {entity.metric} • {entity.source.toUpperCase()}
+                                </p>
+                              </div>
                             </div>
                           </div>
+                          <div className="text-right ml-4">
+                            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                              {formatAmount(entity.total)}
+                            </p>
+                            <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                              All time
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right ml-4">
-                          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                            {formatAmount(entity.total)}
-                          </p>
-                          <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                            All time
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
 
