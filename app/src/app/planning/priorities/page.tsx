@@ -34,7 +34,7 @@ interface Priority {
   title: string;
   whatsImportant: string;
   howAreWeDoing: string;
-  prioritiesToImprove: string;
+  prioritiesToImprove: string[];
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
   alignedInitiatives: string[];
@@ -49,7 +49,11 @@ const samplePriorities: Priority[] = [
     title: "Accelerate Revenue Growth",
     whatsImportant: "Revenue growth has plateaued at 15% YoY. We need to reach 40% growth to meet Series B targets and maintain market leadership position.",
     howAreWeDoing: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
-    prioritiesToImprove: "Accelerate enterprise sales motion, expand into 3 new European markets by Q2, and launch premium tier pricing model to capture higher-value customers.",
+    prioritiesToImprove: [
+      "Accelerate enterprise sales motion",
+      "Expand into 3 new European markets by Q2",
+      "Launch premium tier pricing model",
+    ],
     category: "growth",
     owner: "CEO",
     alignedInitiatives: ["Launch New Product Line", "Expand to European Markets"],
@@ -59,7 +63,12 @@ const samplePriorities: Priority[] = [
     title: "Improve Customer Retention",
     whatsImportant: "Churn rate increased to 8% monthly, up from 5% last quarter. Customer lifetime value is declining, impacting unit economics and investor confidence.",
     howAreWeDoing: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
-    prioritiesToImprove: "Redesign onboarding flow to improve completion rate, implement proactive CSM outreach at risk indicators, build automated engagement campaigns, and create customer success playbooks.",
+    prioritiesToImprove: [
+      "Redesign onboarding flow to improve completion rate",
+      "Implement proactive CSM outreach at risk indicators",
+      "Build automated engagement campaigns",
+      "Create customer success playbooks",
+    ],
     category: "efficiency",
     owner: "VP Customer Success",
     alignedInitiatives: ["Customer Success Platform"],
@@ -69,7 +78,11 @@ const samplePriorities: Priority[] = [
     title: "Build Competitive Moat",
     whatsImportant: "Two major competitors launched similar core features last quarter. We need AI/ML-powered differentiation to maintain our premium positioning and pricing power.",
     howAreWeDoing: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
-    prioritiesToImprove: "Ship AI recommendations engine by Q2, build predictive forecasting capabilities, and patent key ML algorithms to protect our competitive advantage.",
+    prioritiesToImprove: [
+      "Ship AI recommendations engine by Q2",
+      "Build predictive forecasting capabilities",
+      "Patent key ML algorithms",
+    ],
     category: "innovation",
     owner: "CTO",
     alignedInitiatives: ["AI-Powered Analytics Dashboard"],
@@ -79,7 +92,12 @@ const samplePriorities: Priority[] = [
     title: "Scale Team Efficiency",
     whatsImportant: "Cost per customer acquisition is rising 20% YoY while team productivity is declining. We're burning $400K monthly on inefficient processes that need automation.",
     howAreWeDoing: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
-    prioritiesToImprove: "Automate lead qualification and routing, implement self-service support portal, standardize cross-functional workflows, and build operational dashboards for each team.",
+    prioritiesToImprove: [
+      "Automate lead qualification and routing",
+      "Implement self-service support portal",
+      "Standardize cross-functional workflows",
+      "Build operational dashboards for each team",
+    ],
     category: "efficiency",
     owner: "COO",
     alignedInitiatives: [],
@@ -89,7 +107,12 @@ const samplePriorities: Priority[] = [
     title: "Reduce Technical Debt",
     whatsImportant: "System performance is degrading. 15% of engineering time is spent firefighting incidents. Platform reliability issues are causing customer escalations and threatening renewals.",
     howAreWeDoing: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
-    prioritiesToImprove: "Migrate to microservices architecture, upgrade database infrastructure, implement comprehensive monitoring, and establish technical debt sprints to systematically reduce our backlog.",
+    prioritiesToImprove: [
+      "Migrate to microservices architecture",
+      "Upgrade database infrastructure",
+      "Implement comprehensive monitoring",
+      "Establish technical debt sprints",
+    ],
     category: "risk",
     owner: "VP Engineering",
     alignedInitiatives: [],
@@ -400,9 +423,14 @@ export default function PrioritiesPage() {
                     <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
                       Priorities to Improve
                     </h4>
-                    <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-                      {priority.prioritiesToImprove}
-                    </p>
+                    <ul className="space-y-1.5">
+                      {priority.prioritiesToImprove.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+                          <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: categoryColors[priority.category] }}></span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
                   {/* Aligned Initiatives */}

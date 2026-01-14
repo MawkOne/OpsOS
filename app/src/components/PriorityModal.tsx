@@ -8,7 +8,7 @@ interface Priority {
   title: string;
   whatsImportant: string;
   howAreWeDoing: string;
-  prioritiesToImprove: string;
+  prioritiesToImprove: string[];
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
   alignedInitiatives: string[];
@@ -26,7 +26,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
     title: "",
     whatsImportant: "",
     howAreWeDoing: "",
-    prioritiesToImprove: "",
+    prioritiesToImprove: [""],
     category: "growth",
     owner: "",
     alignedInitiatives: [],
@@ -40,7 +40,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
         title: "",
         whatsImportant: "",
         howAreWeDoing: "",
-        prioritiesToImprove: "",
+        prioritiesToImprove: [""],
         category: "growth",
         owner: "",
         alignedInitiatives: [],
@@ -50,7 +50,32 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    
+    // Filter out empty improvement items
+    const cleanedData = {
+      ...formData,
+      prioritiesToImprove: formData.prioritiesToImprove.filter(item => item.trim() !== ""),
+    };
+    
+    onSave(cleanedData);
+  };
+
+  const addImprovementItem = () => {
+    setFormData({
+      ...formData,
+      prioritiesToImprove: [...formData.prioritiesToImprove, ""],
+    });
+  };
+
+  const updateImprovementItem = (index: number, value: string) => {
+    const newItems = [...formData.prioritiesToImprove];
+    newItems[index] = value;
+    setFormData({ ...formData, prioritiesToImprove: newItems });
+  };
+
+  const removeImprovementItem = (index: number) => {
+    const newItems = formData.prioritiesToImprove.filter((_, i) => i !== index);
+    setFormData({ ...formData, prioritiesToImprove: newItems });
   };
 
   if (!isOpen) return null;
@@ -205,18 +230,48 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
             <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
               Priorities to Improve
             </label>
-            <textarea
-              value={formData.prioritiesToImprove}
-              onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
-              placeholder="Describe how we can improve this priority..."
-              rows={3}
-              className="w-full px-4 py-2 rounded-lg border text-sm"
-              style={{ 
-                background: "var(--background-tertiary)",
-                borderColor: "var(--border)",
-                color: "var(--foreground)"
-              }}
-            />
+            <div className="space-y-2">
+              {formData.prioritiesToImprove.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={item}
+                    onChange={(e) => updateImprovementItem(index, e.target.value)}
+                    placeholder="Action item to improve this priority..."
+                    className="flex-1 px-4 py-2 rounded-lg border text-sm"
+                    style={{ 
+                      background: "var(--background-tertiary)",
+                      borderColor: "var(--border)",
+                      color: "var(--foreground)"
+                    }}
+                  />
+                  {formData.prioritiesToImprove.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeImprovementItem(index)}
+                      className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{ 
+                        color: "#ef4444",
+                        background: "rgba(239, 68, 68, 0.1)"
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addImprovementItem}
+                className="text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                style={{ 
+                  color: "#3b82f6",
+                  background: "rgba(59, 130, 246, 0.1)"
+                }}
+              >
+                + Add Item
+              </button>
+            </div>
           </div>
 
           {/* Actions */}
