@@ -10,7 +10,6 @@ import {
   DollarSign,
   Zap,
   Calendar,
-  Plus,
   X,
   Check,
   Download,
@@ -395,33 +394,67 @@ export default function ForecastsPage() {
     }
   }, [organizationId]);
 
-  // Fetch available entities from Master Table sources (ALL metrics, not just revenue)
-  const fetchAvailableEntities = useCallback(async () => {
+  // Add entity to baseline
+  const handleAddEntity = async (entity: BaselineEntity) => {
     if (!organizationId) return;
     
-    setModalLoading(true);
     try {
-      const entities: BaselineEntity[] = [];
-      
-      console.log("🔍 Fetching all available entities for forecast model...");
-      
-      // Fetch Stripe products for name lookup
-      const productsQuery = query(
-        collection(db, "stripe_products"),
-        where("organizationId", "==", organizationId)
-      );
-      const productsSnapshot = await getDocs(productsQuery);
-      const products = new Map<string, string>();
-      productsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        products.set(data.stripeId, data.name);
+      await addDoc(collection(db, "forecast_baseline_rows"), {
+        organizationId,
+        entityId: entity.entityId,
+        entityName: entity.entityName,
+        source: entity.source,
+        type: entity.type,
+        metric: entity.metric,
+        metricType: entity.metricType,
+        months: entity.months,
+        total: entity.total,
+        createdAt: serverTimestamp(),
       });
+      
+      setSelectedEntityIds(prev => new Set(prev).add(entity.entityId));
+      await fetchBaselineEntities();
+    } catch (error) {
+      console.error("Error adding baseline entity:", error);
+    }
+  };
 
-      // Fetch all invoices
-      const invoicesQuery = query(
-        collection(db, "stripe_invoices"),
+  // Remove entity from baseline
+  const handleRemoveEntity = async (entityId: string) => {
+    if (!organizationId) return;
+    
+    try {
+      const entity = baselineEntities.find(e => e.entityId === entityId);
+      if (entity && entity.id) {
+        await deleteDoc(doc(db, "forecast_baseline_rows", entity.id));
+        setSelectedEntityIds(prev => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+        await fetchBaselineEntities();
+      }
+    } catch (error) {
+      console.error("Error removing baseline entity:", error);
+    }
+  };
+
+  // Manually seed specific baseline rows (temporary function)
+  const seedManualBaseline = async () => {
+    if (!organizationId) return;
+    
+    try {
+      setLoading(true);
+      
+      // Clear existing baseline
+      const existingQuery = query(
+        collection(db, "forecast_baseline_rows"),
         where("organizationId", "==", organizationId)
       );
+      const existing = await getDocs(existingQuery);
+      for (const doc of existing.docs) {
+        await deleteDoc(doc.ref);
+      }
       const invoicesSnapshot = await getDocs(invoicesQuery);
 
       // Calculate revenue by product and month (only within historical window)
