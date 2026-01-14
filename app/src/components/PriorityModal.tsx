@@ -1,0 +1,369 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { X, Target } from "lucide-react";
+
+interface Priority {
+  id?: string;
+  title: string;
+  whatsImportant: string;
+  howAreWeDoing: {
+    status: "on-track" | "at-risk" | "needs-attention";
+    description: string;
+    trend: "up" | "down" | "stable";
+  };
+  prioritiesToImprove: string[];
+  category: "growth" | "efficiency" | "risk" | "innovation";
+  owner: string;
+  alignedInitiatives: string[];
+}
+
+interface PriorityModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (priority: Priority) => void;
+  priority?: Priority | null;
+}
+
+export default function PriorityModal({ isOpen, onClose, onSave, priority }: PriorityModalProps) {
+  const [formData, setFormData] = useState<Priority>({
+    title: "",
+    whatsImportant: "",
+    howAreWeDoing: {
+      status: "on-track",
+      description: "",
+      trend: "stable",
+    },
+    prioritiesToImprove: [""],
+    category: "growth",
+    owner: "",
+    alignedInitiatives: [],
+  });
+
+  useEffect(() => {
+    if (priority) {
+      setFormData(priority);
+    } else {
+      setFormData({
+        title: "",
+        whatsImportant: "",
+        howAreWeDoing: {
+          status: "on-track",
+          description: "",
+          trend: "stable",
+        },
+        prioritiesToImprove: [""],
+        category: "growth",
+        owner: "",
+        alignedInitiatives: [],
+      });
+    }
+  }, [priority, isOpen]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Filter out empty improvement items
+    const cleanedData = {
+      ...formData,
+      prioritiesToImprove: formData.prioritiesToImprove.filter(item => item.trim() !== ""),
+    };
+    
+    onSave(cleanedData);
+  };
+
+  const addImprovementItem = () => {
+    setFormData({
+      ...formData,
+      prioritiesToImprove: [...formData.prioritiesToImprove, ""],
+    });
+  };
+
+  const updateImprovementItem = (index: number, value: string) => {
+    const newItems = [...formData.prioritiesToImprove];
+    newItems[index] = value;
+    setFormData({ ...formData, prioritiesToImprove: newItems });
+  };
+
+  const removeImprovementItem = (index: number) => {
+    const newItems = formData.prioritiesToImprove.filter((_, i) => i !== index);
+    setFormData({ ...formData, prioritiesToImprove: newItems });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0, 0, 0, 0.5)" }}>
+      <div 
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg shadow-xl"
+        style={{ background: "var(--card)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "rgba(59, 130, 246, 0.1)" }}>
+              <Target className="w-5 h-5" style={{ color: "#3b82f6" }} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+                {priority ? "Edit Priority" : "New Priority"}
+              </h2>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                Define a strategic company-level priority
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg transition-colors hover:bg-gray-100"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Info */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                Priority Title *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="e.g., Accelerate Revenue Growth"
+                required
+                className="w-full px-4 py-2 rounded-lg border text-sm"
+                style={{ 
+                  background: "var(--card)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)"
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  Category *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                  required
+                  className="w-full px-4 py-2 rounded-lg border text-sm capitalize"
+                  style={{ 
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)"
+                  }}
+                >
+                  <option value="growth">Growth</option>
+                  <option value="efficiency">Efficiency</option>
+                  <option value="risk">Risk</option>
+                  <option value="innovation">Innovation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  Owner *
+                </label>
+                <input
+                  type="text"
+                  value={formData.owner}
+                  onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
+                  placeholder="e.g., CEO, CTO"
+                  required
+                  className="w-full px-4 py-2 rounded-lg border text-sm"
+                  style={{ 
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)"
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* What's Important */}
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+              What's Important *
+            </label>
+            <textarea
+              value={formData.whatsImportant}
+              onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
+              placeholder="Describe the strategic problem or goal in detail..."
+              required
+              rows={3}
+              className="w-full px-4 py-2 rounded-lg border text-sm"
+              style={{ 
+                background: "var(--card)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)"
+              }}
+            />
+          </div>
+
+          {/* How Are We Doing */}
+          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--muted)" }}>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              How Are We Doing
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  Status *
+                </label>
+                <select
+                  value={formData.howAreWeDoing.status}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    howAreWeDoing: { ...formData.howAreWeDoing, status: e.target.value as any }
+                  })}
+                  required
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ 
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)"
+                  }}
+                >
+                  <option value="on-track">On Track</option>
+                  <option value="at-risk">At Risk</option>
+                  <option value="needs-attention">Needs Attention</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                  Trend *
+                </label>
+                <select
+                  value={formData.howAreWeDoing.trend}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    howAreWeDoing: { ...formData.howAreWeDoing, trend: e.target.value as any }
+                  })}
+                  required
+                  className="w-full px-3 py-2 rounded-lg border text-sm capitalize"
+                  style={{ 
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)"
+                  }}
+                >
+                  <option value="up">Trending Up</option>
+                  <option value="stable">Stable</option>
+                  <option value="down">Trending Down</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
+                Description *
+              </label>
+              <textarea
+                value={formData.howAreWeDoing.description}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  howAreWeDoing: { ...formData.howAreWeDoing, description: e.target.value }
+                })}
+                placeholder="Describe current performance with specific metrics..."
+                required
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                style={{ 
+                  background: "var(--card)",
+                  borderColor: "var(--border)",
+                  color: "var(--foreground)"
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Priorities to Improve */}
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+              Priorities to Improve
+            </label>
+            <div className="space-y-2">
+              {formData.prioritiesToImprove.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={item}
+                    onChange={(e) => updateImprovementItem(index, e.target.value)}
+                    placeholder="Action item to improve this priority..."
+                    className="flex-1 px-4 py-2 rounded-lg border text-sm"
+                    style={{ 
+                      background: "var(--card)",
+                      borderColor: "var(--border)",
+                      color: "var(--foreground)"
+                    }}
+                  />
+                  {formData.prioritiesToImprove.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeImprovementItem(index)}
+                      className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{ 
+                        color: "#ef4444",
+                        background: "rgba(239, 68, 68, 0.1)"
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addImprovementItem}
+                className="text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                style={{ 
+                  color: "#3b82f6",
+                  background: "rgba(59, 130, 246, 0.1)"
+                }}
+              >
+                + Add Item
+              </button>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+              style={{ 
+                color: "var(--foreground-muted)",
+                background: "var(--muted)"
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80"
+              style={{ 
+                background: "#3b82f6",
+                color: "white"
+              }}
+            >
+              {priority ? "Save Changes" : "Create Priority"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

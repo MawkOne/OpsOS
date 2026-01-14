@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
+import PriorityModal from "@/components/PriorityModal";
 import { motion } from "framer-motion";
 import {
   Target,
@@ -15,10 +16,26 @@ import {
   ArrowRight,
   TrendingDown,
   Minus,
+  Plus,
+  Edit2,
+  Trash2,
 } from "lucide-react";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { db } from "@/lib/firebase";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
 
 interface Priority {
-  id: string;
+  id?: string;
   title: string;
   whatsImportant: string;
   howAreWeDoing: {
@@ -30,9 +47,12 @@ interface Priority {
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
   alignedInitiatives: string[];
+  organizationId?: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
-const priorities: Priority[] = [
+const samplePriorities: Priority[] = [
   {
     id: "1",
     title: "Accelerate Revenue Growth",
@@ -160,7 +180,109 @@ const trendIcons = {
 };
 
 export default function PrioritiesPage() {
+  const { currentOrg } = useOrganization();
+  const [priorities, setPriorities] = useState<Priority[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPriority, setEditingPriority] = useState<Priority | null>(null);
+
+  const organizationId = currentOrg?.id || "";
+
+  // Fetch priorities from Firestore
+  useEffect(() => {
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
+
+    fetchPriorities();
+  }, [organizationId]);
+
+  const fetchPriorities = async () => {
+    if (!organizationId) return;
+    
+    setLoading(true);
+    try {
+      const prioritiesQuery = query(
+        collection(db, "priorities"),
+        where("organizationId", "==", organizationId)
+      );
+      const querySnapshot = await getDocs(prioritiesQuery);
+      
+      const fetchedPriorities: Priority[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedPriorities.push({
+          id: doc.id,
+          ...doc.data()
+        } as Priority);
+      });
+      
+      setPriorities(fetchedPriorities);
+    } catch (error) {
+      console.error("Error fetching priorities:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePriority = async (priorityData: Priority) => {
+    if (!organizationId) {
+      alert("No organization selected");
+      return;
+    }
+
+    try {
+      if (editingPriority?.id) {
+        // Update existing priority
+        const priorityRef = doc(db, "priorities", editingPriority.id);
+        await updateDoc(priorityRef, {
+          ...priorityData,
+          organizationId,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create new priority
+        await addDoc(collection(db, "priorities"), {
+          ...priorityData,
+          organizationId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      await fetchPriorities();
+      setIsModalOpen(false);
+      setEditingPriority(null);
+    } catch (error) {
+      console.error("Error saving priority:", error);
+      alert("Failed to save priority. Please try again.");
+    }
+  };
+
+  const handleDeletePriority = async (priorityId: string) => {
+    if (!confirm("Are you sure you want to delete this priority?")) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "priorities", priorityId));
+      await fetchPriorities();
+    } catch (error) {
+      console.error("Error deleting priority:", error);
+      alert("Failed to delete priority. Please try again.");
+    }
+  };
+
+  const handleEditClick = (priority: Priority) => {
+    setEditingPriority(priority);
+    setIsModalOpen(true);
+  };
+
+  const handleAddClick = () => {
+    setEditingPriority(null);
+    setIsModalOpen(true);
+  };
 
   const filteredPriorities = selectedCategory === "all" 
     ? priorities 
@@ -263,10 +385,11 @@ export default function PrioritiesPage() {
           </motion.div>
         </div>
 
-        {/* Filter */}
+        {/* Filter and Add Button */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>Filter:</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>Filter:</span>
             <button
               onClick={() => setSelectedCategory("all")}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedCategory === "all" ? "shadow-sm" : ""}`}
@@ -292,11 +415,54 @@ export default function PrioritiesPage() {
                 {category}
               </button>
             ))}
+            </div>
+            
+            <button
+              onClick={handleAddClick}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80"
+              style={{ 
+                background: "#3b82f6",
+                color: "white"
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              Add Priority
+            </button>
           </div>
         </motion.div>
 
         {/* Priority Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Loading priorities...</p>
+          </div>
+        ) : filteredPriorities.length === 0 ? (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <Card>
+              <div className="text-center py-12">
+                <Target className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  No priorities yet
+                </p>
+                <p className="text-xs mb-4" style={{ color: "var(--foreground-muted)" }}>
+                  Create your first strategic priority to get started
+                </p>
+                <button
+                  onClick={handleAddClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80"
+                  style={{ 
+                    background: "#3b82f6",
+                    color: "white"
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Priority
+                </button>
+              </div>
+            </Card>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredPriorities.map((priority, index) => (
             <motion.div 
               key={priority.id}
@@ -327,8 +493,24 @@ export default function PrioritiesPage() {
                         {priority.title}
                       </h3>
                     </div>
-                    <div className="flex-shrink-0">
+                    <div className="flex items-center gap-2">
                       {statusConfig[priority.howAreWeDoing.status].icon}
+                      <button
+                        onClick={() => handleEditClick(priority)}
+                        className="p-2 rounded-lg transition-colors hover:bg-gray-100"
+                        style={{ color: "var(--foreground-muted)" }}
+                        title="Edit priority"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => priority.id && handleDeletePriority(priority.id)}
+                        className="p-2 rounded-lg transition-colors hover:bg-red-50"
+                        style={{ color: "#ef4444" }}
+                        title="Delete priority"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -425,7 +607,8 @@ export default function PrioritiesPage() {
               </Card>
             </motion.div>
           ))}
-        </div>
+          </div>
+        )}
 
         {/* Link to Initiatives */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
@@ -454,6 +637,17 @@ export default function PrioritiesPage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Priority Modal */}
+      <PriorityModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingPriority(null);
+        }}
+        onSave={handleSavePriority}
+        priority={editingPriority}
+      />
     </AppLayout>
   );
 }
