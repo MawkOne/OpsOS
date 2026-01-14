@@ -1256,11 +1256,8 @@ export default function ForecastsPage() {
               <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    Baseline Monthly Revenue
+                    Total Forecast Revenue
                   </h3>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                    Sum of all baseline revenue items by month
-                  </p>
                 </div>
                 <div className="overflow-x-auto">
                   <div className="flex gap-3 pb-2">
