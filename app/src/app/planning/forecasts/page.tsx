@@ -926,7 +926,8 @@ export default function ForecastsPage() {
         manualRows.push(homepageRow);
       }
       
-      // Rows 2-4: Stripe products with hardcoded data
+      // Rows 2-4: Stripe products with hardcoded data (including Nov-Dec 2024)
+      // Nov '24 total: $23.7k, Dec '24 total: $37.0k (split ~70/30 based on 2025 ratios)
       manualRows.push(
         {
           entityId: "stripe_product_descriptor_YT JOBS",
@@ -936,6 +937,8 @@ export default function ForecastsPage() {
           metric: "Product Revenue",
           metricType: "revenue",
           months: {
+            "2024-11": 16590, // Nov '24: ~70% of $23.7k
+            "2024-12": 25900, // Dec '24: ~70% of $37.0k
             "2025-01": 26136,
             "2025-02": 23217,
             "2025-03": 23847,
@@ -949,7 +952,7 @@ export default function ForecastsPage() {
             "2025-11": 45391,
             "2025-12": 42100,
           },
-          total: 363243,
+          total: 405733,
         },
         {
           entityId: "stripe_product_unlabeled",
@@ -959,6 +962,8 @@ export default function ForecastsPage() {
           metric: "Product Revenue",
           metricType: "revenue",
           months: {
+            "2024-11": 7110, // Nov '24: ~30% of $23.7k
+            "2024-12": 11100, // Dec '24: ~30% of $37.0k
             "2025-01": 11256,
             "2025-02": 11668,
             "2025-03": 15518,
@@ -972,7 +977,7 @@ export default function ForecastsPage() {
             "2025-11": 544,
             "2025-12": 296,
           },
-          total: 130510,
+          total: 148720,
         },
         {
           entityId: "stripe_product_3month_recruiter",
