@@ -10,6 +10,8 @@ import {
   DollarSign,
   Zap,
   Calendar,
+  Settings,
+  Layers,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -27,6 +29,20 @@ interface ProductRevenue {
   monthlyRevenue: Record<string, number>; // monthKey -> revenue
 }
 
+interface RevenueStream {
+  id: string;
+  name: string;
+  productIds: string[];
+  color?: string;
+}
+
+interface StreamRevenue {
+  streamId: string;
+  streamName: string;
+  monthlyRevenue: Record<string, number>;
+  color?: string;
+}
+
 interface InitiativeForecast {
   id: string;
   name: string;
@@ -39,9 +55,11 @@ export default function ForecastsPage() {
   const { formatAmount, convertAmountHistorical } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [productRevenue, setProductRevenue] = useState<ProductRevenue[]>([]);
+  const [revenueStreams, setRevenueStreams] = useState<RevenueStream[]>([]);
   const [initiativeForecasts, setInitiativeForecasts] = useState<InitiativeForecast[]>([]);
   const [viewMode, setViewMode] = useState<"ttm" | "year">("year");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [groupBy, setGroupBy] = useState<"product" | "stream">("stream");
 
   const organizationId = currentOrg?.id || "";
 
@@ -73,6 +91,24 @@ export default function ForecastsPage() {
     
     setLoading(true);
     try {
+      // Fetch revenue streams
+      const streamsQuery = query(
+        collection(db, "revenue_streams"),
+        where("organizationId", "==", organizationId)
+      );
+      const streamsSnapshot = await getDocs(streamsQuery);
+      const streams: RevenueStream[] = [];
+      streamsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        streams.push({
+          id: doc.id,
+          name: data.name,
+          productIds: data.productIds || [],
+          color: data.color,
+        });
+      });
+      setRevenueStreams(streams);
+
       // Fetch products
       const productsQuery = query(
         collection(db, "stripe_products"),
@@ -151,9 +187,77 @@ export default function ForecastsPage() {
     fetchRevenueData();
   }, [organizationId, fetchRevenueData]);
 
-  // Calculate growth rate
+  // Aggregate products into streams
+  const getStreamRevenue = useCallback((): StreamRevenue[] => {
+    const streamRevMap = new Map<string, StreamRevenue>();
+    const usedProductIds = new Set<string>();
+
+    // Process each stream
+    revenueStreams.forEach((stream) => {
+      const monthlyRevenue: Record<string, number> = {};
+      
+      stream.productIds.forEach((productId) => {
+        const product = productRevenue.find((p) => p.productId === productId);
+        if (product) {
+          usedProductIds.add(productId);
+          Object.entries(product.monthlyRevenue).forEach(([month, value]) => {
+            monthlyRevenue[month] = (monthlyRevenue[month] || 0) + value;
+          });
+        }
+      });
+
+      streamRevMap.set(stream.id, {
+        streamId: stream.id,
+        streamName: stream.name,
+        monthlyRevenue,
+        color: stream.color,
+      });
+    });
+
+    // Add ungrouped products
+    const ungroupedRevenue: Record<string, number> = {};
+    let hasUngrouped = false;
+
+    productRevenue.forEach((product) => {
+      if (!usedProductIds.has(product.productId)) {
+        hasUngrouped = true;
+        Object.entries(product.monthlyRevenue).forEach(([month, value]) => {
+          ungroupedRevenue[month] = (ungroupedRevenue[month] || 0) + value;
+        });
+      }
+    });
+
+    if (hasUngrouped) {
+      streamRevMap.set("ungrouped", {
+        streamId: "ungrouped",
+        streamName: "Ungrouped Products",
+        monthlyRevenue: ungroupedRevenue,
+      });
+    }
+
+    return Array.from(streamRevMap.values());
+  }, [productRevenue, revenueStreams]);
+
+  const streamRevenue = getStreamRevenue();
+
+  // Calculate growth rate (for products)
   const calculateGrowthRate = (product: ProductRevenue) => {
     const values = monthKeys.map(key => product.monthlyRevenue[key] || 0);
+    if (values.length < 2) return 0;
+    
+    const firstHalf = values.slice(0, Math.floor(values.length / 2));
+    const secondHalf = values.slice(Math.floor(values.length / 2));
+    
+    const firstAvg = firstHalf.reduce((sum, val) => sum + val, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((sum, val) => sum + val, 0) / secondHalf.length;
+    
+    if (firstAvg === 0) return 0;
+    return ((secondAvg - firstAvg) / firstAvg) * 100;
+  };
+
+  // Calculate growth rate (for streams)
+  const calculateStreamGrowthRate = (stream: StreamRevenue) => {
+    const values = monthKeys.map(key => stream.monthlyRevenue[key] || 0);
     if (values.length < 2) return 0;
     
     const firstHalf = values.slice(0, Math.floor(values.length / 2));
@@ -182,7 +286,7 @@ export default function ForecastsPage() {
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Controls */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setViewMode("ttm")}
@@ -212,6 +316,47 @@ export default function ForecastsPage() {
             >
               Year
             </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>Group by:</span>
+            <button
+              onClick={() => setGroupBy("stream")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                groupBy === "stream"
+                  ? "shadow-sm"
+                  : ""
+              }`}
+              style={{
+                background: groupBy === "stream" ? "var(--accent)" : "var(--muted)",
+                color: groupBy === "stream" ? "white" : "var(--foreground-muted)",
+              }}
+            >
+              <Layers className="w-3 h-3" />
+              Stream
+            </button>
+            <button
+              onClick={() => setGroupBy("product")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                groupBy === "product"
+                  ? "shadow-sm"
+                  : ""
+              }`}
+              style={{
+                background: groupBy === "product" ? "var(--accent)" : "var(--muted)",
+                color: groupBy === "product" ? "white" : "var(--foreground-muted)",
+              }}
+            >
+              Product
+            </button>
+            <a
+              href="/revenue/streams"
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              style={{ color: "var(--foreground-muted)" }}
+              title="Manage streams"
+            >
+              <Settings className="w-4 h-4" />
+            </a>
           </div>
 
           {viewMode === "year" && (
@@ -309,7 +454,7 @@ export default function ForecastsPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                  Baseline Revenue by Product
+                  Baseline Revenue {groupBy === "stream" ? "by Stream" : "by Product"}
                 </h2>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
                   Historical revenue growth patterns
@@ -337,7 +482,7 @@ export default function ForecastsPage() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)" }}>
                       <th className="text-left py-3 px-4 text-xs font-semibold sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground-muted)" }}>
-                        Product
+                        {groupBy === "stream" ? "Revenue Stream" : "Product"}
                       </th>
                       <th className="text-right py-3 px-4 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
                         Growth
@@ -357,38 +502,85 @@ export default function ForecastsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {productRevenue.map((product, index) => {
-                      const growth = calculateGrowthRate(product);
-                      const total = monthKeys.reduce((sum, key) => sum + (product.monthlyRevenue[key] || 0), 0);
-                      
-                      return (
-                        <tr key={product.productId} style={{ borderBottom: "1px solid var(--border)" }}>
-                          <td className="py-3 px-4 text-sm sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                            {product.productName}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right">
-                            <span
-                              className="inline-flex items-center gap-1 text-xs font-medium"
-                              style={{ color: growth >= 0 ? "#00d4aa" : "#ef4444" }}
-                            >
-                              {growth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                              {Math.abs(growth).toFixed(1)}%
-                            </span>
-                          </td>
-                          {monthKeys.map((key) => {
-                            const value = product.monthlyRevenue[key] || 0;
-                            return (
-                              <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-muted)" }}>
-                                {value > 0 ? formatAmount(value) : "—"}
-                              </td>
-                            );
-                          })}
-                          <td className="py-3 px-4 text-sm text-right font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                            {formatAmount(total)}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {groupBy === "stream" ? (
+                      // Stream view
+                      streamRevenue.map((stream) => {
+                        const growth = calculateStreamGrowthRate(stream);
+                        const total = monthKeys.reduce((sum, key) => sum + (stream.monthlyRevenue[key] || 0), 0);
+                        
+                        return (
+                          <tr key={stream.streamId} style={{ borderBottom: "1px solid var(--border)" }}>
+                            <td className="py-3 px-4 text-sm sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                              <div className="flex items-center gap-2">
+                                {stream.color && (
+                                  <div 
+                                    className="w-2 h-2 rounded-full" 
+                                    style={{ background: stream.color }}
+                                  />
+                                )}
+                                <span style={{ fontStyle: stream.streamId === "ungrouped" ? "italic" : "normal" }}>
+                                  {stream.streamName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-right">
+                              <span
+                                className="inline-flex items-center gap-1 text-xs font-medium"
+                                style={{ color: growth >= 0 ? "#00d4aa" : "#ef4444" }}
+                              >
+                                {growth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {Math.abs(growth).toFixed(1)}%
+                              </span>
+                            </td>
+                            {monthKeys.map((key) => {
+                              const value = stream.monthlyRevenue[key] || 0;
+                              return (
+                                <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-muted)" }}>
+                                  {value > 0 ? formatAmount(value) : "—"}
+                                </td>
+                              );
+                            })}
+                            <td className="py-3 px-4 text-sm text-right font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                              {formatAmount(total)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      // Product view
+                      productRevenue.map((product) => {
+                        const growth = calculateGrowthRate(product);
+                        const total = monthKeys.reduce((sum, key) => sum + (product.monthlyRevenue[key] || 0), 0);
+                        
+                        return (
+                          <tr key={product.productId} style={{ borderBottom: "1px solid var(--border)" }}>
+                            <td className="py-3 px-4 text-sm sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                              {product.productName}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-right">
+                              <span
+                                className="inline-flex items-center gap-1 text-xs font-medium"
+                                style={{ color: growth >= 0 ? "#00d4aa" : "#ef4444" }}
+                              >
+                                {growth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {Math.abs(growth).toFixed(1)}%
+                              </span>
+                            </td>
+                            {monthKeys.map((key) => {
+                              const value = product.monthlyRevenue[key] || 0;
+                              return (
+                                <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-muted)" }}>
+                                  {value > 0 ? formatAmount(value) : "—"}
+                                </td>
+                              );
+                            })}
+                            <td className="py-3 px-4 text-sm text-right font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                              {formatAmount(total)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                     <tr style={{ borderTop: "2px solid var(--border)", fontWeight: "bold" }}>
                       <td className="py-3 px-4 text-sm sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
                         Total Baseline
