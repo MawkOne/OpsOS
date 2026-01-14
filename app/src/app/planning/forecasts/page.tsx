@@ -51,13 +51,6 @@ interface BaselineEntity {
   total: number;
 }
 
-interface LineItem {
-  productId?: string;
-  description?: string;
-  amount?: number;
-  quantity?: number;
-}
-
 interface GAMetrics {
   sessions?: number;
   pageviews?: number;
@@ -70,21 +63,15 @@ interface GAPage {
   months?: Record<string, GAMetrics>;
 }
 
-interface GASource {
-  name: string;
-  sessions?: Record<string, number>;
-  users?: Record<string, number>;
-}
-
 export default function ForecastsPage() {
   const { currentOrg } = useOrganization();
   const { formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [baselineEntities, setBaselineEntities] = useState<BaselineEntity[]>([]);
   const [showSelectorModal, setShowSelectorModal] = useState(false);
-  const [availableEntities, setAvailableEntities] = useState<BaselineEntity[]>([]);
+  const [availableEntities] = useState<BaselineEntity[]>([]);
   const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
-  const [modalLoading, setModalLoading] = useState(false);
+  const [modalLoading] = useState(false);
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterMetric, setFilterMetric] = useState<string>("all");
 
