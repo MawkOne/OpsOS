@@ -178,14 +178,66 @@ export default function ForecastsPage() {
     return { cmgr, seasonalFactors };
   };
 
+  // Combine baseline entities (merge YT JOBS and Unlabeled Revenue)
+  const processedBaselineEntities = useMemo(() => {
+    // Separate revenue entities that should be combined
+    const ytJobsEntity = baselineEntities.find(e => e.entityName === "YT JOBS" && e.metricType === "revenue");
+    const unlabeledEntity = baselineEntities.find(e => e.entityName === "Unlabeled Revenue" && e.metricType === "revenue");
+    
+    // If both exist, combine them
+    if (ytJobsEntity && unlabeledEntity) {
+      const combinedMonths: Record<string, number> = {};
+      let combinedTotal = 0;
+      
+      // Combine monthly values
+      [...monthKeys].forEach(key => {
+        const ytValue = ytJobsEntity.months[key] || 0;
+        const unlabeledValue = unlabeledEntity.months[key] || 0;
+        const combined = ytValue + unlabeledValue;
+        combinedMonths[key] = combined;
+        combinedTotal += combined;
+      });
+      
+      // Create combined entity
+      const combinedEntity: BaselineEntity = {
+        id: `combined_${ytJobsEntity.entityId}_${unlabeledEntity.entityId}`,
+        entityId: `combined_${ytJobsEntity.entityId}_${unlabeledEntity.entityId}`,
+        entityName: "Total Product Revenue",
+        source: "stripe",
+        type: "product",
+        metric: "Product Revenue",
+        metricType: "revenue",
+        months: combinedMonths,
+        total: combinedTotal,
+      };
+      
+      // Return entities with combined entity, excluding originals
+      return [
+        ...baselineEntities.filter(e => 
+          e.entityId !== ytJobsEntity.entityId && 
+          e.entityId !== unlabeledEntity.entityId
+        ),
+        combinedEntity
+      ];
+    }
+    
+    return baselineEntities;
+  }, [baselineEntities, monthKeys]);
+
   // Pre-calculate forecasts for all entities (memoized for performance)
   const entityForecasts = useMemo(() => {
     const forecasts = new Map<string, Record<string, number>>();
     
-    baselineEntities.forEach(entity => {
+    processedBaselineEntities.forEach(entity => {
       const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
       const lastMonthKey = monthKeys[monthKeys.length - 1];
       const lastValue = entity.months[lastMonthKey] || 0;
+      
+      console.log(`📊 Forecast for ${entity.entityName}:`, {
+        cmgr: (cmgr * 100).toFixed(2) + '%',
+        lastValue,
+        seasonalFactors
+      });
       
       if (lastValue === 0) {
         forecasts.set(entity.entityId, {});
@@ -207,6 +259,8 @@ export default function ForecastsPage() {
         const seasonalFactor = seasonalFactors[monthNum] || 1.0;
         const forecastValue = projectedValue * seasonalFactor;
         
+        console.log(`  ${forecastKey}: monthsAhead=${monthsAhead}, projected=${projectedValue.toFixed(2)}, seasonal=${seasonalFactor.toFixed(2)}, final=${forecastValue.toFixed(2)}`);
+        
         entityForecastValues[forecastKey] = forecastValue;
       });
       
@@ -214,7 +268,7 @@ export default function ForecastsPage() {
     });
     
     return forecasts;
-  }, [baselineEntities, monthKeys, forecastMonthKeys]);
+  }, [processedBaselineEntities, monthKeys, forecastMonthKeys]);
 
   // Fetch saved baseline entities from Firestore
   const fetchBaselineEntities = useCallback(async () => {
@@ -897,7 +951,7 @@ export default function ForecastsPage() {
   };
   // Prepare chart data for revenue entities with forecasts
   const revenueChartData = useMemo(() => {
-    const revenueEntities = baselineEntities.filter(e => e.metricType === "revenue");
+    const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
     if (revenueEntities.length === 0) return [];
 
     // Combine historical and forecast month keys
@@ -944,7 +998,7 @@ export default function ForecastsPage() {
     });
 
     return chartData;
-  }, [baselineEntities, monthKeys, forecastMonthKeys, entityForecasts]);
+  }, [processedBaselineEntities, monthKeys, forecastMonthKeys, entityForecasts]);
 
   // Get unique sources and metrics from available entities
   const uniqueSources = Array.from(new Set(availableEntities.map(e => e.source)));
@@ -1192,7 +1246,7 @@ export default function ForecastsPage() {
               <div className="text-center py-12">
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Loading baseline data...</p>
               </div>
-            ) : baselineEntities.length === 0 ? (
+            ) : processedBaselineEntities.length === 0 ? (
               <div className="text-center py-12" style={{ background: "var(--muted)", borderRadius: "8px" }}>
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
@@ -1243,7 +1297,7 @@ export default function ForecastsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {baselineEntities.map((entity) => {
+                    {processedBaselineEntities.map((entity) => {
                       const growth = calculateGrowthRate(entity);
                       
                       return (
