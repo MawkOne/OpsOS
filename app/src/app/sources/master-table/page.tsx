@@ -25,7 +25,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 interface EntityRow {
   entityId: string;
   entityName: string;
-  source: "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
+  source: "stripe" | "quickbooks" | "google-analytics" | "google-analytics-organic" | "activecampaign";
   type: string;
   metric: string; // Descriptive metric title
   metricType: string; // Raw metric type for grouping
@@ -57,6 +57,20 @@ const getMetricTitle = (source: EntityRow['source'], type: string, metricType: s
     if (metricType === "revenue") return "Ad Revenue";
   }
   
+  if (source === "google-analytics-organic") {
+    if (type === "Traffic Source") {
+      if (metricType === "sessions") return "Sessions";
+      if (metricType === "users") return "Users";
+      if (metricType === "bounceRate") return "Bounce Rate";
+      if (metricType === "avgSessionDuration") return "Avg Session Duration";
+    }
+    if (type === "Page") {
+      if (metricType === "pageviews") return "Pageviews";
+      if (metricType === "uniquePageviews") return "Unique Pageviews";
+      if (metricType === "avgTimeOnPage") return "Avg Time on Page";
+    }
+  }
+  
   if (source === "activecampaign") {
     if (type === "Email Campaign") {
       if (metricType === "sends") return "Email Sends";
@@ -77,7 +91,7 @@ const getMetricTitle = (source: EntityRow['source'], type: string, metricType: s
 };
 
 type ViewMode = "ttm" | "year" | "all";
-type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "activecampaign";
+type SourceFilter = "all" | "stripe" | "quickbooks" | "google-analytics" | "google-analytics-organic" | "activecampaign";
 type GroupBy = "none" | "metric";
 
 export default function MasterTablePage() {
@@ -154,6 +168,9 @@ export default function MasterTablePage() {
       // Fetch Advertising data (campaigns)
       await fetchAdvertisingEntities(entities);
       
+      // Fetch Google Analytics organic/traffic data
+      await fetchGoogleAnalyticsOrganicEntities(entities);
+      
       // Fetch Email data (campaigns)
       await fetchEmailEntities(entities);
       
@@ -163,6 +180,7 @@ export default function MasterTablePage() {
         stripe: entities.filter(e => e.source === "stripe").length,
         quickbooks: entities.filter(e => e.source === "quickbooks").length,
         "google-analytics": entities.filter(e => e.source === "google-analytics").length,
+        "google-analytics-organic": entities.filter(e => e.source === "google-analytics-organic").length,
         activecampaign: entities.filter(e => e.source === "activecampaign").length,
       };
       console.log("📊 Master Table Data Summary:", summary);
@@ -729,6 +747,73 @@ export default function MasterTablePage() {
     }
   };
 
+  const fetchGoogleAnalyticsOrganicEntities = async (entities: EntityRow[]) => {
+    try {
+      console.log("📊 Fetching Google Analytics organic/traffic data for org:", organizationId);
+      
+      // Fetch traffic sources data from Google Analytics
+      const response = await fetch(
+        `/api/google-analytics/traffic-sources?organizationId=${organizationId}&viewMode=${viewMode}&year=${selectedYear}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn("❌ Could not fetch Google Analytics organic data:", response.status, errorData.error);
+        return;
+      }
+
+      const data = await response.json();
+      const trafficSources = data.data || {};
+      console.log("🌐 Found", Object.keys(trafficSources).length, "Google Analytics traffic sources");
+
+      let addedEntities = 0;
+      
+      // Process each traffic source (e.g., "Organic Search", "Direct", "Referral")
+      Object.entries(trafficSources).forEach(([sourceName, sourceData]: [string, any]) => {
+        // Metrics to track for each traffic source
+        const metricsToTrack = [
+          { key: 'sessions', metricType: 'sessions' },
+          { key: 'activeUsers', metricType: 'users' },
+        ];
+        
+        metricsToTrack.forEach(({ key, metricType }) => {
+          const sourceMonths: Record<string, number> = {};
+          let total = 0;
+
+          // Extract metric value for each month
+          Object.entries(sourceData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+            const value = metrics[key] || 0;
+            
+            // Only include if in our month range
+            if (months.includes(monthKey) || (isAllTime && months.includes(monthKey.split('-')[0]))) {
+              const finalKey = isAllTime ? monthKey.split('-')[0] : monthKey;
+              sourceMonths[finalKey] = (sourceMonths[finalKey] || 0) + value;
+              total += value;
+            }
+          });
+
+          if (total > 0) {
+            entities.push({
+              entityId: `ga_organic_${sourceName.replace(/\s+/g, '_')}_${metricType}`,
+              entityName: sourceName,
+              source: "google-analytics-organic",
+              type: "Traffic Source",
+              metricType: metricType,
+              metric: getMetricTitle("google-analytics-organic", "Traffic Source", metricType),
+              months: sourceMonths,
+              total,
+            });
+            addedEntities++;
+          }
+        });
+      });
+      
+      console.log("✅ Added", addedEntities, "Google Analytics organic entity rows to master table");
+    } catch (error) {
+      console.error("❌ Error fetching Google Analytics organic entities:", error);
+    }
+  };
+
   const fetchEmailEntities = async (entities: EntityRow[]) => {
     try {
       console.log("🔍 Fetching ActiveCampaign data for org:", organizationId);
@@ -1095,6 +1180,7 @@ export default function MasterTablePage() {
     stripe: <CreditCard className="w-4 h-4" />,
     quickbooks: <Receipt className="w-4 h-4" />,
     "google-analytics": <Megaphone className="w-4 h-4" />,
+    "google-analytics-organic": <TrendingUp className="w-4 h-4" />,
     activecampaign: <Mail className="w-4 h-4" />,
   };
 
@@ -1102,6 +1188,7 @@ export default function MasterTablePage() {
     stripe: "#635BFF",
     quickbooks: "#2CA01C",
     "google-analytics": "#E37400",
+    "google-analytics-organic": "#F59E0B",
     activecampaign: "#356AE6",
   };
 
@@ -1194,6 +1281,7 @@ export default function MasterTablePage() {
                   <option value="stripe">Stripe</option>
                   <option value="quickbooks">QuickBooks</option>
                   <option value="google-analytics">Advertising (GA)</option>
+                  <option value="google-analytics-organic">Google Analytics</option>
                   <option value="activecampaign">ActiveCampaign</option>
                 </select>
 
