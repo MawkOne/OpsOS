@@ -1064,15 +1064,21 @@ export default function ForecastsPage() {
   // Prepare chart data for revenue entities with forecasts
   const revenueChartData = useMemo(() => {
     const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
-    if (revenueEntities.length === 0) return [];
+    console.log('📈 Preparing chart data for', revenueEntities.length, 'revenue entities');
+    
+    if (revenueEntities.length === 0) {
+      console.warn('⚠️ No revenue entities found for chart');
+      return [];
+    }
 
     // Combine historical and forecast month keys
     const extendedMonthKeys = [...monthKeys, ...forecastMonthKeys];
+    console.log('📊 Chart will plot', monthKeys.length, 'historical +', forecastMonthKeys.length, 'forecast =', extendedMonthKeys.length, 'total months');
 
     const chartData = extendedMonthKeys.map((monthKey: string, index) => {
       const [year, month] = monthKey.split('-');
       const date = new Date(parseInt(year), parseInt(month) - 1);
-      const monthLabel = date.toLocaleDateString('en-US', { month: 'short' });
+      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       const isHistorical = index < monthKeys.length;
       
       if (isHistorical) {
@@ -1109,6 +1115,17 @@ export default function ForecastsPage() {
       }
     });
 
+    console.log('✅ Chart data generated:', chartData.length, 'points');
+    console.log('  Historical points:', chartData.filter(d => d.actual !== null).length);
+    console.log('  Forecast points:', chartData.filter(d => d.forecast !== null).length);
+    
+    // Show sample data points
+    if (chartData.length > 0) {
+      console.log('  First historical:', chartData.find(d => d.actual !== null));
+      console.log('  First forecast:', chartData.find(d => d.forecast !== null));
+      console.log('  Last forecast:', chartData.filter(d => d.forecast !== null).pop());
+    }
+    
     return chartData;
   }, [processedBaselineEntities, monthKeys, forecastMonthKeys, entityForecasts]);
 
