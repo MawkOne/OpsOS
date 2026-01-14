@@ -126,7 +126,7 @@ export default function ForecastsPage() {
   // Calculate CMGR (Compound Monthly Growth Rate) and month-over-month patterns
   const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
     const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
-    if (values.length < 3) return { cmgr: 0, momPatterns: {} };
+    if (values.length < 3) return { cmgr: 0, momPatterns: {}, allTransitions: {} };
 
     // Calculate CMGR (Compound Monthly Growth Rate)
     const firstValue = values[0];
@@ -134,18 +134,23 @@ export default function ForecastsPage() {
     const months = values.length - 1;
     const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
 
-    // Calculate month-over-month change patterns
-    // e.g., "What % change typically happens from Dec to Jan?"
+    // Calculate month-over-month change patterns from TRAILING 12 MONTHS ONLY
+    // Use only the most recent 12 months of data for patterns
+    const trailing12Months = monthKeys.slice(-12);
+    console.log(`  📅 Using trailing 12 months for patterns: ${trailing12Months[0]} to ${trailing12Months[trailing12Months.length - 1]}`);
+    
     const momPatterns: Record<string, number> = {}; // Key: "12-1" means Dec to Jan
     const allTransitions: Record<string, Array<{date: string, change: number, prevValue: number, currValue: number}>> = {};
     
-    for (let i = 1; i < monthKeys.length; i++) {
-      const prevValue = entity.months[monthKeys[i - 1]] || 0;
-      const currValue = entity.months[monthKeys[i]] || 0;
+    for (let i = 1; i < trailing12Months.length; i++) {
+      const prevKey = trailing12Months[i - 1];
+      const currKey = trailing12Months[i];
+      const prevValue = entity.months[prevKey] || 0;
+      const currValue = entity.months[currKey] || 0;
       
       if (prevValue > 0 && currValue > 0) {
-        const prevMonth = parseInt(monthKeys[i - 1].split('-')[1]);
-        const currMonth = parseInt(monthKeys[i].split('-')[1]);
+        const prevMonth = parseInt(prevKey.split('-')[1]);
+        const currMonth = parseInt(currKey.split('-')[1]);
         const changePercent = (currValue - prevValue) / prevValue;
         
         const transitionKey = `${prevMonth}-${currMonth}`;
@@ -155,13 +160,13 @@ export default function ForecastsPage() {
           allTransitions[transitionKey] = [];
         }
         allTransitions[transitionKey].push({
-          date: `${monthKeys[i - 1]} → ${monthKeys[i]}`,
+          date: `${prevKey} → ${currKey}`,
           change: changePercent,
           prevValue,
           currValue
         });
         
-        // Use most recent pattern (not average) to avoid old data skewing forecast
+        // Store this pattern (if multiple exist in trailing 12, the last one wins)
         momPatterns[transitionKey] = changePercent;
       }
     }
@@ -274,9 +279,9 @@ export default function ForecastsPage() {
         forecastMonths: forecastMonthKeys.length
       });
       
-      // Show all historical transitions for debugging
+      // Show transitions from trailing 12 months for debugging
       if (Object.keys(allTransitions).length > 0) {
-        console.log(`  📅 Historical month-over-month transitions:`);
+        console.log(`  📅 Month-over-month transitions (from trailing 12 months ONLY):`);
         Object.entries(allTransitions).forEach(([key, transitions]) => {
           const [fromMonth, toMonth] = key.split('-');
           const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -284,7 +289,7 @@ export default function ForecastsPage() {
           transitions.forEach(t => {
             console.log(`      ${t.date}: $${t.prevValue.toFixed(0)} → $${t.currValue.toFixed(0)} = ${(t.change * 100).toFixed(1)}%`);
           });
-          console.log(`      Using most recent: ${(transitions[transitions.length - 1].change * 100).toFixed(1)}%`);
+          console.log(`      ✅ Using: ${(transitions[transitions.length - 1].change * 100).toFixed(1)}%`);
         });
       }
       
