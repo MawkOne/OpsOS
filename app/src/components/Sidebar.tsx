@@ -135,7 +135,6 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/planning", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "Roadmap", href: "/planning/roadmap", icon: <TrendingUp className="w-4 h-4" /> },
         { label: "Priorities", href: "/planning/priorities", icon: <Target className="w-4 h-4" /> },
         { label: "Initiatives", href: "/planning/initiatives", icon: <Zap className="w-4 h-4" /> },
       ],
