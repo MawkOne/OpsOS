@@ -43,7 +43,7 @@ interface Priority {
     description: string;
     trend: "up" | "down" | "stable";
   };
-  prioritiesToImprove: string[];
+  prioritiesToImprove: string;
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
   alignedInitiatives: string[];
@@ -62,11 +62,7 @@ const samplePriorities: Priority[] = [
       description: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
       trend: "up",
     },
-    prioritiesToImprove: [
-      "Accelerate enterprise sales motion",
-      "Expand into 3 new European markets by Q2",
-      "Launch premium tier pricing model",
-    ],
+    prioritiesToImprove: "Accelerate enterprise sales motion, expand into 3 new European markets by Q2, and launch premium tier pricing model to capture higher-value customers.",
     category: "growth",
     owner: "CEO",
     alignedInitiatives: ["Launch New Product Line", "Expand to European Markets"],
@@ -80,12 +76,7 @@ const samplePriorities: Priority[] = [
       description: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
       trend: "down",
     },
-    prioritiesToImprove: [
-      "Redesign onboarding flow to improve completion rate",
-      "Implement proactive CSM outreach at risk indicators",
-      "Build automated engagement campaigns",
-      "Create customer success playbooks",
-    ],
+    prioritiesToImprove: "Redesign onboarding flow to improve completion rate, implement proactive CSM outreach at risk indicators, build automated engagement campaigns, and create customer success playbooks.",
     category: "efficiency",
     owner: "VP Customer Success",
     alignedInitiatives: ["Customer Success Platform"],
@@ -99,11 +90,7 @@ const samplePriorities: Priority[] = [
       description: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
       trend: "up",
     },
-    prioritiesToImprove: [
-      "Ship AI recommendations engine by Q2",
-      "Build predictive forecasting capabilities",
-      "Patent key ML algorithms",
-    ],
+    prioritiesToImprove: "Ship AI recommendations engine by Q2, build predictive forecasting capabilities, and patent key ML algorithms to protect our competitive advantage.",
     category: "innovation",
     owner: "CTO",
     alignedInitiatives: ["AI-Powered Analytics Dashboard"],
@@ -117,12 +104,7 @@ const samplePriorities: Priority[] = [
       description: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
       trend: "down",
     },
-    prioritiesToImprove: [
-      "Automate lead qualification and routing",
-      "Implement self-service support portal",
-      "Standardize cross-functional workflows",
-      "Build operational dashboards for each team",
-    ],
+    prioritiesToImprove: "Automate lead qualification and routing, implement self-service support portal, standardize cross-functional workflows, and build operational dashboards for each team.",
     category: "efficiency",
     owner: "COO",
     alignedInitiatives: [],
@@ -136,12 +118,7 @@ const samplePriorities: Priority[] = [
       description: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
       trend: "down",
     },
-    prioritiesToImprove: [
-      "Migrate to microservices architecture",
-      "Upgrade database infrastructure",
-      "Implement comprehensive monitoring",
-      "Establish technical debt sprints",
-    ],
+    prioritiesToImprove: "Migrate to microservices architecture, upgrade database infrastructure, implement comprehensive monitoring, and establish technical debt sprints to systematically reduce our backlog.",
     category: "risk",
     owner: "VP Engineering",
     alignedInitiatives: [],
@@ -559,14 +536,9 @@ export default function PrioritiesPage() {
                     <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
                       Priorities to Improve
                     </h4>
-                    <ul className="space-y-1.5">
-                      {priority.prioritiesToImprove.map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground)" }}>
-                          <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: categoryColors[priority.category] }}></span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                      {priority.prioritiesToImprove}
+                    </p>
                   </div>
 
                   {/* Aligned Initiatives */}
