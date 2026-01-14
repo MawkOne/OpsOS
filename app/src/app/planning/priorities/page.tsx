@@ -269,27 +269,8 @@ export default function PrioritiesPage() {
           </motion.div>
         </div>
 
-        {/* Instructions */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(139, 92, 246, 0.1)" }}>
-                <Target className="w-4 h-4" style={{ color: "#8b5cf6" }} />
-              </div>
-              <div>
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
-                  Strategic Priorities
-                </p>
-                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                  These are the highest-level company problems and goals. All initiatives should align with and support these priorities. Drag to reorder by importance.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-
         {/* Priorities List */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card>
             <div className="space-y-3">
               {priorities.map((priority, index) => (
@@ -433,7 +414,7 @@ export default function PrioritiesPage() {
         </motion.div>
 
         {/* Link to Initiatives */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <Card>
             <div className="flex items-center justify-between">
               <div>
