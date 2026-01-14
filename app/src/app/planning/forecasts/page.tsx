@@ -83,8 +83,6 @@ export default function ForecastsPage() {
   const { formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [baselineEntities, setBaselineEntities] = useState<BaselineEntity[]>([]);
-  const [viewMode, setViewMode] = useState<"ttm" | "year">("year");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showSelectorModal, setShowSelectorModal] = useState(false);
   const [availableEntities, setAvailableEntities] = useState<BaselineEntity[]>([]);
   const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
@@ -94,44 +92,34 @@ export default function ForecastsPage() {
 
   const organizationId = currentOrg?.id || "";
 
-  // Generate month keys based on view mode
-  const getMonthKeys = useCallback(() => {
+  // Generate month keys - trailing 18 months
+  const monthKeys = useMemo(() => {
     const keys: string[] = [];
     const now = new Date();
     
-    if (viewMode === "ttm") {
-      // Last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      }
-    } else {
-      // Selected year
-      for (let i = 1; i <= 12; i++) {
-        keys.push(`${selectedYear}-${String(i).padStart(2, '0')}`);
-      }
+    // Trailing 18 months
+    for (let i = 17; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
     
     return keys;
-  }, [viewMode, selectedYear]);
+  }, []);
 
-  const monthKeys = getMonthKeys();
-
-  // Generate forecast month keys (next 6 months)
+  // Generate forecast month keys - next 12 months
   const forecastMonthKeys = useMemo(() => {
     const keys: string[] = [];
-    const lastMonthKey = monthKeys[monthKeys.length - 1];
-    const [year, month] = lastMonthKey.split('-');
-    const lastDate = new Date(parseInt(year), parseInt(month) - 1);
+    const now = new Date();
     
-    for (let i = 1; i <= 6; i++) {
-      const nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + i);
+    // Next 12 months from current month
+    for (let i = 1; i <= 12; i++) {
+      const nextDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
       keys.push(nextMonthKey);
     }
     
     return keys;
-  }, [monthKeys]);
+  }, []);
 
   // Calculate CMGR (Compound Monthly Growth Rate) and seasonal patterns
   const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
@@ -580,10 +568,13 @@ export default function ForecastsPage() {
         console.warn("Could not fetch GA organic data:", error);
       }
 
-      // Fetch Google Analytics page data
+      // Fetch Google Analytics page data (trailing 18 months)
+      const endMonth = monthKeys[monthKeys.length - 1];
+      const [endYear] = endMonth.split('-');
+      
       try {
         const gaPagesResponse = await fetch(
-          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=2025`
+          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${endYear}`
         );
         if (gaPagesResponse.ok) {
           const gaData = await gaPagesResponse.json();
@@ -700,7 +691,7 @@ export default function ForecastsPage() {
     } finally {
       setModalLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, monthKeys]);
 
   // Add entity to baseline
   const handleAddEntity = async (entity: BaselineEntity) => {
@@ -767,8 +758,9 @@ export default function ForecastsPage() {
       // Fetch Homepage data from Google Analytics
       let homepageRow: BaselineEntity | null = null;
       try {
+        const currentYear = new Date().getFullYear();
         const gaResponse = await fetch(
-          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=2025`
+          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=${currentYear}`
         );
         if (gaResponse.ok) {
           const gaData = await gaResponse.json();
@@ -1014,65 +1006,9 @@ export default function ForecastsPage() {
   return (
     <AppLayout 
       title="Forecasting Model" 
-      subtitle="Traffic, signups, revenue patterns and initiative impacts"
+      subtitle="18-month history with 12-month projection using CMGR and seasonal patterns"
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header Controls */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode("ttm")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === "ttm"
-                  ? "shadow-sm"
-                  : ""
-              }`}
-              style={{
-                background: viewMode === "ttm" ? "var(--accent)" : "var(--muted)",
-                color: viewMode === "ttm" ? "white" : "var(--foreground-muted)",
-              }}
-            >
-              Last 12 Months
-            </button>
-            <button
-              onClick={() => setViewMode("year")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === "year"
-                  ? "shadow-sm"
-                  : ""
-              }`}
-              style={{
-                background: viewMode === "year" ? "var(--accent)" : "var(--muted)",
-                color: viewMode === "year" ? "white" : "var(--foreground-muted)",
-              }}
-            >
-              Year
-            </button>
-          </div>
-
-          {viewMode === "year" && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectedYear(selectedYear - 1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                style={{ color: "var(--foreground-muted)" }}
-              >
-                ←
-              </button>
-              <span className="text-sm font-medium px-4" style={{ color: "var(--foreground)" }}>
-                {selectedYear}
-              </span>
-              <button
-                onClick={() => setSelectedYear(selectedYear + 1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                style={{ color: "var(--foreground-muted)" }}
-              >
-                →
-              </button>
-            </div>
-          )}
-        </div>
-
         {/* Revenue Forecast Visualization */}
         {revenueChartData.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
