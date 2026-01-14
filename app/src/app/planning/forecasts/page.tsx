@@ -131,7 +131,7 @@ export default function ForecastsPage() {
     try {
       const entities: BaselineEntity[] = [];
       
-      // Fetch Stripe products revenue
+      // Fetch Stripe products for name lookup
       const productsQuery = query(
         collection(db, "stripe_products"),
         where("organizationId", "==", organizationId)
@@ -143,7 +143,7 @@ export default function ForecastsPage() {
         products.set(data.stripeId, data.name);
       });
 
-      // Fetch invoices to calculate revenue
+      // Fetch all invoices
       const invoicesQuery = query(
         collection(db, "stripe_invoices"),
         where("organizationId", "==", organizationId)
@@ -151,18 +151,25 @@ export default function ForecastsPage() {
       const invoicesSnapshot = await getDocs(invoicesQuery);
 
       // Calculate revenue by product and month
-      const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+      const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
+      
+      // Track which invoices we've processed
+      const countedInvoiceIds = new Set<string>();
       
       invoicesSnapshot.forEach((doc) => {
         const invoice = doc.data();
         if (invoice.status !== "paid") return;
 
+        if (invoice.stripeId) countedInvoiceIds.add(invoice.stripeId);
+
         const invoiceDate = invoice.created?.toDate();
         if (!invoiceDate) return;
 
         const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
+        const invoiceAmount = (invoice.total || 0) / 100;
 
         const lineItems = invoice.lineItems || [];
+        
         if (lineItems.length > 0) {
           let hasValidProduct = false;
           
@@ -179,14 +186,17 @@ export default function ForecastsPage() {
                   name: productName,
                   months: {},
                   total: 0,
+                  count: {},
                 };
               }
               
               productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
               productRevenue[productId].total += itemAmount;
             }
           });
           
+          // If line items exist but none have productId
           if (!hasValidProduct) {
             const unlabeledId = 'unlabeled';
             if (!productRevenue[unlabeledId]) {
@@ -194,44 +204,112 @@ export default function ForecastsPage() {
                 name: 'Unlabeled Revenue',
                 months: {},
                 total: 0,
+                count: {},
               };
             }
-            const invoiceAmount = (invoice.total || 0) / 100;
             productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
             productRevenue[unlabeledId].total += invoiceAmount;
           }
+        } else {
+          // No line items at all
+          const unlabeledId = 'unlabeled';
+          if (!productRevenue[unlabeledId]) {
+            productRevenue[unlabeledId] = {
+              name: 'Unlabeled Revenue',
+              months: {},
+              total: 0,
+              count: {},
+            };
+          }
+          productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + invoiceAmount;
+          productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+          productRevenue[unlabeledId].total += invoiceAmount;
         }
       });
 
-      // Fetch Stripe payments (direct charges)
+      // Fetch Stripe payments (direct charges without invoices)
       const paymentsQuery = query(
         collection(db, "stripe_payments"),
-        where("organizationId", "==", organizationId)
+        where("organizationId", "==", organizationId),
+        where("status", "==", "succeeded")
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
       
       paymentsSnapshot.forEach((doc) => {
         const payment = doc.data();
-        if (payment.status !== 'succeeded') return;
+        
+        // Skip if this payment's invoice was already counted
+        if (payment.invoiceId && countedInvoiceIds.has(payment.invoiceId)) {
+          return;
+        }
         
         const paymentDate = payment.created?.toDate?.() || new Date();
         const monthKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        const paymentAmount = (payment.amount || 0) / 100;
         
-        const descriptor = payment.calculatedStatementDescriptor || payment.statementDescriptor || 'Unlabeled Payment';
-        const amount = (payment.amount || 0) / 100;
+        const lineItems = payment.lineItems || [];
         
-        const productId = `descriptor_${descriptor}`;
-        
-        if (!productRevenue[productId]) {
-          productRevenue[productId] = {
-            name: descriptor,
-            months: {},
-            total: 0,
-          };
+        if (lineItems.length > 0) {
+          // Has line items
+          lineItems.forEach((item: any) => {
+            const productId = item.productId;
+            
+            if (productId) {
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0,
+                  count: {},
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + (item.quantity || 1);
+              productRevenue[productId].total += itemAmount;
+            }
+          });
+        } else {
+          // No line items - use statement descriptor or categorize as unlabeled
+          const statementDescriptor = payment.calculatedStatementDescriptor || payment.statementDescriptor;
+          
+          if (statementDescriptor) {
+            // Use statement descriptor as product identifier
+            const productId = `descriptor_${statementDescriptor}`;
+            const productName = statementDescriptor;
+            
+            if (!productRevenue[productId]) {
+              productRevenue[productId] = {
+                name: productName,
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            
+            productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[productId].count[monthKey] = (productRevenue[productId].count[monthKey] || 0) + 1;
+            productRevenue[productId].total += paymentAmount;
+          } else {
+            // Truly unlabeled
+            const unlabeledId = 'unlabeled';
+            if (!productRevenue[unlabeledId]) {
+              productRevenue[unlabeledId] = {
+                name: 'Unlabeled Revenue',
+                months: {},
+                total: 0,
+                count: {},
+              };
+            }
+            productRevenue[unlabeledId].months[monthKey] = (productRevenue[unlabeledId].months[monthKey] || 0) + paymentAmount;
+            productRevenue[unlabeledId].count[monthKey] = (productRevenue[unlabeledId].count[monthKey] || 0) + 1;
+            productRevenue[unlabeledId].total += paymentAmount;
+          }
         }
-        
-        productRevenue[productId].months[monthKey] = (productRevenue[productId].months[monthKey] || 0) + amount;
-        productRevenue[productId].total += amount;
       });
 
       // Convert to entities
