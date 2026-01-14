@@ -763,17 +763,19 @@ export default function MasterTablePage() {
       }
 
       const data = await response.json();
-      const trafficSources = data.data || {};
-      console.log("🌐 Found", Object.keys(trafficSources).length, "Google Analytics traffic sources");
+      const trafficSources = data.sources || [];
+      console.log("🌐 Found", trafficSources.length, "Google Analytics traffic sources");
 
       let addedEntities = 0;
       
       // Process each traffic source (e.g., "Organic Search", "Direct", "Referral")
-      Object.entries(trafficSources).forEach(([sourceName, sourceData]: [string, any]) => {
+      trafficSources.forEach((sourceData: any) => {
+        const sourceName = sourceData.source || 'Unknown Source';
+        
         // Metrics to track for each traffic source
         const metricsToTrack = [
           { key: 'sessions', metricType: 'sessions' },
-          { key: 'activeUsers', metricType: 'users' },
+          { key: 'users', metricType: 'users' },
         ];
         
         metricsToTrack.forEach(({ key, metricType }) => {
