@@ -137,6 +137,7 @@ export default function ForecastsPage() {
     // Calculate month-over-month change patterns
     // e.g., "What % change typically happens from Dec to Jan?"
     const momPatterns: Record<string, number> = {}; // Key: "12-1" means Dec to Jan
+    const allTransitions: Record<string, Array<{date: string, change: number, prevValue: number, currValue: number}>> = {};
     
     for (let i = 1; i < monthKeys.length; i++) {
       const prevValue = entity.months[monthKeys[i - 1]] || 0;
@@ -149,16 +150,23 @@ export default function ForecastsPage() {
         
         const transitionKey = `${prevMonth}-${currMonth}`;
         
-        // Average if we see this transition multiple times
-        if (!momPatterns[transitionKey]) {
-          momPatterns[transitionKey] = changePercent;
-        } else {
-          momPatterns[transitionKey] = (momPatterns[transitionKey] + changePercent) / 2;
+        // Store all transitions for debugging
+        if (!allTransitions[transitionKey]) {
+          allTransitions[transitionKey] = [];
         }
+        allTransitions[transitionKey].push({
+          date: `${monthKeys[i - 1]} → ${monthKeys[i]}`,
+          change: changePercent,
+          prevValue,
+          currValue
+        });
+        
+        // Use most recent pattern (not average) to avoid old data skewing forecast
+        momPatterns[transitionKey] = changePercent;
       }
     }
 
-    return { cmgr, momPatterns };
+    return { cmgr, momPatterns, allTransitions };
   };
 
   // Combine baseline entities (merge YT JOBS and Unlabeled Revenue)
@@ -222,7 +230,7 @@ export default function ForecastsPage() {
     const forecasts = new Map<string, Record<string, number>>();
     
     processedBaselineEntities.forEach(entity => {
-      const { cmgr, momPatterns } = calculateForecast(entity, monthKeys);
+      const { cmgr, momPatterns, allTransitions } = calculateForecast(entity, monthKeys);
       
       // Find the last month with actual data (not zero)
       let lastMonthKey = monthKeys[monthKeys.length - 1];
@@ -266,6 +274,20 @@ export default function ForecastsPage() {
         forecastMonths: forecastMonthKeys.length
       });
       
+      // Show all historical transitions for debugging
+      if (Object.keys(allTransitions).length > 0) {
+        console.log(`  📅 Historical month-over-month transitions:`);
+        Object.entries(allTransitions).forEach(([key, transitions]) => {
+          const [fromMonth, toMonth] = key.split('-');
+          const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          console.log(`    ${monthNames[parseInt(fromMonth)]} → ${monthNames[parseInt(toMonth)]}:`);
+          transitions.forEach(t => {
+            console.log(`      ${t.date}: $${t.prevValue.toFixed(0)} → $${t.currValue.toFixed(0)} = ${(t.change * 100).toFixed(1)}%`);
+          });
+          console.log(`      Using most recent: ${(transitions[transitions.length - 1].change * 100).toFixed(1)}%`);
+        });
+      }
+      
       if (baselineValue === 0) {
         console.warn(`⚠️ ${entity.entityName} has no data, skipping forecast`);
         forecasts.set(entity.entityId, {});
@@ -299,9 +321,10 @@ export default function ForecastsPage() {
         // Step 2: Multiply by CMGR growth
         forecastValue = forecastValue * (1 + cmgr);
         
-        // Log first forecast month (Jan '26) for debugging
-        if (idx === 0) {
-          console.log(`  🔮 First forecast (${forecastKey}):`, {
+        // Log first forecast month (Jan '26) and December for debugging
+        if (idx === 0 || forecastMonthNum === 12) {
+          const monthName = forecastMonthNum === 12 ? 'Dec' : 'Jan';
+          console.log(`  🔮 ${monthName} '26 forecast (${forecastKey}):`, {
             previousValue: `$${previousValue.toFixed(0)}`,
             historicalChange: historicalChange ? `${(historicalChange * 100).toFixed(2)}%` : 'none',
             afterHistorical: historicalChange ? `$${(previousValue * (1 + historicalChange)).toFixed(0)}` : 'same',
