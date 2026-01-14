@@ -107,19 +107,19 @@ export default function ForecastsPage() {
     return keys;
   }, []);
 
-  // Generate forecast month keys - next 12 months
+  // Generate forecast month keys - next 12 months (including current month if empty)
   const forecastMonthKeys = useMemo(() => {
     const keys: string[] = [];
     const now = new Date();
     
-    // Next 12 months from current month
-    for (let i = 1; i <= 12; i++) {
+    // Include current month (likely empty) + next 11 months = 12 total
+    for (let i = 0; i <= 11; i++) {
       const nextDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
       keys.push(nextMonthKey);
     }
     
-    console.log('🔮 Generated forecastMonthKeys (next 12 months):', keys);
+    console.log('🔮 Generated forecastMonthKeys (current + next 11 months):', keys);
     return keys;
   }, []);
 
@@ -1280,20 +1280,20 @@ export default function ForecastsPage() {
                   Seed Baseline
                 </button>
                 <button
-                  onClick={() => {
-                    setShowSelectorModal(true);
-                    setFilterSource("all");
-                    setFilterMetric("all");
-                    fetchAvailableEntities();
+                  onClick={async () => {
+                    setLoading(true);
+                    await fetchBaselineEntities();
+                    setLoading(false);
                   }}
                   className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80 flex items-center gap-2"
                   style={{ 
                     background: "#3b82f6",
                     color: "white"
                   }}
+                  title="Recalculate forecasts with current baseline data"
                 >
-                  <Plus className="w-4 h-4" />
-                  Manage Baseline
+                  <TrendingUp className="w-4 h-4" />
+                  Regenerate Forecast
                 </button>
               </div>
             </div>
