@@ -797,28 +797,127 @@ export default function ForecastsPage() {
     return value.toLocaleString();
   };
 
-  // Prepare chart data for revenue entities
+  // Calculate CMGR (Compound Monthly Growth Rate) and seasonal patterns
+  const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
+    const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
+    if (values.length < 3) return { cmgr: 0, seasonalFactors: {} };
+
+    // Calculate CMGR (Compound Monthly Growth Rate)
+    const firstValue = values[0];
+    const lastValue = values[values.length - 1];
+    const months = values.length - 1;
+    const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
+
+    // Calculate seasonal factors (average for each month position)
+    const monthlyAverages: Record<number, number[]> = {};
+    monthKeys.forEach((key) => {
+      const value = entity.months[key] || 0;
+      if (value > 0) {
+        const monthNum = parseInt(key.split('-')[1]);
+        if (!monthlyAverages[monthNum]) monthlyAverages[monthNum] = [];
+        monthlyAverages[monthNum].push(value);
+      }
+    });
+
+    // Calculate average for each month and normalize
+    const avgByMonth: Record<number, number> = {};
+    let overallAvg = 0;
+    let monthCount = 0;
+    
+    Object.entries(monthlyAverages).forEach(([month, vals]) => {
+      const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+      avgByMonth[parseInt(month)] = avg;
+      overallAvg += avg;
+      monthCount++;
+    });
+    
+    overallAvg = overallAvg / monthCount;
+
+    // Normalize seasonal factors (1.0 = average, >1 = above average, <1 = below average)
+    const seasonalFactors: Record<number, number> = {};
+    Object.entries(avgByMonth).forEach(([month, avg]) => {
+      seasonalFactors[parseInt(month)] = overallAvg > 0 ? avg / overallAvg : 1.0;
+    });
+
+    return { cmgr, seasonalFactors };
+  };
+
+  // Prepare chart data for revenue entities with forecasts
   const revenueChartData = useMemo(() => {
     const revenueEntities = baselineEntities.filter(e => e.metricType === "revenue");
     if (revenueEntities.length === 0) return [];
 
-    const chartData = monthKeys.map((monthKey: string) => {
+    // Get last actual month key for projection baseline
+    const lastMonthKey = monthKeys[monthKeys.length - 1];
+
+    // Calculate forecast for each entity
+    const entityForecasts = revenueEntities.map(entity => {
+      const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
+      return { entity, cmgr, seasonalFactors };
+    });
+
+    // Generate 6 months of forecast
+    const forecastMonths = 6;
+    const extendedMonthKeys = [...monthKeys];
+    const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
+    
+    for (let i = 1; i <= forecastMonths; i++) {
+      const nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + i);
+      const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+      extendedMonthKeys.push(nextMonthKey);
+    }
+
+    const chartData = extendedMonthKeys.map((monthKey: string, index) => {
       const [year, month] = monthKey.split('-');
       const date = new Date(parseInt(year), parseInt(month) - 1);
       const monthLabel = date.toLocaleDateString('en-US', { month: 'short' });
+      const monthNum = parseInt(month);
+      const isHistorical = index < monthKeys.length;
       
       let totalRevenue = 0;
-      revenueEntities.forEach(entity => {
-        totalRevenue += entity.months[monthKey] || 0;
-      });
-
-      return {
-        month: monthLabel,
-        actual: totalRevenue > 0 ? Math.round(totalRevenue / 1000) : null, // Convert to thousands
-        forecast: null,
-        lower: null,
-        upper: null,
-      };
+      let forecastRevenue = 0;
+      
+      if (isHistorical) {
+        // Historical data
+        revenueEntities.forEach(entity => {
+          totalRevenue += entity.months[monthKey] || 0;
+        });
+        
+        return {
+          month: monthLabel,
+          actual: totalRevenue > 0 ? Math.round(totalRevenue / 1000) : null,
+          forecast: null,
+          lower: null,
+          upper: null,
+        };
+      } else {
+        // Forecast data
+        const monthsAhead = index - monthKeys.length + 1;
+        
+        entityForecasts.forEach(({ entity, cmgr, seasonalFactors }) => {
+          const lastValue = entity.months[lastMonthKey] || 0;
+          if (lastValue > 0) {
+            // Apply CMGR growth
+            const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
+            
+            // Apply seasonal factor if available
+            const seasonalFactor = seasonalFactors[monthNum] || 1.0;
+            const forecastValue = projectedValue * seasonalFactor;
+            
+            forecastRevenue += forecastValue;
+          }
+        });
+        
+        const forecast = Math.round(forecastRevenue / 1000);
+        
+        return {
+          month: monthLabel,
+          actual: null,
+          forecast: forecast > 0 ? forecast : null,
+          lower: forecast > 0 ? Math.round(forecast * 0.85) : null, // 15% confidence band
+          upper: forecast > 0 ? Math.round(forecast * 1.15) : null,
+        };
+      }
     });
 
     return chartData;
@@ -1106,9 +1205,6 @@ export default function ForecastsPage() {
                           </th>
                         );
                       })}
-                      <th className="text-right py-3 px-4 text-xs font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground-muted)" }}>
-                        Total
-                      </th>
                       <th className="text-center py-3 px-4 text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
                         Actions
                       </th>
@@ -1143,9 +1239,6 @@ export default function ForecastsPage() {
                               </td>
                             );
                           })}
-                          <td className="py-3 px-4 text-sm text-right font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                            {formatValue(entity.total, entity.metricType)}
-                          </td>
                           <td className="py-3 px-4 text-center">
                             <button
                               onClick={() => handleRemoveEntity(entity.entityId)}
