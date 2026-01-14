@@ -1252,19 +1252,64 @@ export default function ForecastsPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Legend */}
-              <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ background: "#00d4aa" }} />
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Historical Revenue</span>
+              {/* Monthly Revenue Totals */}
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    Baseline Monthly Revenue
+                  </h3>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Sum of all baseline revenue items by month
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ background: "#3b82f6" }} />
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Forecast</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-3 rounded" style={{ background: "rgba(59, 130, 246, 0.2)" }} />
-                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>95% Confidence</span>
+                <div className="overflow-x-auto">
+                  <div className="flex gap-3 pb-2">
+                    {/* Historical months */}
+                    {monthKeys.map((key) => {
+                      const [year, month] = key.split('-');
+                      const date = new Date(parseInt(year), parseInt(month) - 1);
+                      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                      
+                      // Sum all revenue entities for this month
+                      const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
+                      const total = revenueEntities.reduce((sum, entity) => sum + (entity.months[key] || 0), 0);
+                      
+                      return (
+                        <div key={key} className="flex flex-col items-center gap-1 min-w-[70px]">
+                          <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                            {monthLabel}
+                          </span>
+                          <span className="text-sm font-bold" style={{ color: "#00d4aa" }}>
+                            {total > 0 ? formatAmount(total) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {/* Forecast months */}
+                    {forecastMonthKeys.map((key) => {
+                      const [year, month] = key.split('-');
+                      const date = new Date(parseInt(year), parseInt(month) - 1);
+                      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                      
+                      // Sum all revenue entity forecasts for this month
+                      const revenueEntities = processedBaselineEntities.filter(e => e.metricType === "revenue");
+                      const total = revenueEntities.reduce((sum, entity) => {
+                        const entityForecast = entityForecasts.get(entity.entityId)?.[key] || 0;
+                        return sum + entityForecast;
+                      }, 0);
+                      
+                      return (
+                        <div key={key} className="flex flex-col items-center gap-1 min-w-[70px]" style={{ background: "rgba(59, 130, 246, 0.05)", borderRadius: "4px", padding: "4px" }}>
+                          <span className="text-xs font-medium" style={{ color: "#3b82f6" }}>
+                            {monthLabel}
+                          </span>
+                          <span className="text-sm font-bold" style={{ color: "#3b82f6" }}>
+                            {total > 0 ? formatAmount(total) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </Card>
