@@ -384,6 +384,115 @@ export default function ForecastsPage() {
     }
   };
 
+  // Manually seed specific baseline rows (temporary function)
+  const seedManualBaseline = async () => {
+    if (!organizationId) return;
+    
+    try {
+      setLoading(true);
+      
+      // Clear existing baseline
+      const existingQuery = query(
+        collection(db, "forecast_baseline_rows"),
+        where("organizationId", "==", organizationId)
+      );
+      const existing = await getDocs(existingQuery);
+      for (const doc of existing.docs) {
+        await deleteDoc(doc.ref);
+      }
+
+      // Manually add the 3 specific Stripe rows with hardcoded data (Row 1 - Homepage will be added later)
+      const manualRows: BaselineEntity[] = [
+        {
+          entityId: "stripe_product_descriptor_YT JOBS",
+          entityName: "YT JOBS",
+          source: "stripe",
+          type: "Product",
+          metric: "Product Revenue",
+          metricType: "revenue",
+          months: {
+            "2025-01": 26136,
+            "2025-02": 23217,
+            "2025-03": 23847,
+            "2025-04": 26057,
+            "2025-05": 28911,
+            "2025-06": 20795,
+            "2025-07": 17800,
+            "2025-08": 25630,
+            "2025-09": 40756,
+            "2025-10": 42603,
+            "2025-11": 45391,
+            "2025-12": 42100,
+          },
+          total: 363243,
+        },
+        {
+          entityId: "stripe_product_unlabeled",
+          entityName: "Unlabeled Revenue",
+          source: "stripe",
+          type: "Product",
+          metric: "Product Revenue",
+          metricType: "revenue",
+          months: {
+            "2025-01": 11256,
+            "2025-02": 11668,
+            "2025-03": 15518,
+            "2025-04": 11953,
+            "2025-05": 15766,
+            "2025-06": 15344,
+            "2025-07": 17895,
+            "2025-08": 23814,
+            "2025-09": 6456,
+            "2025-10": 0,
+            "2025-11": 544,
+            "2025-12": 296,
+          },
+          total: 130510,
+        },
+        {
+          entityId: "stripe_product_3month_recruiter",
+          entityName: "3-Month Recruiter Package",
+          source: "stripe",
+          type: "Product",
+          metric: "Product Revenue",
+          metricType: "revenue",
+          months: {
+            "2025-01": 998,
+            "2025-02": 1497,
+            "2025-03": 1996,
+            "2025-04": 998,
+            "2025-05": 3992,
+            "2025-06": 998,
+            "2025-07": 499,
+            "2025-08": 5988,
+            "2025-09": 2994,
+            "2025-10": 998,
+            "2025-11": 5489,
+            "2025-12": 2994,
+          },
+          total: 29441,
+        },
+      ];
+
+      // Add each row to Firestore
+      for (const row of manualRows) {
+        await addDoc(collection(db, "forecast_baseline_rows"), {
+          organizationId,
+          ...row,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      alert(`✅ Successfully added ${manualRows.length} baseline rows!`);
+      await fetchBaselineEntities();
+    } catch (error) {
+      console.error("Error seeding baseline:", error);
+      alert("❌ Error adding baseline rows");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!organizationId) {
       setLoading(false);
@@ -574,22 +683,36 @@ export default function ForecastsPage() {
                   Selected rows from Master Table
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setShowSelectorModal(true);
-                  setFilterSource("all");
-                  setFilterMetric("all");
-                  fetchAvailableEntities();
-                }}
-                className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80 flex items-center gap-2"
-                style={{ 
-                  background: "#3b82f6",
-                  color: "white"
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Manage Baseline
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={seedManualBaseline}
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80 flex items-center gap-2"
+                  style={{ 
+                    background: "#10b981",
+                    color: "white"
+                  }}
+                  title="Add YT JOBS, Unlabeled Revenue, and 3-Month Recruiter Package"
+                >
+                  <Zap className="w-4 h-4" />
+                  Seed Baseline
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSelectorModal(true);
+                    setFilterSource("all");
+                    setFilterMetric("all");
+                    fetchAvailableEntities();
+                  }}
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-opacity hover:opacity-80 flex items-center gap-2"
+                  style={{ 
+                    background: "#3b82f6",
+                    color: "white"
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Manage Baseline
+                </button>
+              </div>
             </div>
 
             {loading ? (
