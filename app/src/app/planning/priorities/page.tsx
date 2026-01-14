@@ -290,120 +290,119 @@ export default function PrioritiesPage() {
                     {/* Header */}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <div 
-                                          className="px-2 py-1 rounded-full text-xs font-medium capitalize"
-                                          style={{ 
-                                            background: `${categoryColors[priority.category]}15`,
-                                            color: categoryColors[priority.category]
-                                          }}
-                                        >
-                                          {priority.category}
-                                        </div>
-                                        <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                                          {priority.owner}
-                                        </div>
-                                      </div>
-                                      <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                                        {priority.title}
-                                      </h3>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleEditClick(priority)}
-                                      className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-                                      style={{ color: "var(--foreground-muted)" }}
-                                      title="Edit priority"
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => priority.id && handleDeletePriority(priority.id)}
-                                      className="p-2 rounded-lg transition-colors hover:bg-red-50"
-                                      style={{ color: "#ef4444" }}
-                                      title="Delete priority"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div 
+                            className="px-2 py-1 rounded-full text-xs font-medium capitalize"
+                            style={{ 
+                              background: `${categoryColors[priority.category]}15`,
+                              color: categoryColors[priority.category]
+                            }}
+                          >
+                            {priority.category}
+                          </div>
+                          <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {priority.owner}
+                          </div>
+                        </div>
+                        <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                          {priority.title}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEditClick(priority)}
+                          className="p-2 rounded-lg transition-colors hover:bg-gray-100"
+                          style={{ color: "var(--foreground-muted)" }}
+                          title="Edit priority"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => priority.id && handleDeletePriority(priority.id)}
+                          className="p-2 rounded-lg transition-colors hover:bg-red-50"
+                          style={{ color: "#ef4444" }}
+                          title="Delete priority"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
 
-                                {/* What's Important */}
-                                <div>
-                                  <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
-                                    What&apos;s Important
-                                  </h4>
-                                  <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-                                    {priority.whatsImportant}
-                                  </p>
-                                </div>
+                    {/* What's Important */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                        What&apos;s Important
+                      </h4>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                        {priority.whatsImportant}
+                      </p>
+                    </div>
 
-                                {/* Divider */}
-                                <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                    {/* Divider */}
+                    <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
 
-                                {/* How Are We Doing */}
-                                <div>
-                                  <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
-                                    How Are We Doing
-                                  </h4>
-                                  <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-                                    {priority.howAreWeDoing}
-                                  </p>
-                                </div>
+                    {/* How Are We Doing */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                        How Are We Doing
+                      </h4>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                        {priority.howAreWeDoing}
+                      </p>
+                    </div>
 
-                                {/* Divider */}
-                                <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                    {/* Divider */}
+                    <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
 
-                                {/* Priorities to Improve */}
-                                <div>
-                                  <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
-                                    Priorities to Improve
-                                  </h4>
-                                  <ul className="space-y-1.5">
-                                    {priority.prioritiesToImprove.map((item, idx) => (
-                                      <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground)" }}>
-                                        <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: categoryColors[priority.category] }}></span>
-                                        <span>{item}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
+                    {/* Priorities to Improve */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                        Priorities to Improve
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {priority.prioritiesToImprove.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+                            <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: categoryColors[priority.category] }}></span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                                {/* Aligned Initiatives */}
-                                {priority.alignedInitiatives.length > 0 && (
-                                  <>
-                                    <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                                        Initiatives:
-                                      </span>
-                                      {priority.alignedInitiatives.map((initiative, idx) => (
-                                        <span 
-                                          key={idx}
-                                          className="px-2 py-1 rounded-full text-xs flex items-center gap-1"
-                                          style={{ 
-                                            background: "var(--muted)",
-                                            color: "var(--foreground)"
-                                          }}
-                                        >
-                                          <Zap className="w-3 h-3" />
-                                          {initiative}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
+                    {/* Aligned Initiatives */}
+                    {priority.alignedInitiatives.length > 0 && (
+                      <>
+                        <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                            Initiatives:
+                          </span>
+                          {priority.alignedInitiatives.map((initiative, idx) => (
+                            <span 
+                              key={idx}
+                              className="px-2 py-1 rounded-full text-xs flex items-center gap-1"
+                              style={{ 
+                                background: "var(--muted)",
+                                color: "var(--foreground)"
+                              }}
+                            >
+                              <Zap className="w-3 h-3" />
+                              {initiative}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    )}
 
-                                {priority.alignedInitiatives.length === 0 && (
-                                  <>
-                                    <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
-                                    <div className="flex items-center gap-2 text-xs" style={{ color: "#f59e0b" }}>
-                                      <AlertTriangle className="w-4 h-4" />
-                                      <span>No aligned initiatives yet</span>
-                                    </div>
-                                  </>
-                                )}
+                    {priority.alignedInitiatives.length === 0 && (
+                      <>
+                        <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                        <div className="flex items-center gap-2 text-xs" style={{ color: "#f59e0b" }}>
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>No aligned initiatives yet</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </Card>
               </motion.div>
