@@ -273,6 +273,13 @@ export default function ForecastsPage() {
         forecastMonths: forecastMonthKeys.length
       });
       
+      // Show seasonal factors for debugging
+      console.log(`  📅 Seasonal factors:`, {
+        'Dec (12)': seasonalFactors[12]?.toFixed(3),
+        'Jan (1)': seasonalFactors[1]?.toFixed(3),
+        'Feb (2)': seasonalFactors[2]?.toFixed(3)
+      });
+      
       if (baselineValue === 0) {
         console.warn(`⚠️ ${entity.entityName} has no data, skipping forecast`);
         forecasts.set(entity.entityId, {});
@@ -282,7 +289,7 @@ export default function ForecastsPage() {
       const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
       const entityForecastValues: Record<string, number> = {};
       
-      forecastMonthKeys.forEach(forecastKey => {
+      forecastMonthKeys.forEach((forecastKey, idx) => {
         const forecastDate = new Date(parseInt(forecastKey.split('-')[0]), parseInt(forecastKey.split('-')[1]) - 1);
         const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
         
@@ -293,6 +300,18 @@ export default function ForecastsPage() {
         const monthNum = parseInt(forecastKey.split('-')[1]);
         const seasonalFactor = seasonalFactors[monthNum] || 1.0;
         const forecastValue = projectedValue * seasonalFactor;
+        
+        // Log first forecast month (Jan '26) for debugging
+        if (idx === 0) {
+          console.log(`  🔮 First forecast (${forecastKey}):`, {
+            baselineValue: `$${baselineValue.toFixed(0)}`,
+            monthsAhead,
+            cmgrGrowth: `${((Math.pow(1 + cmgr, monthsAhead) - 1) * 100).toFixed(2)}%`,
+            projectedValue: `$${projectedValue.toFixed(0)}`,
+            seasonalFactor: seasonalFactor.toFixed(3),
+            finalForecast: `$${forecastValue.toFixed(0)}`
+          });
+        }
         
         entityForecastValues[forecastKey] = forecastValue;
       });
