@@ -40,12 +40,12 @@ const getMetricTitle = (source: EntityRow['source'], type: string, metricType: s
       if (metricType === "revenue") return "Product Revenue";
       if (metricType === "sales") return "Product Sales";
     }
-    if (type === "Customer") return "Customer Revenue";
+    if (type === "Customer") return "Customer Transactions";
   }
   
   if (source === "quickbooks") {
     if (type === "Vendor") return "Vendor Expenses";
-    if (type === "Customer") return "Invoice Revenue";
+    if (type === "Customer") return "Customer Transactions";
   }
   
   if (source === "google-analytics") {
