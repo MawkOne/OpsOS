@@ -92,18 +92,18 @@ export default function ForecastsPage() {
 
   const organizationId = currentOrg?.id || "";
 
-  // Generate month keys - trailing 18 months
+  // Generate month keys - trailing months up to last completed month (not including current)
   const monthKeys = useMemo(() => {
     const keys: string[] = [];
     const now = new Date();
     
-    // Trailing 18 months
-    for (let i = 17; i >= 0; i--) {
+    // Last 17 completed months (18 months back through last month, excluding current)
+    for (let i = 17; i >= 1; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
     
-    console.log('📅 Generated monthKeys (trailing 18 months):', keys);
+    console.log('📅 Generated monthKeys (last 17 completed months):', keys);
     return keys;
   }, []);
 
