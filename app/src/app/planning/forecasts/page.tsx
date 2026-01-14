@@ -10,8 +10,6 @@ import {
   DollarSign,
   Zap,
   Calendar,
-  Settings,
-  Layers,
   Plus,
   X,
   Check,
@@ -42,19 +40,37 @@ interface BaselineEntity {
   total: number;
 }
 
-interface InitiativeForecast {
+interface LineItem {
+  productId?: string;
+  description?: string;
+  amount?: number;
+  quantity?: number;
+}
+
+interface GAMetrics {
+  sessions?: number;
+  pageviews?: number;
+  [key: string]: number | undefined;
+}
+
+interface GAPage {
   id: string;
   name: string;
-  monthlyImpact: Record<string, number>; // monthKey -> revenue impact
-  status: string;
+  months?: Record<string, GAMetrics>;
+}
+
+interface GASource {
+  name: string;
+  sessions?: Record<string, number>;
+  users?: Record<string, number>;
 }
 
 export default function ForecastsPage() {
   const { currentOrg } = useOrganization();
-  const { formatAmount, convertAmountHistorical } = useCurrency();
+  const { formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [baselineEntities, setBaselineEntities] = useState<BaselineEntity[]>([]);
-  const [initiativeForecasts, setInitiativeForecasts] = useState<InitiativeForecast[]>([]);
+  const [initiativeForecasts] = useState<never[]>([]); // Placeholder for future implementation
   const [viewMode, setViewMode] = useState<"ttm" | "year">("year");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showSelectorModal, setShowSelectorModal] = useState(false);
@@ -177,7 +193,7 @@ export default function ForecastsPage() {
         if (lineItems.length > 0) {
           let hasValidProduct = false;
           
-          lineItems.forEach((item: any) => {
+          lineItems.forEach((item: LineItem) => {
             const productId = item.productId;
             
             if (productId) {
@@ -256,7 +272,7 @@ export default function ForecastsPage() {
         
         if (lineItems.length > 0) {
           // Has line items
-          lineItems.forEach((item: any) => {
+          lineItems.forEach((item: LineItem) => {
             const productId = item.productId;
             
             if (productId) {
@@ -341,7 +357,7 @@ export default function ForecastsPage() {
           const gaData = await gaResponse.json();
           const sources = gaData.data || [];
           
-          sources.forEach((sourceData: any) => {
+          sources.forEach((sourceData: GASource) => {
             const sourceName = sourceData.name || "Unknown Source";
             
             // Sessions metric
@@ -349,7 +365,7 @@ export default function ForecastsPage() {
               const sessionMonths: Record<string, number> = {};
               let totalSessions = 0;
               
-              Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, any]) => {
+              Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, number]) => {
                 sessionMonths[monthKey] = value as number;
                 totalSessions += value as number;
               });
@@ -373,7 +389,7 @@ export default function ForecastsPage() {
               const userMonths: Record<string, number> = {};
               let totalUsers = 0;
               
-              Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, any]) => {
+              Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, number]) => {
                 userMonths[monthKey] = value as number;
                 totalUsers += value as number;
               });
@@ -408,14 +424,14 @@ export default function ForecastsPage() {
           const gaData = await gaPagesResponse.json();
           const pages = gaData.pages || [];
           
-          pages.forEach((pageData: any) => {
+          pages.forEach((pageData: GAPage) => {
             const pageName = pageData.name || "Unknown Page";
             
             // Page Sessions
             const sessionMonths: Record<string, number> = {};
             let totalSessions = 0;
             
-            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
               const sessions = metrics.sessions || 0;
               sessionMonths[monthKey] = sessions;
               totalSessions += sessions;
@@ -438,7 +454,7 @@ export default function ForecastsPage() {
             const pageviewMonths: Record<string, number> = {};
             let totalPageviews = 0;
             
-            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, GAMetrics]) => {
               const pageviews = metrics.pageviews || 0;
               pageviewMonths[monthKey] = pageviews;
               totalPageviews += pageviews;
@@ -594,7 +610,7 @@ export default function ForecastsPage() {
           const pages = gaData.pages || [];
           
           // Find homepage (pagePath === "/" or contains "home")
-          const homepage = pages.find((p: any) => 
+          const homepage = pages.find((p: GAPage) => 
             p.name === "Homepage" || 
             p.name === "/" || 
             p.name?.toLowerCase().includes("home")
@@ -605,8 +621,9 @@ export default function ForecastsPage() {
             let totalSessions = 0;
             
             // Extract sessions per month
-            Object.entries(homepage.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
-              const sessions = metrics.sessions || 0;
+            Object.entries(homepage.months || {}).forEach(([monthKey, metrics]) => {
+              const gaMetrics = metrics as GAMetrics;
+              const sessions = gaMetrics.sessions || 0;
               sessionMonths[monthKey] = sessions;
               totalSessions += sessions;
             });
@@ -707,8 +724,8 @@ export default function ForecastsPage() {
             "2025-12": 2994,
           },
           total: 29441,
-        },
-      ];
+        }
+      );
 
       // Add each row to Firestore
       for (const row of manualRows) {
@@ -758,15 +775,6 @@ export default function ForecastsPage() {
     if (firstAvg === 0) return 0;
     return ((secondAvg - firstAvg) / firstAvg) * 100;
   };
-
-  // Calculate baseline totals
-  const baselineTotals = monthKeys.map(key => {
-    return baselineEntities.reduce((sum, entity) => {
-      return sum + (entity.months[key] || 0);
-    }, 0);
-  });
-
-  const totalBaseline = baselineTotals.reduce((sum, val) => sum + val, 0);
 
   // Format value based on metric type
   const formatValue = (value: number, metricType: string) => {
