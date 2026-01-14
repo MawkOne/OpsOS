@@ -5,8 +5,6 @@ import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
 import {
-  GripVertical,
-  Plus,
   Target,
   TrendingUp,
   Users,
@@ -15,74 +13,117 @@ import {
   Clock,
   AlertTriangle,
   ArrowRight,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 
 interface Priority {
   id: string;
   title: string;
-  problem: string;
+  whatsImportant: string;
+  howAreWeDoing: {
+    status: "on-track" | "at-risk" | "needs-attention";
+    description: string;
+    trend: "up" | "down" | "stable";
+  };
+  prioritiesToImprove: string[];
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
-  quarter: string;
-  status: "on-track" | "at-risk" | "needs-attention";
-  rank: number;
   alignedInitiatives: string[];
 }
 
-const initialPriorities: Priority[] = [
+const priorities: Priority[] = [
   {
     id: "1",
     title: "Accelerate Revenue Growth",
-    problem: "Revenue growth has plateaued at 15% YoY. Need to reach 40% growth to meet Series B targets.",
+    whatsImportant: "Revenue growth has plateaued at 15% YoY. We need to reach 40% growth to meet Series B targets and maintain market leadership position.",
+    howAreWeDoing: {
+      status: "on-track",
+      description: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
+      trend: "up",
+    },
+    prioritiesToImprove: [
+      "Accelerate enterprise sales motion",
+      "Expand into 3 new European markets by Q2",
+      "Launch premium tier pricing model",
+    ],
     category: "growth",
     owner: "CEO",
-    quarter: "Q1-Q2 2026",
-    status: "on-track",
-    rank: 1,
     alignedInitiatives: ["Launch New Product Line", "Expand to European Markets"],
   },
   {
     id: "2",
     title: "Improve Customer Retention",
-    problem: "Churn rate increased to 8% monthly. Customer lifetime value declining, need to improve onboarding and engagement.",
+    whatsImportant: "Churn rate increased to 8% monthly, up from 5% last quarter. Customer lifetime value is declining, impacting unit economics and investor confidence.",
+    howAreWeDoing: {
+      status: "at-risk",
+      description: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
+      trend: "down",
+    },
+    prioritiesToImprove: [
+      "Redesign onboarding flow to improve completion rate",
+      "Implement proactive CSM outreach at risk indicators",
+      "Build automated engagement campaigns",
+      "Create customer success playbooks",
+    ],
     category: "efficiency",
     owner: "VP Customer Success",
-    quarter: "Q1 2026",
-    status: "at-risk",
-    rank: 2,
     alignedInitiatives: ["Customer Success Platform"],
   },
   {
     id: "3",
     title: "Build Competitive Moat",
-    problem: "Two major competitors launched similar features. Need differentiation through AI/ML capabilities to maintain market position.",
+    whatsImportant: "Two major competitors launched similar core features last quarter. We need AI/ML-powered differentiation to maintain our premium positioning and pricing power.",
+    howAreWeDoing: {
+      status: "on-track",
+      description: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
+      trend: "up",
+    },
+    prioritiesToImprove: [
+      "Ship AI recommendations engine by Q2",
+      "Build predictive forecasting capabilities",
+      "Patent key ML algorithms",
+    ],
     category: "innovation",
     owner: "CTO",
-    quarter: "Q1-Q3 2026",
-    status: "on-track",
-    rank: 3,
     alignedInitiatives: ["AI-Powered Analytics Dashboard"],
   },
   {
     id: "4",
     title: "Scale Team Efficiency",
-    problem: "Cost per customer acquisition rising while team productivity declining. Need process improvements and automation.",
+    whatsImportant: "Cost per customer acquisition is rising 20% YoY while team productivity is declining. We're burning $400K monthly on inefficient processes that need automation.",
+    howAreWeDoing: {
+      status: "needs-attention",
+      description: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
+      trend: "down",
+    },
+    prioritiesToImprove: [
+      "Automate lead qualification and routing",
+      "Implement self-service support portal",
+      "Standardize cross-functional workflows",
+      "Build operational dashboards for each team",
+    ],
     category: "efficiency",
     owner: "COO",
-    quarter: "Q2 2026",
-    status: "needs-attention",
-    rank: 4,
     alignedInitiatives: [],
   },
   {
     id: "5",
     title: "Reduce Technical Debt",
-    problem: "System performance degrading, 15% of engineering time spent on incidents. Infrastructure modernization critical.",
+    whatsImportant: "System performance is degrading. 15% of engineering time is spent firefighting incidents. Platform reliability issues are causing customer escalations and threatening renewals.",
+    howAreWeDoing: {
+      status: "needs-attention",
+      description: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
+      trend: "down",
+    },
+    prioritiesToImprove: [
+      "Migrate to microservices architecture",
+      "Upgrade database infrastructure",
+      "Implement comprehensive monitoring",
+      "Establish technical debt sprints",
+    ],
     category: "risk",
     owner: "VP Engineering",
-    quarter: "Q2-Q3 2026",
-    status: "needs-attention",
-    rank: 5,
     alignedInitiatives: [],
   },
 ];
@@ -94,94 +135,47 @@ const categoryColors = {
   innovation: "#8b5cf6",
 };
 
-const categoryIcons = {
-  growth: <TrendingUp className="w-4 h-4" />,
-  efficiency: <Target className="w-4 h-4" />,
-  risk: <AlertTriangle className="w-4 h-4" />,
-  innovation: <Zap className="w-4 h-4" />,
-};
-
 const statusConfig = {
   "on-track": {
     label: "On Track",
     color: "#00d4aa",
-    icon: <CheckCircle2 className="w-4 h-4" />,
+    icon: <CheckCircle2 className="w-5 h-5" />,
   },
   "at-risk": {
     label: "At Risk",
     color: "#f59e0b",
-    icon: <Clock className="w-4 h-4" />,
+    icon: <Clock className="w-5 h-5" />,
   },
   "needs-attention": {
     label: "Needs Attention",
     color: "#ef4444",
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: <AlertTriangle className="w-5 h-5" />,
   },
 };
 
+const trendIcons = {
+  up: <TrendingUp className="w-4 h-4" style={{ color: "#00d4aa" }} />,
+  down: <TrendingDown className="w-4 h-4" style={{ color: "#ef4444" }} />,
+  stable: <Minus className="w-4 h-4" style={{ color: "#6b7280" }} />,
+};
+
 export default function PrioritiesPage() {
-  const [priorities, setPriorities] = useState<Priority[]>(initialPriorities);
-  const [draggedItem, setDraggedItem] = useState<Priority | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  const handleDragStart = (e: React.DragEvent, priority: Priority) => {
-    setDraggedItem(priority);
-    e.dataTransfer.effectAllowed = "move";
-  };
+  const filteredPriorities = selectedCategory === "all" 
+    ? priorities 
+    : priorities.filter(p => p.category === selectedCategory);
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverIndex(index);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    
-    if (!draggedItem) return;
-
-    const currentIndex = priorities.findIndex(p => p.id === draggedItem.id);
-    
-    if (currentIndex === dropIndex) {
-      setDragOverIndex(null);
-      setDraggedItem(null);
-      return;
-    }
-
-    const newPriorities = [...priorities];
-    newPriorities.splice(currentIndex, 1);
-    newPriorities.splice(dropIndex, 0, draggedItem);
-
-    // Update rank numbers
-    const updatedPriorities = newPriorities.map((priority, idx) => ({
-      ...priority,
-      rank: idx + 1,
-    }));
-
-    setPriorities(updatedPriorities);
-    setDragOverIndex(null);
-    setDraggedItem(null);
-  };
-
-  const handleDragEnd = () => {
-    setDragOverIndex(null);
-    setDraggedItem(null);
-  };
-
-  const onTrackCount = priorities.filter(p => p.status === "on-track").length;
-  const atRiskCount = priorities.filter(p => p.status === "at-risk").length;
-  const needsAttentionCount = priorities.filter(p => p.status === "needs-attention").length;
+  const onTrackCount = priorities.filter(p => p.howAreWeDoing.status === "on-track").length;
+  const atRiskCount = priorities.filter(p => p.howAreWeDoing.status === "at-risk").length;
+  const needsAttentionCount = priorities.filter(p => p.howAreWeDoing.status === "needs-attention").length;
 
   return (
     <AppLayout 
       title="Strategic Priorities" 
       subtitle="Company-level problems and goals that drive initiatives"
     >
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -269,152 +263,172 @@ export default function PrioritiesPage() {
           </motion.div>
         </div>
 
-        {/* Priorities List */}
+        {/* Filter */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card>
-            <div className="space-y-3">
-              {priorities.map((priority, index) => (
-                <div
-                  key={priority.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, priority)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={`
-                    group relative rounded-lg border transition-all duration-200 cursor-grab active:cursor-grabbing
-                    ${dragOverIndex === index ? 'scale-105 shadow-lg' : 'hover:shadow-md'}
-                    ${draggedItem?.id === priority.id ? 'opacity-50' : ''}
-                  `}
-                  style={{ 
-                    background: "var(--card)",
-                    borderColor: dragOverIndex === index ? categoryColors[priority.category] : "var(--border)",
-                  }}
-                >
-                  <div className="p-4">
-                    <div className="flex items-start gap-4">
-                      {/* Drag Handle */}
-                      <div className="flex-shrink-0 pt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                        <GripVertical className="w-5 h-5" style={{ color: "var(--foreground-muted)" }} />
-                      </div>
-
-                      {/* Rank Badge */}
-                      <div 
-                        className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold"
-                        style={{ 
-                          background: `${categoryColors[priority.category]}15`,
-                          color: categoryColors[priority.category]
-                        }}
-                      >
-                        {priority.rank}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-4 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold mb-1" style={{ color: "var(--foreground)" }}>
-                              {priority.title}
-                            </h3>
-                            <p className="text-sm leading-relaxed mb-3" style={{ color: "var(--foreground-muted)" }}>
-                              {priority.problem}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Meta Info Row 1 */}
-                        <div className="flex items-center gap-4 mb-2 text-xs">
-                          {/* Category */}
-                          <div 
-                            className="flex items-center gap-1.5 px-2 py-1 rounded-full font-medium capitalize"
-                            style={{ 
-                              background: `${categoryColors[priority.category]}15`,
-                              color: categoryColors[priority.category]
-                            }}
-                          >
-                            {categoryIcons[priority.category]}
-                            <span>{priority.category}</span>
-                          </div>
-
-                          {/* Status */}
-                          <div 
-                            className="flex items-center gap-1.5 px-2 py-1 rounded-full font-medium"
-                            style={{ 
-                              background: `${statusConfig[priority.status].color}15`,
-                              color: statusConfig[priority.status].color
-                            }}
-                          >
-                            {statusConfig[priority.status].icon}
-                            <span>{statusConfig[priority.status].label}</span>
-                          </div>
-
-                          {/* Owner */}
-                          <div className="flex items-center gap-1.5" style={{ color: "var(--foreground-muted)" }}>
-                            <Users className="w-4 h-4" />
-                            <span>{priority.owner}</span>
-                          </div>
-
-                          {/* Quarter */}
-                          <div className="flex items-center gap-1.5" style={{ color: "var(--foreground-muted)" }}>
-                            <Clock className="w-4 h-4" />
-                            <span>{priority.quarter}</span>
-                          </div>
-                        </div>
-
-                        {/* Aligned Initiatives */}
-                        {priority.alignedInitiatives.length > 0 && (
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="font-medium" style={{ color: "var(--foreground-muted)" }}>
-                              Aligned Initiatives:
-                            </span>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {priority.alignedInitiatives.map((initiative, idx) => (
-                                <span 
-                                  key={idx}
-                                  className="px-2 py-1 rounded-full flex items-center gap-1"
-                                  style={{ 
-                                    background: "var(--muted)",
-                                    color: "var(--foreground)"
-                                  }}
-                                >
-                                  <Zap className="w-3 h-3" />
-                                  {initiative}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {priority.alignedInitiatives.length === 0 && (
-                          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                            <AlertTriangle className="w-4 h-4" style={{ color: "#f59e0b" }} />
-                            <span>No aligned initiatives yet</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Add New Button */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>Filter:</span>
             <button
-              className="w-full mt-4 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:border-opacity-100 hover:bg-opacity-50 flex items-center justify-center gap-2 text-sm font-medium"
-              style={{ 
-                borderColor: "var(--border)",
-                color: "var(--foreground-muted)"
+              onClick={() => setSelectedCategory("all")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedCategory === "all" ? "shadow-sm" : ""}`}
+              style={{
+                background: selectedCategory === "all" ? "var(--card)" : "transparent",
+                color: selectedCategory === "all" ? "var(--foreground)" : "var(--foreground-muted)",
+                border: selectedCategory === "all" ? "1px solid var(--border)" : "1px solid transparent",
               }}
             >
-              <Plus className="w-4 h-4" />
-              Add New Priority
+              All
             </button>
-          </Card>
+            {Object.entries(categoryColors).map(([category, color]) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${selectedCategory === category ? "shadow-sm" : ""}`}
+                style={{
+                  background: selectedCategory === category ? `${color}15` : "transparent",
+                  color: selectedCategory === category ? color : "var(--foreground-muted)",
+                  border: selectedCategory === category ? `1px solid ${color}` : "1px solid transparent",
+                }}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
         </motion.div>
 
+        {/* Priority Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredPriorities.map((priority, index) => (
+            <motion.div 
+              key={priority.id}
+              initial={{ opacity: 0, y: 20 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              transition={{ delay: 0.5 + (index * 0.1) }}
+            >
+              <Card>
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div 
+                          className="px-2 py-1 rounded-full text-xs font-medium capitalize"
+                          style={{ 
+                            background: `${categoryColors[priority.category]}15`,
+                            color: categoryColors[priority.category]
+                          }}
+                        >
+                          {priority.category}
+                        </div>
+                        <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                          {priority.owner}
+                        </div>
+                      </div>
+                      <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                        {priority.title}
+                      </h3>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {statusConfig[priority.howAreWeDoing.status].icon}
+                    </div>
+                  </div>
+
+                  {/* What's Important */}
+                  <div>
+                    <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                      What's Important
+                    </h4>
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                      {priority.whatsImportant}
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+
+                  {/* How Are We Doing */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                        How Are We Doing
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        {trendIcons[priority.howAreWeDoing.trend]}
+                        <span 
+                          className="text-xs font-medium px-2 py-1 rounded-full"
+                          style={{ 
+                            background: `${statusConfig[priority.howAreWeDoing.status].color}15`,
+                            color: statusConfig[priority.howAreWeDoing.status].color
+                          }}
+                        >
+                          {statusConfig[priority.howAreWeDoing.status].label}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                      {priority.howAreWeDoing.description}
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+
+                  {/* Priorities to Improve */}
+                  <div>
+                    <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                      Priorities to Improve
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {priority.prioritiesToImprove.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground)" }}>
+                          <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: categoryColors[priority.category] }}></span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Aligned Initiatives */}
+                  {priority.alignedInitiatives.length > 0 && (
+                    <>
+                      <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                          Initiatives:
+                        </span>
+                        {priority.alignedInitiatives.map((initiative, idx) => (
+                          <span 
+                            key={idx}
+                            className="px-2 py-1 rounded-full text-xs flex items-center gap-1"
+                            style={{ 
+                              background: "var(--muted)",
+                              color: "var(--foreground)"
+                            }}
+                          >
+                            <Zap className="w-3 h-3" />
+                            {initiative}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {priority.alignedInitiatives.length === 0 && (
+                    <>
+                      <div className="border-t" style={{ borderColor: "var(--border)" }}></div>
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "#f59e0b" }}>
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>No aligned initiatives yet</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+
         {/* Link to Initiatives */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
           <Card>
             <div className="flex items-center justify-between">
               <div>
