@@ -455,9 +455,11 @@ export default function ForecastsPage() {
       for (const doc of existing.docs) {
         await deleteDoc(doc.ref);
       }
-      const invoicesSnapshot = await getDocs(invoicesQuery);
 
-      // Calculate revenue by product and month (only within historical window)
+      // Fetch Homepage data from Google Analytics (14 months - need both years)
+      let homepageRow: BaselineEntity | null = null;
+      try {
+        const startMonth = monthKeys[0];
       const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
       const monthKeysSet = new Set(monthKeys); // For faster lookup
       
