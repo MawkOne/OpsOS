@@ -14,6 +14,7 @@ import {
   Plus,
   Edit2,
   Trash2,
+  GripVertical,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
@@ -28,6 +29,7 @@ import {
   doc,
   serverTimestamp,
 } from "firebase/firestore";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
 interface Priority {
   id?: string;
@@ -38,6 +40,7 @@ interface Priority {
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
   alignedInitiatives: string[];
+  priority?: number;
   organizationId?: string;
   createdAt?: any;
   updatedAt?: any;
@@ -166,6 +169,16 @@ export default function PrioritiesPage() {
         } as Priority);
       });
       
+      // Sort by priority order (or by createdAt if no priority set)
+      fetchedPriorities.sort((a, b) => {
+        if (a.priority !== undefined && b.priority !== undefined) {
+          return a.priority - b.priority;
+        }
+        if (a.priority !== undefined) return -1;
+        if (b.priority !== undefined) return 1;
+        return 0;
+      });
+      
       setPriorities(fetchedPriorities);
     } catch (error) {
       console.error("Error fetching priorities:", error);
@@ -219,6 +232,41 @@ export default function PrioritiesPage() {
     } catch (error) {
       console.error("Error deleting priority:", error);
       alert("Failed to delete priority. Please try again.");
+    }
+  };
+
+  const handleDragEnd = async (result: any) => {
+    if (!result.destination) return;
+
+    const items = Array.from(filteredPriorities);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    // Update local state immediately for smooth UX
+    const updatedPriorities = priorities.map(p => {
+      const newIndex = items.findIndex(item => item.id === p.id);
+      if (newIndex !== -1) {
+        return { ...p, priority: newIndex };
+      }
+      return p;
+    });
+    setPriorities(updatedPriorities);
+
+    // Update Firestore in background
+    try {
+      const updatePromises = items.map((item, index) => {
+        if (item.id) {
+          return updateDoc(doc(db, "priorities", item.id), {
+            priority: index,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
+      await Promise.all(updatePromises);
+    } catch (error) {
+      console.error("Error updating priority order:", error);
+      // Revert on error
+      await fetchPriorities();
     }
   };
 
@@ -341,19 +389,39 @@ export default function PrioritiesPage() {
             </Card>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredPriorities.map((priority, index) => (
-            <motion.div 
-              key={priority.id}
-              initial={{ opacity: 0, y: 20 }} 
-              animate={{ opacity: 1, y: 0 }} 
-              transition={{ delay: 0.5 + (index * 0.1) }}
-            >
-              <Card>
-                <div className="space-y-4">
-                  {/* Header */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="priorities">
+              {(provided) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                >
+                  {filteredPriorities.map((priority, index) => (
+                    <Draggable key={priority.id || `temp-${index}`} draggableId={priority.id || `temp-${index}`} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                        >
+                          <motion.div 
+                            initial={{ opacity: 0, y: 20 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            transition={{ delay: 0.5 + (index * 0.1) }}
+                          >
+                            <Card>
+                              <div className="space-y-4">
+                                {/* Header */}
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      {...provided.dragHandleProps}
+                                      className="p-1 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded"
+                                      style={{ color: "var(--foreground-muted)" }}
+                                    >
+                                      <GripVertical className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <div 
                           className="px-2 py-1 rounded-full text-xs font-medium capitalize"
@@ -467,11 +535,19 @@ export default function PrioritiesPage() {
                       </div>
                     </>
                   )}
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-          </div>
+                                </div>
+                              </Card>
+                            </motion.div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          )
         )}
 
         {/* Link to Initiatives */}
