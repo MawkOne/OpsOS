@@ -1,5 +1,6 @@
 "use client";
 
+// Forecast page - Revenue projections and analysis
 import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
