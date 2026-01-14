@@ -247,14 +247,33 @@ export default function ForecastsPage() {
         }
       }
       
+      // For volatile products, use 3-month average as baseline instead of just last month
+      let baselineValue = lastValue;
+      if (entity.metricType === "revenue" && monthKeys.length >= 3) {
+        const lastThreeMonths = monthKeys.slice(-3).map(key => entity.months[key] || 0).filter(v => v > 0);
+        if (lastThreeMonths.length >= 2) {
+          const avgLastThree = lastThreeMonths.reduce((sum, v) => sum + v, 0) / lastThreeMonths.length;
+          // Calculate volatility (coefficient of variation)
+          const stdDev = Math.sqrt(lastThreeMonths.reduce((sum, v) => sum + Math.pow(v - avgLastThree, 2), 0) / lastThreeMonths.length);
+          const cv = stdDev / avgLastThree;
+          
+          // If volatility is high (CV > 0.5), use 3-month average as baseline
+          if (cv > 0.5) {
+            baselineValue = avgLastThree;
+            console.log(`  📈 High volatility (CV=${(cv*100).toFixed(1)}%), using 3-mo avg: $${avgLastThree.toFixed(0)} instead of last month: $${lastValue.toFixed(0)}`);
+          }
+        }
+      }
+      
       console.log(`📊 ${entity.entityName}:`, {
         cmgr: (cmgr * 100).toFixed(2) + '%',
         lastMonthKey,
         lastValue,
+        baselineValue: baselineValue !== lastValue ? baselineValue : undefined,
         forecastMonths: forecastMonthKeys.length
       });
       
-      if (lastValue === 0) {
+      if (baselineValue === 0) {
         console.warn(`⚠️ ${entity.entityName} has no data, skipping forecast`);
         forecasts.set(entity.entityId, {});
         return;
@@ -268,7 +287,7 @@ export default function ForecastsPage() {
         const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
         
         // Apply CMGR growth
-        const projectedValue = lastValue * Math.pow(1 + cmgr, monthsAhead);
+        const projectedValue = baselineValue * Math.pow(1 + cmgr, monthsAhead);
         
         // Apply seasonal factor
         const monthNum = parseInt(forecastKey.split('-')[1]);
