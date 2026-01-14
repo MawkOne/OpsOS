@@ -548,7 +548,6 @@ export default function PrioritiesPage() {
                 )}
               </Droppable>
             </DragDropContext>
-          )
         )}
 
         {/* Link to Initiatives */}
