@@ -143,6 +143,8 @@ export default function MasterTablePage() {
     const entities: EntityRow[] = [];
 
     try {
+      console.log("🔄 Starting data fetch for Master Table...");
+      
       // Fetch Stripe data (customers)
       await fetchStripeEntities(entities);
       
@@ -154,6 +156,16 @@ export default function MasterTablePage() {
       
       // Fetch Email data (campaigns)
       await fetchEmailEntities(entities);
+      
+      // Summary
+      const summary = {
+        total: entities.length,
+        stripe: entities.filter(e => e.source === "stripe").length,
+        quickbooks: entities.filter(e => e.source === "quickbooks").length,
+        "google-analytics": entities.filter(e => e.source === "google-analytics").length,
+        activecampaign: entities.filter(e => e.source === "activecampaign").length,
+      };
+      console.log("📊 Master Table Data Summary:", summary);
       
       setEntityData(entities);
     } catch (error) {
@@ -657,19 +669,24 @@ export default function MasterTablePage() {
 
   const fetchAdvertisingEntities = async (entities: EntityRow[]) => {
     try {
+      console.log("📊 Fetching Google Analytics advertising data for org:", organizationId);
+      
       // Fetch advertising campaign data from Google Analytics
       const response = await fetch(
         `/api/google-analytics/ads?organizationId=${organizationId}&viewMode=${viewMode}&year=${selectedYear}`
       );
 
       if (!response.ok) {
-        console.warn("Could not fetch advertising data");
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn("❌ Could not fetch advertising data:", response.status, errorData.error);
         return;
       }
 
       const data = await response.json();
       const campaigns = data.campaigns || [];
+      console.log("📈 Found", campaigns.length, "Google Analytics campaigns");
 
+      let addedEntities = 0;
       campaigns.forEach((campaign: any) => {
         // Create separate rows for each metric
         const metrics = ['spend', 'clicks', 'impressions', 'conversions', 'sessions', 'revenue'];
@@ -701,11 +718,14 @@ export default function MasterTablePage() {
               months: campaignMonths,
               total,
             });
+            addedEntities++;
           }
         });
       });
+      
+      console.log("✅ Added", addedEntities, "Google Analytics entity rows to master table");
     } catch (error) {
-      console.error("Error fetching advertising entities:", error);
+      console.error("❌ Error fetching advertising entities:", error);
     }
   };
 
