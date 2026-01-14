@@ -7,11 +7,7 @@ interface Priority {
   id?: string;
   title: string;
   whatsImportant: string;
-  howAreWeDoing: {
-    status: "on-track" | "at-risk" | "needs-attention";
-    description: string;
-    trend: "up" | "down" | "stable";
-  };
+  howAreWeDoing: string;
   prioritiesToImprove: string;
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
@@ -29,11 +25,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
   const [formData, setFormData] = useState<Priority>({
     title: "",
     whatsImportant: "",
-    howAreWeDoing: {
-      status: "on-track",
-      description: "",
-      trend: "stable",
-    },
+    howAreWeDoing: "",
     prioritiesToImprove: "",
     category: "growth",
     owner: "",
@@ -47,11 +39,7 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
       setFormData({
         title: "",
         whatsImportant: "",
-        howAreWeDoing: {
-          status: "on-track",
-          description: "",
-          trend: "stable",
-        },
+        howAreWeDoing: "",
         prioritiesToImprove: "",
         category: "growth",
         owner: "",
@@ -193,81 +181,23 @@ export default function PriorityModal({ isOpen, onClose, onSave, priority }: Pri
           </div>
 
           {/* How Are We Doing */}
-          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-            <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-              How Are We Doing
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                  Status *
-                </label>
-                <select
-                  value={formData.howAreWeDoing.status}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    howAreWeDoing: { ...formData.howAreWeDoing, status: e.target.value as any }
-                  })}
-                  required
-                  className="w-full px-3 py-2 rounded-lg border text-sm"
-                  style={{ 
-                    background: "var(--background-tertiary)",
-                    borderColor: "var(--border)",
-                    color: "var(--foreground)"
-                  }}
-                >
-                  <option value="on-track">On Track</option>
-                  <option value="at-risk">At Risk</option>
-                  <option value="needs-attention">Needs Attention</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                  Trend *
-                </label>
-                <select
-                  value={formData.howAreWeDoing.trend}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    howAreWeDoing: { ...formData.howAreWeDoing, trend: e.target.value as any }
-                  })}
-                  required
-                  className="w-full px-3 py-2 rounded-lg border text-sm capitalize bg-white dark:bg-gray-800"
-                  style={{ 
-                    borderColor: "var(--border)",
-                    color: "var(--foreground)"
-                  }}
-                >
-                  <option value="up">Trending Up</option>
-                  <option value="stable">Stable</option>
-                  <option value="down">Trending Down</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: "var(--foreground-muted)" }}>
-                Description *
-              </label>
-              <textarea
-                value={formData.howAreWeDoing.description}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  howAreWeDoing: { ...formData.howAreWeDoing, description: e.target.value }
-                })}
-                placeholder="Describe current performance with specific metrics..."
-                required
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg border text-sm"
-                style={{ 
-                  background: "var(--card)",
-                  borderColor: "var(--border)",
-                  color: "var(--foreground)"
-                }}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+              How Are We Doing *
+            </label>
+            <textarea
+              value={formData.howAreWeDoing}
+              onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
+              placeholder="Describe current performance with specific metrics..."
+              required
+              rows={3}
+              className="w-full px-4 py-2 rounded-lg border text-sm"
+              style={{ 
+                background: "var(--background-tertiary)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)"
+              }}
+            />
           </div>
 
           {/* Priorities to Improve */}

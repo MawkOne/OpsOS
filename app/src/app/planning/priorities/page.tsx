@@ -7,15 +7,10 @@ import PriorityModal from "@/components/PriorityModal";
 import { motion } from "framer-motion";
 import {
   Target,
-  TrendingUp,
   Users,
   Zap,
-  CheckCircle2,
-  Clock,
   AlertTriangle,
   ArrowRight,
-  TrendingDown,
-  Minus,
   Plus,
   Edit2,
   Trash2,
@@ -38,11 +33,7 @@ interface Priority {
   id?: string;
   title: string;
   whatsImportant: string;
-  howAreWeDoing: {
-    status: "on-track" | "at-risk" | "needs-attention";
-    description: string;
-    trend: "up" | "down" | "stable";
-  };
+  howAreWeDoing: string;
   prioritiesToImprove: string;
   category: "growth" | "efficiency" | "risk" | "innovation";
   owner: string;
@@ -57,11 +48,7 @@ const samplePriorities: Priority[] = [
     id: "1",
     title: "Accelerate Revenue Growth",
     whatsImportant: "Revenue growth has plateaued at 15% YoY. We need to reach 40% growth to meet Series B targets and maintain market leadership position.",
-    howAreWeDoing: {
-      status: "on-track",
-      description: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
-      trend: "up",
-    },
+    howAreWeDoing: "New product line launched successfully with $1.2M in Q1 bookings. European expansion pilot showing 25% faster sales cycles.",
     prioritiesToImprove: "Accelerate enterprise sales motion, expand into 3 new European markets by Q2, and launch premium tier pricing model to capture higher-value customers.",
     category: "growth",
     owner: "CEO",
@@ -71,11 +58,7 @@ const samplePriorities: Priority[] = [
     id: "2",
     title: "Improve Customer Retention",
     whatsImportant: "Churn rate increased to 8% monthly, up from 5% last quarter. Customer lifetime value is declining, impacting unit economics and investor confidence.",
-    howAreWeDoing: {
-      status: "at-risk",
-      description: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
-      trend: "down",
-    },
+    howAreWeDoing: "Onboarding completion rate dropped to 62%. Customer health scores show declining engagement in months 2-4 of subscription lifecycle.",
     prioritiesToImprove: "Redesign onboarding flow to improve completion rate, implement proactive CSM outreach at risk indicators, build automated engagement campaigns, and create customer success playbooks.",
     category: "efficiency",
     owner: "VP Customer Success",
@@ -85,11 +68,7 @@ const samplePriorities: Priority[] = [
     id: "3",
     title: "Build Competitive Moat",
     whatsImportant: "Two major competitors launched similar core features last quarter. We need AI/ML-powered differentiation to maintain our premium positioning and pricing power.",
-    howAreWeDoing: {
-      status: "on-track",
-      description: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
-      trend: "up",
-    },
+    howAreWeDoing: "Predictive analytics engine in beta with 5 design partners. Early feedback shows 3x improvement in decision-making speed.",
     prioritiesToImprove: "Ship AI recommendations engine by Q2, build predictive forecasting capabilities, and patent key ML algorithms to protect our competitive advantage.",
     category: "innovation",
     owner: "CTO",
@@ -99,11 +78,7 @@ const samplePriorities: Priority[] = [
     id: "4",
     title: "Scale Team Efficiency",
     whatsImportant: "Cost per customer acquisition is rising 20% YoY while team productivity is declining. We're burning $400K monthly on inefficient processes that need automation.",
-    howAreWeDoing: {
-      status: "needs-attention",
-      description: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
-      trend: "down",
-    },
+    howAreWeDoing: "Average sales cycle extended to 89 days. Support team handling 40% more tickets with same headcount, leading to burnout and quality issues.",
     prioritiesToImprove: "Automate lead qualification and routing, implement self-service support portal, standardize cross-functional workflows, and build operational dashboards for each team.",
     category: "efficiency",
     owner: "COO",
@@ -113,11 +88,7 @@ const samplePriorities: Priority[] = [
     id: "5",
     title: "Reduce Technical Debt",
     whatsImportant: "System performance is degrading. 15% of engineering time is spent firefighting incidents. Platform reliability issues are causing customer escalations and threatening renewals.",
-    howAreWeDoing: {
-      status: "needs-attention",
-      description: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
-      trend: "down",
-    },
+    howAreWeDoing: "P1 incidents increased 40% this quarter. Average response time degraded to 3.2 seconds. Database query optimization backlog is 6 months deep.",
     prioritiesToImprove: "Migrate to microservices architecture, upgrade database infrastructure, implement comprehensive monitoring, and establish technical debt sprints to systematically reduce our backlog.",
     category: "risk",
     owner: "VP Engineering",
@@ -132,29 +103,6 @@ const categoryColors = {
   innovation: "#8b5cf6",
 };
 
-const statusConfig = {
-  "on-track": {
-    label: "On Track",
-    color: "#00d4aa",
-    icon: <CheckCircle2 className="w-5 h-5" />,
-  },
-  "at-risk": {
-    label: "At Risk",
-    color: "#f59e0b",
-    icon: <Clock className="w-5 h-5" />,
-  },
-  "needs-attention": {
-    label: "Needs Attention",
-    color: "#ef4444",
-    icon: <AlertTriangle className="w-5 h-5" />,
-  },
-};
-
-const trendIcons = {
-  up: <TrendingUp className="w-4 h-4" style={{ color: "#00d4aa" }} />,
-  down: <TrendingDown className="w-4 h-4" style={{ color: "#ef4444" }} />,
-  stable: <Minus className="w-4 h-4" style={{ color: "#6b7280" }} />,
-};
 
 export default function PrioritiesPage() {
   const { currentOrg } = useOrganization();
@@ -265,10 +213,6 @@ export default function PrioritiesPage() {
     ? priorities 
     : priorities.filter(p => p.category === selectedCategory);
 
-  const onTrackCount = priorities.filter(p => p.howAreWeDoing.status === "on-track").length;
-  const atRiskCount = priorities.filter(p => p.howAreWeDoing.status === "at-risk").length;
-  const needsAttentionCount = priorities.filter(p => p.howAreWeDoing.status === "needs-attention").length;
-
   return (
     <AppLayout 
       title="Strategic Priorities" 
@@ -276,91 +220,26 @@ export default function PrioritiesPage() {
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    Total Priorities
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {priorities.length}
-                  </p>
-                </div>
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6" }}
-                >
-                  <Target className="w-5 h-5" />
-                </div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
+                  Total Priorities
+                </p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {priorities.length}
+                </p>
               </div>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    On Track
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {onTrackCount}
-                  </p>
-                </div>
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(0, 212, 170, 0.1)", color: "#00d4aa" }}
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6" }}
+              >
+                <Target className="w-5 h-5" />
               </div>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    At Risk
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {atRiskCount}
-                  </p>
-                </div>
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" }}
-                >
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    Needs Attention
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {needsAttentionCount}
-                  </p>
-                </div>
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}
-                >
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        </div>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Filter and Add Button */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
@@ -471,7 +350,6 @@ export default function PrioritiesPage() {
                       </h3>
                     </div>
                     <div className="flex items-center gap-2">
-                      {statusConfig[priority.howAreWeDoing.status].icon}
                       <button
                         onClick={() => handleEditClick(priority)}
                         className="p-2 rounded-lg transition-colors hover:bg-gray-100"
@@ -506,25 +384,11 @@ export default function PrioritiesPage() {
 
                   {/* How Are We Doing */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
-                        How Are We Doing
-                      </h4>
-                      <div className="flex items-center gap-2">
-                        {trendIcons[priority.howAreWeDoing.trend]}
-                        <span 
-                          className="text-xs font-medium px-2 py-1 rounded-full"
-                          style={{ 
-                            background: `${statusConfig[priority.howAreWeDoing.status].color}15`,
-                            color: statusConfig[priority.howAreWeDoing.status].color
-                          }}
-                        >
-                          {statusConfig[priority.howAreWeDoing.status].label}
-                        </span>
-                      </div>
-                    </div>
+                    <h4 className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--foreground-muted)" }}>
+                      How Are We Doing
+                    </h4>
                     <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-                      {priority.howAreWeDoing.description}
+                      {priority.howAreWeDoing}
                     </p>
                   </div>
 
