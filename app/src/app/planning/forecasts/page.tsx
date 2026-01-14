@@ -123,10 +123,10 @@ export default function ForecastsPage() {
     return keys;
   }, []);
 
-  // Calculate CMGR (Compound Monthly Growth Rate) and seasonal patterns
+  // Calculate CMGR (Compound Monthly Growth Rate) and month-over-month patterns
   const calculateForecast = (entity: BaselineEntity, monthKeys: string[]) => {
     const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
-    if (values.length < 3) return { cmgr: 0, seasonalFactors: {} };
+    if (values.length < 3) return { cmgr: 0, momPatterns: {} };
 
     // Calculate CMGR (Compound Monthly Growth Rate)
     const firstValue = values[0];
@@ -134,38 +134,31 @@ export default function ForecastsPage() {
     const months = values.length - 1;
     const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
 
-    // Calculate seasonal factors (average for each month position)
-    const monthlyAverages: Record<number, number[]> = {};
-    monthKeys.forEach((key) => {
-      const value = entity.months[key] || 0;
-      if (value > 0) {
-        const monthNum = parseInt(key.split('-')[1]);
-        if (!monthlyAverages[monthNum]) monthlyAverages[monthNum] = [];
-        monthlyAverages[monthNum].push(value);
+    // Calculate month-over-month change patterns
+    // e.g., "What % change typically happens from Dec to Jan?"
+    const momPatterns: Record<string, number> = {}; // Key: "12-1" means Dec to Jan
+    
+    for (let i = 1; i < monthKeys.length; i++) {
+      const prevValue = entity.months[monthKeys[i - 1]] || 0;
+      const currValue = entity.months[monthKeys[i]] || 0;
+      
+      if (prevValue > 0 && currValue > 0) {
+        const prevMonth = parseInt(monthKeys[i - 1].split('-')[1]);
+        const currMonth = parseInt(monthKeys[i].split('-')[1]);
+        const changePercent = (currValue - prevValue) / prevValue;
+        
+        const transitionKey = `${prevMonth}-${currMonth}`;
+        
+        // Average if we see this transition multiple times
+        if (!momPatterns[transitionKey]) {
+          momPatterns[transitionKey] = changePercent;
+        } else {
+          momPatterns[transitionKey] = (momPatterns[transitionKey] + changePercent) / 2;
+        }
       }
-    });
+    }
 
-    // Calculate average for each month and normalize
-    const avgByMonth: Record<number, number> = {};
-    let overallAvg = 0;
-    let monthCount = 0;
-    
-    Object.entries(monthlyAverages).forEach(([month, vals]) => {
-      const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
-      avgByMonth[parseInt(month)] = avg;
-      overallAvg += avg;
-      monthCount++;
-    });
-    
-    overallAvg = overallAvg / monthCount;
-
-    // Normalize seasonal factors (1.0 = average, >1 = above average, <1 = below average)
-    const seasonalFactors: Record<number, number> = {};
-    Object.entries(avgByMonth).forEach(([month, avg]) => {
-      seasonalFactors[parseInt(month)] = overallAvg > 0 ? avg / overallAvg : 1.0;
-    });
-
-    return { cmgr, seasonalFactors };
+    return { cmgr, momPatterns };
   };
 
   // Combine baseline entities (merge YT JOBS and Unlabeled Revenue)
@@ -229,7 +222,7 @@ export default function ForecastsPage() {
     const forecasts = new Map<string, Record<string, number>>();
     
     processedBaselineEntities.forEach(entity => {
-      const { cmgr, seasonalFactors } = calculateForecast(entity, monthKeys);
+      const { cmgr, momPatterns } = calculateForecast(entity, monthKeys);
       
       // Find the last month with actual data (not zero)
       let lastMonthKey = monthKeys[monthKeys.length - 1];
@@ -273,47 +266,51 @@ export default function ForecastsPage() {
         forecastMonths: forecastMonthKeys.length
       });
       
-      // Show seasonal factors for debugging
-      console.log(`  📅 Seasonal factors:`, {
-        'Dec (12)': seasonalFactors[12]?.toFixed(3),
-        'Jan (1)': seasonalFactors[1]?.toFixed(3),
-        'Feb (2)': seasonalFactors[2]?.toFixed(3)
-      });
-      
       if (baselineValue === 0) {
         console.warn(`⚠️ ${entity.entityName} has no data, skipping forecast`);
         forecasts.set(entity.entityId, {});
         return;
       }
       
-      const lastDate = new Date(parseInt(lastMonthKey.split('-')[0]), parseInt(lastMonthKey.split('-')[1]) - 1);
+      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
       const entityForecastValues: Record<string, number> = {};
       
+      // Build forecast sequentially, month by month
+      let previousValue = baselineValue;
+      let previousMonthNum = lastMonthNum;
+      
       forecastMonthKeys.forEach((forecastKey, idx) => {
-        const forecastDate = new Date(parseInt(forecastKey.split('-')[0]), parseInt(forecastKey.split('-')[1]) - 1);
-        const monthsAhead = (forecastDate.getFullYear() - lastDate.getFullYear()) * 12 + (forecastDate.getMonth() - lastDate.getMonth());
+        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
         
-        // Apply CMGR growth
-        const projectedValue = baselineValue * Math.pow(1 + cmgr, monthsAhead);
+        // Step 1: Apply CMGR growth from previous month
+        let forecastValue = previousValue * (1 + cmgr);
         
-        // Apply seasonal factor
-        const monthNum = parseInt(forecastKey.split('-')[1]);
-        const seasonalFactor = seasonalFactors[monthNum] || 1.0;
-        const forecastValue = projectedValue * seasonalFactor;
+        // Step 2: Apply historical month-over-month pattern if available
+        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+        const momPattern = momPatterns[transitionKey];
+        
+        if (momPattern !== undefined) {
+          // Apply historical pattern (but dampen it to avoid wild swings)
+          const dampenedPattern = momPattern * 0.3; // Use 30% of historical pattern
+          forecastValue = forecastValue * (1 + dampenedPattern);
+        }
         
         // Log first forecast month (Jan '26) for debugging
         if (idx === 0) {
           console.log(`  🔮 First forecast (${forecastKey}):`, {
-            baselineValue: `$${baselineValue.toFixed(0)}`,
-            monthsAhead,
-            cmgrGrowth: `${((Math.pow(1 + cmgr, monthsAhead) - 1) * 100).toFixed(2)}%`,
-            projectedValue: `$${projectedValue.toFixed(0)}`,
-            seasonalFactor: seasonalFactor.toFixed(3),
+            previousValue: `$${previousValue.toFixed(0)}`,
+            cmgrGrowth: `${(cmgr * 100).toFixed(2)}%`,
+            afterCMGR: `$${(previousValue * (1 + cmgr)).toFixed(0)}`,
+            momPattern: momPattern ? `${(momPattern * 100).toFixed(2)}%` : 'none',
             finalForecast: `$${forecastValue.toFixed(0)}`
           });
         }
         
         entityForecastValues[forecastKey] = forecastValue;
+        
+        // Update for next iteration
+        previousValue = forecastValue;
+        previousMonthNum = forecastMonthNum;
       });
       
       console.log(`  → Generated ${Object.keys(entityForecastValues).length} forecast months`);
