@@ -125,13 +125,15 @@ export default function ForecastsPage() {
     }
   }, [organizationId]);
 
-  // Fetch available entities from Master Table sources
+  // Fetch available entities from Master Table sources (ALL metrics, not just revenue)
   const fetchAvailableEntities = useCallback(async () => {
     if (!organizationId) return;
     
     setModalLoading(true);
     try {
       const entities: BaselineEntity[] = [];
+      
+      console.log("🔍 Fetching all available entities for forecast model...");
       
       // Fetch Stripe products for name lookup
       const productsQuery = query(
@@ -314,7 +316,7 @@ export default function ForecastsPage() {
         }
       });
 
-      // Convert to entities
+      // Convert Stripe products to entities
       Object.entries(productRevenue).forEach(([productId, data]) => {
         entities.push({
           entityId: `stripe_product_${productId}`,
@@ -328,9 +330,189 @@ export default function ForecastsPage() {
         });
       });
 
+      console.log(`✅ Added ${Object.keys(productRevenue).length} Stripe product entities`);
+
+      // Fetch Google Analytics traffic/organic data
+      try {
+        const gaResponse = await fetch(
+          `/api/google-analytics/organic?organizationId=${organizationId}`
+        );
+        if (gaResponse.ok) {
+          const gaData = await gaResponse.json();
+          const sources = gaData.data || [];
+          
+          sources.forEach((sourceData: any) => {
+            const sourceName = sourceData.name || "Unknown Source";
+            
+            // Sessions metric
+            if (sourceData.sessions) {
+              const sessionMonths: Record<string, number> = {};
+              let totalSessions = 0;
+              
+              Object.entries(sourceData.sessions || {}).forEach(([monthKey, value]: [string, any]) => {
+                sessionMonths[monthKey] = value as number;
+                totalSessions += value as number;
+              });
+              
+              if (totalSessions > 0) {
+                entities.push({
+                  entityId: `ga_organic_${sourceName}_sessions`,
+                  entityName: sourceName,
+                  source: "google-analytics-organic",
+                  type: "Traffic Source",
+                  metric: "Sessions",
+                  metricType: "sessions",
+                  months: sessionMonths,
+                  total: totalSessions,
+                });
+              }
+            }
+            
+            // Users metric
+            if (sourceData.users) {
+              const userMonths: Record<string, number> = {};
+              let totalUsers = 0;
+              
+              Object.entries(sourceData.users || {}).forEach(([monthKey, value]: [string, any]) => {
+                userMonths[monthKey] = value as number;
+                totalUsers += value as number;
+              });
+              
+              if (totalUsers > 0) {
+                entities.push({
+                  entityId: `ga_organic_${sourceName}_users`,
+                  entityName: sourceName,
+                  source: "google-analytics-organic",
+                  type: "Traffic Source",
+                  metric: "Users",
+                  metricType: "users",
+                  months: userMonths,
+                  total: totalUsers,
+                });
+              }
+            }
+          });
+          
+          console.log(`✅ Added ${sources.length * 2} Google Analytics traffic entities`);
+        }
+      } catch (error) {
+        console.warn("Could not fetch GA organic data:", error);
+      }
+
+      // Fetch Google Analytics page data
+      try {
+        const gaPagesResponse = await fetch(
+          `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=year&year=2025`
+        );
+        if (gaPagesResponse.ok) {
+          const gaData = await gaPagesResponse.json();
+          const pages = gaData.pages || [];
+          
+          pages.forEach((pageData: any) => {
+            const pageName = pageData.name || "Unknown Page";
+            
+            // Page Sessions
+            const sessionMonths: Record<string, number> = {};
+            let totalSessions = 0;
+            
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+              const sessions = metrics.sessions || 0;
+              sessionMonths[monthKey] = sessions;
+              totalSessions += sessions;
+            });
+            
+            if (totalSessions > 0) {
+              entities.push({
+                entityId: `ga_page_${pageData.id}_sessions`,
+                entityName: pageName,
+                source: "google-analytics-organic",
+                type: "Page",
+                metric: "Page Sessions",
+                metricType: "sessions",
+                months: sessionMonths,
+                total: totalSessions,
+              });
+            }
+            
+            // Pageviews
+            const pageviewMonths: Record<string, number> = {};
+            let totalPageviews = 0;
+            
+            Object.entries(pageData.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+              const pageviews = metrics.pageviews || 0;
+              pageviewMonths[monthKey] = pageviews;
+              totalPageviews += pageviews;
+            });
+            
+            if (totalPageviews > 0) {
+              entities.push({
+                entityId: `ga_page_${pageData.id}_pageviews`,
+                entityName: pageName,
+                source: "google-analytics-organic",
+                type: "Page",
+                metric: "Pageviews",
+                metricType: "pageviews",
+                months: pageviewMonths,
+                total: totalPageviews,
+              });
+            }
+          });
+          
+          console.log(`✅ Added ${pages.length * 2} Google Analytics page entities`);
+        }
+      } catch (error) {
+        console.warn("Could not fetch GA pages data:", error);
+      }
+
+      // Fetch ActiveCampaign contact growth (signups)
+      try {
+        const contactCountsQuery = query(
+          collection(db, "activecampaign_contact_counts"),
+          where("organizationId", "==", organizationId)
+        );
+        const contactCountsSnapshot = await getDocs(contactCountsQuery);
+        
+        if (contactCountsSnapshot.size > 0) {
+          const contactGrowth: Record<string, number> = {};
+          const sortedCounts = contactCountsSnapshot.docs
+            .map((doc) => doc.data())
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          for (let i = 1; i < sortedCounts.length; i++) {
+            const current = sortedCounts[i];
+            const previous = sortedCounts[i - 1];
+            const growth = Math.max(0, current.count - previous.count);
+            const date = new Date(current.date);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+            if (growth > 0) {
+              contactGrowth[monthKey] = (contactGrowth[monthKey] || 0) + growth;
+            }
+          }
+
+          const totalGrowth = Object.values(contactGrowth).reduce((sum, val) => sum + val, 0);
+          if (totalGrowth > 0) {
+            entities.push({
+              entityId: "activecampaign_contacts_growth",
+              entityName: "Contact Growth",
+              source: "activecampaign",
+              type: "Contacts",
+              metric: "New Contacts",
+              metricType: "newContacts",
+              months: contactGrowth,
+              total: totalGrowth,
+            });
+            console.log(`✅ Added ActiveCampaign contact growth entity`);
+          }
+        }
+      } catch (error) {
+        console.warn("Could not fetch ActiveCampaign contact data:", error);
+      }
+
       // Sort by total (descending)
       entities.sort((a, b) => b.total - a.total);
       
+      console.log(`📊 Total entities available for forecast: ${entities.length}`);
       setAvailableEntities(entities);
     } catch (error) {
       console.error("Error fetching available entities:", error);
@@ -586,6 +768,15 @@ export default function ForecastsPage() {
 
   const totalBaseline = baselineTotals.reduce((sum, val) => sum + val, 0);
 
+  // Format value based on metric type
+  const formatValue = (value: number, metricType: string) => {
+    if (metricType === "revenue" || metricType === "expenses") {
+      return formatAmount(value);
+    }
+    // For counts (sessions, users, pageviews, contacts, etc.)
+    return value.toLocaleString();
+  };
+
   // Get unique sources and metrics from available entities
   const uniqueSources = Array.from(new Set(availableEntities.map(e => e.source)));
   const uniqueMetrics = Array.from(new Set(availableEntities.map(e => e.metric)));
@@ -599,8 +790,8 @@ export default function ForecastsPage() {
 
   return (
     <AppLayout 
-      title="Revenue Forecasts" 
-      subtitle="Baseline growth projections and initiative impacts"
+      title="Forecasting Model" 
+      subtitle="Traffic, signups, revenue patterns and initiative impacts"
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Controls */}
@@ -666,10 +857,13 @@ export default function ForecastsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: "var(--foreground-muted)" }}>
-                    Total Baseline Revenue
+                    Baseline Rows
                   </p>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {formatAmount(totalBaseline)}
+                    {baselineEntities.length}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Traffic, Signups, Revenue
                   </p>
                 </div>
                 <div
@@ -731,10 +925,10 @@ export default function ForecastsPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                  Baseline Revenue
+                  Baseline Forecast Data
                 </h2>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Selected rows from Master Table
+                  Traffic → Signups → Revenue patterns and seasonality
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -745,7 +939,7 @@ export default function ForecastsPage() {
                     background: "#10b981",
                     color: "white"
                   }}
-                  title="Add YT JOBS, Unlabeled Revenue, and 3-Month Recruiter Package"
+                  title="Add sample funnel: Homepage traffic + 3 revenue products"
                 >
                   <Zap className="w-4 h-4" />
                   Seed Baseline
@@ -777,10 +971,13 @@ export default function ForecastsPage() {
               <div className="text-center py-12" style={{ background: "var(--muted)", borderRadius: "8px" }}>
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
-                  No baseline rows selected
+                  No baseline metrics selected
                 </p>
                 <p className="text-xs mb-4" style={{ color: "var(--foreground-muted)" }}>
-                  Click &quot;Manage Baseline&quot; to add rows from the Master Table
+                  Build your funnel: Add traffic (GA Sessions), signups (Contacts), and revenue (Products)
+                </p>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)", fontStyle: "italic" }}>
+                  Tip: Include multiple metrics to see conversion rates and seasonal patterns
                 </p>
               </div>
             ) : (
@@ -839,12 +1036,12 @@ export default function ForecastsPage() {
                             const value = entity.months[key] || 0;
                             return (
                               <td key={key} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-muted)" }}>
-                                {value > 0 ? formatAmount(value) : "—"}
+                                {value > 0 ? formatValue(value, entity.metricType) : "—"}
                               </td>
                             );
                           })}
                           <td className="py-3 px-4 text-sm text-right font-semibold sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                            {formatAmount(entity.total)}
+                            {formatValue(entity.total, entity.metricType)}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <button
@@ -859,22 +1056,6 @@ export default function ForecastsPage() {
                         </tr>
                       );
                     })}
-                    <tr style={{ borderTop: "2px solid var(--border)", fontWeight: "bold" }}>
-                      <td className="py-3 px-4 text-sm sticky left-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                        Total Baseline
-                      </td>
-                      <td className="py-3 px-4 text-sm"></td>
-                      <td className="py-3 px-4 text-sm"></td>
-                      {baselineTotals.map((total, index) => (
-                        <td key={index} className="py-3 px-4 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          {formatAmount(total)}
-                        </td>
-                      ))}
-                      <td className="py-3 px-4 text-sm text-right sticky right-0 z-10" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                        {formatAmount(totalBaseline)}
-                      </td>
-                      <td className="py-3 px-4 text-sm"></td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -935,10 +1116,10 @@ export default function ForecastsPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                    Select Baseline Rows
+                    Build Your Forecast Model
                   </h3>
                   <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                    Choose entities from your data sources to include in baseline forecast
+                    Select traffic, signups, revenue, and other metrics to analyze patterns and seasonality
                   </p>
                 </div>
                 <button
@@ -1093,14 +1274,14 @@ export default function ForecastsPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="text-right ml-4">
-                            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                              {formatAmount(entity.total)}
-                            </p>
-                            <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                              All time
-                            </p>
-                          </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                            {formatValue(entity.total, entity.metricType)}
+                          </p>
+                          <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                            {entity.metricType === "revenue" ? "Total" : "Count"}
+                          </p>
+                        </div>
                         </div>
                       );
                     })}
