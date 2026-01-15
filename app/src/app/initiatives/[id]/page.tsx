@@ -128,6 +128,7 @@ export default function InitiativePage() {
             const data = doc.data();
             products.set(data.stripeId, data.name);
           });
+          console.log(`📦 Found ${products.size} Stripe products`);
           
           // Fetch Stripe Invoices
           const invoicesQuery = query(
@@ -135,6 +136,7 @@ export default function InitiativePage() {
             where("organizationId", "==", currentOrg.id)
           );
           const invoicesSnap = await getDocs(invoicesQuery);
+          console.log(`📄 Found ${invoicesSnap.size} Stripe invoices`);
           
           // Group by product
           const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
@@ -146,11 +148,15 @@ export default function InitiativePage() {
             const invoiceDate = invoice.created?.toDate?.() || new Date();
             const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
             
-            invoice.items?.forEach((item: { product: { id: string }; amount: number }) => {
-              const productId = item.product?.id;
+            // Use lineItems (not items) and productId (not product.id)
+            const lineItems = invoice.lineItems || [];
+            
+            lineItems.forEach((item: { productId: string; description: string; amount: number; quantity: number }) => {
+              const productId = item.productId;
               if (!productId) return;
               
-              const productName = products.get(productId) || productId;
+              const productName = products.get(productId) || item.description || 'Unknown Product';
+              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
               
               if (!productRevenue[productId]) {
                 productRevenue[productId] = {
@@ -161,16 +167,16 @@ export default function InitiativePage() {
               }
               
               productRevenue[productId].months[monthKey] = 
-                (productRevenue[productId].months[monthKey] || 0) + (item.amount / 100);
-              productRevenue[productId].total += (item.amount / 100);
+                (productRevenue[productId].months[monthKey] || 0) + itemAmount;
+              productRevenue[productId].total += itemAmount;
             });
           });
           
           // Add Stripe products to entities
           Object.entries(productRevenue).forEach(([productId, data]) => {
             entities.push({
-              id: `stripe-product-${productId}`,
-              entityId: `stripe-product-${productId}`,
+              id: `stripe_product_${productId}`,
+              entityId: `stripe_product_${productId}`,
               entityName: data.name,
               source: "stripe",
               type: "Product",
@@ -181,48 +187,53 @@ export default function InitiativePage() {
             });
           });
           
-          console.log(`💳 Loaded ${Object.keys(productRevenue).length} Stripe products`);
+          console.log(`💳 Loaded ${Object.keys(productRevenue).length} Stripe products with revenue`);
         } catch (error) {
           console.error("Error loading Stripe entities:", error);
         }
         
-        // Fetch QuickBooks Revenue
+        // Fetch QuickBooks Revenue (from invoices)
         try {
-          const qbRevenueQuery = query(
-            collection(db, "quickbooks_revenue_items"),
+          const qbInvoicesQuery = query(
+            collection(db, "quickbooks_invoices"),
             where("organizationId", "==", currentOrg.id)
           );
-          const qbRevenueSnap = await getDocs(qbRevenueQuery);
+          const qbInvoicesSnap = await getDocs(qbInvoicesQuery);
+          console.log(`📄 Found ${qbInvoicesSnap.size} QuickBooks invoices`);
           
-          const accountRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+          const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
           
-          qbRevenueSnap.docs.forEach(doc => {
-            const item = doc.data();
-            const monthKey = `${item.year}-${String(item.month).padStart(2, '0')}`;
-            const accountId = item.accountId || "unknown";
-            const accountName = item.accountName || "Unknown Account";
+          qbInvoicesSnap.docs.forEach(doc => {
+            const invoice = doc.data();
+            if (invoice.status !== 'paid') return;
             
-            if (!accountRevenue[accountId]) {
-              accountRevenue[accountId] = {
-                name: accountName,
+            const customerId = invoice.customerId || 'unknown';
+            const customerName = invoice.customerName || 'Unknown Customer';
+            const amount = invoice.totalAmount || 0;
+            const date = invoice.txnDate?.toDate?.() || new Date();
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!customerRevenue[customerId]) {
+              customerRevenue[customerId] = {
+                name: customerName,
                 months: {},
                 total: 0
               };
             }
             
-            accountRevenue[accountId].months[monthKey] = 
-              (accountRevenue[accountId].months[monthKey] || 0) + (item.amount || 0);
-            accountRevenue[accountId].total += (item.amount || 0);
+            customerRevenue[customerId].months[monthKey] = 
+              (customerRevenue[customerId].months[monthKey] || 0) + amount;
+            customerRevenue[customerId].total += amount;
           });
           
-          // Add QuickBooks revenue to entities
-          Object.entries(accountRevenue).forEach(([accountId, data]) => {
+          // Add QuickBooks customers to entities
+          Object.entries(customerRevenue).forEach(([customerId, data]) => {
             entities.push({
-              id: `quickbooks-revenue-${accountId}`,
-              entityId: `quickbooks-revenue-${accountId}`,
+              id: `quickbooks_customer_${customerId}`,
+              entityId: `quickbooks_customer_${customerId}`,
               entityName: data.name,
               source: "quickbooks",
-              type: "Revenue",
+              type: "Customer",
               metric: "QuickBooks Revenue",
               metricType: "revenue",
               months: data.months,
@@ -230,7 +241,7 @@ export default function InitiativePage() {
             });
           });
           
-          console.log(`📒 Loaded ${Object.keys(accountRevenue).length} QuickBooks revenue accounts`);
+          console.log(`📒 Loaded ${Object.keys(customerRevenue).length} QuickBooks customers with revenue`);
         } catch (error) {
           console.error("Error loading QuickBooks entities:", error);
         }
