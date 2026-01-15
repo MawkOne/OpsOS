@@ -10,10 +10,7 @@ import {
   Target,
   TrendingUp,
   CheckCircle2,
-  Play,
-  X,
   ArrowLeft,
-  Edit3,
   Save,
 } from "lucide-react";
 import { Initiative, statusConfig } from "@/types/initiatives";
@@ -52,7 +49,19 @@ export default function InitiativePage({ params }: PageProps) {
   });
   
   // Monte Carlo state
-  const [monteCarlo, setMonteCarlo] = useState({
+  const [monteCarlo, setMonteCarlo] = useState<{
+    simulations: number;
+    expectedValue: number;
+    standardDeviation: number;
+    confidenceInterval: { p10: number; p50: number; p90: number };
+    variables: Array<{
+      name: string;
+      min: number;
+      max: number;
+      mean: number;
+      distribution: "normal" | "triangular" | "uniform";
+    }>;
+  }>({
     simulations: 10000,
     expectedValue: 0,
     standardDeviation: 0,
@@ -111,7 +120,17 @@ export default function InitiativePage({ params }: PageProps) {
           
           // Load Monte Carlo
           if (data.monteCarlo) {
-            setMonteCarlo(data.monteCarlo);
+            setMonteCarlo({
+              simulations: data.monteCarlo.simulations || 10000,
+              expectedValue: data.monteCarlo.expectedValue ?? 0,
+              standardDeviation: data.monteCarlo.standardDeviation ?? 0,
+              confidenceInterval: {
+                p10: data.monteCarlo.confidenceInterval?.p10 ?? 0,
+                p50: data.monteCarlo.confidenceInterval?.p50 ?? 0,
+                p90: data.monteCarlo.confidenceInterval?.p90 ?? 0,
+              },
+              variables: data.monteCarlo.variables ?? [],
+            });
           }
         } else {
           alert("❌ Initiative not found");
