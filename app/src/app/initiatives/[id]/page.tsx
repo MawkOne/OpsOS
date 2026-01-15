@@ -29,12 +29,10 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs,
 } from "firebase/firestore";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { MasterTableEntity, getEntitiesByIds } from "@/lib/masterTableData";
+import MasterTableSelector from "@/components/MasterTableSelector";
 
 export default function InitiativePage() {
   const router = useRouter();
@@ -66,17 +64,7 @@ export default function InitiativePage() {
   const [forecastEnabled, setForecastEnabled] = useState(false);
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
   const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
-  const [baselineEntities, setBaselineEntities] = useState<Array<{
-    id: string;
-    entityId: string;
-    entityName: string;
-    source: string;
-    type: string;
-    metric: string;
-    metricType: string;
-    months: Record<string, number>;
-    total: number;
-  }>>([]);
+  const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
   // Scenario state
@@ -111,150 +99,24 @@ export default function InitiativePage() {
   useEffect(() => {
     if (!currentOrg?.id) return;
 
-    const loadBaselineEntities = async () => {
+    // Load entities when selected line items change
+    const loadSelectedEntities = async () => {
+      if (selectedLineItems.length === 0) {
+        setBaselineEntities([]);
+        return;
+      }
+      
       try {
-        console.log("📦 Loading baseline entities for org:", currentOrg.id);
-        const entities: Array<typeof baselineEntities[0]> = [];
-        
-        // Fetch Stripe Products
-        try {
-          const productsQuery = query(
-            collection(db, "stripe_products"),
-            where("organizationId", "==", currentOrg.id)
-          );
-          const productsSnap = await getDocs(productsQuery);
-          const products = new Map<string, string>();
-          productsSnap.docs.forEach(doc => {
-            const data = doc.data();
-            products.set(data.stripeId, data.name);
-          });
-          console.log(`📦 Found ${products.size} Stripe products`);
-          
-          // Fetch Stripe Invoices
-          const invoicesQuery = query(
-            collection(db, "stripe_invoices"),
-            where("organizationId", "==", currentOrg.id)
-          );
-          const invoicesSnap = await getDocs(invoicesQuery);
-          console.log(`📄 Found ${invoicesSnap.size} Stripe invoices`);
-          
-          // Group by product
-          const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
-          
-          invoicesSnap.docs.forEach(doc => {
-            const invoice = doc.data();
-            if (invoice.status !== 'paid') return;
-            
-            const invoiceDate = invoice.created?.toDate?.() || new Date();
-            const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
-            
-            // Use lineItems (not items) and productId (not product.id)
-            const lineItems = invoice.lineItems || [];
-            
-            lineItems.forEach((item: { productId: string; description: string; amount: number; quantity: number }) => {
-              const productId = item.productId;
-              if (!productId) return;
-              
-              const productName = products.get(productId) || item.description || 'Unknown Product';
-              const itemAmount = ((item.amount || 0) / 100) * (item.quantity || 1);
-              
-              if (!productRevenue[productId]) {
-                productRevenue[productId] = {
-                  name: productName,
-                  months: {},
-                  total: 0
-                };
-              }
-              
-              productRevenue[productId].months[monthKey] = 
-                (productRevenue[productId].months[monthKey] || 0) + itemAmount;
-              productRevenue[productId].total += itemAmount;
-            });
-          });
-          
-          // Add Stripe products to entities
-          Object.entries(productRevenue).forEach(([productId, data]) => {
-            entities.push({
-              id: `stripe_product_${productId}`,
-              entityId: `stripe_product_${productId}`,
-              entityName: data.name,
-              source: "stripe",
-              type: "Product",
-              metric: "Stripe Revenue",
-              metricType: "revenue",
-              months: data.months,
-              total: data.total
-            });
-          });
-          
-          console.log(`💳 Loaded ${Object.keys(productRevenue).length} Stripe products with revenue`);
-        } catch (error) {
-          console.error("Error loading Stripe entities:", error);
-        }
-        
-        // Fetch QuickBooks Revenue (from invoices)
-        try {
-          const qbInvoicesQuery = query(
-            collection(db, "quickbooks_invoices"),
-            where("organizationId", "==", currentOrg.id)
-          );
-          const qbInvoicesSnap = await getDocs(qbInvoicesQuery);
-          console.log(`📄 Found ${qbInvoicesSnap.size} QuickBooks invoices`);
-          
-          const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
-          
-          qbInvoicesSnap.docs.forEach(doc => {
-            const invoice = doc.data();
-            if (invoice.status !== 'paid') return;
-            
-            const customerId = invoice.customerId || 'unknown';
-            const customerName = invoice.customerName || 'Unknown Customer';
-            const amount = invoice.totalAmount || 0;
-            const date = invoice.txnDate?.toDate?.() || new Date();
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            
-            if (!customerRevenue[customerId]) {
-              customerRevenue[customerId] = {
-                name: customerName,
-                months: {},
-                total: 0
-              };
-            }
-            
-            customerRevenue[customerId].months[monthKey] = 
-              (customerRevenue[customerId].months[monthKey] || 0) + amount;
-            customerRevenue[customerId].total += amount;
-          });
-          
-          // Add QuickBooks customers to entities
-          Object.entries(customerRevenue).forEach(([customerId, data]) => {
-            entities.push({
-              id: `quickbooks_customer_${customerId}`,
-              entityId: `quickbooks_customer_${customerId}`,
-              entityName: data.name,
-              source: "quickbooks",
-              type: "Customer",
-              metric: "QuickBooks Revenue",
-              metricType: "revenue",
-              months: data.months,
-              total: data.total
-            });
-          });
-          
-          console.log(`📒 Loaded ${Object.keys(customerRevenue).length} QuickBooks customers with revenue`);
-        } catch (error) {
-          console.error("Error loading QuickBooks entities:", error);
-        }
-        
+        const entities = await getEntitiesByIds(currentOrg.id, selectedLineItems);
         setBaselineEntities(entities);
-        console.log(`✅ Loaded total ${entities.length} baseline entities`);
+        console.log(`✅ Loaded ${entities.length} selected entities`);
       } catch (error) {
-        console.error("❌ Error loading baseline entities:", error);
+        console.error("❌ Error loading selected entities:", error);
       }
     };
 
-    loadBaselineEntities();
-  }, [currentOrg?.id]);
+    loadSelectedEntities();
+  }, [currentOrg?.id, selectedLineItems]);
 
   // Load initiative data
   useEffect(() => {
@@ -1185,56 +1047,20 @@ export default function InitiativePage() {
                   </div>
                 )}
                 
-                {/* Line Item Selector Modal */}
-                {showLineItemSelector && (
+                {/* Master Table Selector Modal */}
+                {showLineItemSelector && currentOrg && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowLineItemSelector(false)}>
-                    <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Select Forecast Items</h3>
-                        <button
-                          onClick={() => setShowLineItemSelector(false)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {baselineEntities
-                          .filter(e => e.metricType === "revenue")
-                          .map(entity => (
-                            <label
-                              key={entity.entityId}
-                              className="flex items-center gap-3 p-3 rounded bg-gray-900/50 border border-gray-600 hover:border-gray-500 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedLineItems.includes(entity.entityId)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedLineItems(prev => [...prev, entity.entityId]);
-                                  } else {
-                                    setSelectedLineItems(prev => prev.filter(id => id !== entity.entityId));
-                                  }
-                                }}
-                                className="w-4 h-4"
-                              />
-                              <div className="flex-1">
-                                <div className="text-sm text-white font-medium">{entity.entityName}</div>
-                                <div className="text-xs text-gray-400">{entity.source} • ${entity.months[monthKeys[monthKeys.length - 1]]?.toLocaleString() || 0} (last month)</div>
-                              </div>
-                            </label>
-                          ))}
-                      </div>
-                      
-                      <div className="mt-4 flex justify-end gap-2">
-                        <button
-                          onClick={() => setShowLineItemSelector(false)}
-                          className="px-4 py-2 rounded bg-gray-700 text-white hover:bg-gray-600"
-                        >
-                          Done
-                        </button>
-                      </div>
+                    <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+                      <MasterTableSelector
+                        organizationId={currentOrg.id}
+                        selectedEntityIds={selectedLineItems}
+                        onSelectionChange={setSelectedLineItems}
+                        filters={{ metricType: "revenue" }}
+                        multiSelect={true}
+                        title="Select Forecast Items"
+                        description="Choose revenue line items this initiative will impact"
+                        onClose={() => setShowLineItemSelector(false)}
+                      />
                     </div>
                   </div>
                 )}
