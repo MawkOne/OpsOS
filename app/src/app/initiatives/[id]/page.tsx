@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -23,15 +23,11 @@ import {
 } from "firebase/firestore";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-interface PageProps {
-  params: {
-    id: string;
-  };
-}
-
-export default function InitiativePage({ params }: PageProps) {
+export default function InitiativePage() {
   const router = useRouter();
+  const params = useParams();
   const { currentOrg } = useOrganization();
+  const initiativeId = params?.id as string;
   const [initiative, setInitiative] = useState<Initiative | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "forecast" | "scenarios" | "montecarlo">("overview");
@@ -71,14 +67,14 @@ export default function InitiativePage({ params }: PageProps) {
 
   // Load initiative data
   useEffect(() => {
-    if (!currentOrg?.id) return;
+    if (!currentOrg?.id || !initiativeId) return;
 
     const loadInitiative = async () => {
       try {
-        console.log("🔍 Loading initiative:", params.id);
+        console.log("🔍 Loading initiative:", initiativeId);
         
         // Use a fresh document reference with server timestamp handling
-        const docRef = doc(db, "initiatives", params.id);
+        const docRef = doc(db, "initiatives", initiativeId);
         const initiativeDoc = await getDoc(docRef);
         
         if (initiativeDoc.exists()) {
@@ -98,7 +94,7 @@ export default function InitiativePage({ params }: PageProps) {
           console.log("✅ Raw data extracted:", rawData);
           
           // Sanitize the data to handle problematic fields
-          const sanitizedData: any = { ...rawData };
+          const sanitizedData: Record<string, unknown> = { ...rawData };
           
           // Remove or fix problematic date fields
           ['startDate', 'targetDate', 'completedDate', 'createdAt', 'updatedAt'].forEach(field => {
@@ -171,7 +167,7 @@ export default function InitiativePage({ params }: PageProps) {
         console.error("Error details:", {
           message: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined,
-          initiativeId: params.id,
+          initiativeId,
           orgId: currentOrg?.id,
         });
         alert("❌ Failed to load initiative. This initiative may have corrupted data.");
@@ -182,7 +178,7 @@ export default function InitiativePage({ params }: PageProps) {
     };
 
     loadInitiative();
-  }, [params.id, currentOrg?.id, router]);
+  }, [initiativeId, currentOrg?.id, router]);
 
   const handleSave = async () => {
     if (!initiative) return;
