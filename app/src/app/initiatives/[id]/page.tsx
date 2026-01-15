@@ -88,9 +88,24 @@ export default function InitiativePage({ params }: PageProps) {
           // Load scenarios
           if (data.scenarios) {
             setScenarios({
-              base: data.scenarios.base || { revenue: 0, costs: 0, probability: 60, description: "Expected trajectory" },
-              optimistic: data.scenarios.optimistic || { revenue: 0, costs: 0, probability: 25, description: "Best case outcome" },
-              pessimistic: data.scenarios.pessimistic || { revenue: 0, costs: 0, probability: 15, description: "Worst case outcome" },
+              base: {
+                revenue: data.scenarios.base?.revenue || 0,
+                costs: data.scenarios.base?.costs || 0,
+                probability: data.scenarios.base?.probability || 60,
+                description: data.scenarios.base?.description || "Expected trajectory",
+              },
+              optimistic: {
+                revenue: data.scenarios.optimistic?.revenue || 0,
+                costs: data.scenarios.optimistic?.costs || 0,
+                probability: data.scenarios.optimistic?.probability || 25,
+                description: data.scenarios.optimistic?.description || "Best case outcome",
+              },
+              pessimistic: {
+                revenue: data.scenarios.pessimistic?.revenue || 0,
+                costs: data.scenarios.pessimistic?.costs || 0,
+                probability: data.scenarios.pessimistic?.probability || 15,
+                description: data.scenarios.pessimistic?.description || "Worst case outcome",
+              },
             });
           }
           
