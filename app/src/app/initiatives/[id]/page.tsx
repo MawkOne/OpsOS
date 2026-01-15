@@ -76,7 +76,10 @@ export default function InitiativePage({ params }: PageProps) {
     const loadInitiative = async () => {
       try {
         console.log("🔍 Loading initiative:", params.id);
-        const initiativeDoc = await getDoc(doc(db, "initiatives", params.id));
+        
+        // Use a fresh document reference with server timestamp handling
+        const docRef = doc(db, "initiatives", params.id);
+        const initiativeDoc = await getDoc(docRef);
         
         if (initiativeDoc.exists()) {
           console.log("📄 Document exists, extracting data...");
@@ -94,7 +97,17 @@ export default function InitiativePage({ params }: PageProps) {
           
           console.log("✅ Raw data extracted:", rawData);
           
-          const data = { id: initiativeDoc.id, ...rawData } as Initiative;
+          // Sanitize the data to handle problematic fields
+          const sanitizedData: any = { ...rawData };
+          
+          // Remove or fix problematic date fields
+          ['startDate', 'targetDate', 'completedDate', 'createdAt', 'updatedAt'].forEach(field => {
+            if (sanitizedData[field] === null || sanitizedData[field] === undefined) {
+              delete sanitizedData[field];
+            }
+          });
+          
+          const data = { id: initiativeDoc.id, ...sanitizedData } as Initiative;
           
           // Check if initiative belongs to current org
           if (data.organizationId !== currentOrg.id) {
