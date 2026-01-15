@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
@@ -13,6 +13,15 @@ import {
   ArrowLeft,
   Save,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { Initiative, statusConfig } from "@/types/initiatives";
 import { db } from "@/lib/firebase";
 import { 
@@ -330,6 +339,26 @@ export default function InitiativePage() {
       setSaving(false);
     }
   };
+  
+  // Prepare forecast chart data
+  const forecastChartData = useMemo(() => {
+    if (!forecastEnabled || monthlyRevenue.every(v => v === 0)) {
+      return [];
+    }
+    
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const currentDate = new Date();
+    
+    return monthlyRevenue.map((revenue, index) => {
+      const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + index, 1);
+      const monthLabel = `${monthNames[monthDate.getMonth()]} '${String(monthDate.getFullYear()).slice(-2)}`;
+      
+      return {
+        month: monthLabel,
+        revenue: revenue / 1000, // Convert to K for display
+      };
+    });
+  }, [forecastEnabled, monthlyRevenue]);
 
   if (loading) {
     return (
@@ -544,61 +573,83 @@ export default function InitiativePage() {
                 
                 {/* Right Column - Stats & Metrics */}
                 <div className="space-y-6">
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
-                    <div className="text-xs text-gray-400 mb-1">Progress</div>
-                    {editMode ? (
-                      <input
-                        type="number"
-                        value={formData.progress}
-                        onChange={(e) => setFormData({ ...formData, progress: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-white bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
-                        min="0"
-                        max="100"
-                      />
+                  {/* Forecast Chart */}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-4">Revenue Forecast (12 Months)</h3>
+                    {forecastEnabled && forecastChartData.length > 0 ? (
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={forecastChartData}>
+                            <defs>
+                              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#9ca3af"
+                              tick={{ fill: "#9ca3af", fontSize: 11 }}
+                            />
+                            <YAxis 
+                              stroke="#9ca3af"
+                              tick={{ fill: "#9ca3af", fontSize: 11 }}
+                              tickFormatter={(value: number) => `$${value}K`}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                background: "#1f2937", 
+                                border: "1px solid #374151",
+                                borderRadius: "8px",
+                                color: "#fff",
+                              }}
+                              formatter={(value: number | undefined) => [`$${(value || 0).toFixed(1)}K`, "Revenue"]}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="revenue"
+                              stroke="#00d4aa"
+                              strokeWidth={2}
+                              fill="url(#colorRevenue)"
+                              dot={{ fill: "#00d4aa", strokeWidth: 2, r: 3 }}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
                     ) : (
-                      <div className="text-2xl font-bold text-white">{initiative.progress || 0}%</div>
+                      <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+                        <div className="text-center">
+                          <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                          <p>Enable forecast in the Forecast tab to see revenue projections</p>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
-                    <div className="text-xs text-gray-400 mb-1">Est. Cost</div>
-                    {editMode ? (
-                      <input
-                        type="number"
-                        value={formData.estimatedCost}
-                        onChange={(e) => setFormData({ ...formData, estimatedCost: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-white bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
-                      />
-                    ) : (
-                      <div className="text-2xl font-bold text-white">${(initiative.estimatedCost || 0).toLocaleString()}</div>
+                    
+                    {forecastEnabled && forecastChartData.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Total Revenue</div>
+                            <div className="text-lg font-bold text-[#00d4aa]">
+                              ${monthlyRevenue.reduce((sum, val) => sum + val, 0).toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Avg. Monthly</div>
+                            <div className="text-lg font-bold text-white">
+                              ${(monthlyRevenue.reduce((sum, val) => sum + val, 0) / 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Peak Month</div>
+                            <div className="text-lg font-bold text-[#3b82f6]">
+                              ${Math.max(...monthlyRevenue).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
-                    <div className="text-xs text-gray-400 mb-1">Expected Revenue</div>
-                    {editMode ? (
-                      <input
-                        type="number"
-                        value={formData.expectedRevenue}
-                        onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-[#00d4aa] bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
-                      />
-                    ) : (
-                      <div className="text-2xl font-bold text-[#00d4aa]">${(initiative.expectedRevenue || 0).toLocaleString()}</div>
-                    )}
-                  </div>
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
-                    <div className="text-xs text-gray-400 mb-1">ROI</div>
-                    <div className="text-2xl font-bold text-[#3b82f6]">
-                      {editMode
-                        ? (formData.estimatedCost && formData.expectedRevenue
-                            ? ((formData.expectedRevenue / formData.estimatedCost - 1) * 100).toFixed(0)
-                            : 0)
-                        : (initiative.estimatedCost && initiative.expectedRevenue
-                            ? ((initiative.expectedRevenue / initiative.estimatedCost - 1) * 100).toFixed(0)
-                            : 0)}%
-                    </div>
-                  </div>
                   </div>
                 
                   {/* Details */}
