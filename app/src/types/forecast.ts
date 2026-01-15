@@ -5,6 +5,13 @@
 
 import { Timestamp } from "firebase/firestore";
 
+export interface ForecastAdjustment {
+  entityId: string;
+  type: "cmgr_override" | "manual_override" | "seasonal_adjustment";
+  value: number;
+  description?: string;
+}
+
 export interface ForecastVersion {
   id: string;
   organizationId: string;
@@ -32,12 +39,7 @@ export interface ForecastVersion {
   startMonth: string; // First forecast month (YYYY-MM)
   
   // Adjustments and overrides
-  adjustments?: {
-    entityId: string;
-    type: "cmgr_override" | "manual_override" | "seasonal_adjustment";
-    value: number;
-    description?: string;
-  }[];
+  adjustments?: ForecastAdjustment[];
   
   // Calculated forecast data (snapshot at time of creation)
   forecastData: {

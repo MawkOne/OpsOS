@@ -18,7 +18,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { ForecastVersion, ForecastComparison } from "@/types/forecast";
+import { ForecastVersion, ForecastComparison, ForecastAdjustment } from "@/types/forecast";
 import { MasterTableEntity, getEntitiesByIds } from "./masterTableData";
 
 /**
@@ -34,7 +34,7 @@ export async function createForecastVersion(
     selectedEntityIds: string[];
     forecastMonths?: number;
     startMonth?: string;
-    adjustments?: ForecastVersion["adjustments"];
+    adjustments?: ForecastAdjustment[];
     status?: "draft" | "published";
     parentVersionId?: string;
   }
@@ -142,7 +142,7 @@ function calculateEntityForecast(
   entity: MasterTableEntity,
   startMonth: string,
   forecastMonths: number,
-  adjustment?: ForecastVersion["adjustments"][0]
+  adjustment?: ForecastAdjustment
 ): {
   baseline: Record<string, number>;
   forecast: Record<string, number>;
