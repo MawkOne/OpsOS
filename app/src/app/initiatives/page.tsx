@@ -73,8 +73,7 @@ export default function InitiativesDashboard() {
 
     const initiativesQuery = query(
       collection(db, "initiatives"), 
-      where("organizationId", "==", currentOrg.id),
-      orderBy("waterlineScore", "desc")
+      where("organizationId", "==", currentOrg.id)
     );
     const peopleQuery = query(
       collection(db, "people"), 
