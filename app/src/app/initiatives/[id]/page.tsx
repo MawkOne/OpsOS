@@ -265,10 +265,7 @@ export default function InitiativePage() {
         
         {/* Initiative Title */}
         <div className="px-6 py-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-          <h1 className="text-2xl font-bold text-white mb-2">{initiative.name}</h1>
-          {initiative.description && (
-            <p className="text-sm text-gray-400">{initiative.description}</p>
-          )}
+          <h1 className="text-2xl font-bold text-white">{initiative.name}</h1>
         </div>
 
         {/* Tabs */}
@@ -369,6 +366,51 @@ export default function InitiativePage() {
                     <p className="text-sm text-gray-300">{initiative.impactDescription}</p>
                   </div>
                 )}
+                
+                {/* Initiative Details - Parsed from description */}
+                {initiative.description && (() => {
+                  const sections = initiative.description.split('\n\n');
+                  const parsed = {
+                    whatsImportant: '',
+                    howAreWeDoing: '',
+                    prioritiesToImprove: ''
+                  };
+                  
+                  sections.forEach(section => {
+                    if (section.startsWith("What's Important:")) {
+                      parsed.whatsImportant = section.replace("What's Important:", '').trim();
+                    } else if (section.startsWith("How We're Doing:")) {
+                      parsed.howAreWeDoing = section.replace("How We're Doing:", '').trim();
+                    } else if (section.startsWith("Priorities to Improve:")) {
+                      parsed.prioritiesToImprove = section.replace("Priorities to Improve:", '').trim();
+                    }
+                  });
+                  
+                  return (
+                    <div className="space-y-4">
+                      {parsed.whatsImportant && (
+                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                          <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
+                          <p className="text-sm text-gray-300">{parsed.whatsImportant}</p>
+                        </div>
+                      )}
+                      
+                      {parsed.howAreWeDoing && (
+                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                          <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
+                          <p className="text-sm text-gray-300">{parsed.howAreWeDoing}</p>
+                        </div>
+                      )}
+                      
+                      {parsed.prioritiesToImprove && (
+                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                          <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
+                          <p className="text-sm text-gray-300">{parsed.prioritiesToImprove}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             
