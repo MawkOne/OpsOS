@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion } from "framer-motion";
@@ -31,85 +31,23 @@ interface SourceStatus {
   description: string;
 }
 
+interface ConnectionData {
+  status?: string;
+  lastSyncAt?: {
+    toDate?: () => Date;
+  };
+}
+
 export default function SourcesPage() {
   const { currentOrg } = useOrganization();
   const [sources, setSources] = useState<SourceStatus[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const organizationId = currentOrg?.id || "";
 
-  useEffect(() => {
-    if (!organizationId) {
-      setLoading(false);
-      return;
-    }
-
-    // Listen to Stripe connection
-    const stripeUnsubscribe = onSnapshot(
-      doc(db, "stripe_connections", organizationId),
-      (snapshot) => {
-        updateSourceStatus("stripe", snapshot.exists() ? snapshot.data() : null);
-      }
-    );
-
-    // Listen to QuickBooks connection
-    const qbUnsubscribe = onSnapshot(
-      doc(db, "quickbooks_connections", organizationId),
-      (snapshot) => {
-        updateSourceStatus("quickbooks", snapshot.exists() ? snapshot.data() : null);
-      }
-    );
-
-    // Listen to Google Analytics connection
-    const gaUnsubscribe = onSnapshot(
-      doc(db, "ga4_connections", organizationId),
-      (snapshot) => {
-        updateSourceStatus("google-analytics", snapshot.exists() ? snapshot.data() : null);
-      }
-    );
-
-    // Listen to ActiveCampaign connection
-    const acUnsubscribe = onSnapshot(
-      doc(db, "activecampaign_connections", organizationId),
-      (snapshot) => {
-        updateSourceStatus("activecampaign", snapshot.exists() ? snapshot.data() : null);
-      }
-    );
-
-    // Listen to DataForSEO connection
-    const seoUnsubscribe = onSnapshot(
-      doc(db, "dataforseo_connections", organizationId),
-      (snapshot) => {
-        updateSourceStatus("dataforseo", snapshot.exists() ? snapshot.data() : null);
-      }
-    );
-
-    setLoading(false);
-
-    return () => {
-      stripeUnsubscribe();
-      qbUnsubscribe();
-      gaUnsubscribe();
-      acUnsubscribe();
-      seoUnsubscribe();
-    };
-  }, [organizationId]);
-
-  const updateSourceStatus = (sourceName: string, data: any) => {
-    setSources((prev) => {
-      const existing = prev.find((s) => s.href.includes(sourceName));
-      const newSource = getSourceConfig(sourceName, data);
-
-      if (existing) {
-        return prev.map((s) => (s.href.includes(sourceName) ? newSource : s));
-      } else {
-        return [...prev, newSource];
-      }
-    });
-  };
-
-  const getSourceConfig = (sourceName: string, data: any): SourceStatus => {
-    const status = data?.status || "disconnected";
+  const getSourceConfig = useCallback((sourceName: string, data: ConnectionData | null): SourceStatus => {
+    const rawStatus = data?.status || "disconnected";
+    const status: "connected" | "disconnected" | "error" = 
+      rawStatus === "connected" || rawStatus === "error" ? rawStatus : "disconnected";
     const lastSyncAt = data?.lastSyncAt?.toDate?.();
 
     const configs: Record<string, Omit<SourceStatus, "status" | "lastSyncAt">> = {
@@ -157,7 +95,74 @@ export default function SourcesPage() {
 
     const config = configs[sourceName] || configs.stripe;
     return { ...config, status, lastSyncAt };
-  };
+  }, []);
+
+  const updateSourceStatus = useCallback((sourceName: string, data: ConnectionData | null) => {
+    setSources((prev) => {
+      const existing = prev.find((s) => s.href.includes(sourceName));
+      const newSource = getSourceConfig(sourceName, data);
+
+      if (existing) {
+        return prev.map((s) => (s.href.includes(sourceName) ? newSource : s));
+      } else {
+        return [...prev, newSource];
+      }
+    });
+  }, [getSourceConfig]);
+
+  useEffect(() => {
+    if (!organizationId) {
+      return;
+    }
+
+    // Listen to Stripe connection
+    const stripeUnsubscribe = onSnapshot(
+      doc(db, "stripe_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("stripe", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
+    // Listen to QuickBooks connection
+    const qbUnsubscribe = onSnapshot(
+      doc(db, "quickbooks_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("quickbooks", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
+    // Listen to Google Analytics connection
+    const gaUnsubscribe = onSnapshot(
+      doc(db, "ga4_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("google-analytics", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
+    // Listen to ActiveCampaign connection
+    const acUnsubscribe = onSnapshot(
+      doc(db, "activecampaign_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("activecampaign", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
+    // Listen to DataForSEO connection
+    const seoUnsubscribe = onSnapshot(
+      doc(db, "dataforseo_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("dataforseo", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
+    return () => {
+      stripeUnsubscribe();
+      qbUnsubscribe();
+      gaUnsubscribe();
+      acUnsubscribe();
+      seoUnsubscribe();
+    };
+  }, [organizationId, updateSourceStatus]);
 
   const financialSources = sources.filter((s) => s.type === "financial");
   const marketingSources = sources.filter((s) => s.type === "marketing");
@@ -240,10 +245,7 @@ export default function SourcesPage() {
             Financial Sources
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              getSourceConfig("stripe", sources.find((s) => s.href.includes("stripe"))),
-              getSourceConfig("quickbooks", sources.find((s) => s.href.includes("quickbooks"))),
-            ].map((source, index) => (
+            {financialSources.map((source) => (
               <Link key={source.href} href={source.href}>
                 <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer">
                   <div className="flex items-start gap-4">
@@ -292,11 +294,7 @@ export default function SourcesPage() {
             Marketing Sources
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              getSourceConfig("google-analytics", sources.find((s) => s.href.includes("google-analytics"))),
-              getSourceConfig("activecampaign", sources.find((s) => s.href.includes("activecampaign"))),
-              getSourceConfig("dataforseo", sources.find((s) => s.href.includes("dataforseo"))),
-            ].map((source, index) => (
+            {marketingSources.map((source) => (
               <Link key={source.href} href={source.href}>
                 <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer">
                   <div className="flex flex-col gap-3">
