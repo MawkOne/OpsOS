@@ -1570,8 +1570,8 @@ export default function ForecastsPage() {
 
               <ForecastVersionSelector
                 organizationId={organizationId}
-                onSelectVersion={handleLoadVersion}
-                currentVersionId={loadedVersion?.id}
+                onSelect={handleLoadVersion}
+                selectedVersionId={loadedVersion?.id}
               />
             </Card>
           </motion.div>
