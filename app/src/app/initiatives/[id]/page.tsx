@@ -308,6 +308,28 @@ export default function InitiativePage() {
       setSaving(false);
     }
   };
+  
+  const handleStatusToggle = async () => {
+    if (!initiative) return;
+    
+    const newStatus = initiative.status === "draft" ? "ready" : "draft";
+    
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "initiatives", initiative.id), {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      
+      setInitiative({ ...initiative, status: newStatus });
+      alert(`✅ Initiative marked as ${newStatus === "ready" ? "Ready" : "Draft"}!`);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("❌ Failed to update status");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -351,7 +373,7 @@ export default function InitiativePage() {
         <div className="flex items-start justify-between">
           <button
             onClick={() => router.push("/initiatives")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-[#1a1a1a] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Initiatives
@@ -364,17 +386,26 @@ export default function InitiativePage() {
             >
               {status.label}
             </span>
+            {initiative.status === "draft" && (
+              <button
+                onClick={handleStatusToggle}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#00d4aa] text-black hover:bg-[#00b894] transition-colors disabled:opacity-50"
+              >
+                {saving ? "Updating..." : "Mark as Ready"}
+              </button>
+            )}
           </div>
         </div>
         
         {/* Initiative Title */}
-        <div className="px-6 py-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-between">
+        <div className="px-6 py-4 rounded-lg bg-gray-800/50 border border-gray-700 flex items-center justify-between">
           {editMode && activeTab === "overview" ? (
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-1 flex-1"
+              className="text-2xl font-bold text-white bg-gray-900/50 border border-gray-600 rounded px-3 py-1 flex-1 focus:outline-none focus:border-[#00d4aa]"
             />
           ) : (
             <h1 className="text-2xl font-bold text-white">{initiative.name}</h1>
@@ -428,7 +459,7 @@ export default function InitiativePage() {
               ) : (
                 <button
                   onClick={() => setEditMode(true)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-700 text-white hover:bg-gray-600 transition-colors"
                 >
                   Edit
                 </button>
@@ -439,7 +470,7 @@ export default function InitiativePage() {
 
         {/* Tabs */}
         <Card>
-          <div className="flex border-b border-[#2a2a2a]">
+          <div className="flex border-b border-gray-700">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -468,14 +499,14 @@ export default function InitiativePage() {
               <div className="space-y-6">
                 {/* Stats Grid */}
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
                     <div className="text-xs text-gray-400 mb-1">Progress</div>
                     {editMode ? (
                       <input
                         type="number"
                         value={formData.progress}
                         onChange={(e) => setFormData({ ...formData, progress: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                        className="w-full text-2xl font-bold text-white bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
                         min="0"
                         max="100"
                       />
@@ -483,33 +514,33 @@ export default function InitiativePage() {
                       <div className="text-2xl font-bold text-white">{initiative.progress || 0}%</div>
                     )}
                   </div>
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
                     <div className="text-xs text-gray-400 mb-1">Est. Cost</div>
                     {editMode ? (
                       <input
                         type="number"
                         value={formData.estimatedCost}
                         onChange={(e) => setFormData({ ...formData, estimatedCost: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                        className="w-full text-2xl font-bold text-white bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
                       />
                     ) : (
                       <div className="text-2xl font-bold text-white">${(initiative.estimatedCost || 0).toLocaleString()}</div>
                     )}
                   </div>
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
                     <div className="text-xs text-gray-400 mb-1">Expected Revenue</div>
                     {editMode ? (
                       <input
                         type="number"
                         value={formData.expectedRevenue}
                         onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
-                        className="w-full text-2xl font-bold text-[#00d4aa] bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                        className="w-full text-2xl font-bold text-[#00d4aa] bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
                       />
                     ) : (
                       <div className="text-2xl font-bold text-[#00d4aa]">${(initiative.expectedRevenue || 0).toLocaleString()}</div>
                     )}
                   </div>
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
                     <div className="text-xs text-gray-400 mb-1">ROI</div>
                     <div className="text-2xl font-bold text-[#3b82f6]">
                       {editMode
@@ -535,7 +566,7 @@ export default function InitiativePage() {
                             type="number"
                             value={formData.estimatedPeopleHours}
                             onChange={(e) => setFormData({ ...formData, estimatedPeopleHours: parseFloat(e.target.value) || 0 })}
-                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-24"
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
                           />
                         ) : (
                           <span className="text-white font-medium">{initiative.estimatedPeopleHours || 0}h</span>
@@ -548,7 +579,7 @@ export default function InitiativePage() {
                             type="number"
                             value={formData.estimatedDuration}
                             onChange={(e) => setFormData({ ...formData, estimatedDuration: parseFloat(e.target.value) || 0 })}
-                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-24"
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
                           />
                         ) : (
                           <span className="text-white font-medium">{initiative.estimatedDuration || 0} weeks</span>
@@ -571,7 +602,7 @@ export default function InitiativePage() {
                             type="number"
                             value={formData.expectedRevenue}
                             onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
-                            className="text-[#00d4aa] font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-32"
+                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
                           />
                         ) : (
                           <span className="text-[#00d4aa] font-medium">${(initiative.expectedRevenue || 0).toLocaleString()}</span>
@@ -584,7 +615,7 @@ export default function InitiativePage() {
                             type="number"
                             value={formData.expectedSavings}
                             onChange={(e) => setFormData({ ...formData, expectedSavings: parseFloat(e.target.value) || 0 })}
-                            className="text-[#00d4aa] font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-32"
+                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
                           />
                         ) : (
                           <span className="text-[#00d4aa] font-medium">${(initiative.expectedSavings || 0).toLocaleString()}</span>
@@ -596,7 +627,7 @@ export default function InitiativePage() {
                           <select
                             value={formData.priority}
                             onChange={(e) => setFormData({ ...formData, priority: e.target.value as "critical" | "high" | "medium" | "low" })}
-                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
                           >
                             <option value="critical">Critical</option>
                             <option value="high">High</option>
@@ -620,13 +651,13 @@ export default function InitiativePage() {
                 
                 {/* Initiative Details - Parsed from description */}
                 <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                     <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
                     {editMode ? (
                       <textarea
                         value={formData.whatsImportant}
                         onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
                         placeholder="Describe what's important about this initiative..."
                       />
                     ) : (
@@ -634,13 +665,13 @@ export default function InitiativePage() {
                     )}
                   </div>
                   
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                     <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
                     {editMode ? (
                       <textarea
                         value={formData.howAreWeDoing}
                         onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
                         placeholder="Describe current performance..."
                       />
                     ) : (
@@ -648,13 +679,13 @@ export default function InitiativePage() {
                     )}
                   </div>
                   
-                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                     <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
                     {editMode ? (
                       <textarea
                         value={formData.prioritiesToImprove}
                         onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
                         placeholder="List priorities to improve..."
                       />
                     ) : (
@@ -682,7 +713,7 @@ export default function InitiativePage() {
                 
                 {forecastEnabled ? (
                   <div className="space-y-4">
-                    <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                       <h4 className="text-sm font-semibold text-gray-400 mb-3">Monthly Revenue Projections</h4>
                       <div className="grid grid-cols-4 gap-3">
                         {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, idx) => (
@@ -696,7 +727,7 @@ export default function InitiativePage() {
                                 newRevenue[idx] = parseFloat(e.target.value) || 0;
                                 setMonthlyRevenue(newRevenue);
                               }}
-                              className="w-full px-2 py-1 rounded bg-[#0f0f0f] border border-[#2a2a2a] text-white text-sm"
+                              className="w-full px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-sm focus:outline-none focus:border-[#00d4aa]"
                             />
                           </div>
                         ))}
@@ -802,7 +833,7 @@ export default function InitiativePage() {
               <div className="space-y-6">
                 <h3 className="text-lg font-bold text-white mb-4">Monte Carlo Simulation</h3>
                 
-                <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-400 mb-3">Simulation Parameters</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -811,13 +842,13 @@ export default function InitiativePage() {
                         type="number"
                         value={monteCarlo.simulations}
                         onChange={(e) => setMonteCarlo({ ...monteCarlo, simulations: parseInt(e.target.value) || 10000 })}
-                        className="w-full px-3 py-2 rounded bg-[#0f0f0f] border border-[#2a2a2a] text-white text-sm"
+                        className="w-full px-3 py-2 rounded bg-gray-900/50 border border-gray-600 text-white text-sm focus:outline-none focus:border-[#00d4aa]"
                       />
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-400 mb-3">Results</h4>
                   <p className="text-sm text-gray-400">Run simulations to see probabilistic outcomes and confidence intervals.</p>
                   <button
@@ -833,7 +864,7 @@ export default function InitiativePage() {
 
           {/* Save Button */}
           {(activeTab === "forecast" || activeTab === "scenarios" || activeTab === "montecarlo") && (
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700">
               <button
                 onClick={handleSave}
                 disabled={saving}
