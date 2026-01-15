@@ -71,8 +71,11 @@ export default function InitiativePage() {
     entityId: string;
     entityName: string;
     source: string;
+    type: string;
+    metric: string;
     metricType: string;
     months: Record<string, number>;
+    total: number;
   }>>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -110,20 +113,132 @@ export default function InitiativePage() {
 
     const loadBaselineEntities = async () => {
       try {
-        const baselineQuery = query(
-          collection(db, "baseline"),
-          where("organizationId", "==", currentOrg.id)
-        );
-        const snapshot = await getDocs(baselineQuery);
-        const entities = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as typeof baselineEntities;
+        console.log("📦 Loading baseline entities for org:", currentOrg.id);
+        const entities: Array<typeof baselineEntities[0]> = [];
+        
+        // Fetch Stripe Products
+        try {
+          const productsQuery = query(
+            collection(db, "stripe_products"),
+            where("organizationId", "==", currentOrg.id)
+          );
+          const productsSnap = await getDocs(productsQuery);
+          const products = new Map<string, string>();
+          productsSnap.docs.forEach(doc => {
+            const data = doc.data();
+            products.set(data.stripeId, data.name);
+          });
+          
+          // Fetch Stripe Invoices
+          const invoicesQuery = query(
+            collection(db, "stripe_invoices"),
+            where("organizationId", "==", currentOrg.id)
+          );
+          const invoicesSnap = await getDocs(invoicesQuery);
+          
+          // Group by product
+          const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+          
+          invoicesSnap.docs.forEach(doc => {
+            const invoice = doc.data();
+            if (invoice.status !== 'paid') return;
+            
+            const invoiceDate = invoice.created?.toDate?.() || new Date();
+            const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            invoice.items?.forEach((item: { product: { id: string }; amount: number }) => {
+              const productId = item.product?.id;
+              if (!productId) return;
+              
+              const productName = products.get(productId) || productId;
+              
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = {
+                  name: productName,
+                  months: {},
+                  total: 0
+                };
+              }
+              
+              productRevenue[productId].months[monthKey] = 
+                (productRevenue[productId].months[monthKey] || 0) + (item.amount / 100);
+              productRevenue[productId].total += (item.amount / 100);
+            });
+          });
+          
+          // Add Stripe products to entities
+          Object.entries(productRevenue).forEach(([productId, data]) => {
+            entities.push({
+              id: `stripe-product-${productId}`,
+              entityId: `stripe-product-${productId}`,
+              entityName: data.name,
+              source: "stripe",
+              type: "Product",
+              metric: "Stripe Revenue",
+              metricType: "revenue",
+              months: data.months,
+              total: data.total
+            });
+          });
+          
+          console.log(`💳 Loaded ${Object.keys(productRevenue).length} Stripe products`);
+        } catch (error) {
+          console.error("Error loading Stripe entities:", error);
+        }
+        
+        // Fetch QuickBooks Revenue
+        try {
+          const qbRevenueQuery = query(
+            collection(db, "quickbooks_revenue_items"),
+            where("organizationId", "==", currentOrg.id)
+          );
+          const qbRevenueSnap = await getDocs(qbRevenueQuery);
+          
+          const accountRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
+          
+          qbRevenueSnap.docs.forEach(doc => {
+            const item = doc.data();
+            const monthKey = `${item.year}-${String(item.month).padStart(2, '0')}`;
+            const accountId = item.accountId || "unknown";
+            const accountName = item.accountName || "Unknown Account";
+            
+            if (!accountRevenue[accountId]) {
+              accountRevenue[accountId] = {
+                name: accountName,
+                months: {},
+                total: 0
+              };
+            }
+            
+            accountRevenue[accountId].months[monthKey] = 
+              (accountRevenue[accountId].months[monthKey] || 0) + (item.amount || 0);
+            accountRevenue[accountId].total += (item.amount || 0);
+          });
+          
+          // Add QuickBooks revenue to entities
+          Object.entries(accountRevenue).forEach(([accountId, data]) => {
+            entities.push({
+              id: `quickbooks-revenue-${accountId}`,
+              entityId: `quickbooks-revenue-${accountId}`,
+              entityName: data.name,
+              source: "quickbooks",
+              type: "Revenue",
+              metric: "QuickBooks Revenue",
+              metricType: "revenue",
+              months: data.months,
+              total: data.total
+            });
+          });
+          
+          console.log(`📒 Loaded ${Object.keys(accountRevenue).length} QuickBooks revenue accounts`);
+        } catch (error) {
+          console.error("Error loading QuickBooks entities:", error);
+        }
         
         setBaselineEntities(entities);
-        console.log(`📦 Loaded ${entities.length} baseline entities`);
+        console.log(`✅ Loaded total ${entities.length} baseline entities`);
       } catch (error) {
-        console.error("Error loading baseline entities:", error);
+        console.error("❌ Error loading baseline entities:", error);
       }
     };
 
@@ -959,12 +1074,12 @@ export default function InitiativePage() {
                     {/* Line Item Selection */}
                     <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-semibold text-white">Impacted Line Items</h4>
+                        <h4 className="text-sm font-semibold text-white">Impacted Forecast Items</h4>
                         <button
                           onClick={() => setShowLineItemSelector(true)}
                           className="text-xs px-3 py-1 rounded bg-[#00d4aa] text-black hover:bg-[#00b894] font-medium"
                         >
-                          + Select Line Items
+                          + Select Forecast Items
                         </button>
                       </div>
                       
@@ -1064,7 +1179,7 @@ export default function InitiativePage() {
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowLineItemSelector(false)}>
                     <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Select Line Items</h3>
+                        <h3 className="text-lg font-bold text-white">Select Forecast Items</h3>
                         <button
                           onClick={() => setShowLineItemSelector(false)}
                           className="text-gray-400 hover:text-white"
