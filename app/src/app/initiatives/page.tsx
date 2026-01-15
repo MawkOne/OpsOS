@@ -66,7 +66,8 @@ export default function InitiativesDashboard() {
   // Load data from Firestore
   useEffect(() => {
     if (!currentOrg?.id) {
-      setLoading(false);
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => setLoading(false), 0);
       return;
     }
 
@@ -572,7 +573,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Improve PPC",
       category: "marketing" as InitiativeCategory,
       type: "existing" as "new" | "existing",
-      priority: "p1" as any,
+      priority: "high",
       status: "active" as InitiativeStatus,
       whatsImportant: "The current campaigns / spend not only is profitable at 2x ROI, but brings in at least 1 whale size client each month.",
       howAreWeDoing: "Current PPC performance: 2x ROI with consistent whale client acquisition",
@@ -585,7 +586,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Curate Matching / Concierge Hiring",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p1" as any,
+      priority: "high",
       status: "planning" as InitiativeStatus,
       whatsImportant: "High-touch service for companies seeking quality talent matches",
       howAreWeDoing: "2% uptake of ACTIVE companies (6K MAU x 2% = 120 potential clients)",
@@ -598,7 +599,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Bundled Hiring Campaigns",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p2" as any,
+      priority: "medium",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Premium package combining multiple promotion channels",
       howAreWeDoing: "5% of paying company uptake potential",
@@ -611,7 +612,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Featured / Sponsored Job Listings",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p1" as any,
+      priority: "high",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Tiered job promotion options for increased visibility",
       howAreWeDoing: "10% of purchased jobs uptake potential",
@@ -624,7 +625,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Sponsored Talent / Agency Spotlights",
       category: "marketing" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p2" as any,
+      priority: "medium",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Monetize talent and agency visibility through sponsored profiles",
       howAreWeDoing: "Used by talent agencies, recruiters, and companies",
@@ -638,7 +639,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Recruiter / Agency Accounts",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p1" as any,
+      priority: "high",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Power tools for recruiters and agencies - aligns with existing roadmap",
       howAreWeDoing: "Planned features: bulk outreach, team seats, ATS tools, paid verification",
@@ -651,7 +652,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Talent Pro Memberships",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p2" as any,
+      priority: "medium",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Optional upgrades for better visibility, analytics, and status signaling",
       howAreWeDoing: "5% uptake expected. Aligns with personalization initiatives.",
@@ -664,7 +665,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Company Access Subscriptions",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p1" as any,
+      priority: "high",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Companies pay monthly to search, filter, and message talent directly",
       howAreWeDoing: "5% uptake expected",
@@ -677,7 +678,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Payments, Escrow & Compliance Tools",
       category: "product" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p3" as any,
+      priority: "low",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Optional infrastructure for paying talent and managing contracts",
       howAreWeDoing: "Opt-in only",
@@ -691,7 +692,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Hiring Data & Market Insights",
       category: "partnership" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p2" as any,
+      priority: "medium",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Sell aggregated (no personal data), exclusive, recurring hiring market data",
       howAreWeDoing: "Target: Enterprise HR, Recruiting Agencies, VC/PE Firms, Consulting Firms, Government/NGOs",
@@ -704,7 +705,7 @@ async function seedInitiatives(organizationId: string) {
       name: "Sponsorship Money",
       category: "partnership" as InitiativeCategory,
       type: "new" as "new" | "existing",
-      priority: "p3" as any,
+      priority: "low",
       status: "planning" as InitiativeStatus,
       whatsImportant: "Make YT Jobs the central industry source that everyone can co-support",
       howAreWeDoing: "Explore YouTuber sponsorships, industry reporting, become the source of news",
@@ -764,7 +765,14 @@ function AddInitiativeModal({
   people: Person[];
   tools: Tool[];
   products: StripeProduct[];
-  resources: any;
+  resources: { 
+    totalBudget: number; 
+    allocatedBudget: number; 
+    availablePeopleHours: number; 
+    allocatedPeopleHours: number;
+    remainingBudget: number;
+    remainingHours: number;
+  };
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -802,7 +810,13 @@ function AddInitiativeModal({
   const waterlinePreview = useMemo(() => {
     // Use actual costs if available, otherwise use estimated
     const costToUse = actualCosts.totalCost > 0 ? actualCosts.totalCost : formData.estimatedCost;
-    return calculateWaterlinePosition({ ...formData, estimatedCost: costToUse }, resources);
+    const resourcesForCalculation = {
+      totalBudget: resources.totalBudget,
+      allocatedBudget: resources.allocatedBudget,
+      availablePeopleHours: resources.availablePeopleHours,
+      allocatedPeopleHours: resources.allocatedPeopleHours,
+    };
+    return calculateWaterlinePosition({ ...formData, estimatedCost: costToUse }, resourcesForCalculation);
   }, [formData, resources, actualCosts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -952,7 +966,7 @@ function AddInitiativeModal({
                   </label>
                   <select
                     value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as "critical" | "high" | "medium" | "low" })}
                     className="w-full px-3 py-2 rounded-lg text-sm"
                     style={{ 
                       background: "var(--background)",
@@ -972,7 +986,7 @@ function AddInitiativeModal({
             {/* 1. What's Important */}
             <div>
               <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-                1️⃣ What's Important
+                1️⃣ What&apos;s Important
               </label>
               <textarea
                 value={formData.whatsImportant}
