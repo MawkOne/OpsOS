@@ -496,9 +496,56 @@ export default function InitiativePage() {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === "overview" && (
-              <div className="space-y-6">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Left Column - Framing Content */}
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.whatsImportant}
+                        onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[120px] focus:outline-none focus:border-[#00d4aa] resize-y"
+                        placeholder="Describe what's important about this initiative..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.whatsImportant || "Not set"}</p>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.howAreWeDoing}
+                        onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[120px] focus:outline-none focus:border-[#00d4aa] resize-y"
+                        placeholder="Describe current performance..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.howAreWeDoing || "Not set"}</p>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.prioritiesToImprove}
+                        onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[120px] focus:outline-none focus:border-[#00d4aa] resize-y"
+                        placeholder="List priorities to improve..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.prioritiesToImprove || "Not set"}</p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Right Column - Stats & Metrics */}
+                <div className="space-y-6">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/50 to-gray-800/30 border border-gray-700">
                     <div className="text-xs text-gray-400 mb-1">Progress</div>
                     {editMode ? (
@@ -552,10 +599,10 @@ export default function InitiativePage() {
                             : 0)}%
                     </div>
                   </div>
-                </div>
+                  </div>
                 
-                {/* Details */}
-                <div className="grid grid-cols-2 gap-6">
+                  {/* Details */}
+                  <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h3 className="text-sm font-semibold text-gray-400 mb-3">Resources Required</h3>
                     <div className="space-y-2">
@@ -640,58 +687,14 @@ export default function InitiativePage() {
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                {initiative.impactDescription && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-400 mb-2">Impact Description</h3>
-                    <p className="text-sm text-gray-300">{initiative.impactDescription}</p>
-                  </div>
-                )}
-                
-                {/* Initiative Details - Parsed from description */}
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                    <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
-                    {editMode ? (
-                      <textarea
-                        value={formData.whatsImportant}
-                        onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
-                        placeholder="Describe what's important about this initiative..."
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-300">{formData.whatsImportant || "Not set"}</p>
-                    )}
                   </div>
                   
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                    <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
-                    {editMode ? (
-                      <textarea
-                        value={formData.howAreWeDoing}
-                        onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
-                        placeholder="Describe current performance..."
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-300">{formData.howAreWeDoing || "Not set"}</p>
-                    )}
-                  </div>
-                  
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                    <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
-                    {editMode ? (
-                      <textarea
-                        value={formData.prioritiesToImprove}
-                        onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
-                        className="w-full text-sm text-gray-300 bg-gray-900/50 border border-gray-600 rounded px-3 py-2 min-h-[80px] focus:outline-none focus:border-[#00d4aa] resize-y"
-                        placeholder="List priorities to improve..."
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-300">{formData.prioritiesToImprove || "Not set"}</p>
-                    )}
-                  </div>
+                  {initiative.impactDescription && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-400 mb-2">Impact Description</h3>
+                      <p className="text-sm text-gray-300">{initiative.impactDescription}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
