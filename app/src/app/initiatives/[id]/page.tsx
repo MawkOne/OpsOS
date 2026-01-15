@@ -75,9 +75,26 @@ export default function InitiativePage({ params }: PageProps) {
 
     const loadInitiative = async () => {
       try {
+        console.log("🔍 Loading initiative:", params.id);
         const initiativeDoc = await getDoc(doc(db, "initiatives", params.id));
+        
         if (initiativeDoc.exists()) {
-          const data = { id: initiativeDoc.id, ...initiativeDoc.data() } as Initiative;
+          console.log("📄 Document exists, extracting data...");
+          
+          // Extract data with error handling for malformed fields
+          let rawData;
+          try {
+            rawData = initiativeDoc.data();
+          } catch (dataError) {
+            console.error("❌ Error extracting document data:", dataError);
+            alert("❌ Error loading initiative data. Some fields may be corrupted.");
+            router.push("/initiatives");
+            return;
+          }
+          
+          console.log("✅ Raw data extracted:", rawData);
+          
+          const data = { id: initiativeDoc.id, ...rawData } as Initiative;
           
           // Check if initiative belongs to current org
           if (data.organizationId !== currentOrg.id) {
@@ -137,8 +154,14 @@ export default function InitiativePage({ params }: PageProps) {
           router.push("/initiatives");
         }
       } catch (error) {
-        console.error("Error loading initiative:", error);
-        alert("❌ Failed to load initiative");
+        console.error("❌ Error loading initiative:", error);
+        console.error("Error details:", {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          initiativeId: params.id,
+          orgId: currentOrg?.id,
+        });
+        alert("❌ Failed to load initiative. This initiative may have corrupted data.");
         router.push("/initiatives");
       } finally {
         setLoading(false);
