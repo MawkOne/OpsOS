@@ -88,9 +88,65 @@ export interface Initiative {
   tags?: string[];
   relatedInitiativeIds?: string[];
   notes?: string;
+  
+  // Forecasting Data
+  forecast?: {
+    enabled: boolean;
+    monthlyRevenue?: number[]; // 12 months of projected revenue
+    monthlyImpact?: number[]; // 12 months of projected impact metric
+    assumptions?: string[]; // Key assumptions
+    drivers?: Array<{
+      name: string;
+      impact: number;
+      direction: "positive" | "negative" | "neutral";
+    }>;
+  };
+  
+  // Scenario Planning
+  scenarios?: {
+    base?: {
+      revenue: number;
+      costs: number;
+      probability: number;
+      description?: string;
+    };
+    optimistic?: {
+      revenue: number;
+      costs: number;
+      probability: number;
+      description?: string;
+    };
+    pessimistic?: {
+      revenue: number;
+      costs: number;
+      probability: number;
+      description?: string;
+    };
+  };
+  
+  // Monte Carlo Simulation
+  monteCarlo?: {
+    simulations: number;
+    expectedValue?: number;
+    standardDeviation?: number;
+    confidenceInterval?: {
+      p10: number;
+      p50: number;
+      p90: number;
+    };
+    variables?: Array<{
+      name: string;
+      min: number;
+      max: number;
+      mean: number;
+      distribution: "normal" | "triangular" | "uniform";
+    }>;
+  };
 }
 
 export type InitiativeStatus = 
+  | "draft"          // Work in progress, not ready for review
+  | "ready"          // Ready for review and prioritization
   | "idea"           // Just an idea, not planned yet
   | "proposed"       // Formally proposed
   | "above-waterline" // Above waterline, can be executed
@@ -128,6 +184,8 @@ export const statusConfig: Record<
   InitiativeStatus,
   { label: string; color: string; bg: string }
 > = {
+  "draft": { label: "Draft", color: "#6b7280", bg: "rgba(107, 114, 128, 0.15)" },
+  "ready": { label: "Ready", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" },
   "idea": { label: "Idea", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)" },
   "proposed": { label: "Proposed", color: "#6366f1", bg: "rgba(99, 102, 241, 0.15)" },
   "above-waterline": { label: "Above Waterline", color: "#00d4aa", bg: "rgba(0, 212, 170, 0.15)" },
