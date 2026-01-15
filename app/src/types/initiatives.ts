@@ -92,8 +92,10 @@ export interface Initiative {
   // Forecasting Data
   forecast?: {
     enabled: boolean;
-    monthlyRevenue?: number[]; // 12 months of projected revenue
-    monthlyImpact?: number[]; // 12 months of projected impact metric
+    selectedLineItems?: string[]; // Baseline entity IDs that this initiative impacts
+    initiativeImpact?: number; // % growth impact on selected line items
+    monthlyRevenue?: number[]; // 12 months of projected revenue (deprecated)
+    monthlyImpact?: number[]; // 12 months of projected impact metric (deprecated)
     assumptions?: string[]; // Key assumptions
     drivers?: Array<{
       name: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
@@ -29,6 +29,10 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -60,7 +64,17 @@ export default function InitiativePage() {
   
   // Forecast state
   const [forecastEnabled, setForecastEnabled] = useState(false);
-  const [monthlyRevenue, setMonthlyRevenue] = useState<number[]>(Array(12).fill(0));
+  const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
+  const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
+  const [baselineEntities, setBaselineEntities] = useState<Array<{
+    id: string;
+    entityId: string;
+    entityName: string;
+    source: string;
+    metricType: string;
+    months: Record<string, number>;
+  }>>([]);
+  const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
   // Scenario state
   const [scenarios, setScenarios] = useState({
@@ -89,6 +103,32 @@ export default function InitiativePage() {
     confidenceInterval: { p10: 0, p50: 0, p90: 0 },
     variables: [],
   });
+
+  // Load baseline entities
+  useEffect(() => {
+    if (!currentOrg?.id) return;
+
+    const loadBaselineEntities = async () => {
+      try {
+        const baselineQuery = query(
+          collection(db, "baseline"),
+          where("organizationId", "==", currentOrg.id)
+        );
+        const snapshot = await getDocs(baselineQuery);
+        const entities = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as typeof baselineEntities;
+        
+        setBaselineEntities(entities);
+        console.log(`📦 Loaded ${entities.length} baseline entities`);
+      } catch (error) {
+        console.error("Error loading baseline entities:", error);
+      }
+    };
+
+    loadBaselineEntities();
+  }, [currentOrg?.id]);
 
   // Load initiative data
   useEffect(() => {
@@ -175,7 +215,8 @@ export default function InitiativePage() {
           // Load forecast data
           if (data.forecast) {
             setForecastEnabled(data.forecast.enabled || false);
-            setMonthlyRevenue(data.forecast.monthlyRevenue || Array(12).fill(0));
+            setSelectedLineItems(data.forecast.selectedLineItems || []);
+            setInitiativeImpact(data.forecast.initiativeImpact || 0);
           }
           
           // Load scenarios
@@ -246,7 +287,8 @@ export default function InitiativePage() {
       await updateDoc(doc(db, "initiatives", initiative.id), {
         forecast: {
           enabled: forecastEnabled,
-          monthlyRevenue,
+          selectedLineItems,
+          initiativeImpact,
           assumptions: [],
           drivers: [],
         },
@@ -340,25 +382,149 @@ export default function InitiativePage() {
     }
   };
   
-  // Prepare forecast chart data
-  const forecastChartData = useMemo(() => {
-    if (!forecastEnabled || monthlyRevenue.every(v => v === 0)) {
-      return [];
+  // Generate month keys for historical data (trailing 12 months)
+  const monthKeys = useMemo(() => {
+    const keys: string[] = [];
+    const now = new Date();
+    
+    for (let i = 12; i >= 1; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
     
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const currentDate = new Date();
+    return keys;
+  }, []);
+
+  // Generate forecast month keys (next 12 months)
+  const forecastMonthKeys = useMemo(() => {
+    const keys: string[] = [];
+    const now = new Date();
     
-    return monthlyRevenue.map((revenue, index) => {
-      const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + index, 1);
-      const monthLabel = `${monthNames[monthDate.getMonth()]} '${String(monthDate.getFullYear()).slice(-2)}`;
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    
+    return keys;
+  }, []);
+
+  // Calculate CMGR and MoM patterns for an entity
+  const calculateForecast = useCallback((entity: typeof baselineEntities[0]) => {
+    const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
+    if (values.length < 3) return { cmgr: 0, momPatterns: {}, baselineValue: 0, lastMonthKey: monthKeys[monthKeys.length - 1] };
+
+    // Calculate CMGR
+    const firstValue = values[0];
+    const lastValue = values[values.length - 1];
+    const months = values.length - 1;
+    const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
+
+    // Calculate month-over-month patterns from trailing 12 months
+    const trailing12Months = monthKeys.slice(-12);
+    const momPatterns: Record<string, number> = {};
+    
+    for (let i = 1; i < trailing12Months.length; i++) {
+      const prevKey = trailing12Months[i - 1];
+      const currKey = trailing12Months[i];
+      const prevValue = entity.months[prevKey] || 0;
+      const currValue = entity.months[currKey] || 0;
       
+      if (prevValue > 0 && currValue > 0) {
+        const prevMonth = parseInt(prevKey.split('-')[1]);
+        const currMonth = parseInt(currKey.split('-')[1]);
+        const changePercent = (currValue - prevValue) / prevValue;
+        const transitionKey = `${prevMonth}-${currMonth}`;
+        momPatterns[transitionKey] = changePercent;
+      }
+    }
+
+    // Get baseline value (last month with data)
+    const baselineValue = lastValue;
+    const lastMonthKey = monthKeys[monthKeys.length - 1];
+    
+    return { cmgr, momPatterns, baselineValue, lastMonthKey };
+  }, [monthKeys]);
+
+  // Calculate baseline forecast for selected line items
+  const baselineForecast = useMemo(() => {
+    if (selectedLineItems.length === 0 || baselineEntities.length === 0) {
+      return {};
+    }
+
+    const forecast: Record<string, number> = {};
+    
+    selectedLineItems.forEach(itemId => {
+      const entity = baselineEntities.find(e => e.entityId === itemId);
+      if (!entity) return;
+
+      const { cmgr, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+      if (baselineValue === 0 || !lastMonthKey) return;
+
+      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
+      let previousValue = baselineValue;
+      let previousMonthNum = lastMonthNum;
+
+      forecastMonthKeys.forEach((forecastKey) => {
+        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
+        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+        const historicalChange = momPatterns[transitionKey];
+
+        let forecastValue;
+        if (historicalChange !== undefined) {
+          forecastValue = previousValue * (1 + historicalChange);
+        } else {
+          forecastValue = previousValue;
+        }
+
+        // Apply CMGR
+        forecastValue = forecastValue * (1 + cmgr);
+
+        forecast[forecastKey] = (forecast[forecastKey] || 0) + forecastValue;
+
+        previousValue = forecastValue;
+        previousMonthNum = forecastMonthNum;
+      });
+    });
+
+    return forecast;
+  }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast]);
+
+  // Calculate initiative-impacted forecast
+  const initiativeForecast = useMemo(() => {
+    if (!forecastEnabled || Object.keys(baselineForecast).length === 0) {
+      return {};
+    }
+
+    const forecast: Record<string, number> = {};
+    const impactMultiplier = 1 + (initiativeImpact / 100);
+
+    Object.entries(baselineForecast).forEach(([key, value]) => {
+      forecast[key] = value * impactMultiplier;
+    });
+
+    return forecast;
+  }, [forecastEnabled, baselineForecast, initiativeImpact]);
+
+  // Prepare chart data
+  const forecastChartData = useMemo(() => {
+    if (!forecastEnabled || Object.keys(baselineForecast).length === 0) {
+      return [];
+    }
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    return forecastMonthKeys.map((key) => {
+      const [year, month] = key.split('-');
+      const monthIndex = parseInt(month) - 1;
+      const monthLabel = `${monthNames[monthIndex]} '${year.slice(-2)}`;
+
       return {
         month: monthLabel,
-        revenue: revenue / 1000, // Convert to K for display
+        baseline: (baselineForecast[key] || 0) / 1000,
+        withInitiative: (initiativeForecast[key] || 0) / 1000,
       };
     });
-  }, [forecastEnabled, monthlyRevenue]);
+  }, [forecastEnabled, baselineForecast, initiativeForecast, forecastMonthKeys]);
 
   if (loading) {
     return (
@@ -575,13 +741,24 @@ export default function InitiativePage() {
                 <div className="space-y-6">
                   {/* Forecast Chart */}
                   <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                    <h3 className="text-sm font-semibold text-white mb-4">Revenue Forecast (12 Months)</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-white">Revenue Forecast (12 Months)</h3>
+                      {selectedLineItems.length > 0 && (
+                        <div className="text-xs text-gray-400">
+                          {selectedLineItems.length} line item{selectedLineItems.length !== 1 ? 's' : ''} selected
+                        </div>
+                      )}
+                    </div>
                     {forecastEnabled && forecastChartData.length > 0 ? (
                       <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={forecastChartData}>
                             <defs>
-                              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                              <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#9ca3af" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#9ca3af" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorInitiative" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3}/>
                                 <stop offset="95%" stopColor="#00d4aa" stopOpacity={0}/>
                               </linearGradient>
@@ -604,14 +781,26 @@ export default function InitiativePage() {
                                 borderRadius: "8px",
                                 color: "#fff",
                               }}
-                              formatter={(value: number | undefined) => [`$${(value || 0).toFixed(1)}K`, "Revenue"]}
+                              formatter={(value: number | undefined, name: string | undefined) => [
+                                `$${(value || 0).toFixed(1)}K`, 
+                                name === "baseline" ? "Baseline" : "With Initiative"
+                              ]}
                             />
                             <Area
                               type="monotone"
-                              dataKey="revenue"
+                              dataKey="baseline"
+                              stroke="#9ca3af"
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              fill="url(#colorBaseline)"
+                              dot={{ fill: "#9ca3af", strokeWidth: 2, r: 3 }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="withInitiative"
                               stroke="#00d4aa"
                               strokeWidth={2}
-                              fill="url(#colorRevenue)"
+                              fill="url(#colorInitiative)"
                               dot={{ fill: "#00d4aa", strokeWidth: 2, r: 3 }}
                             />
                           </AreaChart>
@@ -621,7 +810,7 @@ export default function InitiativePage() {
                       <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
                         <div className="text-center">
                           <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                          <p>Enable forecast in the Forecast tab to see revenue projections</p>
+                          <p>Select line items in the Forecast tab to see projections</p>
                         </div>
                       </div>
                     )}
@@ -630,21 +819,21 @@ export default function InitiativePage() {
                       <div className="mt-4 pt-4 border-t border-gray-700">
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
-                            <div className="text-xs text-gray-400 mb-1">Total Revenue</div>
+                            <div className="text-xs text-gray-400 mb-1">Baseline Total</div>
+                            <div className="text-lg font-bold text-gray-400">
+                              ${Object.values(baselineForecast).reduce((sum, val) => sum + val, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">With Initiative</div>
                             <div className="text-lg font-bold text-[#00d4aa]">
-                              ${monthlyRevenue.reduce((sum, val) => sum + val, 0).toLocaleString()}
+                              ${Object.values(initiativeForecast).reduce((sum, val) => sum + val, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
                           </div>
                           <div>
-                            <div className="text-xs text-gray-400 mb-1">Avg. Monthly</div>
-                            <div className="text-lg font-bold text-white">
-                              ${(monthlyRevenue.reduce((sum, val) => sum + val, 0) / 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Peak Month</div>
+                            <div className="text-xs text-gray-400 mb-1">Incremental Impact</div>
                             <div className="text-lg font-bold text-[#3b82f6]">
-                              ${Math.max(...monthlyRevenue).toLocaleString()}
+                              ${(Object.values(initiativeForecast).reduce((sum, val) => sum + val, 0) - Object.values(baselineForecast).reduce((sum, val) => sum + val, 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
                           </div>
                         </div>
@@ -767,27 +956,99 @@ export default function InitiativePage() {
                 
                 {forecastEnabled ? (
                   <div className="space-y-4">
+                    {/* Line Item Selection */}
                     <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                      <h4 className="text-sm font-semibold text-gray-400 mb-3">Monthly Revenue Projections</h4>
-                      <div className="grid grid-cols-4 gap-3">
-                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, idx) => (
-                          <div key={month}>
-                            <label className="text-xs text-gray-400 block mb-1">{month}</label>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-white">Impacted Line Items</h4>
+                        <button
+                          onClick={() => setShowLineItemSelector(true)}
+                          className="text-xs px-3 py-1 rounded bg-[#00d4aa] text-black hover:bg-[#00b894] font-medium"
+                        >
+                          + Select Line Items
+                        </button>
+                      </div>
+                      
+                      {selectedLineItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedLineItems.map(itemId => {
+                            const entity = baselineEntities.find(e => e.entityId === itemId);
+                            if (!entity) return null;
+                            return (
+                              <div key={itemId} className="flex items-center justify-between p-2 rounded bg-gray-900/50 border border-gray-600">
+                                <div>
+                                  <div className="text-sm text-white font-medium">{entity.entityName}</div>
+                                  <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
+                                  className="text-xs text-gray-400 hover:text-red-400"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400 text-sm">
+                          <Target className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                          <p>Select which master table line items this initiative will impact</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Initiative Impact */}
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                      <h4 className="text-sm font-semibold text-white mb-3">Initiative Impact</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-400 block mb-2">
+                            Growth Impact (% change to baseline)
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="range"
+                              min="-100"
+                              max="200"
+                              step="1"
+                              value={initiativeImpact}
+                              onChange={(e) => setInitiativeImpact(parseFloat(e.target.value))}
+                              className="flex-1"
+                            />
                             <input
                               type="number"
-                              value={monthlyRevenue[idx]}
-                              onChange={(e) => {
-                                const newRevenue = [...monthlyRevenue];
-                                newRevenue[idx] = parseFloat(e.target.value) || 0;
-                                setMonthlyRevenue(newRevenue);
-                              }}
-                              className="w-full px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-sm focus:outline-none focus:border-[#00d4aa]"
+                              value={initiativeImpact}
+                              onChange={(e) => setInitiativeImpact(parseFloat(e.target.value) || 0)}
+                              className="w-20 px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-sm focus:outline-none focus:border-[#00d4aa]"
                             />
+                            <span className="text-sm text-white font-medium">%</span>
                           </div>
-                        ))}
+                        </div>
+                        
+                        <div className="text-xs text-gray-400">
+                          {initiativeImpact > 0 && (
+                            <span className="text-[#00d4aa]">✓ This initiative will increase revenue by {initiativeImpact}%</span>
+                          )}
+                          {initiativeImpact < 0 && (
+                            <span className="text-orange-400">⚠ This initiative will reduce revenue by {Math.abs(initiativeImpact)}%</span>
+                          )}
+                          {initiativeImpact === 0 && (
+                            <span>No impact set - baseline forecast will be used</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-3 text-sm text-gray-400">
-                        Total Annual Revenue: <span className="text-[#00d4aa] font-semibold">${monthlyRevenue.reduce((a, b) => a + b, 0).toLocaleString()}</span>
+                    </div>
+
+                    {/* Forecast Model Info */}
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-blue-900/20 to-blue-900/10 border border-blue-800/50">
+                      <div className="text-xs text-blue-200">
+                        <div className="font-semibold mb-1">📊 Forecast Model</div>
+                        <div className="text-blue-300/80 space-y-1">
+                          <div>• Uses CMGR (Compound Monthly Growth Rate) from 12 months of historical data</div>
+                          <div>• Applies month-to-month seasonal patterns (e.g., Dec → Jan typically shows different growth)</div>
+                          <div>• Builds each month&apos;s forecast on the previous month</div>
+                          <div>• Your impact % is applied on top of the baseline forecast</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -795,6 +1056,60 @@ export default function InitiativePage() {
                   <div className="text-center py-12 text-gray-400">
                     <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p>Enable forecasting to model revenue projections</p>
+                  </div>
+                )}
+                
+                {/* Line Item Selector Modal */}
+                {showLineItemSelector && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowLineItemSelector(false)}>
+                    <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-white">Select Line Items</h3>
+                        <button
+                          onClick={() => setShowLineItemSelector(false)}
+                          className="text-gray-400 hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {baselineEntities
+                          .filter(e => e.metricType === "revenue")
+                          .map(entity => (
+                            <label
+                              key={entity.entityId}
+                              className="flex items-center gap-3 p-3 rounded bg-gray-900/50 border border-gray-600 hover:border-gray-500 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedLineItems.includes(entity.entityId)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedLineItems(prev => [...prev, entity.entityId]);
+                                  } else {
+                                    setSelectedLineItems(prev => prev.filter(id => id !== entity.entityId));
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="text-sm text-white font-medium">{entity.entityName}</div>
+                                <div className="text-xs text-gray-400">{entity.source} • ${entity.months[monthKeys[monthKeys.length - 1]]?.toLocaleString() || 0} (last month)</div>
+                              </div>
+                            </label>
+                          ))}
+                      </div>
+                      
+                      <div className="mt-4 flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowLineItemSelector(false)}
+                          className="px-4 py-2 rounded bg-gray-700 text-white hover:bg-gray-600"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
