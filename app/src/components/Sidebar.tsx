@@ -34,6 +34,7 @@ import {
   Percent,
   Layers,
   Table,
+  Network,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -146,6 +147,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
         { label: "Build Forecast", href: "/planning/forecast", icon: <TrendingUp className="w-4 h-4" />, badge: "Core" },
         { label: "Scenarios", href: "/planning/scenarios", icon: <BarChart3 className="w-4 h-4" /> },
         { label: "Monte Carlo", href: "/planning/monte-carlo", icon: <Sparkles className="w-4 h-4" /> },
+        { label: "Causation Analysis", href: "/planning/causation", icon: <Network className="w-4 h-4" />, badge: "New" },
       ],
     },
   ],
