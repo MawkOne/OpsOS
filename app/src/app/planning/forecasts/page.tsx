@@ -15,6 +15,9 @@ import {
   Check,
   Download,
   Share2,
+  GitBranch,
+  Save,
+  History,
 } from "lucide-react";
 import {
   Line,
@@ -39,6 +42,13 @@ import {
   doc,
   serverTimestamp,
 } from "firebase/firestore";
+import { 
+  createForecastVersion, 
+  getActiveForecastVersion,
+  getForecastVersion,
+} from "@/lib/forecastVersions";
+import { ForecastVersion } from "@/types/forecast";
+import ForecastVersionSelector from "@/components/ForecastVersionSelector";
 
 interface BaselineEntity {
   id?: string;
@@ -75,8 +85,18 @@ export default function ForecastsPage() {
   const [modalLoading] = useState(false);
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterMetric, setFilterMetric] = useState<string>("all");
+  
+  // Version control state
+  const [activeVersion, setActiveVersion] = useState<ForecastVersion | null>(null);
+  const [loadedVersion, setLoadedVersion] = useState<ForecastVersion | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versionName, setVersionName] = useState("");
+  const [versionDescription, setVersionDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const organizationId = currentOrg?.id || "";
+  const hasUnsavedChanges = !loadedVersion; // If no version is loaded, there are unsaved changes
 
   // Generate month keys - trailing months up to last completed month (not including current)
   const monthKeys = useMemo(() => {
@@ -641,6 +661,23 @@ export default function ForecastsPage() {
     setSelectedEntityIds(ids);
   }, [baselineEntities]);
 
+  // Load active forecast version
+  useEffect(() => {
+    const loadActiveVersion = async () => {
+      if (!organizationId) return;
+      
+      try {
+        const active = await getActiveForecastVersion(organizationId);
+        setActiveVersion(active);
+        console.log("📊 Loaded active forecast version:", active?.name || "None");
+      } catch (error) {
+        console.error("Error loading active version:", error);
+      }
+    };
+
+    loadActiveVersion();
+  }, [organizationId]);
+
   // Calculate growth rate for entity
   const calculateGrowthRate = (entity: BaselineEntity) => {
     const values = monthKeys.map(key => entity.months[key] || 0);
@@ -743,12 +780,125 @@ export default function ForecastsPage() {
     return matchesSource && matchesMetric;
   });
 
+  // Save current forecast as a new version
+  const handleSaveVersion = async () => {
+    if (!organizationId || !currentOrg || !versionName.trim()) {
+      alert("Please enter a version name");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const entityIds = Array.from(selectedEntityIds);
+      
+      const versionId = await createForecastVersion(organizationId, {
+        name: versionName.trim(),
+        description: versionDescription.trim() || undefined,
+        createdBy: "user-id", // TODO: Get from auth context
+        createdByName: "Current User", // TODO: Get from auth context
+        selectedEntityIds: entityIds,
+        forecastMonths: forecastMonthKeys.length,
+        startMonth: forecastMonthKeys[0],
+        status: "published", // Auto-publish for now
+      });
+
+      console.log("✅ Saved forecast version:", versionId);
+      
+      // Reload active version
+      const active = await getActiveForecastVersion(organizationId);
+      setActiveVersion(active);
+      setLoadedVersion(active);
+      
+      // Reset form
+      setVersionName("");
+      setVersionDescription("");
+      setShowSaveModal(false);
+      
+      alert(`Forecast version "${versionName}" saved successfully!`);
+    } catch (error) {
+      console.error("Error saving version:", error);
+      alert("Failed to save forecast version");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Load a specific forecast version
+  const handleLoadVersion = async (version: ForecastVersion) => {
+    try {
+      setLoadedVersion(version);
+      setShowVersionHistory(false);
+      console.log("📂 Loaded forecast version:", version.name);
+      
+      // TODO: Load the baseline entities from the version
+      // For now, just marking it as loaded
+    } catch (error) {
+      console.error("Error loading version:", error);
+      alert("Failed to load forecast version");
+    }
+  };
+
   return (
     <AppLayout 
       title="Forecasting Model" 
       subtitle="14-month history (Nov '24 - Dec '25) with 12-month projection using CMGR and seasonal patterns"
     >
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Version Control Header */}
+        <Card className="border-l-4 border-l-[#00d4aa]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-[#00d4aa]" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {loadedVersion ? `Version: ${loadedVersion.name}` : "Current Forecast"}
+                    </span>
+                    {hasUnsavedChanges && (
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-600 dark:text-yellow-400">
+                        Unsaved
+                      </span>
+                    )}
+                    {loadedVersion?.status === "published" && (
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-[#00d4aa]/20 text-[#00d4aa]">
+                        Published
+                      </span>
+                    )}
+                  </div>
+                  {loadedVersion && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {loadedVersion.description || "No description"}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowVersionHistory(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200"
+                style={{ 
+                  background: "var(--muted)",
+                  color: "var(--foreground-muted)",
+                }}
+              >
+                <History className="w-4 h-4" />
+                <span className="text-sm">Version History</span>
+              </button>
+              
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 bg-[#00d4aa] text-black hover:bg-[#00d4aa]/90"
+              >
+                <Save className="w-4 h-4" />
+                <span className="text-sm">Save Version</span>
+              </button>
+            </div>
+          </div>
+        </Card>
+
         {/* Revenue Forecast Visualization */}
         {revenueChartData.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
@@ -1295,6 +1445,135 @@ export default function ForecastsPage() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Save Version Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-lg w-full"
+          >
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                  Save Forecast Version
+                </h3>
+                <button
+                  onClick={() => setShowSaveModal(false)}
+                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                    Version Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={versionName}
+                    onChange={(e) => setVersionName(e.target.value)}
+                    placeholder="e.g., Q1 2026 Conservative"
+                    className="w-full px-3 py-2 rounded-lg border"
+                    style={{
+                      background: "var(--background)",
+                      borderColor: "var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={versionDescription}
+                    onChange={(e) => setVersionDescription(e.target.value)}
+                    placeholder="What assumptions or changes does this version include?"
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-lg border resize-none"
+                    style={{
+                      background: "var(--background)",
+                      borderColor: "var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                </div>
+
+                <div className="p-3 rounded-lg" style={{ background: "var(--muted)" }}>
+                  <div className="flex items-start gap-2">
+                    <GitBranch className="w-4 h-4 text-[#00d4aa] mt-0.5" />
+                    <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                      <p className="mb-1">This will save the current forecast as a new version, including:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>{selectedEntityIds.size} selected entities</li>
+                        <li>{forecastMonthKeys.length} months of projections</li>
+                        <li>All CMGR calculations and seasonal patterns</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowSaveModal(false)}
+                    className="flex-1 px-4 py-2 rounded-lg border transition-colors"
+                    style={{
+                      borderColor: "var(--border)",
+                      color: "var(--foreground-muted)",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveVersion}
+                    disabled={!versionName.trim() || saving}
+                    className="flex-1 px-4 py-2 rounded-lg bg-[#00d4aa] text-black hover:bg-[#00d4aa]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {saving ? "Saving..." : "Save Version"}
+                  </button>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Version History Modal */}
+      {showVersionHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-4xl w-full max-h-[80vh]"
+          >
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                  Forecast Version History
+                </h3>
+                <button
+                  onClick={() => setShowVersionHistory(false)}
+                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <ForecastVersionSelector
+                organizationId={organizationId}
+                onSelectVersion={handleLoadVersion}
+                currentVersionId={loadedVersion?.id}
+              />
+            </Card>
           </motion.div>
         </div>
       )}
