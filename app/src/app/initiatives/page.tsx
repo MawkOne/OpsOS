@@ -91,6 +91,8 @@ export default function InitiativesDashboard() {
 
     const unsubInitiatives = onSnapshot(initiativesQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Initiative));
+      console.log("📊 Initiatives loaded:", data.length, "initiatives for org:", currentOrg.id);
+      console.log("Initiatives data:", data);
       setInitiatives(data);
       setLoading(false);
     });
@@ -199,6 +201,17 @@ export default function InitiativesDashboard() {
       console.error("Error deleting initiative:", error);
     }
   };
+
+  // Debug logging
+  console.log("🔍 Initiatives Page State:", {
+    loading,
+    organizationId: currentOrg?.id,
+    initiativesCount: initiatives.length,
+    filteredCount: filteredInitiatives.length,
+    filterStatus,
+    filterCategory,
+    filterType
+  });
 
   if (loading) {
     return (
@@ -409,16 +422,30 @@ export default function InitiativesDashboard() {
             <div className="text-center py-12">
               <Zap className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: "var(--foreground-muted)" }} />
               <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
-                No initiatives yet. Create your first one!
+                No initiatives yet. Create your first one or seed the growth ideas!
               </p>
-              <button 
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: "var(--accent)", color: "var(--background)" }}
-              >
-                <Plus className="w-4 h-4 inline mr-2" />
-                New Initiative
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button 
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{ background: "var(--accent)", color: "var(--background)" }}
+                >
+                  <Plus className="w-4 h-4 inline mr-2" />
+                  New Initiative
+                </button>
+                <button 
+                  onClick={() => {
+                    if (confirm("This will add 11 initiatives from your Growth Ideas document. Continue?")) {
+                      seedInitiatives(currentOrg?.id || "");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  <Zap className="w-4 h-4 inline mr-2" />
+                  Seed Growth Ideas
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
