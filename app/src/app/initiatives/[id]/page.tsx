@@ -87,7 +87,11 @@ export default function InitiativePage({ params }: PageProps) {
           
           // Load scenarios
           if (data.scenarios) {
-            setScenarios(data.scenarios);
+            setScenarios({
+              base: data.scenarios.base || { revenue: 0, costs: 0, probability: 60, description: "Expected trajectory" },
+              optimistic: data.scenarios.optimistic || { revenue: 0, costs: 0, probability: 25, description: "Best case outcome" },
+              pessimistic: data.scenarios.pessimistic || { revenue: 0, costs: 0, probability: 15, description: "Worst case outcome" },
+            });
           }
           
           // Load Monte Carlo
