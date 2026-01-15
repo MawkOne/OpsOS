@@ -239,12 +239,12 @@ export default function InitiativePage() {
 
   return (
     <AppLayout 
-      title={initiative.name} 
-      subtitle={initiative.description || "Initiative details and forecasting"}
+      title="Initiative Details" 
+      subtitle="View and manage initiative forecasting"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Back Button & Header */}
-        <div className="mb-6 flex items-start justify-between">
+        <div className="flex items-start justify-between">
           <button
             onClick={() => router.push("/initiatives")}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-[#1a1a1a] transition-colors"
@@ -261,6 +261,14 @@ export default function InitiativePage() {
               {status.label}
             </span>
           </div>
+        </div>
+        
+        {/* Initiative Title */}
+        <div className="px-6 py-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+          <h1 className="text-2xl font-bold text-white mb-2">{initiative.name}</h1>
+          {initiative.description && (
+            <p className="text-sm text-gray-400">{initiative.description}</p>
+          )}
         </div>
 
         {/* Tabs */}
