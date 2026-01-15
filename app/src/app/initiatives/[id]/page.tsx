@@ -32,6 +32,22 @@ export default function InitiativePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "forecast" | "scenarios" | "montecarlo">("overview");
   const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  
+  // Editable form state
+  const [formData, setFormData] = useState({
+    name: "",
+    progress: 0,
+    estimatedCost: 0,
+    expectedRevenue: 0,
+    expectedSavings: 0,
+    estimatedPeopleHours: 0,
+    estimatedDuration: 0,
+    priority: "medium" as "critical" | "high" | "medium" | "low",
+    whatsImportant: "",
+    howAreWeDoing: "",
+    prioritiesToImprove: "",
+  });
   
   // Forecast state
   const [forecastEnabled, setForecastEnabled] = useState(false);
@@ -113,6 +129,39 @@ export default function InitiativePage() {
           }
           
           setInitiative(data);
+          
+          // Parse description into sections
+          const sections = data.description?.split('\n\n') || [];
+          const parsed = {
+            whatsImportant: '',
+            howAreWeDoing: '',
+            prioritiesToImprove: ''
+          };
+          
+          sections.forEach(section => {
+            if (section.startsWith("What's Important:")) {
+              parsed.whatsImportant = section.replace("What's Important:", '').trim();
+            } else if (section.startsWith("How We're Doing:")) {
+              parsed.howAreWeDoing = section.replace("How We're Doing:", '').trim();
+            } else if (section.startsWith("Priorities to Improve:")) {
+              parsed.prioritiesToImprove = section.replace("Priorities to Improve:", '').trim();
+            }
+          });
+          
+          // Initialize form data
+          setFormData({
+            name: data.name || "",
+            progress: data.progress || 0,
+            estimatedCost: data.estimatedCost || 0,
+            expectedRevenue: data.expectedRevenue || 0,
+            expectedSavings: data.expectedSavings || 0,
+            estimatedPeopleHours: data.estimatedPeopleHours || 0,
+            estimatedDuration: data.estimatedDuration || 0,
+            priority: data.priority || "medium",
+            whatsImportant: parsed.whatsImportant,
+            howAreWeDoing: parsed.howAreWeDoing,
+            prioritiesToImprove: parsed.prioritiesToImprove,
+          });
           
           // Load forecast data
           if (data.forecast) {
@@ -204,6 +253,61 @@ export default function InitiativePage() {
       setSaving(false);
     }
   };
+  
+  const handleSaveOverview = async () => {
+    if (!initiative) return;
+    
+    setSaving(true);
+    try {
+      // Reconstruct description from sections
+      const descriptionSections = [];
+      if (formData.whatsImportant) {
+        descriptionSections.push(`What's Important: ${formData.whatsImportant}`);
+      }
+      if (formData.howAreWeDoing) {
+        descriptionSections.push(`How We're Doing: ${formData.howAreWeDoing}`);
+      }
+      if (formData.prioritiesToImprove) {
+        descriptionSections.push(`Priorities to Improve: ${formData.prioritiesToImprove}`);
+      }
+      const description = descriptionSections.join('\n\n');
+      
+      await updateDoc(doc(db, "initiatives", initiative.id), {
+        name: formData.name,
+        progress: formData.progress,
+        estimatedCost: formData.estimatedCost,
+        expectedRevenue: formData.expectedRevenue,
+        expectedSavings: formData.expectedSavings,
+        estimatedPeopleHours: formData.estimatedPeopleHours,
+        estimatedDuration: formData.estimatedDuration,
+        priority: formData.priority,
+        description,
+        updatedAt: serverTimestamp(),
+      });
+      
+      // Reload the initiative
+      const initiativeDoc = await getDoc(doc(db, "initiatives", initiative.id));
+      if (initiativeDoc.exists()) {
+        const rawData = initiativeDoc.data();
+        const sanitizedData: Record<string, unknown> = { ...rawData };
+        ['startDate', 'targetDate', 'completedDate', 'createdAt', 'updatedAt'].forEach(field => {
+          if (sanitizedData[field] === null || sanitizedData[field] === undefined) {
+            delete sanitizedData[field];
+          }
+        });
+        const data = { id: initiativeDoc.id, ...sanitizedData } as Initiative;
+        setInitiative(data);
+      }
+      
+      setEditMode(false);
+      alert("✅ Initiative updated successfully!");
+    } catch (error) {
+      console.error("Error updating initiative:", error);
+      alert("❌ Failed to update initiative");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -264,8 +368,73 @@ export default function InitiativePage() {
         </div>
         
         {/* Initiative Title */}
-        <div className="px-6 py-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-          <h1 className="text-2xl font-bold text-white">{initiative.name}</h1>
+        <div className="px-6 py-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-between">
+          {editMode && activeTab === "overview" ? (
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-1 flex-1"
+            />
+          ) : (
+            <h1 className="text-2xl font-bold text-white">{initiative.name}</h1>
+          )}
+          
+          {activeTab === "overview" && (
+            <div className="flex items-center gap-2 ml-4">
+              {editMode ? (
+                <>
+                  <button
+                    onClick={handleSaveOverview}
+                    disabled={saving}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#00d4aa] text-black hover:bg-[#00b894] transition-colors disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditMode(false);
+                      // Reset form data
+                      const sections = initiative.description?.split('\n\n') || [];
+                      const parsed = { whatsImportant: '', howAreWeDoing: '', prioritiesToImprove: '' };
+                      sections.forEach(section => {
+                        if (section.startsWith("What's Important:")) {
+                          parsed.whatsImportant = section.replace("What's Important:", '').trim();
+                        } else if (section.startsWith("How We're Doing:")) {
+                          parsed.howAreWeDoing = section.replace("How We're Doing:", '').trim();
+                        } else if (section.startsWith("Priorities to Improve:")) {
+                          parsed.prioritiesToImprove = section.replace("Priorities to Improve:", '').trim();
+                        }
+                      });
+                      setFormData({
+                        name: initiative.name || "",
+                        progress: initiative.progress || 0,
+                        estimatedCost: initiative.estimatedCost || 0,
+                        expectedRevenue: initiative.expectedRevenue || 0,
+                        expectedSavings: initiative.expectedSavings || 0,
+                        estimatedPeopleHours: initiative.estimatedPeopleHours || 0,
+                        estimatedDuration: initiative.estimatedDuration || 0,
+                        priority: initiative.priority || "medium",
+                        whatsImportant: parsed.whatsImportant,
+                        howAreWeDoing: parsed.howAreWeDoing,
+                        prioritiesToImprove: parsed.prioritiesToImprove,
+                      });
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-[#2a2a2a] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -301,22 +470,55 @@ export default function InitiativePage() {
                 <div className="grid grid-cols-4 gap-4">
                   <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
                     <div className="text-xs text-gray-400 mb-1">Progress</div>
-                    <div className="text-2xl font-bold text-white">{initiative.progress || 0}%</div>
+                    {editMode ? (
+                      <input
+                        type="number"
+                        value={formData.progress}
+                        onChange={(e) => setFormData({ ...formData, progress: parseFloat(e.target.value) || 0 })}
+                        className="w-full text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                        min="0"
+                        max="100"
+                      />
+                    ) : (
+                      <div className="text-2xl font-bold text-white">{initiative.progress || 0}%</div>
+                    )}
                   </div>
                   <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
                     <div className="text-xs text-gray-400 mb-1">Est. Cost</div>
-                    <div className="text-2xl font-bold text-white">${(initiative.estimatedCost || 0).toLocaleString()}</div>
+                    {editMode ? (
+                      <input
+                        type="number"
+                        value={formData.estimatedCost}
+                        onChange={(e) => setFormData({ ...formData, estimatedCost: parseFloat(e.target.value) || 0 })}
+                        className="w-full text-2xl font-bold text-white bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                      />
+                    ) : (
+                      <div className="text-2xl font-bold text-white">${(initiative.estimatedCost || 0).toLocaleString()}</div>
+                    )}
                   </div>
                   <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
                     <div className="text-xs text-gray-400 mb-1">Expected Revenue</div>
-                    <div className="text-2xl font-bold text-[#00d4aa]">${(initiative.expectedRevenue || 0).toLocaleString()}</div>
+                    {editMode ? (
+                      <input
+                        type="number"
+                        value={formData.expectedRevenue}
+                        onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
+                        className="w-full text-2xl font-bold text-[#00d4aa] bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                      />
+                    ) : (
+                      <div className="text-2xl font-bold text-[#00d4aa]">${(initiative.expectedRevenue || 0).toLocaleString()}</div>
+                    )}
                   </div>
                   <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
                     <div className="text-xs text-gray-400 mb-1">ROI</div>
                     <div className="text-2xl font-bold text-[#3b82f6]">
-                      {initiative.estimatedCost && initiative.expectedRevenue
-                        ? ((initiative.expectedRevenue / initiative.estimatedCost - 1) * 100).toFixed(0)
-                        : 0}%
+                      {editMode
+                        ? (formData.estimatedCost && formData.expectedRevenue
+                            ? ((formData.expectedRevenue / formData.estimatedCost - 1) * 100).toFixed(0)
+                            : 0)
+                        : (initiative.estimatedCost && initiative.expectedRevenue
+                            ? ((initiative.expectedRevenue / initiative.estimatedCost - 1) * 100).toFixed(0)
+                            : 0)}%
                     </div>
                   </div>
                 </div>
@@ -326,13 +528,31 @@ export default function InitiativePage() {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-400 mb-3">Resources Required</h3>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-gray-400">People Hours:</span>
-                        <span className="text-white font-medium">{initiative.estimatedPeopleHours || 0}h</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.estimatedPeopleHours}
+                            onChange={(e) => setFormData({ ...formData, estimatedPeopleHours: parseFloat(e.target.value) || 0 })}
+                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-24"
+                          />
+                        ) : (
+                          <span className="text-white font-medium">{initiative.estimatedPeopleHours || 0}h</span>
+                        )}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-gray-400">Duration:</span>
-                        <span className="text-white font-medium">{initiative.estimatedDuration || 0} weeks</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.estimatedDuration}
+                            onChange={(e) => setFormData({ ...formData, estimatedDuration: parseFloat(e.target.value) || 0 })}
+                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-24"
+                          />
+                        ) : (
+                          <span className="text-white font-medium">{initiative.estimatedDuration || 0} weeks</span>
+                        )}
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-400">Team Members:</span>
@@ -344,17 +564,48 @@ export default function InitiativePage() {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-400 mb-3">Impact</h3>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-gray-400">Expected Revenue:</span>
-                        <span className="text-[#00d4aa] font-medium">${(initiative.expectedRevenue || 0).toLocaleString()}</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.expectedRevenue}
+                            onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
+                            className="text-[#00d4aa] font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-32"
+                          />
+                        ) : (
+                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedRevenue || 0).toLocaleString()}</span>
+                        )}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-gray-400">Expected Savings:</span>
-                        <span className="text-[#00d4aa] font-medium">${(initiative.expectedSavings || 0).toLocaleString()}</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.expectedSavings}
+                            onChange={(e) => setFormData({ ...formData, expectedSavings: parseFloat(e.target.value) || 0 })}
+                            className="text-[#00d4aa] font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1 w-32"
+                          />
+                        ) : (
+                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedSavings || 0).toLocaleString()}</span>
+                        )}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-gray-400">Priority:</span>
-                        <span className="text-white font-medium capitalize">{initiative.priority}</span>
+                        {editMode ? (
+                          <select
+                            value={formData.priority}
+                            onChange={(e) => setFormData({ ...formData, priority: e.target.value as "critical" | "high" | "medium" | "low" })}
+                            className="text-white font-medium bg-[#0a0a0a] border border-[#2a2a2a] rounded px-2 py-1"
+                          >
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                          </select>
+                        ) : (
+                          <span className="text-white font-medium capitalize">{initiative.priority}</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -368,49 +619,49 @@ export default function InitiativePage() {
                 )}
                 
                 {/* Initiative Details - Parsed from description */}
-                {initiative.description && (() => {
-                  const sections = initiative.description.split('\n\n');
-                  const parsed = {
-                    whatsImportant: '',
-                    howAreWeDoing: '',
-                    prioritiesToImprove: ''
-                  };
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                    <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.whatsImportant}
+                        onChange={(e) => setFormData({ ...formData, whatsImportant: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        placeholder="Describe what's important about this initiative..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.whatsImportant || "Not set"}</p>
+                    )}
+                  </div>
                   
-                  sections.forEach(section => {
-                    if (section.startsWith("What's Important:")) {
-                      parsed.whatsImportant = section.replace("What's Important:", '').trim();
-                    } else if (section.startsWith("How We're Doing:")) {
-                      parsed.howAreWeDoing = section.replace("How We're Doing:", '').trim();
-                    } else if (section.startsWith("Priorities to Improve:")) {
-                      parsed.prioritiesToImprove = section.replace("Priorities to Improve:", '').trim();
-                    }
-                  });
+                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                    <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.howAreWeDoing}
+                        onChange={(e) => setFormData({ ...formData, howAreWeDoing: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        placeholder="Describe current performance..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.howAreWeDoing || "Not set"}</p>
+                    )}
+                  </div>
                   
-                  return (
-                    <div className="space-y-4">
-                      {parsed.whatsImportant && (
-                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-                          <h3 className="text-sm font-semibold text-white mb-2">What&apos;s Important</h3>
-                          <p className="text-sm text-gray-300">{parsed.whatsImportant}</p>
-                        </div>
-                      )}
-                      
-                      {parsed.howAreWeDoing && (
-                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-                          <h3 className="text-sm font-semibold text-white mb-2">How We&apos;re Doing</h3>
-                          <p className="text-sm text-gray-300">{parsed.howAreWeDoing}</p>
-                        </div>
-                      )}
-                      
-                      {parsed.prioritiesToImprove && (
-                        <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-                          <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
-                          <p className="text-sm text-gray-300">{parsed.prioritiesToImprove}</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                  <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                    <h3 className="text-sm font-semibold text-white mb-2">Priorities to Improve</h3>
+                    {editMode ? (
+                      <textarea
+                        value={formData.prioritiesToImprove}
+                        onChange={(e) => setFormData({ ...formData, prioritiesToImprove: e.target.value })}
+                        className="w-full text-sm text-gray-300 bg-[#0a0a0a] border border-[#2a2a2a] rounded px-3 py-2 min-h-[80px]"
+                        placeholder="List priorities to improve..."
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-300">{formData.prioritiesToImprove || "Not set"}</p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
             
