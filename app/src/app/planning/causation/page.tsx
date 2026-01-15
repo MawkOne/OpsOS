@@ -212,7 +212,7 @@ export default function CausationAnalysisPage() {
                 onClick={() => setActiveView("target")}
                 className={`px-4 py-2 rounded font-medium ${
                   activeView === "target"
-                    : "bg-[#00d4aa] text-black"
+                    ? "bg-[#00d4aa] text-black"
                     : "bg-gray-800 text-gray-400 hover:text-white"
                 }`}
               >
