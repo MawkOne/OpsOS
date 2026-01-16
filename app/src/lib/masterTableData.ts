@@ -321,65 +321,135 @@ async function fetchQuickBooksEntities(organizationId: string, entities: MasterT
  */
 async function fetchGoogleAnalyticsEntities(organizationId: string, entities: MasterTableEntity[]) {
   try {
-    // Fetch GA Pages
-    const pagesQuery = query(
-      collection(db, "google_analytics_pages"),
-      where("organizationId", "==", organizationId)
+    console.log("  📊 Fetching Google Analytics data for org:", organizationId);
+    
+    // Fetch Google Analytics Pages via API (matches Master Table approach)
+    const pagesResponse = await fetch(
+      `/api/google-analytics/pages?organizationId=${organizationId}&viewMode=all`
     );
-    const pagesSnap = await getDocs(pagesQuery);
 
-    const pageMetrics: Record<string, { name: string; sessions: Record<string, number>; pageviews: Record<string, number>; totalSessions: number; totalPageviews: number }> = {};
+    if (!pagesResponse.ok) {
+      console.warn("    ⚠️ Could not fetch Google Analytics pages:", pagesResponse.status);
+      return;
+    }
 
-    pagesSnap.docs.forEach(doc => {
-      const page = doc.data();
-      const pageId = page.pagePath || 'unknown';
-      const monthKey = `${page.year}-${String(page.month).padStart(2, '0')}`;
+    const pagesData = await pagesResponse.json();
+    const pages = pagesData.pages || [];
+    console.log(`    → Found ${pages.length} Google Analytics pages from API`);
 
-      if (!pageMetrics[pageId]) {
-        pageMetrics[pageId] = {
-          name: page.pageTitle || page.pagePath || 'Unknown Page',
-          sessions: {},
-          pageviews: {},
-          totalSessions: 0,
-          totalPageviews: 0
-        };
+    // Process pages
+    pages.forEach((pageData: any) => {
+      const pageName = pageData.name || 'Unknown Page';
+      const months = pageData.months || {};
+      
+      // Calculate totals
+      const pageviews = Object.values(months).reduce((sum: number, data: any) => sum + (data.pageviews || 0), 0);
+      const sessions = Object.values(months).reduce((sum: number, data: any) => sum + (data.sessions || 0), 0);
+      
+      // Create month records
+      const pageviewMonths: Record<string, number> = {};
+      const sessionMonths: Record<string, number> = {};
+      
+      Object.entries(months).forEach(([monthKey, data]: [string, any]) => {
+        pageviewMonths[monthKey] = data.pageviews || 0;
+        sessionMonths[monthKey] = data.sessions || 0;
+      });
+
+      // Add pageviews entity
+      if (pageviews > 0) {
+        entities.push({
+          id: `ga_page_${pageData.id}_pageviews`,
+          entityId: `ga_page_${pageData.id}_pageviews`,
+          entityName: pageName,
+          source: "google-analytics-organic",
+          type: "Page",
+          metric: "Pageviews",
+          metricType: "pageviews",
+          months: pageviewMonths,
+          total: pageviews
+        });
       }
 
-      pageMetrics[pageId].sessions[monthKey] = (pageMetrics[pageId].sessions[monthKey] || 0) + (page.sessions || 0);
-      pageMetrics[pageId].pageviews[monthKey] = (pageMetrics[pageId].pageviews[monthKey] || 0) + (page.pageviews || 0);
-      pageMetrics[pageId].totalSessions += page.sessions || 0;
-      pageMetrics[pageId].totalPageviews += page.pageviews || 0;
+      // Add sessions entity
+      if (sessions > 0) {
+        entities.push({
+          id: `ga_page_${pageData.id}_sessions`,
+          entityId: `ga_page_${pageData.id}_sessions`,
+          entityName: pageName,
+          source: "google-analytics-organic",
+          type: "Page",
+          metric: "Page Sessions",
+          metricType: "sessions",
+          months: sessionMonths,
+          total: sessions
+        });
+      }
     });
 
-    Object.entries(pageMetrics).forEach(([pageId, data]) => {
-      // Add sessions metric
-      entities.push({
-        id: `ga_page_${pageId}_sessions`,
-        entityId: `ga_page_${pageId}_sessions`,
-        entityName: data.name,
-        source: "google-analytics",
-        type: "Page",
-        metric: "Page Sessions",
-        metricType: "sessions",
-        months: data.sessions,
-        total: data.totalSessions
+    // Fetch Google Analytics Traffic Sources via API
+    const trafficResponse = await fetch(
+      `/api/google-analytics/traffic-sources?organizationId=${organizationId}&viewMode=all`
+    );
+
+    if (!trafficResponse.ok) {
+      console.warn("    ⚠️ Could not fetch Google Analytics traffic sources:", trafficResponse.status);
+      return;
+    }
+
+    const trafficData = await trafficResponse.json();
+    const sources = trafficData.sources || [];
+    console.log(`    → Found ${sources.length} Google Analytics traffic sources from API`);
+
+    // Process traffic sources
+    sources.forEach((sourceData: any) => {
+      const sourceName = sourceData.name || 'Unknown Source';
+      const months = sourceData.months || {};
+      
+      // Calculate totals
+      const sessions = Object.values(months).reduce((sum: number, data: any) => sum + (data.sessions || 0), 0);
+      const users = Object.values(months).reduce((sum: number, data: any) => sum + (data.users || 0), 0);
+      
+      // Create month records
+      const sessionMonths: Record<string, number> = {};
+      const userMonths: Record<string, number> = {};
+      
+      Object.entries(months).forEach(([monthKey, data]: [string, any]) => {
+        sessionMonths[monthKey] = data.sessions || 0;
+        userMonths[monthKey] = data.users || 0;
       });
 
-      // Add pageviews metric
-      entities.push({
-        id: `ga_page_${pageId}_pageviews`,
-        entityId: `ga_page_${pageId}_pageviews`,
-        entityName: data.name,
-        source: "google-analytics",
-        type: "Page",
-        metric: "Page Views",
-        metricType: "pageviews",
-        months: data.pageviews,
-        total: data.totalPageviews
-      });
+      // Add sessions entity
+      if (sessions > 0) {
+        entities.push({
+          id: `ga_traffic_${sourceData.id}_sessions`,
+          entityId: `ga_traffic_${sourceData.id}_sessions`,
+          entityName: sourceName,
+          source: "google-analytics-organic",
+          type: "Traffic Source",
+          metric: "Sessions",
+          metricType: "sessions",
+          months: sessionMonths,
+          total: sessions
+        });
+      }
+
+      // Add users entity
+      if (users > 0) {
+        entities.push({
+          id: `ga_traffic_${sourceData.id}_users`,
+          entityId: `ga_traffic_${sourceData.id}_users`,
+          entityName: sourceName,
+          source: "google-analytics-organic",
+          type: "Traffic Source",
+          metric: "Users",
+          metricType: "sessions",
+          months: userMonths,
+          total: users
+        });
+      }
     });
 
-    console.log(`📊 Loaded ${Object.keys(pageMetrics).length} Google Analytics pages`);
+    console.log(`    → Added ${pages.length * 2} page entities and ${sources.length * 2} traffic source entities`);
   } catch (error) {
     console.error("Error fetching Google Analytics entities:", error);
   }
