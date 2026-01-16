@@ -67,6 +67,7 @@ export default function InitiativePage() {
   const [funnelMode, setFunnelMode] = useState(false);
   const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
+  const [calculatedStages, setCalculatedStages] = useState<Record<number, Record<string, number>>>({});
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -208,6 +209,9 @@ export default function InitiativePage() {
             setForecastEnabled(data.forecast.enabled || false);
             setSelectedLineItems(data.forecast.selectedLineItems || []);
             setInitiativeImpact(data.forecast.initiativeImpact || 0);
+            setFunnelMode(data.forecast.funnelMode || false);
+            setFunnelOperations(data.forecast.funnelOperations || {});
+            setCalculatedStages(data.forecast.calculatedStages || {});
           }
           
           // Load scenarios
@@ -280,6 +284,9 @@ export default function InitiativePage() {
           enabled: forecastEnabled,
           selectedLineItems,
           initiativeImpact,
+          funnelMode,
+          funnelOperations,
+          calculatedStages,
           assumptions: [],
           drivers: [],
         },
@@ -512,6 +519,52 @@ export default function InitiativePage() {
 
     return forecast;
   }, [forecastEnabled, baselineForecast, initiativeImpact]);
+
+  // Calculate funnel stage results
+  useEffect(() => {
+    if (!funnelMode || selectedLineItems.length < 2) {
+      setCalculatedStages({});
+      return;
+    }
+
+    const newCalculatedStages: Record<number, Record<string, number>> = {};
+
+    // Calculate each stage (operation between item[i] and item[i+1])
+    for (let i = 0; i < selectedLineItems.length - 1; i++) {
+      const operation = funnelOperations[i] || 'multiply';
+      const entity1 = baselineEntities.find(e => e.entityId === selectedLineItems[i]);
+      const entity2 = baselineEntities.find(e => e.entityId === selectedLineItems[i + 1]);
+
+      if (!entity1 || !entity2) continue;
+
+      const stageResult: Record<string, number> = {};
+
+      // Calculate for each month
+      monthKeys.forEach(monthKey => {
+        const val1 = entity1.months[monthKey] || 0;
+        const val2 = entity2.months[monthKey] || 0;
+
+        switch (operation) {
+          case 'add':
+            stageResult[monthKey] = val1 + val2;
+            break;
+          case 'subtract':
+            stageResult[monthKey] = val1 - val2;
+            break;
+          case 'multiply':
+            stageResult[monthKey] = val1 * val2;
+            break;
+          case 'divide':
+            stageResult[monthKey] = val2 !== 0 ? val1 / val2 : 0;
+            break;
+        }
+      });
+
+      newCalculatedStages[i] = stageResult;
+    }
+
+    setCalculatedStages(newCalculatedStages);
+  }, [funnelMode, selectedLineItems, funnelOperations, baselineEntities, monthKeys]);
 
   // Prepare chart data
   const forecastChartData = useMemo(() => {
@@ -1065,22 +1118,49 @@ export default function InitiativePage() {
                                   </div>
                                 </div>
                                 
-                                {/* Operation Selector (only show between items in funnel mode) */}
+                                {/* Operation Selector & Calculated Result (only show between items in funnel mode) */}
                                 {funnelMode && index < selectedLineItems.length - 1 && (
-                                  <div className="flex items-center justify-center py-2">
-                                    <select
-                                      value={funnelOperations[index] || 'multiply'}
-                                      onChange={(e) => setFunnelOperations(prev => ({
-                                        ...prev,
-                                        [index]: e.target.value as 'add' | 'subtract' | 'multiply' | 'divide'
-                                      }))}
-                                      className="px-3 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs focus:outline-none focus:border-[#00d4aa]"
-                                    >
-                                      <option value="add">+ Add</option>
-                                      <option value="subtract">− Subtract</option>
-                                      <option value="multiply">× Multiply</option>
-                                      <option value="divide">÷ Divide</option>
-                                    </select>
+                                  <div className="space-y-2">
+                                    {/* Operation Selector */}
+                                    <div className="flex items-center justify-center py-2">
+                                      <select
+                                        value={funnelOperations[index] || 'multiply'}
+                                        onChange={(e) => setFunnelOperations(prev => ({
+                                          ...prev,
+                                          [index]: e.target.value as 'add' | 'subtract' | 'multiply' | 'divide'
+                                        }))}
+                                        className="px-3 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs focus:outline-none focus:border-[#00d4aa]"
+                                      >
+                                        <option value="add">+ Add</option>
+                                        <option value="subtract">− Subtract</option>
+                                        <option value="multiply">× Multiply</option>
+                                        <option value="divide">÷ Divide</option>
+                                      </select>
+                                    </div>
+                                    
+                                    {/* Calculated Result */}
+                                    {calculatedStages[index] && (
+                                      <div className="p-3 rounded bg-blue-900/20 border border-blue-700/50">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <div className="text-xs text-blue-300 font-semibold">💡 Calculated Result</div>
+                                        </div>
+                                        <div className="grid grid-cols-12 gap-1 text-center">
+                                          {monthKeys.slice(-12).map((monthKey, idx) => {
+                                            const [, month] = monthKey.split('-');
+                                            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                            const value = calculatedStages[index][monthKey] || 0;
+                                            return (
+                                              <div key={idx} className="flex flex-col">
+                                                <div className="text-[10px] text-gray-500">{monthNames[parseInt(month) - 1]}</div>
+                                                <div className={`text-xs font-mono ${value !== 0 ? 'text-blue-400' : 'text-gray-600'}`}>
+                                                  {formatValue(value)}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
