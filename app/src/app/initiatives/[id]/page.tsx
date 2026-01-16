@@ -740,20 +740,146 @@ export default function InitiativePage() {
                       <p className="text-sm text-gray-300">{formData.prioritiesToImprove || "Not set"}</p>
                     )}
                   </div>
-                </div>
-                
-                {/* Right Column - Stats & Metrics */}
-                <div className="space-y-6">
-                  {/* Forecast Chart */}
+
+                  {/* Forecast Controls */}
                   <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-white">Revenue Forecast (12 Months)</h3>
-                      {selectedLineItems.length > 0 && (
-                        <div className="text-xs text-gray-400">
-                          {selectedLineItems.length} line item{selectedLineItems.length !== 1 ? 's' : ''} selected
-                        </div>
-                      )}
+                      <h3 className="text-sm font-semibold text-white">Forecast Settings</h3>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={forecastEnabled}
+                          onChange={(e) => setForecastEnabled(e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm text-gray-400">Enable</span>
+                      </label>
                     </div>
+                    
+                    {forecastEnabled && (
+                      <div className="space-y-3">
+                        {/* Line Item Selection */}
+                        <div>
+                          <button
+                            onClick={() => setShowLineItemSelector(true)}
+                            className="text-xs px-3 py-1.5 rounded bg-[#00d4aa] text-black hover:bg-[#00b894] font-medium w-full"
+                          >
+                            + Select Forecast Items ({selectedLineItems.length} selected)
+                          </button>
+                        </div>
+                        
+                        {/* Impact Slider */}
+                        <div>
+                          <label className="text-xs text-gray-400 mb-1 block">
+                            Initiative Impact: {initiativeImpact > 0 ? '+' : ''}{initiativeImpact}%
+                          </label>
+                          <input
+                            type="range"
+                            min="-50"
+                            max="200"
+                            step="5"
+                            value={initiativeImpact}
+                            onChange={(e) => setInitiativeImpact(parseInt(e.target.value))}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resources Required */}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-3">Resources Required</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-gray-400">People Hours:</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.estimatedPeopleHours}
+                            onChange={(e) => setFormData({ ...formData, estimatedPeopleHours: parseFloat(e.target.value) || 0 })}
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
+                          />
+                        ) : (
+                          <span className="text-white font-medium">{initiative.estimatedPeopleHours || 0}h</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-gray-400">Duration:</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.estimatedDuration}
+                            onChange={(e) => setFormData({ ...formData, estimatedDuration: parseFloat(e.target.value) || 0 })}
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
+                          />
+                        ) : (
+                          <span className="text-white font-medium">{initiative.estimatedDuration || 0} weeks</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Team Members:</span>
+                        <span className="text-white font-medium">{initiative.linkedPeopleIds?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Impact */}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-3">Impact</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-gray-400">Expected Revenue:</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.expectedRevenue}
+                            onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
+                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
+                          />
+                        ) : (
+                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedRevenue || 0).toLocaleString()}</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-gray-400">Expected Savings:</span>
+                        {editMode ? (
+                          <input
+                            type="number"
+                            value={formData.expectedSavings}
+                            onChange={(e) => setFormData({ ...formData, expectedSavings: parseFloat(e.target.value) || 0 })}
+                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
+                          />
+                        ) : (
+                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedSavings || 0).toLocaleString()}</span>
+                        )}
+                      </div>
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-gray-400">Priority:</span>
+                        {editMode ? (
+                          <select
+                            value={formData.priority}
+                            onChange={(e) => setFormData({ ...formData, priority: e.target.value as "critical" | "high" | "medium" | "low" })}
+                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
+                          >
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                          </select>
+                        ) : (
+                          <span className="text-white font-medium capitalize">{initiative.priority}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Right Column - Charts */}
+                <div className="space-y-4">
+                  {/* Forecast Line Chart */}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
+                    <h3 className="text-sm font-semibold text-white mb-4">12-Month Forecast</h3>
                     {forecastEnabled && forecastChartData.length > 0 ? (
                       <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
@@ -844,102 +970,16 @@ export default function InitiativePage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Placeholder for future funnel chart */}
+                    {forecastEnabled && (
+                      <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="text-center text-xs text-gray-500">
+                          Funnel analysis coming soon
+                        </div>
+                      </div>
+                    )}
                   </div>
-                
-                  {/* Details */}
-                  <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Resources Required</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-gray-400">People Hours:</span>
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={formData.estimatedPeopleHours}
-                            onChange={(e) => setFormData({ ...formData, estimatedPeopleHours: parseFloat(e.target.value) || 0 })}
-                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
-                          />
-                        ) : (
-                          <span className="text-white font-medium">{initiative.estimatedPeopleHours || 0}h</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-gray-400">Duration:</span>
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={formData.estimatedDuration}
-                            onChange={(e) => setFormData({ ...formData, estimatedDuration: parseFloat(e.target.value) || 0 })}
-                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:border-[#00d4aa]"
-                          />
-                        ) : (
-                          <span className="text-white font-medium">{initiative.estimatedDuration || 0} weeks</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Team Members:</span>
-                        <span className="text-white font-medium">{initiative.linkedPeopleIds?.length || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Impact</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-gray-400">Expected Revenue:</span>
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={formData.expectedRevenue}
-                            onChange={(e) => setFormData({ ...formData, expectedRevenue: parseFloat(e.target.value) || 0 })}
-                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
-                          />
-                        ) : (
-                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedRevenue || 0).toLocaleString()}</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-gray-400">Expected Savings:</span>
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={formData.expectedSavings}
-                            onChange={(e) => setFormData({ ...formData, expectedSavings: parseFloat(e.target.value) || 0 })}
-                            className="text-[#00d4aa] font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 w-32 focus:outline-none focus:border-[#00d4aa]"
-                          />
-                        ) : (
-                          <span className="text-[#00d4aa] font-medium">${(initiative.expectedSavings || 0).toLocaleString()}</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-gray-400">Priority:</span>
-                        {editMode ? (
-                          <select
-                            value={formData.priority}
-                            onChange={(e) => setFormData({ ...formData, priority: e.target.value as "critical" | "high" | "medium" | "low" })}
-                            className="text-white font-medium bg-gray-900/50 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-[#00d4aa]"
-                          >
-                            <option value="critical">Critical</option>
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                          </select>
-                        ) : (
-                          <span className="text-white font-medium capitalize">{initiative.priority}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                  
-                  {initiative.impactDescription && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-400 mb-2">Impact Description</h3>
-                      <p className="text-sm text-gray-300">{initiative.impactDescription}</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
