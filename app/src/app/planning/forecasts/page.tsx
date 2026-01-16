@@ -802,7 +802,7 @@ export default function ForecastsPage() {
         status: "published", // Auto-publish for now
       });
 
-      console.log("✅ Saved forecast version:", versionId);
+      console.log("✅ Published forecast version:", versionId);
       
       // Reload active version
       const active = await getActiveForecastVersion(organizationId);
@@ -814,10 +814,10 @@ export default function ForecastsPage() {
       setVersionDescription("");
       setShowSaveModal(false);
       
-      alert(`Forecast version "${versionName}" saved successfully!`);
+      alert(`Forecast version "${versionName}" published successfully!`);
     } catch (error) {
-      console.error("Error saving version:", error);
-      alert("Failed to save forecast version");
+      console.error("Error publishing version:", error);
+      alert("Failed to publish forecast version");
     } finally {
       setSaving(false);
     }
@@ -893,7 +893,7 @@ export default function ForecastsPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 bg-[#00d4aa] text-black hover:bg-[#00d4aa]/90"
               >
                 <Save className="w-4 h-4" />
-                <span className="text-sm">Save Version</span>
+                <span className="text-sm">Publish Version</span>
               </button>
             </div>
           </div>
@@ -1460,7 +1460,7 @@ export default function ForecastsPage() {
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                  Save Forecast Version
+                  Publish Forecast Version
                 </h3>
                 <button
                   onClick={() => setShowSaveModal(false)}
@@ -1512,7 +1512,7 @@ export default function ForecastsPage() {
                   <div className="flex items-start gap-2">
                     <GitBranch className="w-4 h-4 text-[#00d4aa] mt-0.5" />
                     <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                      <p className="mb-1">This will save the current forecast as a new version, including:</p>
+                      <p className="mb-1">This will publish the current forecast as a new version, including:</p>
                       <ul className="list-disc list-inside space-y-1 ml-2">
                         <li>{selectedEntityIds.size} selected entities</li>
                         <li>{forecastMonthKeys.length} months of projections</li>
@@ -1538,7 +1538,7 @@ export default function ForecastsPage() {
                     disabled={!versionName.trim() || saving}
                     className="flex-1 px-4 py-2 rounded-lg bg-[#00d4aa] text-black hover:bg-[#00d4aa]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {saving ? "Saving..." : "Save Version"}
+                    {saving ? "Publishing..." : "Publish Version"}
                   </button>
                 </div>
               </div>
