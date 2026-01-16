@@ -66,8 +66,21 @@ export default function MasterTableSelector({
       case "stripe": return "💳";
       case "quickbooks": return "📒";
       case "google-analytics": return "📊";
+      case "google-analytics-organic": return "📊";
       case "activecampaign": return "📧";
       default: return "📄";
+    }
+  };
+
+  // Source display name
+  const getSourceName = (source: string) => {
+    switch (source) {
+      case "stripe": return "Stripe";
+      case "quickbooks": return "QuickBooks";
+      case "google-analytics": return "Google Analytics";
+      case "google-analytics-organic": return "Google Analytics";
+      case "activecampaign": return "ActiveCampaign";
+      default: return source;
     }
   };
 
@@ -174,7 +187,7 @@ export default function MasterTableSelector({
                 <option value="">All Sources</option>
                 <option value="stripe">Stripe</option>
                 <option value="quickbooks">QuickBooks</option>
-                <option value="google-analytics">Google Analytics</option>
+                <option value="google-analytics-organic">Google Analytics</option>
                 <option value="activecampaign">ActiveCampaign</option>
               </select>
             </div>
@@ -226,7 +239,7 @@ export default function MasterTableSelector({
               {/* Source Header */}
               <div className="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2">
                 <span>{getSourceIcon(source)}</span>
-                <span>{source}</span>
+                <span>{getSourceName(source)}</span>
                 <span className="text-gray-600">({sourceEntities.length})</span>
               </div>
 
