@@ -64,6 +64,9 @@ export default function InitiativePage() {
   const [forecastEnabled, setForecastEnabled] = useState(true);
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
   const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
+  const [funnelMode, setFunnelMode] = useState(false);
+  const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
+  const [draggedItem, setDraggedItem] = useState<number | null>(null);
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -950,16 +953,15 @@ export default function InitiativePage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={forecastEnabled}
-                      onChange={(e) => setForecastEnabled(e.target.checked)}
+                      checked={funnelMode}
+                      onChange={(e) => setFunnelMode(e.target.checked)}
                       className="w-4 h-4"
                     />
-                    <span className="text-sm text-gray-400">Enable Forecast</span>
+                    <span className="text-sm text-gray-400">Funnel Mode</span>
                   </label>
                 </div>
                 
-                {forecastEnabled ? (
-                  <div className="space-y-4">
+                <div className="space-y-4">
                     {/* Line Item Selection */}
                     <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
                       <div className="flex items-center justify-between mb-3">
@@ -973,8 +975,8 @@ export default function InitiativePage() {
                       </div>
                       
                       {selectedLineItems.length > 0 ? (
-                        <div className="space-y-3">
-                          {selectedLineItems.map(itemId => {
+                        <div className="space-y-2">
+                          {selectedLineItems.map((itemId, index) => {
                             const entity = baselineEntities.find(e => e.entityId === itemId);
                             if (!entity) return null;
                             
@@ -997,32 +999,90 @@ export default function InitiativePage() {
                               return val.toFixed(0);
                             };
                             
+                            const handleDragStart = (e: React.DragEvent, idx: number) => {
+                              setDraggedItem(idx);
+                              e.dataTransfer.effectAllowed = 'move';
+                            };
+                            
+                            const handleDragOver = (e: React.DragEvent) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                            };
+                            
+                            const handleDrop = (e: React.DragEvent, dropIdx: number) => {
+                              e.preventDefault();
+                              if (draggedItem === null || draggedItem === dropIdx) return;
+                              
+                              const newItems = [...selectedLineItems];
+                              const [removed] = newItems.splice(draggedItem, 1);
+                              newItems.splice(dropIdx, 0, removed);
+                              setSelectedLineItems(newItems);
+                              setDraggedItem(null);
+                            };
+                            
+                            const handleDragEnd = () => {
+                              setDraggedItem(null);
+                            };
+                            
                             return (
-                              <div key={itemId} className="p-3 rounded bg-gray-900/50 border border-gray-600">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-white font-medium truncate">{entity.entityName}</div>
-                                    <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
-                                  </div>
-                                  <button
-                                    onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
-                                    className="text-xs text-gray-400 hover:text-red-400 ml-2"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                                
-                                {/* Last 12 Months Data */}
-                                <div className="grid grid-cols-12 gap-1 text-center">
-                                  {last12Months.map((month, idx) => (
-                                    <div key={idx} className="flex flex-col">
-                                      <div className="text-[10px] text-gray-500">{month.label}</div>
-                                      <div className={`text-xs font-mono ${month.value > 0 ? 'text-[#00d4aa]' : 'text-gray-600'}`}>
-                                        {formatValue(month.value)}
+                              <div key={itemId}>
+                                <div 
+                                  draggable={funnelMode}
+                                  onDragStart={(e) => handleDragStart(e, index)}
+                                  onDragOver={handleDragOver}
+                                  onDrop={(e) => handleDrop(e, index)}
+                                  onDragEnd={handleDragEnd}
+                                  className={`p-3 rounded bg-gray-900/50 border border-gray-600 ${funnelMode ? 'cursor-move' : ''} ${draggedItem === index ? 'opacity-50' : ''}`}
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      {funnelMode && (
+                                        <div className="text-gray-500 text-xs">☰</div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm text-white font-medium truncate">{entity.entityName}</div>
+                                        <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
                                       </div>
                                     </div>
-                                  ))}
+                                    <button
+                                      onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
+                                      className="text-xs text-gray-400 hover:text-red-400 ml-2"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Last 12 Months Data */}
+                                  <div className="grid grid-cols-12 gap-1 text-center">
+                                    {last12Months.map((month, idx) => (
+                                      <div key={idx} className="flex flex-col">
+                                        <div className="text-[10px] text-gray-500">{month.label}</div>
+                                        <div className={`text-xs font-mono ${month.value > 0 ? 'text-[#00d4aa]' : 'text-gray-600'}`}>
+                                          {formatValue(month.value)}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
+                                
+                                {/* Operation Selector (only show between items in funnel mode) */}
+                                {funnelMode && index < selectedLineItems.length - 1 && (
+                                  <div className="flex items-center justify-center py-2">
+                                    <select
+                                      value={funnelOperations[index] || 'multiply'}
+                                      onChange={(e) => setFunnelOperations(prev => ({
+                                        ...prev,
+                                        [index]: e.target.value as 'add' | 'subtract' | 'multiply' | 'divide'
+                                      }))}
+                                      className="px-3 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs focus:outline-none focus:border-[#00d4aa]"
+                                    >
+                                      <option value="add">+ Add</option>
+                                      <option value="subtract">− Subtract</option>
+                                      <option value="multiply">× Multiply</option>
+                                      <option value="divide">÷ Divide</option>
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -1076,26 +1136,7 @@ export default function InitiativePage() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Forecast Model Info */}
-                    <div className="p-4 rounded-lg bg-gradient-to-br from-blue-900/20 to-blue-900/10 border border-blue-800/50">
-                      <div className="text-xs text-blue-200">
-                        <div className="font-semibold mb-1">📊 Forecast Model</div>
-                        <div className="text-blue-300/80 space-y-1">
-                          <div>• Uses CMGR (Compound Monthly Growth Rate) from 12 months of historical data</div>
-                          <div>• Applies month-to-month seasonal patterns (e.g., Dec → Jan typically shows different growth)</div>
-                          <div>• Builds each month&apos;s forecast on the previous month</div>
-                          <div>• Your impact % is applied on top of the baseline forecast</div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-12 text-gray-400">
-                    <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p>Enable forecasting to model revenue projections</p>
-                  </div>
-                )}
                 
                 {/* Master Table Selector Modal */}
                 {showLineItemSelector && currentOrg && (
