@@ -435,7 +435,12 @@ export default function InitiativePage() {
 
   // Calculate baseline forecast for selected line items
   const baselineForecast = useMemo(() => {
+    console.log("📊 Computing baseline forecast...");
+    console.log(`  → selectedLineItems: ${selectedLineItems.length} items`, selectedLineItems);
+    console.log(`  → baselineEntities: ${baselineEntities.length} entities`);
+    
     if (selectedLineItems.length === 0 || baselineEntities.length === 0) {
+      console.log("  ⚠️ No data to forecast (empty line items or entities)");
       return {};
     }
 
@@ -443,10 +448,19 @@ export default function InitiativePage() {
     
     selectedLineItems.forEach(itemId => {
       const entity = baselineEntities.find(e => e.entityId === itemId);
-      if (!entity) return;
+      if (!entity) {
+        console.log(`  ⚠️ Entity not found for itemId: ${itemId}`);
+        return;
+      }
 
+      console.log(`  ✓ Found entity: ${entity.entityName} (${entity.source})`);
       const { cmgr, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
-      if (baselineValue === 0 || !lastMonthKey) return;
+      console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Baseline: $${baselineValue.toFixed(2)}`);
+      
+      if (baselineValue === 0 || !lastMonthKey) {
+        console.log(`    ⚠️ Skipping entity (no baseline value or last month)`);
+        return;
+      }
 
       const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
       let previousValue = baselineValue;
@@ -474,6 +488,9 @@ export default function InitiativePage() {
       });
     });
 
+    console.log(`  ✅ Baseline forecast computed:`, Object.keys(forecast).length, "months");
+    console.log(`    Total forecasted value: $${Object.values(forecast).reduce((sum, val) => sum + val, 0).toFixed(2)}`);
+    
     return forecast;
   }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast]);
 
