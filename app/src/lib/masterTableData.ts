@@ -368,6 +368,15 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
     });
 
     // Add aggregated summary entities
+    console.log(`    → Aggregated metrics totals:`, {
+      spend: aggregatedMetrics['spend'].total,
+      clicks: aggregatedMetrics['clicks'].total,
+      impressions: aggregatedMetrics['impressions'].total,
+      conversions: aggregatedMetrics['conversions'].total,
+      sessions: aggregatedMetrics['sessions'].total,
+      revenue: aggregatedMetrics['revenue'].total,
+    });
+
     metricsToTrack.forEach(metricName => {
       const metricData = aggregatedMetrics[metricName];
       
