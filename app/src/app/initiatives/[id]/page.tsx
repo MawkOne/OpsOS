@@ -1055,10 +1055,10 @@ export default function InitiativePage() {
                         organizationId={currentOrg.id}
                         selectedEntityIds={selectedLineItems}
                         onSelectionChange={setSelectedLineItems}
-                        filters={{ metricType: "revenue" }}
+                        filters={{}}
                         multiSelect={true}
                         title="Select Forecast Items"
-                        description="Choose revenue line items this initiative will impact"
+                        description="Choose line items from any source (revenue, expenses, marketing, etc.) this initiative will impact"
                         onClose={() => setShowLineItemSelector(false)}
                       />
                     </div>
