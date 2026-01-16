@@ -327,9 +327,9 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
   try {
     console.log("  📈 Fetching Google Ads data for org:", organizationId);
     
-    // Fetch Google Ads campaign data via API
+    // Fetch Google Ads campaign data via API (ttm = trailing twelve months)
     const adsResponse = await fetch(
-      `/api/google-analytics/ads?organizationId=${organizationId}&viewMode=all`
+      `/api/google-analytics/ads?organizationId=${organizationId}&viewMode=ttm`
     );
 
     if (!adsResponse.ok) {
