@@ -340,6 +340,14 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
     const adsData = await adsResponse.json();
     const campaigns = adsData.campaigns || [];
     console.log(`    → Found ${campaigns.length} Google Ads campaigns from API`);
+    console.log(`    → API returned months:`, adsData.months);
+    if (campaigns.length > 0) {
+      console.log(`    → First campaign sample:`, {
+        name: campaigns[0].name,
+        monthKeys: Object.keys(campaigns[0].months || {}),
+        firstMonthData: campaigns[0].months ? campaigns[0].months[Object.keys(campaigns[0].months)[0]] : null
+      });
+    }
 
     let addedEntities = 0;
 
@@ -353,7 +361,16 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
     });
 
     // Aggregate all campaigns
-    campaigns.forEach((campaign: any) => {
+    campaigns.forEach((campaign: any, idx: number) => {
+      if (idx === 0) {
+        console.log(`    → Sample campaign structure:`, {
+          name: campaign.name,
+          hasMonths: !!campaign.months,
+          monthsKeys: Object.keys(campaign.months || {}),
+          sampleMonth: campaign.months ? Object.entries(campaign.months)[0] : null
+        });
+      }
+      
       metricsToTrack.forEach(metricName => {
         // Extract metric value for each month
         Object.entries(campaign.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
@@ -365,6 +382,13 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
           }
         });
       });
+    });
+    
+    // Log what months we actually accumulated
+    console.log(`    → Aggregated months by metric:`, {
+      conversions: Object.keys(aggregatedMetrics['conversions'].months).length + ' months',
+      impressions: Object.keys(aggregatedMetrics['impressions'].months).length + ' months',
+      sampleConversionMonths: Object.entries(aggregatedMetrics['conversions'].months).slice(0, 3)
     });
 
     // Add aggregated summary entities
@@ -415,6 +439,15 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
             metricTitle = `Total ${metricName}`;
         }
 
+        // Log what we're about to push for conversions and impressions
+        if (metricName === 'conversions' || metricName === 'impressions') {
+          console.log(`    → Creating ${metricName} entity:`, {
+            total: metricData.total,
+            monthsKeys: Object.keys(metricData.months),
+            sampleMonths: Object.entries(metricData.months).slice(0, 3)
+          });
+        }
+        
         entities.push({
           id: `ga_ads_total_${metricName}`,
           entityId: `ga_ads_total_${metricName}`,
@@ -726,6 +759,18 @@ export async function getEntitiesByIds(
   
   const matched = allEntities.filter(e => entityIds.includes(e.entityId));
   console.log(`  → Matched ${matched.length} entities`);
+  
+  // Log details about matched entities
+  matched.forEach(entity => {
+    console.log(`  ✓ Matched entity: ${entity.entityName} (${entity.source} • ${entity.metricType})`);
+    console.log(`    → Total: ${entity.total}`);
+    console.log(`    → Months object keys: ${Object.keys(entity.months || {}).length}`);
+    if (entity.months) {
+      const monthKeys = Object.keys(entity.months);
+      console.log(`    → Month keys:`, monthKeys.slice(0, 5));
+      console.log(`    → Sample values:`, monthKeys.slice(0, 3).map(k => ({ [k]: entity.months[k] })));
+    }
+  });
   
   if (matched.length === 0 && entityIds.length > 0) {
     console.warn(`  ⚠️ No matches found! Looking for:`, entityIds);
