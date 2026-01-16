@@ -13,7 +13,7 @@ export interface MasterTableEntity {
   source: "stripe" | "quickbooks" | "google-analytics" | "google-analytics-organic" | "activecampaign";
   type: string;
   metric: string;
-  metricType: "revenue" | "expenses" | "engagement" | "sales" | "sessions" | "pageviews" | "email";
+  metricType: "revenue" | "expenses" | "engagement" | "sales" | "sessions" | "pageviews" | "email" | "spend" | "clicks" | "impressions" | "conversions";
   months: Record<string, number>;
   total: number;
 }
@@ -43,6 +43,10 @@ export async function fetchMasterTableEntities(
     // Fetch QuickBooks data
     await fetchQuickBooksEntities(organizationId, entities);
     console.log(`  → After QuickBooks: ${entities.length} entities`);
+    
+    // Fetch Google Ads data
+    await fetchGoogleAdsEntities(organizationId, entities);
+    console.log(`  → After Google Ads: ${entities.length} entities`);
     
     // Fetch Google Analytics data
     await fetchGoogleAnalyticsEntities(organizationId, entities);
@@ -313,6 +317,108 @@ async function fetchQuickBooksEntities(organizationId: string, entities: MasterT
     console.log(`📒 Loaded ${Object.keys(customerRevenue).length} QuickBooks customers, ${Object.keys(vendorExpenses).length} vendors`);
   } catch (error) {
     console.error("Error fetching QuickBooks entities:", error);
+  }
+}
+
+/**
+ * Fetch Google Ads entities
+ */
+async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTableEntity[]) {
+  try {
+    console.log("  📈 Fetching Google Ads data for org:", organizationId);
+    
+    // Fetch Google Ads campaign data via API
+    const adsResponse = await fetch(
+      `/api/google-analytics/ads?organizationId=${organizationId}&viewMode=all`
+    );
+
+    if (!adsResponse.ok) {
+      console.warn("    ⚠️ Could not fetch Google Ads data:", adsResponse.status);
+      return;
+    }
+
+    const adsData = await adsResponse.json();
+    const campaigns = adsData.campaigns || [];
+    console.log(`    → Found ${campaigns.length} Google Ads campaigns from API`);
+
+    let addedEntities = 0;
+
+    // Process each campaign
+    campaigns.forEach((campaign: any) => {
+      const campaignName = campaign.name || 'Unknown Campaign';
+      const campaignId = campaign.id || campaignName.replace(/\s+/g, '_').toLowerCase();
+      
+      // Metrics to track for each campaign
+      const metricsToTrack = ['spend', 'clicks', 'impressions', 'conversions', 'sessions', 'revenue'];
+      
+      metricsToTrack.forEach(metricName => {
+        const campaignMonths: Record<string, number> = {};
+        let total = 0;
+
+        // Extract metric value for each month
+        Object.entries(campaign.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+          const value = metrics[metricName] || 0;
+          if (value > 0) {
+            campaignMonths[monthKey] = value;
+            total += value;
+          }
+        });
+
+        // Only add if there's data
+        if (total > 0) {
+          // Determine metric type
+          let metricType: MasterTableEntity["metricType"];
+          let metricTitle: string;
+          
+          switch (metricName) {
+            case 'spend':
+              metricType = 'spend';
+              metricTitle = 'Ad Spend';
+              break;
+            case 'clicks':
+              metricType = 'clicks';
+              metricTitle = 'Ad Clicks';
+              break;
+            case 'impressions':
+              metricType = 'impressions';
+              metricTitle = 'Ad Impressions';
+              break;
+            case 'conversions':
+              metricType = 'conversions';
+              metricTitle = 'Ad Conversions';
+              break;
+            case 'sessions':
+              metricType = 'sessions';
+              metricTitle = 'Ad Sessions';
+              break;
+            case 'revenue':
+              metricType = 'revenue';
+              metricTitle = 'Ad Revenue';
+              break;
+            default:
+              metricType = 'engagement';
+              metricTitle = metricName;
+          }
+
+          entities.push({
+            id: `ga_ads_${campaignId}_${metricName}`,
+            entityId: `ga_ads_${campaignId}_${metricName}`,
+            entityName: campaignName,
+            source: "google-analytics",
+            type: "Ad Campaign",
+            metric: metricTitle,
+            metricType: metricType,
+            months: campaignMonths,
+            total: total
+          });
+          addedEntities++;
+        }
+      });
+    });
+
+    console.log(`    → Added ${addedEntities} Google Ads entity rows (${campaigns.length} campaigns × metrics)`);
+  } catch (error) {
+    console.error("Error fetching Google Ads entities:", error);
   }
 }
 

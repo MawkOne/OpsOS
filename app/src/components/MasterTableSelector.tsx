@@ -65,7 +65,7 @@ export default function MasterTableSelector({
     switch (source) {
       case "stripe": return "💳";
       case "quickbooks": return "📒";
-      case "google-analytics": return "📊";
+      case "google-analytics": return "📈";
       case "google-analytics-organic": return "📊";
       case "activecampaign": return "📧";
       default: return "📄";
@@ -77,7 +77,7 @@ export default function MasterTableSelector({
     switch (source) {
       case "stripe": return "Stripe";
       case "quickbooks": return "QuickBooks";
-      case "google-analytics": return "Google Analytics";
+      case "google-analytics": return "Google Ads";
       case "google-analytics-organic": return "Google Analytics";
       case "activecampaign": return "ActiveCampaign";
       default: return source;
@@ -93,6 +93,10 @@ export default function MasterTableSelector({
       case "pageviews": return "text-purple-400 bg-purple-400/10";
       case "email": return "text-cyan-400 bg-cyan-400/10";
       case "sales": return "text-yellow-400 bg-yellow-400/10";
+      case "spend": return "text-orange-400 bg-orange-400/10";
+      case "clicks": return "text-indigo-400 bg-indigo-400/10";
+      case "impressions": return "text-pink-400 bg-pink-400/10";
+      case "conversions": return "text-emerald-400 bg-emerald-400/10";
       default: return "text-gray-400 bg-gray-400/10";
     }
   };
@@ -174,6 +178,10 @@ export default function MasterTableSelector({
                 <option value="pageviews">Page Views</option>
                 <option value="email">Email</option>
                 <option value="sales">Sales</option>
+                <option value="spend">Ad Spend</option>
+                <option value="clicks">Clicks</option>
+                <option value="impressions">Impressions</option>
+                <option value="conversions">Conversions</option>
               </select>
             </div>
 
@@ -187,6 +195,7 @@ export default function MasterTableSelector({
                 <option value="">All Sources</option>
                 <option value="stripe">Stripe</option>
                 <option value="quickbooks">QuickBooks</option>
+                <option value="google-analytics">Google Ads</option>
                 <option value="google-analytics-organic">Google Analytics</option>
                 <option value="activecampaign">ActiveCampaign</option>
               </select>
