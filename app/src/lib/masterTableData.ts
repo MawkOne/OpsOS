@@ -343,13 +343,88 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
 
     let addedEntities = 0;
 
-    // Process each campaign
+    // First, create aggregated summary rows for all campaigns combined
+    const metricsToTrack = ['spend', 'clicks', 'impressions', 'conversions', 'sessions', 'revenue'];
+    const aggregatedMetrics: Record<string, { months: Record<string, number>; total: number }> = {};
+
+    // Initialize aggregated metrics
+    metricsToTrack.forEach(metricName => {
+      aggregatedMetrics[metricName] = { months: {}, total: 0 };
+    });
+
+    // Aggregate all campaigns
+    campaigns.forEach((campaign: any) => {
+      metricsToTrack.forEach(metricName => {
+        // Extract metric value for each month
+        Object.entries(campaign.months || {}).forEach(([monthKey, metrics]: [string, any]) => {
+          const value = metrics[metricName] || 0;
+          if (value > 0) {
+            aggregatedMetrics[metricName].months[monthKey] = 
+              (aggregatedMetrics[metricName].months[monthKey] || 0) + value;
+            aggregatedMetrics[metricName].total += value;
+          }
+        });
+      });
+    });
+
+    // Add aggregated summary entities
+    metricsToTrack.forEach(metricName => {
+      const metricData = aggregatedMetrics[metricName];
+      
+      if (metricData.total > 0) {
+        // Determine metric type
+        let metricType: MasterTableEntity["metricType"];
+        let metricTitle: string;
+        
+        switch (metricName) {
+          case 'spend':
+            metricType = 'spend';
+            metricTitle = 'Total Ad Spend';
+            break;
+          case 'clicks':
+            metricType = 'clicks';
+            metricTitle = 'Total Ad Clicks';
+            break;
+          case 'impressions':
+            metricType = 'impressions';
+            metricTitle = 'Total Ad Impressions';
+            break;
+          case 'conversions':
+            metricType = 'conversions';
+            metricTitle = 'Total Ad Conversions';
+            break;
+          case 'sessions':
+            metricType = 'sessions';
+            metricTitle = 'Total Ad Sessions';
+            break;
+          case 'revenue':
+            metricType = 'revenue';
+            metricTitle = 'Total Ad Revenue';
+            break;
+          default:
+            metricType = 'engagement';
+            metricTitle = `Total ${metricName}`;
+        }
+
+        entities.push({
+          id: `ga_ads_total_${metricName}`,
+          entityId: `ga_ads_total_${metricName}`,
+          entityName: 'All Google Ads Campaigns',
+          source: "google-analytics",
+          type: "Ad Campaign Summary",
+          metric: metricTitle,
+          metricType: metricType,
+          months: metricData.months,
+          total: metricData.total
+        });
+        addedEntities++;
+      }
+    });
+
+    // Also add individual campaigns (optional - can be removed if only summaries are needed)
     campaigns.forEach((campaign: any) => {
       const campaignName = campaign.name || 'Unknown Campaign';
       const campaignId = campaign.id || campaignName.replace(/\s+/g, '_').toLowerCase();
-      
-      // Metrics to track for each campaign
-      const metricsToTrack = ['spend', 'clicks', 'impressions', 'conversions', 'sessions', 'revenue'];
       
       metricsToTrack.forEach(metricName => {
         const campaignMonths: Record<string, number> = {};
@@ -416,7 +491,7 @@ async function fetchGoogleAdsEntities(organizationId: string, entities: MasterTa
       });
     });
 
-    console.log(`    → Added ${addedEntities} Google Ads entity rows (${campaigns.length} campaigns × metrics)`);
+    console.log(`    → Added ${addedEntities} Google Ads entity rows (6 summary + ${campaigns.length} campaigns × metrics)`);
   } catch (error) {
     console.error("Error fetching Google Ads entities:", error);
   }
