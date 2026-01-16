@@ -97,7 +97,7 @@ export interface Initiative {
     funnelMode?: boolean; // Whether funnel mode is enabled
     funnelOperations?: Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>; // Operations between funnel stages
     calculatedStages?: Record<number, Record<string, number>>; // Calculated intermediate results per stage
-    stageNumberFormats?: Record<number, 'percentage' | 'whole' | 'decimal'>; // Number format for each calculated stage
+    stageNumberFormats?: Record<number, 'percentage' | 'whole' | 'decimal' | 'currency'>; // Number format for each calculated stage
     itemsInForecast?: string[]; // Which items to display in forecast chart
     monthlyRevenue?: number[]; // 12 months of projected revenue (deprecated)
     monthlyImpact?: number[]; // 12 months of projected impact metric (deprecated)

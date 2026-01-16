@@ -68,7 +68,7 @@ export default function InitiativePage() {
   const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
   const [calculatedStages, setCalculatedStages] = useState<Record<number, Record<string, number>>>({});
-  const [stageNumberFormats, setStageNumberFormats] = useState<Record<number, 'percentage' | 'whole' | 'decimal'>>({});
+  const [stageNumberFormats, setStageNumberFormats] = useState<Record<number, 'percentage' | 'whole' | 'decimal' | 'currency'>>({});
   const [itemsInForecast, setItemsInForecast] = useState<string[]>([]); // Which items to show in chart
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
@@ -1168,13 +1168,14 @@ export default function InitiativePage() {
                                             value={stageNumberFormats[index] || 'whole'}
                                             onChange={(e) => setStageNumberFormats(prev => ({
                                               ...prev,
-                                              [index]: e.target.value as 'percentage' | 'whole' | 'decimal'
+                                              [index]: e.target.value as 'percentage' | 'whole' | 'decimal' | 'currency'
                                             }))}
                                             className="px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs focus:outline-none focus:border-[#00d4aa] min-w-[80px]"
                                           >
                                             <option value="percentage">% (1 dec)</option>
                                             <option value="whole">Number</option>
                                             <option value="decimal">Decimal</option>
+                                            <option value="currency">$ Currency</option>
                                           </select>
                                           
                                           {/* Monthly Data Grid */}
@@ -1193,6 +1194,15 @@ export default function InitiativePage() {
                                                 displayValue = `${value.toFixed(1)}%`;
                                               } else if (numberFormat === 'decimal') {
                                                 displayValue = value.toFixed(2);
+                                              } else if (numberFormat === 'currency') {
+                                                // Currency - use smart formatting with $
+                                                if (value >= 1000000) {
+                                                  displayValue = `$${(value / 1000000).toFixed(1)}M`;
+                                                } else if (value >= 1000) {
+                                                  displayValue = `$${(value / 1000).toFixed(0)}K`;
+                                                } else {
+                                                  displayValue = `$${value.toFixed(0)}`;
+                                                }
                                               } else {
                                                 // whole - use smart formatting
                                                 displayValue = formatValue(value);
