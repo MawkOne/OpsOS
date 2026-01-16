@@ -720,6 +720,17 @@ export async function getEntitiesByIds(
   organizationId: string,
   entityIds: string[]
 ): Promise<MasterTableEntity[]> {
+  console.log(`🔍 getEntitiesByIds called with ${entityIds.length} IDs:`, entityIds);
   const allEntities = await fetchMasterTableEntities(organizationId);
-  return allEntities.filter(e => entityIds.includes(e.entityId));
+  console.log(`  → Fetched ${allEntities.length} total entities`);
+  
+  const matched = allEntities.filter(e => entityIds.includes(e.entityId));
+  console.log(`  → Matched ${matched.length} entities`);
+  
+  if (matched.length === 0 && entityIds.length > 0) {
+    console.warn(`  ⚠️ No matches found! Looking for:`, entityIds);
+    console.warn(`  Available entity IDs (first 10):`, allEntities.slice(0, 10).map(e => e.entityId));
+  }
+  
+  return matched;
 }
