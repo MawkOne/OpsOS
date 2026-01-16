@@ -589,19 +589,9 @@ async function fetchGoogleAnalyticsEntities(organizationId: string, entities: Ma
     });
     console.log(`    → Keeping ${organicSources.length} organic traffic sources (excluding ${sources.length - organicSources.length} paid)`);
 
-    // Process traffic sources (filter out paid traffic since we have dedicated Google Ads entities)
-    const paidChannels = ['paid search', 'paid social', 'paid shopping', 'display', 'video'];
-    
-    sources.forEach((sourceData: any) => {
+    // Process organic traffic sources only
+    organicSources.forEach((sourceData: any) => {
       const sourceName = sourceData.name || 'Unknown Source';
-      const sourceNameLower = sourceName.toLowerCase();
-      
-      // Skip paid traffic sources - we track those separately in Google Ads
-      if (paidChannels.some(paid => sourceNameLower.includes(paid))) {
-        console.log(`    ⏭️ Skipping paid traffic source: ${sourceName} (tracked in Google Ads)`);
-        return;
-      }
-      
       const months = sourceData.months || {};
       
       // Calculate totals
