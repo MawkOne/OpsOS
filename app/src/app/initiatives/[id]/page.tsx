@@ -68,6 +68,8 @@ export default function InitiativePage() {
   const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
   const [calculatedStages, setCalculatedStages] = useState<Record<number, Record<string, number>>>({});
+  const [stageNumberFormats, setStageNumberFormats] = useState<Record<number, 'percentage' | 'whole' | 'decimal'>>({});
+  const [itemsInForecast, setItemsInForecast] = useState<string[]>([]); // Which items to show in chart
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -212,6 +214,8 @@ export default function InitiativePage() {
             setFunnelMode(data.forecast.funnelMode || false);
             setFunnelOperations(data.forecast.funnelOperations || {});
             setCalculatedStages(data.forecast.calculatedStages || {});
+            setStageNumberFormats(data.forecast.stageNumberFormats || {});
+            setItemsInForecast(data.forecast.itemsInForecast || []);
           }
           
           // Load scenarios
@@ -287,6 +291,8 @@ export default function InitiativePage() {
           funnelMode,
           funnelOperations,
           calculatedStages,
+          stageNumberFormats,
+          itemsInForecast,
           assumptions: [],
           drivers: [],
         },
@@ -1097,12 +1103,27 @@ export default function InitiativePage() {
                                         <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
                                       </div>
                                     </div>
-                                    <button
-                                      onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
-                                      className="text-xs text-gray-400 hover:text-red-400 ml-2"
-                                    >
-                                      Remove
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setItemsInForecast(prev => 
+                                            prev.includes(itemId) 
+                                              ? prev.filter(id => id !== itemId)
+                                              : [...prev, itemId]
+                                          );
+                                        }}
+                                        className={`text-xs hover:text-[#00d4aa] ml-2 ${itemsInForecast.includes(itemId) ? 'text-[#00d4aa]' : 'text-gray-400'}`}
+                                        title={itemsInForecast.includes(itemId) ? 'In forecast chart' : 'Add to forecast chart'}
+                                      >
+                                        <TrendingUp className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
+                                        className="text-xs text-gray-400 hover:text-red-400"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
                                   </div>
                                   
                                   {/* Last 12 Months Data */}
@@ -1141,23 +1162,52 @@ export default function InitiativePage() {
                                     {/* Calculated Result */}
                                     {calculatedStages[index] && (
                                       <div className="p-3 rounded bg-blue-900/20 border border-blue-700/50">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <div className="text-xs text-blue-300 font-semibold">💡 Calculated Result</div>
-                                        </div>
-                                        <div className="grid grid-cols-12 gap-1 text-center">
-                                          {monthKeys.slice(-12).map((monthKey, idx) => {
-                                            const [, month] = monthKey.split('-');
-                                            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                                            const value = calculatedStages[index][monthKey] || 0;
-                                            return (
-                                              <div key={idx} className="flex flex-col">
-                                                <div className="text-[10px] text-gray-500">{monthNames[parseInt(month) - 1]}</div>
-                                                <div className={`text-xs font-mono ${value !== 0 ? 'text-blue-400' : 'text-gray-600'}`}>
-                                                  {formatValue(value)}
+                                        <div className="flex items-start gap-3">
+                                          {/* Number Format Dropdown */}
+                                          <select
+                                            value={stageNumberFormats[index] || 'whole'}
+                                            onChange={(e) => setStageNumberFormats(prev => ({
+                                              ...prev,
+                                              [index]: e.target.value as 'percentage' | 'whole' | 'decimal'
+                                            }))}
+                                            className="px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs focus:outline-none focus:border-[#00d4aa] min-w-[80px]"
+                                          >
+                                            <option value="percentage">% (1 dec)</option>
+                                            <option value="whole">Number</option>
+                                            <option value="decimal">Decimal</option>
+                                          </select>
+                                          
+                                          {/* Monthly Data Grid */}
+                                          <div className="flex-1 grid grid-cols-12 gap-1 text-center">
+                                            {monthKeys.slice(-12).map((monthKey, idx) => {
+                                              const [, month] = monthKey.split('-');
+                                              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                              const value = calculatedStages[index][monthKey] || 0;
+                                              
+                                              // Format based on selected type
+                                              const numberFormat = stageNumberFormats[index] || 'whole';
+                                              let displayValue = '';
+                                              if (value === 0) {
+                                                displayValue = '-';
+                                              } else if (numberFormat === 'percentage') {
+                                                displayValue = `${value.toFixed(1)}%`;
+                                              } else if (numberFormat === 'decimal') {
+                                                displayValue = value.toFixed(2);
+                                              } else {
+                                                // whole - use smart formatting
+                                                displayValue = formatValue(value);
+                                              }
+                                              
+                                              return (
+                                                <div key={idx} className="flex flex-col">
+                                                  <div className="text-[10px] text-gray-500">{monthNames[parseInt(month) - 1]}</div>
+                                                  <div className={`text-xs font-mono ${value !== 0 ? 'text-blue-400' : 'text-gray-600'}`}>
+                                                    {displayValue}
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            );
-                                          })}
+                                              );
+                                            })}
+                                          </div>
                                         </div>
                                       </div>
                                     )}
