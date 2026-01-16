@@ -33,20 +33,31 @@ export async function fetchMasterTableEntities(
   filters?: MasterTableFilters
 ): Promise<MasterTableEntity[]> {
   try {
-    console.log("📊 Fetching Master Table entities for org:", organizationId);
+    console.log("📊 Fetching Master Table entities for org:", organizationId, "with filters:", filters);
     const entities: MasterTableEntity[] = [];
 
     // Fetch Stripe data
     await fetchStripeEntities(organizationId, entities);
+    console.log(`  → After Stripe: ${entities.length} entities`);
     
     // Fetch QuickBooks data
     await fetchQuickBooksEntities(organizationId, entities);
+    console.log(`  → After QuickBooks: ${entities.length} entities`);
     
     // Fetch Google Analytics data
     await fetchGoogleAnalyticsEntities(organizationId, entities);
+    console.log(`  → After Google Analytics: ${entities.length} entities`);
     
     // Fetch ActiveCampaign data
     await fetchActiveCampaignEntities(organizationId, entities);
+    console.log(`  → After ActiveCampaign: ${entities.length} entities`);
+
+    // Log entity sources before filtering
+    const sourceCounts = entities.reduce((acc, e) => {
+      acc[e.source] = (acc[e.source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log("  📋 Entities by source before filtering:", sourceCounts);
 
     // Apply filters
     let filtered = entities;
@@ -54,26 +65,41 @@ export async function fetchMasterTableEntities(
     if (filters) {
       if (filters.metricType) {
         const metricTypes = Array.isArray(filters.metricType) ? filters.metricType : [filters.metricType];
+        const beforeCount = filtered.length;
         filtered = filtered.filter(e => metricTypes.includes(e.metricType));
+        console.log(`  🔍 MetricType filter (${metricTypes.join(', ')}): ${beforeCount} → ${filtered.length} entities`);
       }
       
       if (filters.source) {
         const sources = Array.isArray(filters.source) ? filters.source : [filters.source];
+        const beforeCount = filtered.length;
         filtered = filtered.filter(e => sources.includes(e.source));
+        console.log(`  🔍 Source filter (${sources.join(', ')}): ${beforeCount} → ${filtered.length} entities`);
       }
       
       if (filters.minTotal !== undefined) {
+        const beforeCount = filtered.length;
         filtered = filtered.filter(e => e.total >= filters.minTotal!);
+        console.log(`  🔍 MinTotal filter (>= ${filters.minTotal}): ${beforeCount} → ${filtered.length} entities`);
       }
       
       if (filters.searchTerm) {
         const term = filters.searchTerm.toLowerCase();
+        const beforeCount = filtered.length;
         filtered = filtered.filter(e => 
           e.entityName.toLowerCase().includes(term) ||
           e.metric.toLowerCase().includes(term)
         );
+        console.log(`  🔍 Search filter ("${term}"): ${beforeCount} → ${filtered.length} entities`);
       }
     }
+
+    // Log final entity sources after filtering
+    const filteredSourceCounts = filtered.reduce((acc, e) => {
+      acc[e.source] = (acc[e.source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log("  📋 Entities by source after filtering:", filteredSourceCounts);
 
     // Sort by total descending
     filtered.sort((a, b) => b.total - a.total);
@@ -91,6 +117,8 @@ export async function fetchMasterTableEntities(
  */
 async function fetchStripeEntities(organizationId: string, entities: MasterTableEntity[]) {
   try {
+    console.log("  💳 Fetching Stripe data for org:", organizationId);
+    
     // Fetch products for name lookup
     const productsQuery = query(
       collection(db, "stripe_products"),
@@ -102,6 +130,7 @@ async function fetchStripeEntities(organizationId: string, entities: MasterTable
       const data = doc.data();
       products.set(data.stripeId, data.name);
     });
+    console.log(`    → Found ${products.size} Stripe products`);
 
     // Fetch Stripe Invoices
     const invoicesQuery = query(
@@ -109,14 +138,17 @@ async function fetchStripeEntities(organizationId: string, entities: MasterTable
       where("organizationId", "==", organizationId)
     );
     const invoicesSnap = await getDocs(invoicesQuery);
+    console.log(`    → Found ${invoicesSnap.size} Stripe invoices`);
 
     // Group by product
     const productRevenue: Record<string, { name: string; months: Record<string, number>; total: number; count: Record<string, number> }> = {};
     const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
 
+    let paidStripeInvoicesCount = 0;
     invoicesSnap.docs.forEach(doc => {
       const invoice = doc.data();
       if (invoice.status !== 'paid') return;
+      paidStripeInvoicesCount++;
 
       const invoiceDate = invoice.created?.toDate?.() || new Date();
       const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
@@ -181,7 +213,7 @@ async function fetchStripeEntities(organizationId: string, entities: MasterTable
       });
     });
 
-    console.log(`💳 Loaded ${Object.keys(productRevenue).length} Stripe products, ${Object.keys(customerRevenue).length} customers`);
+    console.log(`    → ${paidStripeInvoicesCount} paid invoices, ${Object.keys(productRevenue).length} products with revenue, ${Object.keys(customerRevenue).length} customers with revenue`);
   } catch (error) {
     console.error("Error fetching Stripe entities:", error);
   }
@@ -192,18 +224,23 @@ async function fetchStripeEntities(organizationId: string, entities: MasterTable
  */
 async function fetchQuickBooksEntities(organizationId: string, entities: MasterTableEntity[]) {
   try {
+    console.log("  📒 Fetching QuickBooks data for org:", organizationId);
+    
     // Fetch QB Invoices (revenue by customer)
     const invoicesQuery = query(
       collection(db, "quickbooks_invoices"),
       where("organizationId", "==", organizationId)
     );
     const invoicesSnap = await getDocs(invoicesQuery);
+    console.log(`    → Found ${invoicesSnap.size} QuickBooks invoices`);
 
     const customerRevenue: Record<string, { name: string; months: Record<string, number>; total: number }> = {};
 
+    let paidInvoicesCount = 0;
     invoicesSnap.docs.forEach(doc => {
       const invoice = doc.data();
       if (invoice.status !== 'paid') return;
+      paidInvoicesCount++;
 
       const customerId = invoice.customerId || 'unknown';
       const customerName = invoice.customerName || 'Unknown Customer';
@@ -218,6 +255,7 @@ async function fetchQuickBooksEntities(organizationId: string, entities: MasterT
       customerRevenue[customerId].months[monthKey] = (customerRevenue[customerId].months[monthKey] || 0) + amount;
       customerRevenue[customerId].total += amount;
     });
+    console.log(`    → ${paidInvoicesCount} paid invoices, ${Object.keys(customerRevenue).length} customers with revenue`);
 
     Object.entries(customerRevenue).forEach(([customerId, data]) => {
       entities.push({
