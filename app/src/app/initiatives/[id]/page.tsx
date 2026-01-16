@@ -61,7 +61,7 @@ export default function InitiativePage() {
   });
   
   // Forecast state
-  const [forecastEnabled, setForecastEnabled] = useState(false);
+  const [forecastEnabled, setForecastEnabled] = useState(true);
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
   const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
@@ -738,52 +738,6 @@ export default function InitiativePage() {
                       />
                     ) : (
                       <p className="text-sm text-gray-300">{formData.prioritiesToImprove || "Not set"}</p>
-                    )}
-                  </div>
-
-                  {/* Forecast Controls */}
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/40 to-gray-800/20 border border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-white">Forecast Settings</h3>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={forecastEnabled}
-                          onChange={(e) => setForecastEnabled(e.target.checked)}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm text-gray-400">Enable</span>
-                      </label>
-                    </div>
-                    
-                    {forecastEnabled && (
-                      <div className="space-y-3">
-                        {/* Line Item Selection */}
-                        <div>
-                          <button
-                            onClick={() => setShowLineItemSelector(true)}
-                            className="text-xs px-3 py-1.5 rounded bg-[#00d4aa] text-black hover:bg-[#00b894] font-medium w-full"
-                          >
-                            + Select Forecast Items ({selectedLineItems.length} selected)
-                          </button>
-                        </div>
-                        
-                        {/* Impact Slider */}
-                        <div>
-                          <label className="text-xs text-gray-400 mb-1 block">
-                            Initiative Impact: {initiativeImpact > 0 ? '+' : ''}{initiativeImpact}%
-                          </label>
-                          <input
-                            type="range"
-                            min="-50"
-                            max="200"
-                            step="5"
-                            value={initiativeImpact}
-                            onChange={(e) => setInitiativeImpact(parseInt(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
                     )}
                   </div>
 
