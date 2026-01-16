@@ -973,22 +973,56 @@ export default function InitiativePage() {
                       </div>
                       
                       {selectedLineItems.length > 0 ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {selectedLineItems.map(itemId => {
                             const entity = baselineEntities.find(e => e.entityId === itemId);
                             if (!entity) return null;
+                            
+                            // Get last 12 months of data
+                            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                            const last12Months = monthKeys.slice(-12).map(key => {
+                              const [, month] = key.split('-');
+                              const value = entity.months[key] || 0;
+                              return {
+                                label: monthNames[parseInt(month) - 1],
+                                value: value
+                              };
+                            });
+                            
+                            // Format value for display
+                            const formatValue = (val: number) => {
+                              if (val === 0) return '-';
+                              if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+                              if (val >= 1000) return `${(val / 1000).toFixed(0)}K`;
+                              return val.toFixed(0);
+                            };
+                            
                             return (
-                              <div key={itemId} className="flex items-center justify-between p-2 rounded bg-gray-900/50 border border-gray-600">
-                                <div>
-                                  <div className="text-sm text-white font-medium">{entity.entityName}</div>
-                                  <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
+                              <div key={itemId} className="p-3 rounded bg-gray-900/50 border border-gray-600">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm text-white font-medium truncate">{entity.entityName}</div>
+                                    <div className="text-xs text-gray-400">{entity.source} • {entity.metricType}</div>
+                                  </div>
+                                  <button
+                                    onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
+                                    className="text-xs text-gray-400 hover:text-red-400 ml-2"
+                                  >
+                                    Remove
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
-                                  className="text-xs text-gray-400 hover:text-red-400"
-                                >
-                                  Remove
-                                </button>
+                                
+                                {/* Last 12 Months Data */}
+                                <div className="grid grid-cols-12 gap-1 text-center">
+                                  {last12Months.map((month, idx) => (
+                                    <div key={idx} className="flex flex-col">
+                                      <div className="text-[10px] text-gray-500">{month.label}</div>
+                                      <div className={`text-xs font-mono ${month.value > 0 ? 'text-[#00d4aa]' : 'text-gray-600'}`}>
+                                        {formatValue(month.value)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             );
                           })}
