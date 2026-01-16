@@ -580,10 +580,28 @@ async function fetchGoogleAnalyticsEntities(organizationId: string, entities: Ma
     const trafficData = await trafficResponse.json();
     const sources = trafficData.sources || [];
     console.log(`    → Found ${sources.length} Google Analytics traffic sources from API`);
+    
+    // Filter out paid channels (tracked separately in Google Ads)
+    const paidChannels = ['paid search', 'paid social', 'paid shopping', 'display', 'video'];
+    const organicSources = sources.filter((s: any) => {
+      const nameLower = (s.name || '').toLowerCase();
+      return !paidChannels.some(paid => nameLower.includes(paid));
+    });
+    console.log(`    → Keeping ${organicSources.length} organic traffic sources (excluding ${sources.length - organicSources.length} paid)`);
 
-    // Process traffic sources
+    // Process traffic sources (filter out paid traffic since we have dedicated Google Ads entities)
+    const paidChannels = ['paid search', 'paid social', 'paid shopping', 'display', 'video'];
+    
     sources.forEach((sourceData: any) => {
       const sourceName = sourceData.name || 'Unknown Source';
+      const sourceNameLower = sourceName.toLowerCase();
+      
+      // Skip paid traffic sources - we track those separately in Google Ads
+      if (paidChannels.some(paid => sourceNameLower.includes(paid))) {
+        console.log(`    ⏭️ Skipping paid traffic source: ${sourceName} (tracked in Google Ads)`);
+        return;
+      }
+      
       const months = sourceData.months || {};
       
       // Calculate totals
