@@ -99,6 +99,8 @@ export interface Initiative {
     calculatedStages?: Record<number, Record<string, number>>; // Calculated intermediate results per stage
     stageNumberFormats?: Record<number, 'percentage' | 'whole' | 'decimal' | 'currency'>; // Number format for each calculated stage
     itemsInForecast?: string[]; // Which items to display in forecast chart
+    targetedItemId?: string | null; // Which item is targeted for month-by-month impacts
+    monthlyImpacts?: Record<string, number>; // Month-specific impact percentages
     monthlyRevenue?: number[]; // 12 months of projected revenue (deprecated)
     monthlyImpact?: number[]; // 12 months of projected impact metric (deprecated)
     assumptions?: string[]; // Key assumptions

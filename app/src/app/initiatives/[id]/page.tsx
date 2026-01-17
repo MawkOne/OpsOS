@@ -70,6 +70,8 @@ export default function InitiativePage() {
   const [calculatedStages, setCalculatedStages] = useState<Record<number, Record<string, number>>>({});
   const [stageNumberFormats, setStageNumberFormats] = useState<Record<number, 'percentage' | 'whole' | 'decimal' | 'currency'>>({});
   const [itemsInForecast, setItemsInForecast] = useState<string[]>([]); // Which items to show in chart
+  const [targetedItemId, setTargetedItemId] = useState<string | null>(null); // Which item is being targeted for impact
+  const [monthlyImpacts, setMonthlyImpacts] = useState<Record<string, number>>({}); // Month-specific impacts
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -216,6 +218,8 @@ export default function InitiativePage() {
             setCalculatedStages(data.forecast.calculatedStages || {});
             setStageNumberFormats(data.forecast.stageNumberFormats || {});
             setItemsInForecast(data.forecast.itemsInForecast || []);
+            setTargetedItemId(data.forecast.targetedItemId || null);
+            setMonthlyImpacts(data.forecast.monthlyImpacts || {});
           }
           
           // Load scenarios
@@ -293,6 +297,8 @@ export default function InitiativePage() {
           calculatedStages,
           stageNumberFormats,
           itemsInForecast,
+          targetedItemId,
+          monthlyImpacts,
           assumptions: [],
           drivers: [],
         },
@@ -460,48 +466,48 @@ export default function InitiativePage() {
       return {};
     }
 
-    const forecast: Record<string, number> = {};
+    // Use the bottom item (last in list) for forecasting
+    const bottomItemId = selectedLineItems[selectedLineItems.length - 1];
+    const entity = baselineEntities.find(e => e.entityId === bottomItemId);
     
-    selectedLineItems.forEach(itemId => {
-      const entity = baselineEntities.find(e => e.entityId === itemId);
-      if (!entity) {
-        console.log(`  ⚠️ Entity not found for itemId: ${itemId}`);
-        return;
+    if (!entity) {
+      console.log(`  ⚠️ Bottom entity not found for itemId: ${bottomItemId}`);
+      return {};
+    }
+
+    console.log(`  ✓ Forecasting bottom item: ${entity.entityName} (${entity.source})`);
+    const { cmgr, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+    console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Baseline: $${baselineValue.toFixed(2)}`);
+    
+    if (baselineValue === 0 || !lastMonthKey) {
+      console.log(`    ⚠️ Skipping entity (no baseline value or last month)`);
+      return {};
+    }
+
+    const forecast: Record<string, number> = {};
+    const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
+    let previousValue = baselineValue;
+    let previousMonthNum = lastMonthNum;
+
+    forecastMonthKeys.forEach((forecastKey) => {
+      const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
+      const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+      const historicalChange = momPatterns[transitionKey];
+
+      let forecastValue;
+      if (historicalChange !== undefined) {
+        forecastValue = previousValue * (1 + historicalChange);
+      } else {
+        forecastValue = previousValue;
       }
 
-      console.log(`  ✓ Found entity: ${entity.entityName} (${entity.source})`);
-      const { cmgr, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
-      console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Baseline: $${baselineValue.toFixed(2)}`);
-      
-      if (baselineValue === 0 || !lastMonthKey) {
-        console.log(`    ⚠️ Skipping entity (no baseline value or last month)`);
-        return;
-      }
+      // Apply CMGR
+      forecastValue = forecastValue * (1 + cmgr);
 
-      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
-      let previousValue = baselineValue;
-      let previousMonthNum = lastMonthNum;
+      forecast[forecastKey] = forecastValue;
 
-      forecastMonthKeys.forEach((forecastKey) => {
-        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
-        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
-        const historicalChange = momPatterns[transitionKey];
-
-        let forecastValue;
-        if (historicalChange !== undefined) {
-          forecastValue = previousValue * (1 + historicalChange);
-        } else {
-          forecastValue = previousValue;
-        }
-
-        // Apply CMGR
-        forecastValue = forecastValue * (1 + cmgr);
-
-        forecast[forecastKey] = (forecast[forecastKey] || 0) + forecastValue;
-
-        previousValue = forecastValue;
-        previousMonthNum = forecastMonthNum;
-      });
+      previousValue = forecastValue;
+      previousMonthNum = forecastMonthNum;
     });
 
     console.log(`  ✅ Baseline forecast computed:`, Object.keys(forecast).length, "months");
@@ -517,14 +523,29 @@ export default function InitiativePage() {
     }
 
     const forecast: Record<string, number> = {};
-    const impactMultiplier = 1 + (initiativeImpact / 100);
+    const forecastKeys = Object.keys(baselineForecast).sort();
 
-    Object.entries(baselineForecast).forEach(([key, value]) => {
-      forecast[key] = value * impactMultiplier;
+    forecastKeys.forEach((currentKey, idx) => {
+      const baseValue = baselineForecast[currentKey];
+      
+      // Calculate cumulative impact from all previous and current month impacts
+      let cumulativeImpact = 0;
+      
+      // Check all months up to and including current month
+      forecastKeys.slice(0, idx + 1).forEach(monthKey => {
+        const monthImpact = monthlyImpacts[monthKey] || 0;
+        if (monthImpact !== 0) {
+          cumulativeImpact += monthImpact;
+        }
+      });
+      
+      // Apply cumulative impact
+      const impactMultiplier = 1 + (cumulativeImpact / 100);
+      forecast[currentKey] = baseValue * impactMultiplier;
     });
 
     return forecast;
-  }, [forecastEnabled, baselineForecast, initiativeImpact]);
+  }, [forecastEnabled, baselineForecast, monthlyImpacts]);
 
   // Calculate funnel stage results
   useEffect(() => {
@@ -1106,16 +1127,12 @@ export default function InitiativePage() {
                                     <div className="flex items-center gap-2">
                                       <button
                                         onClick={() => {
-                                          setItemsInForecast(prev => 
-                                            prev.includes(itemId) 
-                                              ? prev.filter(id => id !== itemId)
-                                              : [...prev, itemId]
-                                          );
+                                          setTargetedItemId(targetedItemId === itemId ? null : itemId);
                                         }}
-                                        className={`text-xs hover:text-[#00d4aa] ml-2 ${itemsInForecast.includes(itemId) ? 'text-[#00d4aa]' : 'text-gray-400'}`}
-                                        title={itemsInForecast.includes(itemId) ? 'In forecast chart' : 'Add to forecast chart'}
+                                        className={`text-xs hover:text-[#00d4aa] ml-2 ${targetedItemId === itemId ? 'text-[#00d4aa]' : 'text-gray-400'}`}
+                                        title={targetedItemId === itemId ? 'Targeted for forecast' : 'Target for forecast'}
                                       >
-                                        <TrendingUp className="w-4 h-4" />
+                                        <Target className="w-4 h-4" />
                                       </button>
                                       <button
                                         onClick={() => setSelectedLineItems(prev => prev.filter(id => id !== itemId))}
@@ -1137,6 +1154,35 @@ export default function InitiativePage() {
                                       </div>
                                     ))}
                                   </div>
+                                  
+                                  {/* Month-by-Month Impact Inputs (only show for targeted item) */}
+                                  {targetedItemId === itemId && (
+                                    <div className="mt-2 pt-2 border-t border-gray-700">
+                                      <div className="text-[10px] text-gray-400 mb-1">Impact % (affects this month and all future)</div>
+                                      <div className="grid grid-cols-12 gap-1 text-center">
+                                        {monthKeys.slice(-12).map((monthKey, idx) => {
+                                          return (
+                                            <div key={idx}>
+                                              <input
+                                                type="number"
+                                                value={monthlyImpacts[monthKey] || 0}
+                                                onChange={(e) => {
+                                                  const value = parseFloat(e.target.value) || 0;
+                                                  setMonthlyImpacts(prev => ({
+                                                    ...prev,
+                                                    [monthKey]: value
+                                                  }));
+                                                }}
+                                                className="w-full px-1 py-0.5 rounded bg-gray-900 border border-gray-600 text-white text-[10px] text-center focus:outline-none focus:border-[#00d4aa]"
+                                                placeholder="0"
+                                                step="1"
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                                 
                                 {/* Operation Selector & Calculated Result (only show between items in funnel mode) */}
