@@ -72,6 +72,8 @@ export default function InitiativePage() {
   const [itemsInForecast, setItemsInForecast] = useState<string[]>([]); // Which items to show in chart
   const [targetedItemId, setTargetedItemId] = useState<string | null>(null); // Which item is being targeted for impact
   const [monthlyImpacts, setMonthlyImpacts] = useState<Record<string, number>>({}); // Month-specific impacts
+  const [forecastMethods, setForecastMethods] = useState<Record<string, 'cmgr' | 'linear' | 'flat'>>({});
+  const [applySeasonality, setApplySeasonality] = useState<Record<string, boolean>>({});
   const [baselineEntities, setBaselineEntities] = useState<MasterTableEntity[]>([]);
   const [showLineItemSelector, setShowLineItemSelector] = useState(false);
   
@@ -220,6 +222,8 @@ export default function InitiativePage() {
             setItemsInForecast(data.forecast.itemsInForecast || []);
             setTargetedItemId(data.forecast.targetedItemId || null);
             setMonthlyImpacts(data.forecast.monthlyImpacts || {});
+            setForecastMethods(data.forecast.forecastMethods || {});
+            setApplySeasonality(data.forecast.applySeasonality || {});
           }
           
           // Load scenarios
@@ -299,6 +303,8 @@ export default function InitiativePage() {
           itemsInForecast,
           targetedItemId,
           monthlyImpacts,
+          forecastMethods,
+          applySeasonality,
           assumptions: [],
           drivers: [],
         },
@@ -418,18 +424,27 @@ export default function InitiativePage() {
     return keys;
   }, []);
 
-  // Calculate CMGR and MoM patterns for an entity
+  // Calculate CMGR, Linear Trend, and MoM patterns for an entity
   const calculateForecast = useCallback((entity: typeof baselineEntities[0]) => {
     const values = monthKeys.map(key => entity.months[key] || 0).filter(v => v > 0);
-    if (values.length < 3) return { cmgr: 0, momPatterns: {}, baselineValue: 0, lastMonthKey: monthKeys[monthKeys.length - 1] };
+    if (values.length < 3) return { cmgr: 0, linearTrend: 0, momPatterns: {}, baselineValue: 0, lastMonthKey: monthKeys[monthKeys.length - 1] };
 
-    // Calculate CMGR
+    // Calculate CMGR (Compound Monthly Growth Rate)
     const firstValue = values[0];
     const lastValue = values[values.length - 1];
     const months = values.length - 1;
     const cmgr = months > 0 ? Math.pow(lastValue / firstValue, 1 / months) - 1 : 0;
 
-    // Calculate month-over-month patterns from trailing 12 months
+    // Calculate Linear Trend (average monthly change)
+    let totalChange = 0;
+    let changeCount = 0;
+    for (let i = 1; i < values.length; i++) {
+      totalChange += (values[i] - values[i - 1]);
+      changeCount++;
+    }
+    const linearTrend = changeCount > 0 ? totalChange / changeCount : 0;
+
+    // Calculate month-over-month patterns from trailing 12 months (for seasonality)
     const trailing12Months = monthKeys.slice(-12);
     const momPatterns: Record<string, number> = {};
     
@@ -452,7 +467,7 @@ export default function InitiativePage() {
     const baselineValue = lastValue;
     const lastMonthKey = monthKeys[monthKeys.length - 1];
     
-    return { cmgr, momPatterns, baselineValue, lastMonthKey };
+    return { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey };
   }, [monthKeys]);
 
   // Calculate baseline forecast for selected line items
@@ -476,8 +491,14 @@ export default function InitiativePage() {
     }
 
     console.log(`  ✓ Forecasting bottom item: ${entity.entityName} (${entity.source})`);
-    const { cmgr, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
-    console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Baseline: $${baselineValue.toFixed(2)}`);
+    const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+    
+    // Get forecast settings for this item (default to CMGR with seasonality)
+    const method = forecastMethods[bottomItemId] || 'cmgr';
+    const useSeasonality = applySeasonality[bottomItemId] !== undefined ? applySeasonality[bottomItemId] : true;
+    
+    console.log(`    → Method: ${method.toUpperCase()}, Seasonality: ${useSeasonality ? 'ON' : 'OFF'}`);
+    console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Linear: $${linearTrend.toFixed(2)}/mo, Baseline: $${baselineValue.toFixed(2)}`);
     
     if (baselineValue === 0 || !lastMonthKey) {
       console.log(`    ⚠️ Skipping entity (no baseline value or last month)`);
@@ -494,15 +515,35 @@ export default function InitiativePage() {
       const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
       const historicalChange = momPatterns[transitionKey];
 
-      let forecastValue;
-      if (historicalChange !== undefined) {
-        forecastValue = previousValue * (1 + historicalChange);
-      } else {
-        forecastValue = previousValue;
-      }
+      let forecastValue = previousValue;
 
-      // Apply CMGR
-      forecastValue = forecastValue * (1 + cmgr);
+      // Apply forecast method
+      if (method === 'cmgr') {
+        // Compound growth
+        forecastValue = previousValue * (1 + cmgr);
+        
+        // Apply seasonality if enabled
+        if (useSeasonality && historicalChange !== undefined) {
+          forecastValue = forecastValue * (1 + historicalChange);
+        }
+      } else if (method === 'linear') {
+        // Linear trend
+        forecastValue = previousValue + linearTrend;
+        
+        // Apply seasonality if enabled
+        if (useSeasonality && historicalChange !== undefined) {
+          const seasonalAdjustment = previousValue * historicalChange;
+          forecastValue = forecastValue + seasonalAdjustment;
+        }
+      } else if (method === 'flat') {
+        // Flat - keep same value
+        forecastValue = baselineValue;
+        
+        // Apply seasonality if enabled (seasonality on flat baseline)
+        if (useSeasonality && historicalChange !== undefined) {
+          forecastValue = baselineValue * (1 + historicalChange);
+        }
+      }
 
       forecast[forecastKey] = forecastValue;
 
@@ -514,7 +555,7 @@ export default function InitiativePage() {
     console.log(`    Total forecasted value: $${Object.values(forecast).reduce((sum, val) => sum + val, 0).toFixed(2)}`);
     
     return forecast;
-  }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast]);
+  }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast, forecastMethods, applySeasonality]);
 
   // Calculate initiative-impacted forecast
   const initiativeForecast = useMemo(() => {
@@ -1141,6 +1182,38 @@ export default function InitiativePage() {
                                         Remove
                                       </button>
                                     </div>
+                                  </div>
+                                  
+                                  {/* Forecast Settings */}
+                                  <div className="flex items-center gap-3 mb-2 pb-2 border-b border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-[10px] text-gray-400">Method:</label>
+                                      <select
+                                        value={forecastMethods[itemId] || 'cmgr'}
+                                        onChange={(e) => setForecastMethods(prev => ({
+                                          ...prev,
+                                          [itemId]: e.target.value as 'cmgr' | 'linear' | 'flat'
+                                        }))}
+                                        className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
+                                      >
+                                        <option value="cmgr">CMGR (Compound)</option>
+                                        <option value="linear">Linear</option>
+                                        <option value="flat">Flat</option>
+                                      </select>
+                                    </div>
+                                    
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true}
+                                        onChange={(e) => setApplySeasonality(prev => ({
+                                          ...prev,
+                                          [itemId]: e.target.checked
+                                        }))}
+                                        className="w-3 h-3"
+                                      />
+                                      <span className="text-[10px] text-gray-400">Apply Seasonality</span>
+                                    </label>
                                   </div>
                                   
                                   {/* Last 12 Months Data */}

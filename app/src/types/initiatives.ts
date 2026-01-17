@@ -101,6 +101,8 @@ export interface Initiative {
     itemsInForecast?: string[]; // Which items to display in forecast chart
     targetedItemId?: string | null; // Which item is targeted for month-by-month impacts
     monthlyImpacts?: Record<string, number>; // Month-specific impact percentages
+    forecastMethods?: Record<string, 'cmgr' | 'linear' | 'flat'>; // Forecast method per entity
+    applySeasonality?: Record<string, boolean>; // Whether to apply seasonality per entity
     monthlyRevenue?: number[]; // 12 months of projected revenue (deprecated)
     monthlyImpact?: number[]; // 12 months of projected impact metric (deprecated)
     assumptions?: string[]; // Key assumptions
