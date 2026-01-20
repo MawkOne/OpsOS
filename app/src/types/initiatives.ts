@@ -94,6 +94,7 @@ export interface Initiative {
     enabled: boolean;
     selectedLineItems?: string[]; // Baseline entity IDs that this initiative impacts
     initiativeImpact?: number; // % growth impact on selected line items
+    impactStartMonth?: string; // Month when impact starts (YYYY-MM format)
     funnelMode?: boolean; // Whether funnel mode is enabled
     funnelOperations?: Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>; // Operations between funnel stages
     calculatedStages?: Record<number, Record<string, number>>; // Calculated intermediate results per stage
