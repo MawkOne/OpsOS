@@ -594,7 +594,7 @@ export default function InitiativePage() {
       let previousMonthNum = lastMonthNum;
 
       let monthLog = "     Forecast: ";
-      forecastMonthKeys.slice(0, 6).forEach((forecastKey, idx) => {
+      forecastMonthKeys.forEach((forecastKey, idx) => {
         const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
         const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
         const historicalChange = momPatterns[transitionKey];
