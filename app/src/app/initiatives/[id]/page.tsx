@@ -475,7 +475,7 @@ export default function InitiativePage() {
 
   // Calculate baseline forecast for selected line items
   const baselineForecast = useMemo(() => {
-    console.log("📊 Computing baseline forecast...");
+    console.log("📊 Computing baseline forecast (sum of all items)...");
     console.log(`  → selectedLineItems: ${selectedLineItems.length} items`, selectedLineItems);
     console.log(`  → baselineEntities: ${baselineEntities.length} entities`);
     
@@ -484,80 +484,68 @@ export default function InitiativePage() {
       return {};
     }
 
-    // Use the bottom item (last in list) for forecasting
-    const bottomItemId = selectedLineItems[selectedLineItems.length - 1];
-    const entity = baselineEntities.find(e => e.entityId === bottomItemId);
-    
-    if (!entity) {
-      console.log(`  ⚠️ Bottom entity not found for itemId: ${bottomItemId}`);
-      return {};
-    }
+    const totalForecast: Record<string, number> = {};
 
-    console.log(`  ✓ Forecasting bottom item: ${entity.entityName} (${entity.source})`);
-    const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
-    
-    // Get forecast settings for this item (default to CMGR with seasonality)
-    const method = forecastMethods[bottomItemId] || 'cmgr';
-    const useSeasonality = applySeasonality[bottomItemId] !== undefined ? applySeasonality[bottomItemId] : true;
-    
-    console.log(`    → Method: ${method.toUpperCase()}, Seasonality: ${useSeasonality ? 'ON' : 'OFF'}`);
-    console.log(`    → CMGR: ${(cmgr * 100).toFixed(2)}%, Linear: $${linearTrend.toFixed(2)}/mo, Baseline: $${baselineValue.toFixed(2)}`);
-    
-    if (baselineValue === 0 || !lastMonthKey) {
-      console.log(`    ⚠️ Skipping entity (no baseline value or last month)`);
-      return {};
-    }
-
-    const forecast: Record<string, number> = {};
-    const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
-    let previousValue = baselineValue;
-    let previousMonthNum = lastMonthNum;
-
-    forecastMonthKeys.forEach((forecastKey) => {
-      const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
-      const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
-      const historicalChange = momPatterns[transitionKey];
-
-      let forecastValue = previousValue;
-
-      // Apply forecast method
-      if (method === 'cmgr') {
-        // Compound growth
-        forecastValue = previousValue * (1 + cmgr);
-        
-        // Apply seasonality if enabled
-        if (useSeasonality && historicalChange !== undefined) {
-          forecastValue = forecastValue * (1 + historicalChange);
-        }
-      } else if (method === 'linear') {
-        // Linear trend
-        forecastValue = previousValue + linearTrend;
-        
-        // Apply seasonality if enabled
-        if (useSeasonality && historicalChange !== undefined) {
-          const seasonalAdjustment = previousValue * historicalChange;
-          forecastValue = forecastValue + seasonalAdjustment;
-        }
-      } else if (method === 'flat') {
-        // Flat - keep same value
-        forecastValue = baselineValue;
-        
-        // Apply seasonality if enabled (seasonality on flat baseline)
-        if (useSeasonality && historicalChange !== undefined) {
-          forecastValue = baselineValue * (1 + historicalChange);
-        }
+    // Calculate forecast for each line item WITHOUT any impacts
+    selectedLineItems.forEach(itemId => {
+      const entity = baselineEntities.find(e => e.id === itemId);
+      if (!entity) {
+        console.log(`  ⚠️ Entity not found for itemId: ${itemId}`);
+        return;
       }
 
-      forecast[forecastKey] = forecastValue;
+      console.log(`  ✓ Forecasting: ${entity.entityName} (${entity.source})`);
+      const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+      
+      const method = forecastMethods[itemId] || 'cmgr';
+      const useSeasonality = applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true;
+      
+      if (baselineValue === 0 || !lastMonthKey) {
+        console.log(`    ⚠️ Skipping (no baseline value or last month)`);
+        return;
+      }
 
-      previousValue = forecastValue;
-      previousMonthNum = forecastMonthNum;
+      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
+      let previousValue = baselineValue;
+      let previousMonthNum = lastMonthNum;
+
+      forecastMonthKeys.forEach((forecastKey) => {
+        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
+        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+        const historicalChange = momPatterns[transitionKey];
+
+        let forecastValue = previousValue;
+
+        // Apply forecast method
+        if (method === 'cmgr') {
+          forecastValue = previousValue * (1 + cmgr);
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = forecastValue * (1 + historicalChange);
+          }
+        } else if (method === 'linear') {
+          forecastValue = previousValue + linearTrend;
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = forecastValue + (previousValue * historicalChange);
+          }
+        } else if (method === 'flat') {
+          forecastValue = baselineValue;
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = baselineValue * (1 + historicalChange);
+          }
+        }
+
+        // Add to total forecast (NO impacts applied here)
+        totalForecast[forecastKey] = (totalForecast[forecastKey] || 0) + forecastValue;
+
+        previousValue = forecastValue;
+        previousMonthNum = forecastMonthNum;
+      });
     });
 
-    console.log(`  ✅ Baseline forecast computed:`, Object.keys(forecast).length, "months");
-    console.log(`    Total forecasted value: $${Object.values(forecast).reduce((sum, val) => sum + val, 0).toFixed(2)}`);
+    console.log(`  ✅ Baseline forecast computed:`, Object.keys(totalForecast).length, "months");
+    console.log(`    Total forecasted value: $${Object.values(totalForecast).reduce((sum, val) => sum + val, 0).toFixed(2)}`);
     
-    return forecast;
+    return totalForecast;
   }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast, forecastMethods, applySeasonality]);
 
   // Calculate initiative-impacted forecast (per-item impacts)
