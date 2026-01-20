@@ -560,36 +560,75 @@ export default function InitiativePage() {
     return forecast;
   }, [selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast, forecastMethods, applySeasonality]);
 
-  // Calculate initiative-impacted forecast
+  // Calculate initiative-impacted forecast (per-item impacts)
   const initiativeForecast = useMemo(() => {
-    if (!forecastEnabled || Object.keys(baselineForecast).length === 0) {
+    if (!forecastEnabled || selectedLineItems.length === 0 || baselineEntities.length === 0) {
       return {};
     }
 
-    const forecast: Record<string, number> = {};
-    const forecastKeys = Object.keys(baselineForecast).sort();
+    console.log("📊 Computing initiative-impacted forecast...");
+    const totalForecast: Record<string, number> = {};
 
-    forecastKeys.forEach((currentKey, idx) => {
-      const baseValue = baselineForecast[currentKey];
+    // Calculate forecast for each line item with its individual impact
+    selectedLineItems.forEach(itemId => {
+      const entity = baselineEntities.find(e => e.id === itemId);
+      if (!entity) return;
+
+      const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+      const method = forecastMethods[itemId] || 'cmgr';
+      const useSeasonality = applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true;
+      const itemImpact = initiativeImpacts[itemId] || 0;
+      const itemStartMonth = impactStartMonths[itemId] || "";
       
-      // Calculate cumulative impact from all previous and current month impacts
-      let cumulativeImpact = 0;
-      
-      // Check all months up to and including current month
-      forecastKeys.slice(0, idx + 1).forEach(monthKey => {
-        const monthImpact = monthlyImpacts[monthKey] || 0;
-        if (monthImpact !== 0) {
-          cumulativeImpact += monthImpact;
+      if (baselineValue === 0 || !lastMonthKey) return;
+
+      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
+      let previousValue = baselineValue;
+      let previousMonthNum = lastMonthNum;
+
+      forecastMonthKeys.forEach((forecastKey) => {
+        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
+        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+        const historicalChange = momPatterns[transitionKey];
+
+        let forecastValue = previousValue;
+
+        // Apply forecast method
+        if (method === 'cmgr') {
+          forecastValue = previousValue * (1 + cmgr);
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = forecastValue * (1 + historicalChange);
+          }
+        } else if (method === 'linear') {
+          forecastValue = previousValue + linearTrend;
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = forecastValue + (previousValue * historicalChange);
+          }
+        } else if (method === 'flat') {
+          forecastValue = baselineValue;
+          if (useSeasonality && historicalChange !== undefined) {
+            forecastValue = baselineValue * (1 + historicalChange);
+          }
         }
+
+        // Apply initiative impact if start month is set and we're at or past it
+        if (itemStartMonth && forecastKey >= itemStartMonth && itemImpact !== 0) {
+          forecastValue = forecastValue * (1 + (itemImpact / 100));
+        }
+
+        // Add to total forecast
+        totalForecast[forecastKey] = (totalForecast[forecastKey] || 0) + forecastValue;
+
+        previousValue = forecastValue;
+        previousMonthNum = forecastMonthNum;
       });
-      
-      // Apply cumulative impact
-      const impactMultiplier = 1 + (cumulativeImpact / 100);
-      forecast[currentKey] = baseValue * impactMultiplier;
     });
 
-    return forecast;
-  }, [forecastEnabled, baselineForecast, monthlyImpacts]);
+    console.log("  ✅ Initiative forecast computed:", Object.keys(totalForecast).length, "months");
+    console.log("    Total value:", Object.values(totalForecast).reduce((sum, val) => sum + val, 0).toFixed(2));
+
+    return totalForecast;
+  }, [forecastEnabled, selectedLineItems, baselineEntities, forecastMonthKeys, calculateForecast, forecastMethods, applySeasonality, initiativeImpacts, impactStartMonths]);
 
   // Calculate funnel stage results
   useEffect(() => {
