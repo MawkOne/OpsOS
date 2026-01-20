@@ -1405,13 +1405,17 @@ export default function InitiativePage() {
                                           }
                                         }
                                         
+                                        // Store the base forecast value (before impact) for next iteration
+                                        // IMPORTANT: Store BEFORE applying impact to prevent compounding
+                                        previousValue = forecastValue;
+                                        
                                         // Apply initiative impact if start month is set and we're at or past it
-                                        if (itemStartMonth && forecastKey >= itemStartMonth) {
-                                          forecastValue = forecastValue * (1 + (itemImpact / 100));
+                                        let finalValue = forecastValue;
+                                        if (itemStartMonth && forecastKey >= itemStartMonth && itemImpact !== 0) {
+                                          finalValue = forecastValue * (1 + (itemImpact / 100));
                                         }
                                         
-                                        forecast.push({ month: forecastKey, value: forecastValue });
-                                        previousValue = forecastValue;
+                                        forecast.push({ month: forecastKey, value: finalValue });
                                         previousMonthNum = forecastMonthNum;
                                       });
                                       
