@@ -64,6 +64,7 @@ export default function InitiativePage() {
   const [forecastEnabled, setForecastEnabled] = useState(true);
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
   const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
+  const [impactStartMonth, setImpactStartMonth] = useState<string>(""); // Which month impact starts (YYYY-MM format)
   const [funnelMode, setFunnelMode] = useState(false);
   const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
@@ -215,6 +216,7 @@ export default function InitiativePage() {
             setForecastEnabled(data.forecast.enabled || false);
             setSelectedLineItems(data.forecast.selectedLineItems || []);
             setInitiativeImpact(data.forecast.initiativeImpact || 0);
+            setImpactStartMonth(data.forecast.impactStartMonth || "");
             setFunnelMode(data.forecast.funnelMode || false);
             setFunnelOperations(data.forecast.funnelOperations || {});
             setCalculatedStages(data.forecast.calculatedStages || {});
@@ -296,6 +298,7 @@ export default function InitiativePage() {
           enabled: forecastEnabled,
           selectedLineItems,
           initiativeImpact,
+          impactStartMonth,
           funnelMode,
           funnelOperations,
           calculatedStages,
@@ -1229,10 +1232,29 @@ export default function InitiativePage() {
                                   </div>
                                   
                                   {/* Initiative Impact Control */}
-                                  <div className="mt-2 pt-2 border-t border-gray-700">
-                                    <div className="flex items-center justify-between gap-4">
-                                      <label className="text-[10px] text-gray-400">Initiative Impact:</label>
-                                      <div className="flex items-center gap-3 flex-1">
+                                  <div className="mt-2 pt-2 border-t border-gray-700" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-4 mb-2">
+                                      {/* Start Month */}
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-[10px] text-gray-400 whitespace-nowrap">Start Month:</label>
+                                        <select
+                                          value={impactStartMonth}
+                                          onChange={(e) => setImpactStartMonth(e.target.value)}
+                                          className="px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <option value="">Select month</option>
+                                          {forecastMonthKeys.map((monthKey) => {
+                                            const [year, month] = monthKey.split('-');
+                                            const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                            return <option key={monthKey} value={monthKey}>{monthName}</option>;
+                                          })}
+                                        </select>
+                                      </div>
+                                      
+                                      {/* Initiative Impact */}
+                                      <div className="flex items-center gap-2 flex-1">
+                                        <label className="text-[10px] text-gray-400 whitespace-nowrap">Initiative Impact:</label>
                                         <input
                                           type="range"
                                           min="-100"
@@ -1240,28 +1262,105 @@ export default function InitiativePage() {
                                           step="1"
                                           value={initiativeImpact}
                                           onChange={(e) => setInitiativeImpact(parseFloat(e.target.value))}
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => e.stopPropagation()}
                                           className="flex-1"
                                         />
                                         <input
                                           type="number"
                                           value={initiativeImpact}
                                           onChange={(e) => setInitiativeImpact(parseFloat(e.target.value) || 0)}
+                                          onClick={(e) => e.stopPropagation()}
                                           className="w-16 px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-xs text-center focus:outline-none focus:border-[#00d4aa]"
                                         />
                                         <span className="text-xs text-white font-medium">%</span>
                                       </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 mt-1">
-                                      {initiativeImpact > 0 && (
-                                        <span className="text-[#00d4aa]">✓ This initiative will increase by {initiativeImpact}%</span>
-                                      )}
-                                      {initiativeImpact < 0 && (
-                                        <span className="text-orange-400">⚠ This initiative will reduce by {Math.abs(initiativeImpact)}%</span>
-                                      )}
-                                      {initiativeImpact === 0 && (
-                                        <span>No impact set - baseline forecast will be used</span>
-                                      )}
-                                    </div>
+                                    
+                                    {initiativeImpact !== 0 && (
+                                      <div className="text-[10px] text-gray-400 mb-2">
+                                        {initiativeImpact > 0 && (
+                                          <span className="text-[#00d4aa]">✓ This initiative will increase by {initiativeImpact}%</span>
+                                        )}
+                                        {initiativeImpact < 0 && (
+                                          <span className="text-orange-400">⚠ This initiative will reduce by {Math.abs(initiativeImpact)}%</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Forecasted Values */}
+                                    {(() => {
+                                      const entity = baselineEntities.find(e => e.id === itemId);
+                                      if (!entity) return null;
+                                      
+                                      const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
+                                      const method = forecastMethods[itemId] || 'cmgr';
+                                      const useSeasonality = applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true;
+                                      
+                                      if (baselineValue === 0 || !lastMonthKey) return null;
+                                      
+                                      const forecast: Array<{month: string, value: number}> = [];
+                                      const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
+                                      let previousValue = baselineValue;
+                                      let previousMonthNum = lastMonthNum;
+                                      
+                                      forecastMonthKeys.slice(0, 12).forEach((forecastKey) => {
+                                        const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
+                                        const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
+                                        const historicalChange = momPatterns[transitionKey];
+                                        
+                                        let forecastValue = previousValue;
+                                        
+                                        // Apply forecast method
+                                        if (method === 'cmgr') {
+                                          forecastValue = previousValue * (1 + cmgr);
+                                          if (useSeasonality && historicalChange !== undefined) {
+                                            forecastValue = forecastValue * (1 + historicalChange);
+                                          }
+                                        } else if (method === 'linear') {
+                                          forecastValue = previousValue + linearTrend;
+                                          if (useSeasonality && historicalChange !== undefined) {
+                                            forecastValue = forecastValue + (previousValue * historicalChange);
+                                          }
+                                        } else if (method === 'flat') {
+                                          forecastValue = baselineValue;
+                                          if (useSeasonality && historicalChange !== undefined) {
+                                            forecastValue = baselineValue * (1 + historicalChange);
+                                          }
+                                        }
+                                        
+                                        // Apply initiative impact if start month is set and we're at or past it
+                                        if (impactStartMonth && forecastKey >= impactStartMonth) {
+                                          forecastValue = forecastValue * (1 + (initiativeImpact / 100));
+                                        }
+                                        
+                                        forecast.push({ month: forecastKey, value: forecastValue });
+                                        previousValue = forecastValue;
+                                        previousMonthNum = forecastMonthNum;
+                                      });
+                                      
+                                      return (
+                                        <div className="border-t border-gray-700 pt-2">
+                                          <div className="text-[10px] text-gray-500 mb-1">Forecasted (12 months)</div>
+                                          <div className="grid grid-cols-12 gap-1 text-center">
+                                            {forecast.map((item, idx) => {
+                                              const [year, month] = item.month.split('-');
+                                              const monthLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short' });
+                                              const isImpacted = impactStartMonth && item.month >= impactStartMonth;
+                                              
+                                              return (
+                                                <div key={idx} className="flex flex-col">
+                                                  <div className="text-[10px] text-gray-500">{monthLabel}</div>
+                                                  <div className={`text-xs font-mono ${isImpacted ? 'text-blue-400' : 'text-gray-400'}`}>
+                                                    {formatValue(item.value)}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                                 
