@@ -161,6 +161,7 @@ export type InitiativeStatus =
   | "ready"          // Ready for review and prioritization
   | "idea"           // Just an idea, not planned yet
   | "proposed"       // Formally proposed
+  | "approved"       // Approved for execution (above waterline)
   | "above-waterline" // Above waterline, can be executed
   | "below-waterline" // Below waterline, waiting for capacity
   | "planned"        // Scheduled to start
@@ -200,6 +201,7 @@ export const statusConfig: Record<
   "ready": { label: "Ready", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" },
   "idea": { label: "Idea", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)" },
   "proposed": { label: "Proposed", color: "#6366f1", bg: "rgba(99, 102, 241, 0.15)" },
+  "approved": { label: "Approved", color: "#00d4aa", bg: "rgba(0, 212, 170, 0.15)" },
   "above-waterline": { label: "Above Waterline", color: "#00d4aa", bg: "rgba(0, 212, 170, 0.15)" },
   "below-waterline": { label: "Below Waterline", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)" },
   "planned": { label: "Planned", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)" },

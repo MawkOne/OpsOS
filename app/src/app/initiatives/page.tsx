@@ -33,6 +33,7 @@ import {
   serverTimestamp,
   doc,
   deleteDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -181,13 +182,13 @@ export default function InitiativesDashboard() {
   }, [initiativesWithWaterline, filterStatus, filterCategory, filterType]);
 
   // Calculate stats
-  const aboveWaterlineCount = initiativesWithWaterline.filter(i => i.isAboveWaterline && i.status !== "completed" && i.status !== "cancelled").length;
-  const belowWaterlineCount = initiativesWithWaterline.filter(i => !i.isAboveWaterline && i.status !== "completed" && i.status !== "cancelled").length;
+  const aboveWaterlineCount = initiativesWithWaterline.filter(i => (i.isAboveWaterline || i.status === "approved") && i.status !== "completed" && i.status !== "cancelled").length;
+  const belowWaterlineCount = initiativesWithWaterline.filter(i => !i.isAboveWaterline && i.status !== "approved" && i.status !== "completed" && i.status !== "cancelled").length;
   const inProgressCount = initiativesWithWaterline.filter(i => i.status === "in-progress").length;
   const completedCount = initiativesWithWaterline.filter(i => i.status === "completed").length;
 
   // Find the waterline position (first initiative that's below waterline)
-  const waterlineIndex = filteredInitiatives.findIndex(i => !i.isAboveWaterline && i.status !== "completed" && i.status !== "cancelled");
+  const waterlineIndex = filteredInitiatives.findIndex(i => !i.isAboveWaterline && i.status !== "approved" && i.status !== "completed" && i.status !== "cancelled");
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this initiative?")) return;
@@ -294,10 +295,12 @@ export default function InitiativesDashboard() {
             <option value="all">All Statuses</option>
             <option value="idea">Ideas</option>
             <option value="proposed">Proposed</option>
+            <option value="approved">Approved</option>
             <option value="above-waterline">Above Waterline</option>
             <option value="below-waterline">Below Waterline</option>
             <option value="planned">Planned</option>
             <option value="in-progress">In Progress</option>
+            <option value="on-hold">On Hold</option>
             <option value="completed">Completed</option>
           </select>
 
@@ -400,18 +403,39 @@ export default function InitiativesDashboard() {
                         className="p-4 rounded-xl cursor-pointer group transition-all duration-200 hover:bg-[var(--background-tertiary)] relative"
                         style={{ background: "var(--background-tertiary)" }}
                       >
-                        {/* Delete Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDelete(initiative.id);
-                          }}
-                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-[var(--background-secondary)]"
-                          style={{ color: "var(--foreground-muted)" }}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {/* Status Dropdown */}
+                        <div className="absolute top-3 right-3">
+                          <select
+                            value={initiative.status}
+                            onChange={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const newStatus = e.target.value as InitiativeStatus;
+                              try {
+                                await updateDoc(doc(db, "initiatives", initiative.id), {
+                                  status: newStatus,
+                                  isAboveWaterline: newStatus === "approved",
+                                  updatedAt: serverTimestamp(),
+                                });
+                              } catch (error) {
+                                console.error("Error updating status:", error);
+                              }
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            className="px-2 py-1 rounded-lg text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{
+                              background: statusConfig[initiative.status].bg,
+                              color: statusConfig[initiative.status].color,
+                              border: `1px solid ${statusConfig[initiative.status].color}`,
+                            }}
+                          >
+                            <option value="approved">Approved</option>
+                            <option value="on-hold">On Hold</option>
+                          </select>
+                        </div>
 
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3 flex-1">
@@ -423,7 +447,7 @@ export default function InitiativesDashboard() {
                               <CheckCircle2 className="w-5 h-5" />
                             ) : initiative.status === "in-progress" ? (
                               <Play className="w-5 h-5" />
-                            ) : initiative.isAboveWaterline ? (
+                            ) : initiative.status === "approved" || initiative.isAboveWaterline ? (
                               <TrendingUp className="w-5 h-5" />
                             ) : (
                               <TrendingDown className="w-5 h-5" />
