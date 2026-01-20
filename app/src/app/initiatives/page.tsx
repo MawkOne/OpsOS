@@ -378,7 +378,8 @@ export default function InitiativesDashboard() {
           ) : (
             <div className="space-y-3">
               {filteredInitiatives.map((initiative, idx) => {
-                const status = statusConfig[initiative.status];
+                // Safety check for status config
+                const status = statusConfig[initiative.status] || statusConfig["idea"];
                 const isWaterline = idx === waterlineIndex;
                 
                 return (
@@ -432,9 +433,9 @@ export default function InitiativesDashboard() {
                             }}
                             className="px-2 py-1 rounded-lg text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity"
                             style={{
-                              background: statusConfig[initiative.status].bg,
-                              color: statusConfig[initiative.status].color,
-                              border: `1px solid ${statusConfig[initiative.status].color}`,
+                              background: (statusConfig[initiative.status] || statusConfig["idea"]).bg,
+                              color: (statusConfig[initiative.status] || statusConfig["idea"]).color,
+                              border: `1px solid ${(statusConfig[initiative.status] || statusConfig["idea"]).color}`,
                             }}
                           >
                             <option value="idea">Idea</option>
@@ -470,9 +471,9 @@ export default function InitiativesDashboard() {
                               </h4>
                               <span
                                 className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0"
-                                style={{ background: statusConfig[initiative.status].bg, color: statusConfig[initiative.status].color }}
+                                style={{ background: status.bg, color: status.color }}
                               >
-                                {statusConfig[initiative.status].label}
+                                {status.label}
                               </span>
                             </div>
                             <div className="flex items-center gap-3 flex-wrap">
