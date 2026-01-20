@@ -558,7 +558,7 @@ export default function InitiativePage() {
     const totalForecast: Record<string, number> = {};
 
     // Calculate forecast for each line item with its individual impact
-    selectedLineItems.forEach(itemId => {
+    selectedLineItems.forEach((itemId, itemIndex) => {
       const entity = baselineEntities.find(e => e.id === itemId);
       if (!entity) return;
 
@@ -568,48 +568,75 @@ export default function InitiativePage() {
       const itemImpact = initiativeImpacts[itemId] || 0;
       const itemStartMonth = impactStartMonths[itemId] || "";
       
-      if (baselineValue === 0 || !lastMonthKey) return;
+      console.log(`\n  📌 Item ${itemIndex + 1}: ${entity.entityName}`);
+      console.log(`     Method: ${method.toUpperCase()}, Seasonality: ${useSeasonality ? 'ON' : 'OFF'}`);
+      console.log(`     Impact: ${itemImpact}% from ${itemStartMonth || 'not set'}`);
+      console.log(`     CMGR: ${(cmgr * 100).toFixed(2)}%, Baseline: $${baselineValue.toFixed(0)}`);
+      
+      if (baselineValue === 0 || !lastMonthKey) {
+        console.log(`     ⚠️ Skipping (no baseline)`);
+        return;
+      }
 
       const lastMonthNum = parseInt(lastMonthKey.split('-')[1]);
       let previousValue = baselineValue;
       let previousMonthNum = lastMonthNum;
 
-      forecastMonthKeys.forEach((forecastKey) => {
+      let monthLog = "     Forecast: ";
+      forecastMonthKeys.slice(0, 6).forEach((forecastKey, idx) => {
         const forecastMonthNum = parseInt(forecastKey.split('-')[1]);
         const transitionKey = `${previousMonthNum}-${forecastMonthNum}`;
         const historicalChange = momPatterns[transitionKey];
 
         let forecastValue = previousValue;
+        let calculation = "";
 
         // Apply forecast method
         if (method === 'cmgr') {
           forecastValue = previousValue * (1 + cmgr);
+          calculation = `${previousValue.toFixed(0)} × ${(1 + cmgr).toFixed(3)}`;
           if (useSeasonality && historicalChange !== undefined) {
             forecastValue = forecastValue * (1 + historicalChange);
+            calculation += ` × ${(1 + historicalChange).toFixed(3)}`;
           }
         } else if (method === 'linear') {
           forecastValue = previousValue + linearTrend;
+          calculation = `${previousValue.toFixed(0)} + ${linearTrend.toFixed(0)}`;
           if (useSeasonality && historicalChange !== undefined) {
             forecastValue = forecastValue + (previousValue * historicalChange);
+            calculation += ` + ${(previousValue * historicalChange).toFixed(0)}`;
           }
         } else if (method === 'flat') {
           forecastValue = baselineValue;
+          calculation = `${baselineValue.toFixed(0)}`;
           if (useSeasonality && historicalChange !== undefined) {
             forecastValue = baselineValue * (1 + historicalChange);
+            calculation += ` × ${(1 + historicalChange).toFixed(3)}`;
           }
         }
 
+        // Store the base forecast value (before impact) for next iteration
+        previousValue = forecastValue;
+
         // Apply initiative impact if start month is set and we're at or past it
-        if (itemStartMonth && forecastKey >= itemStartMonth && itemImpact !== 0) {
-          forecastValue = forecastValue * (1 + (itemImpact / 100));
+        // IMPORTANT: Apply impact AFTER storing previousValue so it doesn't compound
+        const isImpacted = itemStartMonth && forecastKey >= itemStartMonth && itemImpact !== 0;
+        let finalValue = forecastValue;
+        if (isImpacted) {
+          finalValue = forecastValue * (1 + (itemImpact / 100));
+          calculation += ` × ${(1 + itemImpact / 100).toFixed(3)}`;
+        }
+        
+        totalForecast[forecastKey] = (totalForecast[forecastKey] || 0) + finalValue;
+
+        if (idx < 3) {
+          monthLog += `${forecastKey}: $${finalValue.toFixed(0)}${isImpacted ? '✨' : ''} | `;
         }
 
-        // Add to total forecast
-        totalForecast[forecastKey] = (totalForecast[forecastKey] || 0) + forecastValue;
-
-        previousValue = forecastValue;
         previousMonthNum = forecastMonthNum;
       });
+      
+      console.log(monthLog + "...");
     });
 
     console.log("  ✅ Initiative forecast computed:", Object.keys(totalForecast).length, "months");
