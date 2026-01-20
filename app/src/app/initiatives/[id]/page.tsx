@@ -448,6 +448,7 @@ export default function InitiativePage() {
     const linearTrend = changeCount > 0 ? totalChange / changeCount : 0;
 
     // Calculate month-over-month patterns from trailing 12 months (for seasonality)
+    // IMPORTANT: Remove CMGR from seasonal patterns to avoid double-counting growth
     const trailing12Months = monthKeys.slice(-12);
     const momPatterns: Record<string, number> = {};
     
@@ -460,9 +461,19 @@ export default function InitiativePage() {
       if (prevValue > 0 && currValue > 0) {
         const prevMonth = parseInt(prevKey.split('-')[1]);
         const currMonth = parseInt(currKey.split('-')[1]);
+        
+        // Calculate the actual change
         const changePercent = (currValue - prevValue) / prevValue;
+        
+        // Normalize by removing CMGR to get ONLY the seasonal deviation
+        // Formula: (1 + actualChange) / (1 + cmgr) - 1
+        // This gives us the seasonal variation independent of the growth trend
+        const normalizedChange = cmgr !== 0 
+          ? ((1 + changePercent) / (1 + cmgr)) - 1
+          : changePercent;
+        
         const transitionKey = `${prevMonth}-${currMonth}`;
-        momPatterns[transitionKey] = changePercent;
+        momPatterns[transitionKey] = normalizedChange;
       }
     }
 
