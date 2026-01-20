@@ -1185,59 +1185,35 @@ export default function InitiativePage() {
                                   </div>
                                   
                                   {/* Forecast Settings */}
-                                  <div className="flex items-center justify-between gap-4 mb-2 pb-2 border-b border-gray-700">
-                                    {/* Left: Method and Seasonality */}
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex items-center gap-2">
-                                        <label className="text-[10px] text-gray-400">Method:</label>
-                                        <select
-                                          value={forecastMethods[itemId] || 'cmgr'}
-                                          onChange={(e) => setForecastMethods(prev => ({
-                                            ...prev,
-                                            [itemId]: e.target.value as 'cmgr' | 'linear' | 'flat'
-                                          }))}
-                                          className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
-                                        >
-                                          <option value="cmgr">CMGR (Compound)</option>
-                                          <option value="linear">Linear</option>
-                                          <option value="flat">Flat</option>
-                                        </select>
-                                      </div>
-                                      
-                                      <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true}
-                                          onChange={(e) => setApplySeasonality(prev => ({
-                                            ...prev,
-                                            [itemId]: e.target.checked
-                                          }))}
-                                          className="w-3 h-3"
-                                        />
-                                        <span className="text-[10px] text-gray-400">Apply Seasonality</span>
-                                      </label>
+                                  <div className="flex items-center gap-3 mb-2 pb-2 border-b border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-[10px] text-gray-400">Method:</label>
+                                      <select
+                                        value={forecastMethods[itemId] || 'cmgr'}
+                                        onChange={(e) => setForecastMethods(prev => ({
+                                          ...prev,
+                                          [itemId]: e.target.value as 'cmgr' | 'linear' | 'flat'
+                                        }))}
+                                        className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
+                                      >
+                                        <option value="cmgr">CMGR (Compound)</option>
+                                        <option value="linear">Linear</option>
+                                        <option value="flat">Flat</option>
+                                      </select>
                                     </div>
                                     
-                                    {/* Right: Initiative Impact */}
-                                    <div className="flex items-center gap-2">
-                                      <label className="text-[10px] text-gray-400 whitespace-nowrap">Initiative Impact:</label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
                                       <input
-                                        type="range"
-                                        min="-100"
-                                        max="200"
-                                        step="1"
-                                        value={initiativeImpact}
-                                        onChange={(e) => setInitiativeImpact(parseFloat(e.target.value))}
-                                        className="w-24"
+                                        type="checkbox"
+                                        checked={applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true}
+                                        onChange={(e) => setApplySeasonality(prev => ({
+                                          ...prev,
+                                          [itemId]: e.target.checked
+                                        }))}
+                                        className="w-3 h-3"
                                       />
-                                      <input
-                                        type="number"
-                                        value={initiativeImpact}
-                                        onChange={(e) => setInitiativeImpact(parseFloat(e.target.value) || 0)}
-                                        className="w-14 px-1.5 py-0.5 rounded bg-gray-900/50 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
-                                      />
-                                      <span className="text-[10px] text-white font-medium">%</span>
-                                    </div>
+                                      <span className="text-[10px] text-gray-400">Apply Seasonality</span>
+                                    </label>
                                   </div>
                                   
                                   {/* Last 12 Months Data */}
@@ -1252,34 +1228,41 @@ export default function InitiativePage() {
                                     ))}
                                   </div>
                                   
-                                  {/* Month-by-Month Impact Inputs (only show for targeted item) */}
-                                  {targetedItemId === itemId && (
-                                    <div className="mt-2 pt-2 border-t border-gray-700">
-                                      <div className="text-[10px] text-gray-400 mb-1">Impact % (affects this month and all future)</div>
-                                      <div className="grid grid-cols-12 gap-1 text-center">
-                                        {monthKeys.slice(-12).map((monthKey, idx) => {
-                                          return (
-                                            <div key={idx}>
-                                              <input
-                                                type="number"
-                                                value={monthlyImpacts[monthKey] || 0}
-                                                onChange={(e) => {
-                                                  const value = parseFloat(e.target.value) || 0;
-                                                  setMonthlyImpacts(prev => ({
-                                                    ...prev,
-                                                    [monthKey]: value
-                                                  }));
-                                                }}
-                                                className="w-full px-1 py-0.5 rounded bg-gray-900 border border-gray-600 text-white text-[10px] text-center focus:outline-none focus:border-[#00d4aa]"
-                                                placeholder="0"
-                                                step="1"
-                                              />
-                                            </div>
-                                          );
-                                        })}
+                                  {/* Initiative Impact Control */}
+                                  <div className="mt-2 pt-2 border-t border-gray-700">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <label className="text-[10px] text-gray-400">Initiative Impact:</label>
+                                      <div className="flex items-center gap-3 flex-1">
+                                        <input
+                                          type="range"
+                                          min="-100"
+                                          max="200"
+                                          step="1"
+                                          value={initiativeImpact}
+                                          onChange={(e) => setInitiativeImpact(parseFloat(e.target.value))}
+                                          className="flex-1"
+                                        />
+                                        <input
+                                          type="number"
+                                          value={initiativeImpact}
+                                          onChange={(e) => setInitiativeImpact(parseFloat(e.target.value) || 0)}
+                                          className="w-16 px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-xs text-center focus:outline-none focus:border-[#00d4aa]"
+                                        />
+                                        <span className="text-xs text-white font-medium">%</span>
                                       </div>
                                     </div>
-                                  )}
+                                    <div className="text-[10px] text-gray-400 mt-1">
+                                      {initiativeImpact > 0 && (
+                                        <span className="text-[#00d4aa]">✓ This initiative will increase by {initiativeImpact}%</span>
+                                      )}
+                                      {initiativeImpact < 0 && (
+                                        <span className="text-orange-400">⚠ This initiative will reduce by {Math.abs(initiativeImpact)}%</span>
+                                      )}
+                                      {initiativeImpact === 0 && (
+                                        <span>No impact set - baseline forecast will be used</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                                 
                                 {/* Operation Selector & Calculated Result (only show between items in funnel mode) */}
