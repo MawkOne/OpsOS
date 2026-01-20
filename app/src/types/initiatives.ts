@@ -303,6 +303,29 @@ export function calculateWaterlinePosition(
     allocatedPeopleHours: number;
   }
 ): { isAbove: boolean; score: number; reason: string } {
+  // If status is "approved", it's always above the waterline
+  if (initiative.status === "approved") {
+    // Calculate score normally
+    const priority = initiative.priority || "medium";
+    const priorityScore = { critical: 100, high: 75, medium: 50, low: 25 }[priority];
+    
+    const expectedRevenue = initiative.expectedRevenue || 0;
+    const expectedSavings = initiative.expectedSavings || 0;
+    const estimatedCost = initiative.estimatedCost || 0;
+    const roi = estimatedCost > 0 ? (expectedRevenue + expectedSavings) / estimatedCost : 0;
+    
+    const status = initiative.status;
+    const statusBonus = 140; // approved bonus
+    
+    const score = statusBonus + priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
+    
+    return {
+      isAbove: true,
+      score,
+      reason: "Approved for execution"
+    };
+  }
+  
   const estimatedCost = initiative.estimatedCost || 0;
   const estimatedHours = initiative.estimatedPeopleHours || 0;
   

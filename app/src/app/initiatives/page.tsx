@@ -412,9 +412,14 @@ export default function InitiativesDashboard() {
                               e.stopPropagation();
                               const newStatus = e.target.value as InitiativeStatus;
                               try {
+                                // Recalculate waterline position with new status
+                                const tempInitiative = { ...initiative, status: newStatus };
+                                const { isAbove, score } = calculateWaterlinePosition(tempInitiative, resources);
+                                
                                 await updateDoc(doc(db, "initiatives", initiative.id), {
                                   status: newStatus,
-                                  isAboveWaterline: newStatus === "approved",
+                                  isAboveWaterline: isAbove,
+                                  waterlineScore: score,
                                   updatedAt: serverTimestamp(),
                                 });
                               } catch (error) {
