@@ -63,8 +63,8 @@ export default function InitiativePage() {
   // Forecast state
   const [forecastEnabled, setForecastEnabled] = useState(true);
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
-  const [initiativeImpact, setInitiativeImpact] = useState<number>(0); // % growth impact
-  const [impactStartMonth, setImpactStartMonth] = useState<string>(""); // Which month impact starts (YYYY-MM format)
+  const [initiativeImpacts, setInitiativeImpacts] = useState<Record<string, number>>({}); // Per-item % growth impact
+  const [impactStartMonths, setImpactStartMonths] = useState<Record<string, string>>({}); // Per-item start month (YYYY-MM format)
   const [funnelMode, setFunnelMode] = useState(false);
   const [funnelOperations, setFunnelOperations] = useState<Record<number, 'add' | 'subtract' | 'multiply' | 'divide'>>({});
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
@@ -215,8 +215,8 @@ export default function InitiativePage() {
           if (data.forecast) {
             setForecastEnabled(data.forecast.enabled || false);
             setSelectedLineItems(data.forecast.selectedLineItems || []);
-            setInitiativeImpact(data.forecast.initiativeImpact || 0);
-            setImpactStartMonth(data.forecast.impactStartMonth || "");
+            setInitiativeImpacts(data.forecast.initiativeImpacts || {});
+            setImpactStartMonths(data.forecast.impactStartMonths || {});
             setFunnelMode(data.forecast.funnelMode || false);
             setFunnelOperations(data.forecast.funnelOperations || {});
             setCalculatedStages(data.forecast.calculatedStages || {});
@@ -297,8 +297,8 @@ export default function InitiativePage() {
         forecast: {
           enabled: forecastEnabled,
           selectedLineItems,
-          initiativeImpact,
-          impactStartMonth,
+          initiativeImpacts,
+          impactStartMonths,
           funnelMode,
           funnelOperations,
           calculatedStages,
@@ -1238,8 +1238,11 @@ export default function InitiativePage() {
                                       <div className="flex items-center gap-2">
                                         <label className="text-[10px] text-gray-400 whitespace-nowrap">Start Month:</label>
                                         <select
-                                          value={impactStartMonth}
-                                          onChange={(e) => setImpactStartMonth(e.target.value)}
+                                          value={impactStartMonths[itemId] || ""}
+                                          onChange={(e) => setImpactStartMonths(prev => ({
+                                            ...prev,
+                                            [itemId]: e.target.value
+                                          }))}
                                           className="px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-[10px] focus:outline-none focus:border-[#00d4aa]"
                                           onClick={(e) => e.stopPropagation()}
                                         >
@@ -1260,16 +1263,22 @@ export default function InitiativePage() {
                                           min="-100"
                                           max="200"
                                           step="1"
-                                          value={initiativeImpact}
-                                          onChange={(e) => setInitiativeImpact(parseFloat(e.target.value))}
+                                          value={initiativeImpacts[itemId] || 0}
+                                          onChange={(e) => setInitiativeImpacts(prev => ({
+                                            ...prev,
+                                            [itemId]: parseFloat(e.target.value)
+                                          }))}
                                           onMouseDown={(e) => e.stopPropagation()}
                                           onClick={(e) => e.stopPropagation()}
                                           className="flex-1"
                                         />
                                         <input
                                           type="number"
-                                          value={initiativeImpact}
-                                          onChange={(e) => setInitiativeImpact(parseFloat(e.target.value) || 0)}
+                                          value={initiativeImpacts[itemId] || 0}
+                                          onChange={(e) => setInitiativeImpacts(prev => ({
+                                            ...prev,
+                                            [itemId]: parseFloat(e.target.value) || 0
+                                          }))}
                                           onClick={(e) => e.stopPropagation()}
                                           className="w-16 px-2 py-1 rounded bg-gray-900/50 border border-gray-600 text-white text-xs text-center focus:outline-none focus:border-[#00d4aa]"
                                         />
@@ -1277,13 +1286,13 @@ export default function InitiativePage() {
                                       </div>
                                     </div>
                                     
-                                    {initiativeImpact !== 0 && (
+                                    {(initiativeImpacts[itemId] || 0) !== 0 && (
                                       <div className="text-[10px] text-gray-400 mb-2">
-                                        {initiativeImpact > 0 && (
-                                          <span className="text-[#00d4aa]">✓ This initiative will increase by {initiativeImpact}%</span>
+                                        {(initiativeImpacts[itemId] || 0) > 0 && (
+                                          <span className="text-[#00d4aa]">✓ This initiative will increase by {initiativeImpacts[itemId]}%</span>
                                         )}
-                                        {initiativeImpact < 0 && (
-                                          <span className="text-orange-400">⚠ This initiative will reduce by {Math.abs(initiativeImpact)}%</span>
+                                        {(initiativeImpacts[itemId] || 0) < 0 && (
+                                          <span className="text-orange-400">⚠ This initiative will reduce by {Math.abs(initiativeImpacts[itemId] || 0)}%</span>
                                         )}
                                       </div>
                                     )}
@@ -1296,6 +1305,8 @@ export default function InitiativePage() {
                                       const { cmgr, linearTrend, momPatterns, baselineValue, lastMonthKey } = calculateForecast(entity);
                                       const method = forecastMethods[itemId] || 'cmgr';
                                       const useSeasonality = applySeasonality[itemId] !== undefined ? applySeasonality[itemId] : true;
+                                      const itemImpact = initiativeImpacts[itemId] || 0;
+                                      const itemStartMonth = impactStartMonths[itemId] || "";
                                       
                                       if (baselineValue === 0 || !lastMonthKey) return null;
                                       
@@ -1330,8 +1341,8 @@ export default function InitiativePage() {
                                         }
                                         
                                         // Apply initiative impact if start month is set and we're at or past it
-                                        if (impactStartMonth && forecastKey >= impactStartMonth) {
-                                          forecastValue = forecastValue * (1 + (initiativeImpact / 100));
+                                        if (itemStartMonth && forecastKey >= itemStartMonth) {
+                                          forecastValue = forecastValue * (1 + (itemImpact / 100));
                                         }
                                         
                                         forecast.push({ month: forecastKey, value: forecastValue });
@@ -1346,7 +1357,7 @@ export default function InitiativePage() {
                                             {forecast.map((item, idx) => {
                                               const [year, month] = item.month.split('-');
                                               const monthLabel = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short' });
-                                              const isImpacted = impactStartMonth && item.month >= impactStartMonth;
+                                              const isImpacted = itemStartMonth && item.month >= itemStartMonth;
                                               
                                               return (
                                                 <div key={idx} className="flex flex-col">
