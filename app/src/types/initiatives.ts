@@ -353,17 +353,19 @@ export function calculateWaterlinePosition(
   const roi = estimatedCost > 0 ? (expectedRevenue + expectedSavings) / estimatedCost : 0;
   
   // Status bonus (to order by status)
+  // Note: "approved" is handled in early return above, so not included here
   const status = initiative.status;
   const statusBonus = status === "in-progress" ? 200 : 
                       status === "planned" ? 150 : 
-                      status === "approved" ? 140 : 
                       status === "above-waterline" ? 130 :
                       status === "proposed" ? 50 :
                       status === "idea" ? 40 :
                       status === "below-waterline" ? 30 :
                       status === "on-hold" ? 20 :
                       status === "completed" ? 10 :
-                      status === "cancelled" ? 0 : 0;
+                      status === "cancelled" ? 0 : 
+                      status === "ready" ? 60 :
+                      status === "draft" ? 5 : 0;
   
   // Final score: status + priority + ROI + progress
   const score = statusBonus + priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
