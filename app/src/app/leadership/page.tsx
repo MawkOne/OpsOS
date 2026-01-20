@@ -71,10 +71,24 @@ export default function LeadershipDashboard() {
 
     const loadRevenueData = async () => {
       try {
-        const entities = await fetchMasterTableEntities(currentOrg.id, {
-          metricType: "revenue"
-        });
-        setRevenueData(entities);
+        console.log("📊 Loading revenue data for leadership dashboard...");
+        const allEntities = await fetchMasterTableEntities(currentOrg.id);
+        console.log(`  → Loaded ${allEntities.length} total entities`);
+        
+        // Filter for revenue entities
+        const revenueEntities = allEntities.filter(e => e.metricType === "revenue");
+        console.log(`  → Filtered to ${revenueEntities.length} revenue entities`);
+        
+        if (revenueEntities.length > 0) {
+          console.log(`  → Sample revenue entity:`, {
+            name: revenueEntities[0].entityName,
+            source: revenueEntities[0].source,
+            total: revenueEntities[0].total,
+            monthsCount: Object.keys(revenueEntities[0].months || {}).length
+          });
+        }
+        
+        setRevenueData(revenueEntities);
       } catch (error) {
         console.error("Error loading revenue data:", error);
       }
