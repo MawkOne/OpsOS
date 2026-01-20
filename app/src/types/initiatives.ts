@@ -329,8 +329,21 @@ export function calculateWaterlinePosition(
   const expectedSavings = initiative.expectedSavings || 0;
   const roi = estimatedCost > 0 ? (expectedRevenue + expectedSavings) / estimatedCost : 0;
   
-  // Final score: priority + ROI + progress
-  const score = priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
+  // Status bonus (to order by status)
+  const status = initiative.status;
+  const statusBonus = status === "in-progress" ? 200 : 
+                      status === "planned" ? 150 : 
+                      status === "approved" ? 140 : 
+                      status === "above-waterline" ? 130 :
+                      status === "proposed" ? 50 :
+                      status === "idea" ? 40 :
+                      status === "below-waterline" ? 30 :
+                      status === "on-hold" ? 20 :
+                      status === "completed" ? 10 :
+                      status === "cancelled" ? 0 : 0;
+  
+  // Final score: status + priority + ROI + progress
+  const score = statusBonus + priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
   
   let reason = "";
   if (!canAffordBudget && estimatedCost > 0) {

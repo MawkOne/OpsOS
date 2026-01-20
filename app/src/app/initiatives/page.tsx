@@ -432,8 +432,13 @@ export default function InitiativesDashboard() {
                               border: `1px solid ${statusConfig[initiative.status].color}`,
                             }}
                           >
+                            <option value="idea">Idea</option>
+                            <option value="proposed">Proposed</option>
                             <option value="approved">Approved</option>
+                            <option value="planned">Planned</option>
+                            <option value="in-progress">In Progress</option>
                             <option value="on-hold">On Hold</option>
+                            <option value="completed">Completed</option>
                           </select>
                         </div>
 
