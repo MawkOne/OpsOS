@@ -292,7 +292,8 @@ export function calculateInitiativeCosts(
 }
 
 /**
- * Calculate if an initiative is above the waterline based on available resources
+ * Calculate if an initiative is above the waterline based on status
+ * SIMPLE LOGIC: Only "idea" and "proposed" are below the waterline
  */
 export function calculateWaterlinePosition(
   initiative: Partial<Initiative>,
@@ -303,86 +304,58 @@ export function calculateWaterlinePosition(
     allocatedPeopleHours: number;
   }
 ): { isAbove: boolean; score: number; reason: string } {
-  // If status is "approved", it's always above the waterline
-  if (initiative.status === "approved") {
-    // Calculate score normally
-    const priority = initiative.priority || "medium";
-    const priorityScore = { critical: 100, high: 75, medium: 50, low: 25 }[priority];
-    
-    const expectedRevenue = initiative.expectedRevenue || 0;
-    const expectedSavings = initiative.expectedSavings || 0;
-    const estimatedCost = initiative.estimatedCost || 0;
-    const roi = estimatedCost > 0 ? (expectedRevenue + expectedSavings) / estimatedCost : 0;
-    
-    const status = initiative.status;
-    const statusBonus = 140; // approved bonus
-    
-    const score = statusBonus + priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
-    
-    return {
-      isAbove: true,
-      score,
-      reason: "Approved for execution"
-    };
-  }
+  const status = initiative.status;
   
-  const estimatedCost = initiative.estimatedCost || 0;
-  const estimatedHours = initiative.estimatedPeopleHours || 0;
-  
-  // Handle NaN values by defaulting to 0
-  const totalBudget = isNaN(availableResources.totalBudget) ? 0 : availableResources.totalBudget;
-  const allocatedBudget = isNaN(availableResources.allocatedBudget) ? 0 : availableResources.allocatedBudget;
-  const availablePeopleHours = isNaN(availableResources.availablePeopleHours) ? 0 : availableResources.availablePeopleHours;
-  const allocatedPeopleHours = isNaN(availableResources.allocatedPeopleHours) ? 0 : availableResources.allocatedPeopleHours;
-  
-  const remainingBudget = totalBudget - allocatedBudget;
-  const remainingHours = availablePeopleHours - allocatedPeopleHours;
-  
-  // Can we afford it?
-  const canAffordBudget = estimatedCost <= remainingBudget;
-  const canAffordHours = estimatedHours <= remainingHours || estimatedHours === 0;
-  
-  const isAbove = canAffordBudget && canAffordHours;
+  // WATERLINE LOGIC: Only "idea" and "proposed" are below the waterline
+  const isAbove = status !== "idea" && status !== "proposed";
   
   // Calculate a score for prioritization (higher = more important)
   const priority = initiative.priority || "medium";
   const priorityScore = { critical: 100, high: 75, medium: 50, low: 25 }[priority];
   
+  const estimatedCost = initiative.estimatedCost || 0;
   const expectedRevenue = initiative.expectedRevenue || 0;
   const expectedSavings = initiative.expectedSavings || 0;
   const roi = estimatedCost > 0 ? (expectedRevenue + expectedSavings) / estimatedCost : 0;
   
   // Status bonus (to order by status)
-  // Note: "approved" is handled in early return above, so not included here
-  const status = initiative.status;
   const statusBonus = status === "in-progress" ? 200 : 
                       status === "planned" ? 150 : 
+                      status === "approved" ? 140 : 
                       status === "above-waterline" ? 130 :
+                      status === "ready" ? 60 :
                       status === "proposed" ? 50 :
                       status === "idea" ? 40 :
                       status === "below-waterline" ? 30 :
                       status === "on-hold" ? 20 :
                       status === "completed" ? 10 :
                       status === "cancelled" ? 0 : 
-                      status === "ready" ? 60 :
                       status === "draft" ? 5 : 0;
   
   // Final score: status + priority + ROI + progress
   const score = statusBonus + priorityScore + (roi * 10) + (initiative.progress || 0) * 0.1;
   
+  // Set reason based on status
   let reason = "";
-  if (!canAffordBudget && estimatedCost > 0) {
-    const shortfall = estimatedCost - remainingBudget;
-    reason = `Needs $${shortfall.toFixed(0)} more budget`;
+  if (status === "idea") {
+    reason = "Needs proposal";
+  } else if (status === "proposed") {
+    reason = "Awaiting approval";
+  } else if (status === "approved") {
+    reason = "Approved for execution";
+  } else if (status === "planned") {
+    reason = "Scheduled to start";
+  } else if (status === "in-progress") {
+    reason = "Currently executing";
+  } else if (status === "on-hold") {
+    reason = "Paused";
+  } else if (status === "completed") {
+    reason = "Completed";
+  } else if (status === "cancelled") {
+    reason = "Cancelled";
+  } else {
+    reason = "Ready to execute";
   }
-  if (!canAffordHours && estimatedHours > 0) {
-    const shortfall = estimatedHours - remainingHours;
-    if (!isNaN(shortfall) && shortfall > 0) {
-      reason += (reason ? ", " : "") + `Needs ${shortfall.toFixed(0)} more hours`;
-    }
-  }
-  if (isAbove) reason = "Resources available";
-  if (!reason) reason = "Ready to plan";
   
   return { isAbove, score, reason };
 }
