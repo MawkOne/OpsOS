@@ -37,6 +37,12 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set('prompt', 'consent');
   authUrl.searchParams.set('state', state);
 
+  console.log('GA OAuth - Redirecting to Google with:', {
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scopes: SCOPES,
+  });
+
   return NextResponse.redirect(authUrl.toString());
 }
 
