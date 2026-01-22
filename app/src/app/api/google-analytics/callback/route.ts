@@ -43,6 +43,13 @@ export async function GET(request: NextRequest) {
 
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
+  console.log('GA Callback received:', {
+    hasCode: !!code,
+    hasState: !!state,
+    error,
+    allParams: Array.from(searchParams.entries()),
+  });
+
   // Handle OAuth errors
   if (error) {
     console.error('OAuth error:', error);
@@ -52,8 +59,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code || !state) {
+    console.error('Missing OAuth params:', { code: !!code, state: !!state });
     return NextResponse.redirect(
-      `${baseUrl}/sources/google-analytics?error=missing_params`
+      `${baseUrl}/sources/google-analytics?error=missing_params - Check redirect URI in Google Cloud Console`
     );
   }
 
