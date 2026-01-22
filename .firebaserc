@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "opsos-864a1"
+  },
+  "targets": {},
+  "etags": {
+    "opsos-864a1": {
+      "extensionInstances": {
+        "firestore-bigquery-export": "583bbc4fd20d228c4eaf32902dff227d37abcc0b4b2663441e1ce7fcacc522ee"
+      }
+    }
+  }
+}

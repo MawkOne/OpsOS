@@ -21,6 +21,7 @@ import {
   BarChart3,
   TrendingUp,
   Globe,
+  Database,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
@@ -73,6 +74,8 @@ function GoogleAnalyticsContent() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [syncingToFirestore, setSyncingToFirestore] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
 
   const organizationId = currentOrg?.id || "";
 
@@ -163,6 +166,35 @@ function GoogleAnalyticsContent() {
     setError(null);
     await fetchMetrics();
     setIsSyncing(false);
+  };
+
+  const handleSyncToFirestore = async (months: number) => {
+    if (!organizationId) return;
+
+    setSyncingToFirestore(true);
+    setError(null);
+    setSyncResult(null);
+
+    try {
+      const response = await fetch(
+        `/api/google-analytics/sync?organizationId=${organizationId}&months=${months}`,
+        { method: "POST" }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to sync");
+      }
+
+      setSyncResult(data);
+      setSuccess(`Synced ${months} months of data to Firestore!`);
+    } catch (err) {
+      console.error("Sync error:", err);
+      setError(err instanceof Error ? err.message : "Failed to sync");
+    } finally {
+      setSyncingToFirestore(false);
+    }
   };
 
   const handlePropertyChange = async (propertyId: string) => {
@@ -511,6 +543,122 @@ function GoogleAnalyticsContent() {
                 </div>
               </Card>
             </div>
+          </motion.div>
+        )}
+
+        {/* Sync to Firestore/BigQuery */}
+        {isConnected && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <Card>
+              <div className="flex items-start gap-4 mb-4">
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ background: "#F9AB0020", color: "#F9AB00" }}
+                >
+                  <Database className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+                    Sync to Database
+                  </h3>
+                  <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>
+                    Store GA4 data in Firestore → automatically syncs to BigQuery for causation analysis
+                  </p>
+                  <ul className="text-xs space-y-1 mb-4" style={{ color: "var(--foreground-muted)" }}>
+                    <li>• Stores traffic sources, campaigns, events, and pages</li>
+                    <li>• Enables historical queries and marketing attribution</li>
+                    <li>• Links GA4 data with Stripe customers for ROI analysis</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <button
+                  onClick={() => handleSyncToFirestore(1)}
+                  disabled={syncingToFirestore}
+                  className="px-4 py-3 rounded-lg text-left transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    background: "var(--background-secondary)",
+                    border: "2px solid var(--border)",
+                  }}
+                >
+                  <RefreshCw className={`w-5 h-5 mb-2 ${syncingToFirestore ? 'animate-spin' : ''}`} style={{ color: "#3b82f6" }} />
+                  <div className="font-semibold mb-1 text-sm" style={{ color: "var(--foreground)" }}>
+                    Current Month
+                  </div>
+                  <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Quick update
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleSyncToFirestore(3)}
+                  disabled={syncingToFirestore}
+                  className="px-4 py-3 rounded-lg text-left transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    background: "var(--background-secondary)",
+                    border: "2px solid var(--border)",
+                  }}
+                >
+                  <RefreshCw className={`w-5 h-5 mb-2 ${syncingToFirestore ? 'animate-spin' : ''}`} style={{ color: "#f59e0b" }} />
+                  <div className="font-semibold mb-1 text-sm" style={{ color: "var(--foreground)" }}>
+                    Last 3 Months
+                  </div>
+                  <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Recent backfill
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleSyncToFirestore(12)}
+                  disabled={syncingToFirestore}
+                  className="px-4 py-3 rounded-lg text-left transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    background: "var(--background-secondary)",
+                    border: "2px solid var(--border)",
+                  }}
+                >
+                  <RefreshCw className={`w-5 h-5 mb-2 ${syncingToFirestore ? 'animate-spin' : ''}`} style={{ color: "#10b981" }} />
+                  <div className="font-semibold mb-1 text-sm" style={{ color: "var(--foreground)" }}>
+                    Last 12 Months
+                  </div>
+                  <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                    Full history
+                  </div>
+                </button>
+              </div>
+
+              {syncResult && (
+                <div className="mt-4 p-3 rounded-lg" style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-4 h-4" style={{ color: "#10b981" }} />
+                    <span className="text-sm font-medium" style={{ color: "#10b981" }}>Sync Complete!</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <div className="text-lg font-bold" style={{ color: "#3b82f6" }}>{syncResult.results.trafficSources}</div>
+                      <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>Sources</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold" style={{ color: "#f59e0b" }}>{syncResult.results.campaigns}</div>
+                      <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>Campaigns</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold" style={{ color: "#8b5cf6" }}>{syncResult.results.events}</div>
+                      <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>Events</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold" style={{ color: "#10b981" }}>{syncResult.results.pages}</div>
+                      <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>Pages</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
           </motion.div>
         )}
 

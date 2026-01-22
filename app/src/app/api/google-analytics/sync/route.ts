@@ -179,7 +179,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error syncing GA4 data:', error);
-    return NextResponse.json({ error: 'Failed to sync GA4 data' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to sync GA4 data';
+    return NextResponse.json({ 
+      error: errorMessage,
+      details: 'Check if GA API access token is valid and Analytics Data API is enabled'
+    }, { status: 500 });
   }
 }
 
