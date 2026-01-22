@@ -112,17 +112,22 @@ export async function POST(request: NextRequest) {
 
     // Sync Traffic Sources
     console.log('Syncing traffic sources...');
-    const trafficData = await syncTrafficSources(propertyId, accessToken, months);
-    for (const [sourceId, sourceData] of Object.entries(trafficData)) {
-      const docRef = doc(db, 'ga_traffic_sources', `${organizationId}_${sourceId}`);
-      await setDoc(docRef, {
-        organizationId,
-        sourceId,
-        sourceName: sourceData.name,
-        months: sourceData.months,
-        syncedAt: serverTimestamp(),
-      }, { merge: true });
-      syncResults.trafficSources++;
+    try {
+      const trafficData = await syncTrafficSources(propertyId, accessToken, months);
+      for (const [sourceId, sourceData] of Object.entries(trafficData)) {
+        const docRef = doc(db, 'ga_traffic_sources', `${organizationId}_${sourceId}`);
+        await setDoc(docRef, {
+          organizationId,
+          sourceId,
+          sourceName: sourceData.name,
+          months: sourceData.months,
+          syncedAt: serverTimestamp(),
+        }, { merge: true });
+        syncResults.trafficSources++;
+      }
+    } catch (err) {
+      console.error('Error syncing traffic sources:', err);
+      throw new Error('Failed to sync traffic sources: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
 
     // Sync Campaigns (Google Ads)
@@ -222,7 +227,14 @@ async function syncTrafficSources(
       }
     );
 
-    if (!response.ok) continue;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`GA API error (${response.status}) for ${month.key}:`, errorText);
+      if (response.status === 403) {
+        throw new Error('Google Analytics API returned 403 Forbidden. Token may be expired or Analytics Data API not enabled in GCP.');
+      }
+      continue;
+    }
 
     const data = await response.json();
     

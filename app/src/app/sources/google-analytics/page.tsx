@@ -191,7 +191,8 @@ function GoogleAnalyticsContent() {
       setSuccess(`Synced ${months} months of data to Firestore!`);
     } catch (err) {
       console.error("Sync error:", err);
-      setError(err instanceof Error ? err.message : "Failed to sync");
+      const errorMsg = err instanceof Error ? err.message : "Failed to sync";
+      setError(errorMsg + " - Try disconnecting and reconnecting Google Analytics.");
     } finally {
       setSyncingToFirestore(false);
     }
