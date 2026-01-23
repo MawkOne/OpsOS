@@ -284,6 +284,96 @@ export default function MarketingInsightsPage() {
             </button>
           ))}
         </div>
+
+        {/* Driver Health Section */}
+        <Card>
+          <div className="flex items-center gap-3 mb-6">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ background: "#8b5cf620", color: "#8b5cf6" }}
+            >
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Driver Health</h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead style={{ background: "var(--background-secondary)", borderBottom: "1px solid var(--border)" }}>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Rank
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Driver
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Current
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Best
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Gap vs Best
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
+                    Importance
+                  </th>
+                </tr>
+              </thead>
+              <tbody style={{ borderTop: "1px solid var(--border)" }}>
+                {insight.driverHealth.slice(0, 10).map((driver, driverIdx) => (
+                  <motion.tr 
+                    key={driver.feature}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: driverIdx * 0.03 }}
+                    className="transition-colors hover:bg-[var(--background-tertiary)]"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <td className="px-6 py-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {driver.rank}
+                    </td>
+                    <td className="px-6 py-4 text-sm" style={{ color: "var(--foreground)" }}>
+                      {driver.feature.replace(/_/g, " ")}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          background: driver.status === "excellent" ? "#00d4aa20" : 
+                                     driver.status === "good" ? "#3b82f620" : 
+                                     driver.status === "below_average" ? "#f59e0b20" : "#ef444420",
+                          color: driver.status === "excellent" ? "#00d4aa" : 
+                                driver.status === "good" ? "#3b82f6" : 
+                                driver.status === "below_average" ? "#f59e0b" : "#ef4444"
+                        }}
+                      >
+                        {driver.status.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground)" }}>
+                      {driver.current_value.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
+                      {driver.internal_best.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
+                      {(driver.gap_vs_best * 100).toFixed(1)}%
+                    </td>
+                    <td className="px-6 py-4 text-sm text-right font-medium" style={{ color: "var(--foreground)" }}>
+                      {(driver.importance * 100).toFixed(1)}%
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        
         {/* Top Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
@@ -530,94 +620,6 @@ export default function MarketingInsightsPage() {
           </div>
         </Card>
 
-        {/* Driver Health Section */}
-        <Card>
-          <div className="flex items-center gap-3 mb-6">
-            <div 
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ background: "#8b5cf620", color: "#8b5cf6" }}
-            >
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Driver Health</h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead style={{ background: "var(--background-secondary)", borderBottom: "1px solid var(--border)" }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Rank
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Driver
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Current
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Best
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Gap vs Best
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Importance
-                  </th>
-                </tr>
-              </thead>
-              <tbody style={{ borderTop: "1px solid var(--border)" }}>
-                {insight.driverHealth.slice(0, 10).map((driver, driverIdx) => (
-                  <motion.tr 
-                    key={driver.feature}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: driverIdx * 0.03 }}
-                    className="transition-colors hover:bg-[var(--background-tertiary)]"
-                    style={{ borderBottom: "1px solid var(--border)" }}
-                  >
-                    <td className="px-6 py-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                      {driver.rank}
-                    </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: "var(--foreground)" }}>
-                      {driver.feature.replace(/_/g, " ")}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className="px-2 py-1 rounded-full text-xs font-medium"
-                        style={{
-                          background: driver.status === "excellent" ? "#00d4aa20" : 
-                                     driver.status === "good" ? "#3b82f620" : 
-                                     driver.status === "below_average" ? "#f59e0b20" : "#ef444420",
-                          color: driver.status === "excellent" ? "#00d4aa" : 
-                                driver.status === "good" ? "#3b82f6" : 
-                                driver.status === "below_average" ? "#f59e0b" : "#ef4444"
-                        }}
-                      >
-                        {driver.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground)" }}>
-                      {driver.current_value.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                      {driver.internal_best.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                      {(driver.gap_vs_best * 100).toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right font-medium" style={{ color: "var(--foreground)" }}>
-                      {(driver.importance * 100).toFixed(1)}%
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
       </div>
     </AppLayout>
   );
