@@ -95,6 +95,14 @@ const CHANNELS = [
   { id: 'social', name: 'Social', icon: '👥' },
 ];
 
+const GOALS = [
+  { id: 'signups', name: 'Total Signups', icon: '👥', target: 6000 },
+  { id: 'company_signups', name: 'Company Signups', icon: '👔', target: 3000 },
+  { id: 'talent_signups', name: 'Talent Signups', icon: '💼', target: 3000 },
+  { id: 'revenue', name: 'Revenue', icon: '💰', target: 100000 },
+  { id: 'conversions', name: 'Conversions', icon: '🎯', target: 1000 },
+];
+
 export default function MarketingInsightsPage() {
   const { currentOrg } = useOrganization();
   const [loading, setLoading] = useState(true);
@@ -102,6 +110,7 @@ export default function MarketingInsightsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState('all');
+  const [selectedGoal, setSelectedGoal] = useState(GOALS[0]);
 
   const fetchLatestInsight = async () => {
     if (!currentOrg?.id) return;
@@ -145,7 +154,7 @@ export default function MarketingInsightsPage() {
       setError(null);
 
       const response = await fetch(
-        `https://marketing-optimization-engine-bgjb4fnyeq-uc.a.run.app?organizationId=${currentOrg.id}&goalKpi=signups&targetValue=6000&channel=${selectedChannel}`
+        `https://marketing-optimization-engine-bgjb4fnyeq-uc.a.run.app?organizationId=${currentOrg.id}&goalKpi=${selectedGoal.id}&targetValue=${selectedGoal.target}&channel=${selectedChannel}`
       );
 
       if (!response.ok) {
@@ -172,7 +181,7 @@ export default function MarketingInsightsPage() {
 
   useEffect(() => {
     fetchLatestInsight();
-  }, [currentOrg?.id, selectedChannel]);
+  }, [currentOrg?.id, selectedChannel, selectedGoal]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat("en-US").format(Math.round(num));
@@ -241,12 +250,31 @@ export default function MarketingInsightsPage() {
   return (
     <AppLayout title="Marketing Insights" subtitle="AI-powered optimization recommendations">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Model Badge */}
+        {/* Model Badge and Goal Selector */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg">
-            <Sparkles className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium text-purple-700">Powered by Gemini 3 Flash Preview</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium text-purple-700">Powered by Gemini 3 Flash Preview</span>
+            </div>
+            
+            {/* Goal Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Optimize for:</span>
+              <select
+                value={selectedGoal.id}
+                onChange={(e) => setSelectedGoal(GOALS.find(g => g.id === e.target.value) || GOALS[0])}
+                className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-200 transition-all"
+              >
+                {GOALS.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.icon} {goal.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          
           <button
             onClick={runAnalysis}
             disabled={refreshing}
