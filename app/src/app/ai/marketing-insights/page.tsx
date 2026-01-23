@@ -230,6 +230,31 @@ export default function MarketingInsightsPage() {
   return (
     <AppLayout title="Marketing Insights" subtitle="AI-powered optimization recommendations">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Model Badge */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-700">Powered by Gemini 3 Flash Preview</span>
+          </div>
+          <button
+            onClick={runAnalysis}
+            disabled={refreshing}
+            className="px-4 py-2 rounded-lg disabled:opacity-50 inline-flex items-center gap-2 text-sm font-semibold transition-all"
+            style={{ background: "var(--accent)", color: "var(--background)" }}
+          >
+            {refreshing ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Refresh Analysis
+              </>
+            )}
+          </button>
+        </div>
         {/* Top Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
@@ -268,36 +293,16 @@ export default function MarketingInsightsPage() {
           </motion.div>
         </div>
 
-        {/* Header Actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-              <Clock className="w-4 h-4" />
-              Updated {formatTimestamp(insight.timestamp)}
-            </div>
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-              <Activity className="w-4 h-4" />
-              R² Score: {(insight.metadata.r_squared * 100).toFixed(1)}%
-            </div>
+        {/* Header Metadata */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
+            <Clock className="w-4 h-4" />
+            Updated {formatTimestamp(insight.timestamp)}
           </div>
-          <button
-            onClick={runAnalysis}
-            disabled={refreshing}
-            className="px-4 py-2.5 rounded-lg disabled:opacity-50 inline-flex items-center gap-2 text-sm font-semibold transition-all"
-            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
-          >
-            {refreshing ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                Run Analysis
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
+            <Activity className="w-4 h-4" />
+            R² Score: {(insight.metadata.r_squared * 100).toFixed(1)}%
+          </div>
         </div>
 
         {/* Goal Progress Card */}
