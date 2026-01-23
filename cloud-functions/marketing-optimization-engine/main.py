@@ -51,6 +51,22 @@ def marketing_optimization_engine(request):
     6. Return summary
     """
     
+    # Set CORS headers for all responses
+    if request.method == 'OPTIONS':
+        # Preflight request
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers for actual request
+    headers = {
+        'Access-Control-Allow-Origin': '*'
+    }
+    
     try:
         logger.info("🤖 Marketing Optimization Engine starting...")
         start_time = datetime.now()
@@ -139,15 +155,15 @@ def marketing_optimization_engine(request):
         # Convert numpy types to JSON-serializable types
         result = convert_to_json_serializable(result)
         
-        return json.dumps(result, indent=2)
+        return (json.dumps(result, indent=2), 200, headers)
         
     except Exception as e:
         logger.error(f"❌ Error in marketing optimization engine: {str(e)}", exc_info=True)
-        return json.dumps({
+        return (json.dumps({
             'status': 'error',
             'error': str(e),
             'timestamp': datetime.now().isoformat()
-        }, indent=2), 500
+        }, indent=2), 500, headers)
 
 
 def store_results(org_id: str, output: dict):
