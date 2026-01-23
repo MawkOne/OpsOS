@@ -181,6 +181,6 @@ export const subscribeToCollection = <T extends FirestoreDoc>(
   });
 };
 
-// Export query helpers
-export { query, where, orderBy, limit, collection, doc };
+// Export query helpers and db instance
+export { query, where, orderBy, limit, collection, doc, db };
 
