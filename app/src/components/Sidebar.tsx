@@ -35,10 +35,12 @@ import {
   Layers,
   Table,
   Network,
+  Brain,
+  Lightbulb,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-type Module = "initiatives" | "planning" | "resources" | "sources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
+type Module = "ai" | "initiatives" | "planning" | "resources" | "sources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
 
 interface NavItem {
   label: string;
@@ -53,6 +55,12 @@ interface NavSection {
 }
 
 const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color: string; href: string }> = {
+  ai: { 
+    label: "AI", 
+    icon: <Brain className="w-4 h-4" />, 
+    color: "#a855f7",
+    href: "/ai",
+  },
   leadership: { 
     label: "Leadership", 
     icon: <Crown className="w-4 h-4" />, 
@@ -110,9 +118,18 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 };
 
 // Define the order for module selector dropdown
-const moduleOrder: Module[] = ["leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
+const moduleOrder: Module[] = ["ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
 
 const navigationByModule: Record<Module, NavSection[]> = {
+  ai: [
+    {
+      title: "Overview",
+      items: [
+        { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Marketing Insights", href: "/ai/marketing-insights", icon: <Lightbulb className="w-4 h-4" />, badge: "New" },
+      ],
+    },
+  ],
   initiatives: [
     {
       title: "Overview",
@@ -269,6 +286,7 @@ export default function Sidebar() {
 
   // Determine current module from URL path
   const getCurrentModule = (): Module => {
+    if (pathname.startsWith("/ai")) return "ai";
     if (pathname.startsWith("/planning")) return "planning";
     if (pathname.startsWith("/resources")) return "resources";
     if (pathname.startsWith("/sources")) return "sources";
