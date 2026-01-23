@@ -86,13 +86,12 @@ interface MarketingInsight {
 }
 
 const CHANNELS = [
-  { id: 'all', name: 'All Channels', icon: '📊' },
-  { id: 'email', name: 'Email', icon: '📧' },
-  { id: 'advertising', name: 'Advertising', icon: '📢' },
-  { id: 'seo', name: 'SEO', icon: '🔍' },
-  { id: 'pages', name: 'Pages', icon: '📄' },
-  { id: 'traffic', name: 'Traffic', icon: '🌐' },
-  { id: 'social', name: 'Social', icon: '👥' },
+  { id: 'email', name: 'Email', icon: '📧', description: 'Email campaigns, open rates, CTR' },
+  { id: 'seo', name: 'SEO', icon: '🔍', description: 'Organic traffic, rankings, backlinks' },
+  { id: 'advertising', name: 'Advertising', icon: '📢', description: 'Paid ads, CPC, ROAS, conversions' },
+  { id: 'social', name: 'Social', icon: '👥', description: 'Engagement, followers, shares' },
+  { id: 'pages', name: 'Pages', icon: '📄', description: 'Landing pages, conversion rates' },
+  { id: 'articles', name: 'Articles', icon: '📝', description: 'Blog content, time on page, backlinks' },
 ];
 
 const GOALS = [
@@ -109,7 +108,7 @@ export default function MarketingInsightsPage() {
   const [insight, setInsight] = useState<MarketingInsight | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState('all');
+  const [selectedChannel, setSelectedChannel] = useState('email');
   const [selectedGoal, setSelectedGoal] = useState(GOALS[0]);
 
   const fetchLatestInsight = async () => {
@@ -295,22 +294,35 @@ export default function MarketingInsightsPage() {
           </button>
         </div>
         
-        {/* Channel Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
-          {CHANNELS.map((channel) => (
-            <button
-              key={channel.id}
-              onClick={() => setSelectedChannel(channel.id)}
-              className={`px-4 py-2.5 rounded-lg font-medium whitespace-nowrap transition-all ${
-                selectedChannel === channel.id
-                  ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="mr-2">{channel.icon}</span>
-              {channel.name}
-            </button>
-          ))}
+        {/* Channel Section Tabs */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3" style={{ color: "var(--foreground)" }}>
+            Marketing Channels
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {CHANNELS.map((channel) => (
+              <button
+                key={channel.id}
+                onClick={() => setSelectedChannel(channel.id)}
+                className={`p-4 rounded-xl text-left transition-all ${
+                  selectedChannel === channel.id
+                    ? 'bg-purple-100 border-2 border-purple-400 shadow-md'
+                    : 'bg-white border border-gray-200 hover:border-purple-200 hover:shadow-sm'
+                }`}
+                style={selectedChannel !== channel.id ? { background: "var(--background-secondary)" } : {}}
+              >
+                <div className="text-2xl mb-2">{channel.icon}</div>
+                <div className={`font-semibold text-sm mb-1 ${
+                  selectedChannel === channel.id ? 'text-purple-700' : ''
+                }`} style={selectedChannel !== channel.id ? { color: "var(--foreground)" } : {}}>
+                  {channel.name}
+                </div>
+                <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {channel.description}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Driver Health Section */}

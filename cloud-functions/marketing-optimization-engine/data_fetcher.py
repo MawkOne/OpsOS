@@ -320,23 +320,25 @@ def filter_by_channel(df: pd.DataFrame, channel: str) -> pd.DataFrame:
         ],
         'seo': [
             'organic', 'search', 'keyword', 'ranking', 'backlink',
-            'domain_authority', 'page_views', 'bounce'
+            'domain_authority', 'page_views', 'bounce', 'search_console'
         ],
         'pages': [
             'page_', 'landing_', 'bounce', 'time_on_page', 'scroll',
-            'engagement_rate', 'engaged_users', 'video_', 'form_'
-        ],
-        'traffic': [
-            'sessions', 'users', 'traffic_', 'source_', 'medium_',
-            'referral', 'direct', 'quality_score'
+            'engagement_rate', 'engaged_users', 'video_', 'form_',
+            'conversion_rate', 'exit_rate'
         ],
         'social': [
             'social', 'share', 'like', 'follower', 'engagement',
-            'twitter', 'linkedin', 'facebook', 'instagram'
+            'twitter', 'linkedin', 'facebook', 'instagram', 'viral'
         ],
         'email': [
             'email_', 'total_emails', 'open_rate', 'ctr', 'unsubscribe',
-            'bounce_rate', 'campaign'
+            'bounce_rate', 'campaign', 'total_opens', 'total_clicks'
+        ],
+        'articles': [
+            'article_', 'blog_', 'content_', 'time_on_page', 'scroll_depth',
+            'backlink', 'share', 'comment', 'read_time', 'return_reader',
+            'page_views', 'bounce'
         ]
     }
     

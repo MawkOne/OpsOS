@@ -69,9 +69,9 @@ def build_recommendation_prompt(opportunities: list, business_context: dict, cha
         'advertising': 'paid advertising campaigns (Google Ads, social ads, display ads)',
         'seo': 'organic search optimization (keywords, rankings, backlinks, content)',
         'pages': 'landing pages and website content (engagement, forms, CTAs)',
-        'traffic': 'overall website traffic sources and quality',
         'social': 'social media presence and engagement',
-        'email': 'email marketing campaigns and automation'
+        'email': 'email marketing campaigns and automation',
+        'articles': 'blog articles and content marketing (time on page, backlinks, shares)'
     }
     
     channel_desc = channel_context.get(channel, 'all marketing channels')
