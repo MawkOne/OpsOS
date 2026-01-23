@@ -85,12 +85,23 @@ interface MarketingInsight {
   status: string;
 }
 
+const CHANNELS = [
+  { id: 'all', name: 'All Channels', icon: '📊' },
+  { id: 'email', name: 'Email', icon: '📧' },
+  { id: 'advertising', name: 'Advertising', icon: '📢' },
+  { id: 'seo', name: 'SEO', icon: '🔍' },
+  { id: 'pages', name: 'Pages', icon: '📄' },
+  { id: 'traffic', name: 'Traffic', icon: '🌐' },
+  { id: 'social', name: 'Social', icon: '👥' },
+];
+
 export default function MarketingInsightsPage() {
   const { currentOrg } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [insight, setInsight] = useState<MarketingInsight | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState('all');
 
   const fetchLatestInsight = async () => {
     if (!currentOrg?.id) return;
@@ -134,7 +145,7 @@ export default function MarketingInsightsPage() {
       setError(null);
 
       const response = await fetch(
-        `https://marketing-optimization-engine-bgjb4fnyeq-uc.a.run.app?organizationId=${currentOrg.id}&goalKpi=signups&targetValue=6000`
+        `https://marketing-optimization-engine-bgjb4fnyeq-uc.a.run.app?organizationId=${currentOrg.id}&goalKpi=signups&targetValue=6000&channel=${selectedChannel}`
       );
 
       if (!response.ok) {
@@ -161,7 +172,7 @@ export default function MarketingInsightsPage() {
 
   useEffect(() => {
     fetchLatestInsight();
-  }, [currentOrg?.id]);
+  }, [currentOrg?.id, selectedChannel]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat("en-US").format(Math.round(num));
@@ -254,6 +265,24 @@ export default function MarketingInsightsPage() {
               </>
             )}
           </button>
+        </div>
+        
+        {/* Channel Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-6 border-b" style={{ borderColor: "var(--border)" }}>
+          {CHANNELS.map((channel) => (
+            <button
+              key={channel.id}
+              onClick={() => setSelectedChannel(channel.id)}
+              className={`px-4 py-2.5 rounded-lg font-medium whitespace-nowrap transition-all ${
+                selectedChannel === channel.id
+                  ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
+                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <span className="mr-2">{channel.icon}</span>
+              {channel.name}
+            </button>
+          ))}
         </div>
         {/* Top Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

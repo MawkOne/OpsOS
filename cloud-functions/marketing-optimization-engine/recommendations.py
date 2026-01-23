@@ -15,22 +15,23 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 
 
-def generate_recommendations(opportunities: list, business_context: dict = None) -> list:
+def generate_recommendations(opportunities: list, business_context: dict = None, channel: str = 'all') -> list:
     """
     Generate AI-powered recommendations using Gemini 3 Flash
     
     Args:
         opportunities: Prioritized list of opportunities from driver analysis
         business_context: Business context from Firestore
+        channel: Marketing channel being analyzed
     
     Returns:
         List of AI-generated recommendations
     """
     
-    logger.info(f"🤖 Generating AI recommendations for {len(opportunities)} opportunities...")
+    logger.info(f"🤖 Generating AI recommendations for {len(opportunities)} opportunities (channel: {channel})...")
     
     # Build the prompt
-    prompt = build_recommendation_prompt(opportunities, business_context)
+    prompt = build_recommendation_prompt(opportunities, business_context, channel)
     
     # Call Gemini Flash
     try:
@@ -60,8 +61,20 @@ def generate_recommendations(opportunities: list, business_context: dict = None)
         return generate_fallback_recommendations(opportunities)
 
 
-def build_recommendation_prompt(opportunities: list, business_context: dict) -> str:
+def build_recommendation_prompt(opportunities: list, business_context: dict, channel: str = 'all') -> str:
     """Build the prompt for Gemini 3"""
+    
+    # Channel descriptions
+    channel_context = {
+        'advertising': 'paid advertising campaigns (Google Ads, social ads, display ads)',
+        'seo': 'organic search optimization (keywords, rankings, backlinks, content)',
+        'pages': 'landing pages and website content (engagement, forms, CTAs)',
+        'traffic': 'overall website traffic sources and quality',
+        'social': 'social media presence and engagement',
+        'email': 'email marketing campaigns and automation'
+    }
+    
+    channel_desc = channel_context.get(channel, 'all marketing channels')
     
     # Format opportunities data
     opps_summary = []
@@ -98,11 +111,11 @@ Opportunity #{i}:
             campaigns = [c['name'] for c in business_context['recent_campaigns'][:3]]
             context_str += f"\n**Recent Campaigns:** {', '.join(campaigns)}"
     
-    prompt = f"""You are a senior marketing strategist analyzing data for a SaaS company. Based on the driver analysis below, generate 5 specific, actionable recommendations.
+    prompt = f"""You are a senior marketing strategist analyzing data for a SaaS company. You are specifically analyzing **{channel_desc.upper()}** performance. Based on the driver analysis below, generate 5 specific, actionable recommendations focused on {channel_desc}.
 
 BUSINESS CONTEXT:{context_str if context_str else " (Limited context available)"}
 
-TOP OPPORTUNITIES FROM DATA ANALYSIS:
+TOP OPPORTUNITIES FROM DATA ANALYSIS (focused on {channel_desc}):
 {''.join(opps_summary)}
 
 INSTRUCTIONS:

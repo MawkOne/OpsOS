@@ -11,16 +11,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def fetch_marketing_data(org_id: str, lookback_days: int = 90) -> pd.DataFrame:
+def fetch_marketing_data(org_id: str, lookback_days: int = 90, channel: str = 'all') -> pd.DataFrame:
     """
-    Fetch all marketing data from BigQuery and build unified monthly feature matrix
+    Fetch marketing data from BigQuery and build unified monthly feature matrix
     
     Args:
         org_id: Organization ID to filter data
         lookback_days: Number of days to look back
+        channel: Marketing channel to focus on (all, advertising, seo, pages, traffic, social, email)
     
     Returns:
-        DataFrame with monthly aggregates and all marketing features
+        DataFrame with monthly aggregates and channel-specific features
     """
     
     client = bigquery.Client(project='opsos-864a1')
@@ -251,6 +252,11 @@ def fetch_marketing_data(org_id: str, lookback_days: int = 90) -> pd.DataFrame:
     # Add derived features
     df = add_derived_features(df)
     
+    # Filter by channel if specified
+    if channel != 'all':
+        df = filter_by_channel(df, channel)
+        logger.info(f"📍 Filtered to {channel} channel: {len(df.columns)} relevant columns")
+    
     logger.info(f"✅ Fetched {len(df)} rows with {len(df.columns)} columns")
     logger.info(f"Date range: {df['month'].min()} to {df['month'].max()}")
     
@@ -289,3 +295,62 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
             df[f'{col}_mom_change'] = df[col].pct_change()
     
     return df
+
+
+def filter_by_channel(df: pd.DataFrame, channel: str) -> pd.DataFrame:
+    """
+    Filter DataFrame to only include metrics relevant to the specified channel
+    
+    Args:
+        df: Full marketing data DataFrame
+        channel: Channel to filter for (advertising, seo, pages, traffic, social, email)
+    
+    Returns:
+        Filtered DataFrame with only relevant columns
+    """
+    
+    # Always keep core columns
+    core_cols = ['month', 'signups', 'sessions', 'revenue']
+    
+    # Channel-specific metric patterns
+    channel_patterns = {
+        'advertising': [
+            'ad_', 'campaign_', 'cost', 'spend', 'cpc', 'cpm', 'roas',
+            'impressions', 'clicks', 'conversions'
+        ],
+        'seo': [
+            'organic', 'search', 'keyword', 'ranking', 'backlink',
+            'domain_authority', 'page_views', 'bounce'
+        ],
+        'pages': [
+            'page_', 'landing_', 'bounce', 'time_on_page', 'scroll',
+            'engagement_rate', 'engaged_users', 'video_', 'form_'
+        ],
+        'traffic': [
+            'sessions', 'users', 'traffic_', 'source_', 'medium_',
+            'referral', 'direct', 'quality_score'
+        ],
+        'social': [
+            'social', 'share', 'like', 'follower', 'engagement',
+            'twitter', 'linkedin', 'facebook', 'instagram'
+        ],
+        'email': [
+            'email_', 'total_emails', 'open_rate', 'ctr', 'unsubscribe',
+            'bounce_rate', 'campaign'
+        ]
+    }
+    
+    # Get patterns for this channel
+    patterns = channel_patterns.get(channel, [])
+    
+    # Select columns that match any pattern
+    selected_cols = core_cols.copy()
+    for col in df.columns:
+        if col in core_cols:
+            continue
+        col_lower = col.lower()
+        if any(pattern in col_lower for pattern in patterns):
+            selected_cols.append(col)
+    
+    # Return filtered DataFrame
+    return df[selected_cols]

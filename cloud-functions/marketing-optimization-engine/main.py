@@ -85,12 +85,14 @@ def marketing_optimization_engine(request):
                           request_args.get('targetValue', '6000'))
         lookback_days = int((request_json.get('lookbackDays') if request_json else None) or \
                            request_args.get('lookbackDays', '90'))
+        channel = (request_json.get('channel') if request_json else None) or \
+                  request_args.get('channel', 'all')  # all, advertising, seo, pages, traffic, social, email
         
-        logger.info(f"Config: org_id={org_id}, goal_kpi={goal_kpi}, target={target_value}")
+        logger.info(f"Config: org_id={org_id}, goal_kpi={goal_kpi}, target={target_value}, channel={channel}")
         
         # Step 1: Fetch marketing data
-        logger.info("📊 Step 1: Fetching marketing data...")
-        data = fetch_marketing_data(org_id, lookback_days)
+        logger.info(f"📊 Step 1: Fetching marketing data (channel: {channel})...")
+        data = fetch_marketing_data(org_id, lookback_days, channel)
         logger.info(f"✅ Fetched {len(data)} months of data with {len(data.columns)} features")
         
         # Step 2: Analyze drivers
@@ -112,7 +114,7 @@ def marketing_optimization_engine(request):
         # Step 5: Prioritize and generate AI recommendations
         logger.info("🤖 Step 5: Generating AI-powered recommendations with Gemini 3...")
         prioritized = prioritize_opportunities(opportunities)
-        recommendations = generate_recommendations(prioritized[:5], business_context)  # Top 5 with context
+        recommendations = generate_recommendations(prioritized[:5], business_context, channel)  # Top 5 with context
         logger.info(f"✅ Generated {len(recommendations)} AI recommendations")
         
         # Step 6: Format output
@@ -125,6 +127,7 @@ def marketing_optimization_engine(request):
             driver_health=driver_health,
             recommendations=recommendations,
             analysis_metadata={
+                'channel': channel,
                 'lookback_days': lookback_days,
                 'num_observations': len(data),
                 'num_features': len(data.columns),
