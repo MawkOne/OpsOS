@@ -1,36 +1,240 @@
 """
-Recommendations Module
-Generates actionable recommendations and formats output
+AI-Powered Recommendations Module
+Uses Gemini 3 Flash to generate contextual, intelligent recommendations
 """
 
 import logging
 from datetime import datetime
+import json
+import os
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
+# Initialize Gemini API
+genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
 
-def generate_recommendations(opportunities: list) -> list:
+
+def generate_recommendations(opportunities: list, business_context: dict = None) -> list:
     """
-    Convert opportunities into actionable recommendations
+    Generate AI-powered recommendations using Gemini 3 Flash
     
     Args:
-        opportunities: Prioritized list of opportunities
+        opportunities: Prioritized list of opportunities from driver analysis
+        business_context: Business context from Firestore
     
     Returns:
-        List of actionable recommendations
+        List of AI-generated recommendations
     """
+    
+    logger.info(f"🤖 Generating AI recommendations for {len(opportunities)} opportunities...")
+    
+    # Build the prompt
+    prompt = build_recommendation_prompt(opportunities, business_context)
+    
+    # Call Gemini Flash
+    try:
+        model = genai.GenerativeModel("gemini-3-flash-preview")
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,  # Lower temperature for more focused recommendations
+                top_p=0.8,
+                top_k=40,
+                max_output_tokens=8192,
+            )
+        )
+        
+        # Parse the AI response
+        recommendations = parse_ai_response(response.text, opportunities)
+        
+        logger.info(f"✅ Generated {len(recommendations)} AI-powered recommendations")
+        
+        return recommendations
+        
+    except Exception as e:
+        logger.error(f"❌ Error calling Gemini API: {e}")
+        logger.warning("⚠️ Falling back to template-based recommendations")
+        # Fallback to simple recommendations if AI fails
+        return generate_fallback_recommendations(opportunities)
+
+
+def build_recommendation_prompt(opportunities: list, business_context: dict) -> str:
+    """Build the prompt for Gemini 3"""
+    
+    # Format opportunities data
+    opps_summary = []
+    for i, opp in enumerate(opportunities[:5], 1):
+        opps_summary.append(f"""
+Opportunity #{i}:
+- Driver: {opp['driver']}
+- Current Value: {opp['current_value']:.2f}
+- Benchmark (Best): {opp['benchmark_value']:.2f}
+- Gap: {opp['gap_pct']*100:.1f}%
+- Importance: {opp['importance']:.1%}
+- Expected Lift: +{opp['expected_lift']:.0f} signups/month
+- Type: {opp['type']}
+- Priority: {opp['priority_label']}
+- Confidence: {opp['confidence']}
+- Rationale: {opp['rationale']}
+""")
+    
+    # Format business context
+    context_str = ""
+    if business_context:
+        if business_context.get('products'):
+            products = [p['name'] for p in business_context['products'][:5]]
+            context_str += f"\n**Products:** {', '.join(products)}"
+        
+        if business_context.get('initiatives'):
+            initiatives = [f"{i['name']} ({i['category']})" for i in business_context['initiatives'][:5]]
+            context_str += f"\n**Active Initiatives:** {', '.join(initiatives)}"
+        
+        if business_context.get('team_size'):
+            context_str += f"\n**Team Size:** {business_context['team_size']} people"
+        
+        if business_context.get('recent_campaigns'):
+            campaigns = [c['name'] for c in business_context['recent_campaigns'][:3]]
+            context_str += f"\n**Recent Campaigns:** {', '.join(campaigns)}"
+    
+    prompt = f"""You are a senior marketing strategist analyzing data for a SaaS company. Based on the driver analysis below, generate 5 specific, actionable recommendations.
+
+BUSINESS CONTEXT:{context_str if context_str else " (Limited context available)"}
+
+TOP OPPORTUNITIES FROM DATA ANALYSIS:
+{''.join(opps_summary)}
+
+INSTRUCTIONS:
+For EACH of the 5 opportunities above, provide:
+
+1. **Title** (10 words max): Clear, action-oriented title
+2. **Description** (2-3 sentences): Explain the opportunity and expected impact
+3. **Actions** (5 specific action items): Concrete, implementable steps. Be SPECIFIC - include numbers, timeframes, tools, tactics
+4. **Success Metrics** (3 metrics to track): How to measure success
+5. **Timeline**: Estimate implementation days, testing days, and when results will be visible
+
+CRITICAL REQUIREMENTS:
+- Make recommendations SPECIFIC to this company's context (products, initiatives, team size)
+- Include CONCRETE numbers and tactics (don't say "improve email marketing" - say "send 2 additional campaigns per week targeting X segment")
+- Consider resource constraints (team size, budget)
+- Build on what's already working (reference their products/campaigns when relevant)
+- Prioritize quick wins (low effort, high impact) first
+
+OUTPUT FORMAT (JSON):
+Return ONLY valid JSON array with this exact structure:
+
+[
+  {{
+    "rank": 1,
+    "title": "Scale High-Performing Email Campaigns",
+    "description": "Current email campaigns are driving 15% of signups but frequency is 40% below benchmark. Increasing from 3 to 5 emails per week would close 35% of the gap to goal.",
+    "actions": [
+      "Duplicate top-performing campaign template (Welcome Series) and adapt for different segments",
+      "Schedule 2 additional sends per week: Tuesday 10am and Thursday 2pm",
+      "Create 4 new email templates this week focused on product benefits and social proof",
+      "Set up A/B test on subject lines for new campaigns (test for 14 days)",
+      "Track incremental signup lift with UTM parameters (goal: +50 signups/week)"
+    ],
+    "success_metrics": [
+      "Email campaigns sent per week (target: 5, current: 3)",
+      "Incremental signups from email (target: +200/month)",
+      "Email-to-signup conversion rate (maintain above 2%)"
+    ],
+    "timeline": {{
+      "implementation_days": 7,
+      "testing_days": 14,
+      "results_visible_days": 21
+    }}
+  }}
+]
+
+Generate recommendations now:"""
+    
+    return prompt
+
+
+def parse_ai_response(response_text: str, opportunities: list) -> list:
+    """Parse Gemini 3 response into structured recommendations"""
+    
+    try:
+        # Try to extract JSON from response
+        # Sometimes the model wraps JSON in markdown code blocks
+        if "```json" in response_text:
+            json_start = response_text.find("```json") + 7
+            json_end = response_text.find("```", json_start)
+            response_text = response_text[json_start:json_end].strip()
+        elif "```" in response_text:
+            json_start = response_text.find("```") + 3
+            json_end = response_text.find("```", json_start)
+            response_text = response_text[json_start:json_end].strip()
+        
+        # Parse JSON
+        ai_recommendations = json.loads(response_text)
+        
+        # Enhance with original opportunity data
+        recommendations = []
+        for i, rec in enumerate(ai_recommendations[:5]):
+            opp = opportunities[i] if i < len(opportunities) else opportunities[0]
+            
+            # Merge AI output with opportunity data
+            enhanced_rec = {
+                'id': f"rec_{datetime.now().strftime('%Y%m%d')}_{rec.get('rank', i+1)}",
+                'rank': rec.get('rank', i+1),
+                'priority': opp['priority_label'],
+                'driver': opp['driver'],
+                'type': opp['type'],
+                'title': rec.get('title', 'Optimization Opportunity'),
+                'description': rec.get('description', ''),
+                'rationale': opp['rationale'],
+                'expected_lift': round(opp['expected_lift'], 0),
+                'pct_of_gap_closed': round(opp['pct_of_gap_closed'] * 100, 1),
+                'effort': opp['effort_estimate'],
+                'confidence': opp['confidence'],
+                'current_value': round(opp['current_value'], 2),
+                'target_value': round(opp['benchmark_value'], 2),
+                'gap_pct': round(opp['gap_pct'] * 100, 1),
+                'actions': rec.get('actions', []),
+                'success_metrics': rec.get('success_metrics', []),
+                'timeline': rec.get('timeline', {
+                    'implementation_days': 21,
+                    'testing_days': 30,
+                    'results_visible_days': 45
+                })
+            }
+            
+            recommendations.append(enhanced_rec)
+        
+        return recommendations
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI response as JSON: {e}")
+        logger.debug(f"Response text: {response_text[:500]}")
+        # Fallback
+        return generate_fallback_recommendations(opportunities)
+    except Exception as e:
+        logger.error(f"Error parsing AI response: {e}")
+        return generate_fallback_recommendations(opportunities)
+
+
+def generate_fallback_recommendations(opportunities: list) -> list:
+    """
+    Fallback: Generate simple template-based recommendations if AI fails
+    """
+    
+    logger.warning("Using fallback template recommendations")
     
     recommendations = []
     
-    for opp in opportunities:
+    for opp in opportunities[:5]:
         rec = {
             'id': f"rec_{datetime.now().strftime('%Y%m%d')}_{opp['rank']}",
             'rank': opp['rank'],
             'priority': opp['priority_label'],
             'driver': opp['driver'],
             'type': opp['type'],
-            'title': generate_title(opp),
-            'description': generate_description(opp),
+            'title': f"Optimize {opp['driver'].replace('_', ' ').title()}",
+            'description': f"Improve {opp['driver']} from {opp['current_value']:.0f} to {opp['benchmark_value']:.0f} to add {opp['expected_lift']:.0f} signups per month.",
             'rationale': opp['rationale'],
             'expected_lift': round(opp['expected_lift'], 0),
             'pct_of_gap_closed': round(opp['pct_of_gap_closed'] * 100, 1),
@@ -39,221 +243,34 @@ def generate_recommendations(opportunities: list) -> list:
             'current_value': round(opp['current_value'], 2),
             'target_value': round(opp['benchmark_value'], 2),
             'gap_pct': round(opp['gap_pct'] * 100, 1),
-            'actions': generate_action_items(opp),
-            'success_metrics': generate_success_metrics(opp),
-            'timeline': estimate_timeline(opp)
+            'actions': [
+                f"Analyze current state of {opp['driver']}",
+                f"Identify specific improvements to reach {opp['benchmark_value']:.0f}",
+                "Implement changes and track impact",
+                f"Measure results weekly",
+                "Adjust strategy based on performance"
+            ],
+            'success_metrics': [
+                f"{opp['driver']} value",
+                "Signup conversion rate",
+                "Week-over-week growth"
+            ],
+            'timeline': {
+                'implementation_days': 14,
+                'testing_days': 21,
+                'results_visible_days': 30
+            }
         }
         
         recommendations.append(rec)
     
-    logger.info(f"✅ Generated {len(recommendations)} recommendations")
-    
     return recommendations
-
-
-def generate_title(opp: dict) -> str:
-    """Generate concise title for the recommendation"""
-    
-    driver = opp['driver'].replace('_', ' ').title()
-    
-    if opp['type'] == 'improve_driver':
-        if 'email' in opp['driver'].lower():
-            return f"Scale Email Marketing"
-        elif 'video' in opp['driver'].lower():
-            return f"Expand Video Content"
-        elif 'search' in opp['driver'].lower():
-            return f"Boost Search Engagement"
-        elif 'organic' in opp['driver'].lower() or 'seo' in opp['driver'].lower():
-            return f"Grow Organic Traffic"
-        else:
-            return f"Improve {driver}"
-    
-    elif opp['type'] == 'remove_friction':
-        if 'paywall' in opp['driver'].lower():
-            return f"Optimize Paywall Frequency"
-        elif 'form' in opp['driver'].lower():
-            return f"Reduce Form Abandonment"
-        elif 'mobile' in opp['driver'].lower():
-            return f"Fix Mobile Experience"
-        else:
-            return f"Reduce {driver}"
-    
-    return f"Optimize {driver}"
-
-
-def generate_description(opp: dict) -> str:
-    """Generate detailed description of the recommendation"""
-    
-    driver = opp['driver'].replace('_', ' ')
-    current = opp['current_value']
-    target = opp['benchmark_value']
-    gap_pct = opp['gap_pct'] * 100
-    lift = opp['expected_lift']
-    
-    if opp['type'] == 'improve_driver':
-        return f"Increase {driver} from {current:.0f} to {target:.0f} " \
-               f"(+{gap_pct:.0f}% improvement). This would add approximately {lift:.0f} " \
-               f"signups per month based on its {opp['importance']:.1%} importance."
-    else:
-        return f"Reduce {driver} from {current:.0f} to {target:.0f} " \
-               f"(-{gap_pct:.0f}% reduction). This friction point is currently causing " \
-               f"a {abs(opp['importance']):.1%} negative impact on signups. " \
-               f"Addressing it could add {lift:.0f} signups per month."
-
-
-def generate_action_items(opp: dict) -> list:
-    """Generate specific action items for the recommendation"""
-    
-    driver = opp['driver'].lower()
-    
-    # Paywall optimization
-    if 'paywall' in driver:
-        return [
-            "Update paywall configuration to reduce frequency from 60% to 20% of users",
-            "Implement intent scoring to show paywall only to high-intent users",
-            "Set up A/B test (Control: current, Treatment: reduced frequency)",
-            "Run test for 14 days with 10K users per group",
-            "Monitor signup conversion rate and revenue impact"
-        ]
-    
-    # Email marketing
-    elif 'email' in driver:
-        if 'open_rate' in driver or 'open' in driver:
-            return [
-                "Analyze top-performing campaigns (Welcome Series has 48% open rate)",
-                "A/B test subject lines using proven formats",
-                "Increase send frequency from 3/week to 5/week",
-                "Segment list and personalize content",
-                "Clean list to remove inactive subscribers"
-            ]
-        elif 'campaigns' in driver:
-            return [
-                "Scale successful campaigns (e.g., Welcome Series, Product Launch)",
-                "Schedule 2 additional campaigns per week",
-                "Create campaign calendar for next month",
-                "Invest in content creation resources",
-                "Track incremental signup lift"
-            ]
-    
-    # Video engagement
-    elif 'video' in driver:
-        return [
-            "Add explainer video to /jobs page hero section",
-            "Create short demo videos for key features",
-            "Optimize video placement for visibility",
-            "Test autoplay vs click-to-play",
-            "Track video view rate and completion rate"
-        ]
-    
-    # Organic traffic
-    elif 'organic' in driver or 'seo' in driver:
-        return [
-            "Publish 2-4 SEO-optimized blog posts per month",
-            "Target keywords: 'youtube jobs', 'creator marketplace', 'freelance creators'",
-            "Improve technical SEO (page speed, mobile experience)",
-            "Build backlinks through partnerships",
-            "Track organic traffic and keyword rankings monthly"
-        ]
-    
-    # Search usage
-    elif 'search' in driver:
-        return [
-            "Make search bar more prominent on homepage",
-            "Add search suggestions and auto-complete",
-            "Improve search algorithm relevance",
-            "Track search usage rate and result click-through",
-            "A/B test search bar placement"
-        ]
-    
-    # Form optimization
-    elif 'form' in driver:
-        return [
-            "Reduce form fields (remove non-essential questions)",
-            "Add progress indicator for multi-step forms",
-            "Implement autosave to prevent data loss",
-            "Improve error messaging and validation",
-            "Track form completion rate by field"
-        ]
-    
-    # Default actions
-    else:
-        return [
-            f"Analyze current state of {opp['driver']}",
-            f"Identify quick wins to improve performance",
-            f"Implement changes and monitor impact",
-            f"Measure results against {opp['benchmark_value']:.0f} benchmark"
-        ]
-
-
-def generate_success_metrics(opp: dict) -> list:
-    """Define success metrics for tracking the recommendation"""
-    
-    driver = opp['driver']
-    expected_lift = opp['expected_lift']
-    
-    return [
-        {
-            'metric': driver,
-            'current': round(opp['current_value'], 2),
-            'target': round(opp['benchmark_value'], 2),
-            'measurement_frequency': 'weekly'
-        },
-        {
-            'metric': 'signups',
-            'expected_lift': round(expected_lift, 0),
-            'measurement_frequency': 'daily'
-        },
-        {
-            'metric': 'conversion_rate',
-            'measurement_frequency': 'daily'
-        }
-    ]
-
-
-def estimate_timeline(opp: dict) -> dict:
-    """Estimate implementation timeline"""
-    
-    effort = opp['effort_estimate']
-    
-    if effort == 'low':
-        return {
-            'implementation_days': 7,
-            'testing_days': 14,
-            'results_visible_days': 21,
-            'phase': 'quick_win'
-        }
-    elif effort == 'medium':
-        return {
-            'implementation_days': 21,
-            'testing_days': 30,
-            'results_visible_days': 45,
-            'phase': 'medium_term'
-        }
-    else:  # high
-        return {
-            'implementation_days': 60,
-            'testing_days': 60,
-            'results_visible_days': 90,
-            'phase': 'strategic'
-        }
 
 
 def format_output(org_id: str, goal_kpi: str, target_value: float, current_value: float,
                  driver_health: list, recommendations: list, analysis_metadata: dict) -> dict:
     """
     Format complete output for storage and display
-    
-    Args:
-        org_id: Organization ID
-        goal_kpi: Target metric name
-        target_value: Goal value
-        current_value: Current value
-        driver_health: Driver health reports
-        recommendations: List of recommendations
-        analysis_metadata: Metadata about the analysis
-    
-    Returns:
-        Formatted output dict
     """
     
     gap = target_value - current_value
@@ -273,7 +290,7 @@ def format_output(org_id: str, goal_kpi: str, target_value: float, current_value
     output = {
         'organization_id': org_id,
         'timestamp': datetime.now().isoformat(),
-        'analysis_type': 'marketing_optimization',
+        'analysis_type': 'marketing_optimization_ai',
         
         # Goal progress
         'goal_kpi': goal_kpi,
@@ -287,59 +304,17 @@ def format_output(org_id: str, goal_kpi: str, target_value: float, current_value
         # Driver health
         'driver_health': driver_health,
         
-        # Recommendations
+        # AI-generated recommendations
         'recommendations': recommendations,
         'total_opportunity': total_opportunity,
         'opportunity_vs_gap': total_opportunity / gap if gap > 0 else 0,
         
         # Metadata
-        'metadata': analysis_metadata
+        'metadata': {
+            **analysis_metadata,
+            'ai_model': 'gemini-pro',
+            'recommendation_engine': 'ai_powered'
+        }
     }
     
     return output
-
-
-def format_slack_message(output: dict) -> str:
-    """
-    Format output as Slack message
-    
-    Args:
-        output: Output from format_output()
-    
-    Returns:
-        Slack message string
-    """
-    
-    goal = output['goal_kpi']
-    current = output['current_value']
-    target = output['target_value']
-    gap = output['gap']
-    progress = output['progress_pct'] * 100
-    
-    recs = output['recommendations'][:3]  # Top 3
-    
-    message = f"""🤖 *Marketing Optimization Agent*
-{datetime.now().strftime('%A, %B %d, %Y at %I:%M%p')}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎯 *GOAL STATUS*
-{goal.title()}: {current:,.0f} (Goal: {target:,.0f})
-Gap: {gap:,.0f} ({progress:.0f}% of goal)
-
-📊 *TOP 3 ACTIONS FOR THIS WEEK*
-"""
-    
-    priority_emojis = {'urgent': '🔴', 'high': '🟡', 'medium': '🟢', 'low': '⚪'}
-    
-    for i, rec in enumerate(recs, 1):
-        emoji = priority_emojis.get(rec['priority'], '⚪')
-        message += f"\n{i}. {emoji} [{rec['priority'].upper()}] {rec['title']}\n"
-        message += f"   Impact: +{rec['expected_lift']:,.0f} {goal}/mo | "
-        message += f"Effort: {rec['effort'].title()} | "
-        message += f"Confidence: {rec['confidence'].title()}\n"
-    
-    message += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    message += f"\nNext update: Tomorrow at 6am"
-    
-    return message

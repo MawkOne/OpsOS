@@ -1,5 +1,6 @@
 google-cloud-bigquery==3.11.4
 google-cloud-firestore==2.11.1
+google-generativeai==0.8.3
 functions-framework==3.4.0
 pandas==2.0.3
 numpy==1.24.3

@@ -15,6 +15,7 @@ from data_fetcher import fetch_marketing_data
 from driver_analysis import analyze_drivers, calculate_driver_health
 from opportunity_finder import find_opportunities, prioritize_opportunities
 from recommendations import generate_recommendations, format_output
+from business_context import fetch_business_context
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -98,19 +99,24 @@ def marketing_optimization_engine(request):
         driver_health = calculate_driver_health(data, driver_analysis, goal_kpi)
         logger.info(f"✅ Identified {len(driver_analysis['drivers'])} drivers")
         
-        # Step 3: Find opportunities
-        logger.info("💡 Step 3: Identifying optimization opportunities...")
+        # Step 3: Fetch business context
+        logger.info("🏢 Step 3: Fetching business context...")
+        business_context = fetch_business_context(org_id)
+        logger.info(f"✅ Context: {business_context.get('team_size', 0)} team, {len(business_context.get('products', []))} products, {len(business_context.get('initiatives', []))} initiatives")
+        
+        # Step 4: Find opportunities
+        logger.info("💡 Step 4: Identifying optimization opportunities...")
         opportunities = find_opportunities(data, goal_kpi, target_value, driver_analysis)
         logger.info(f"✅ Found {len(opportunities)} opportunities")
         
-        # Step 4: Prioritize and generate recommendations
-        logger.info("🎯 Step 4: Prioritizing recommendations...")
+        # Step 5: Prioritize and generate AI recommendations
+        logger.info("🤖 Step 5: Generating AI-powered recommendations with Gemini 3...")
         prioritized = prioritize_opportunities(opportunities)
-        recommendations = generate_recommendations(prioritized[:5])  # Top 5
-        logger.info(f"✅ Generated {len(recommendations)} recommendations")
+        recommendations = generate_recommendations(prioritized[:5], business_context)  # Top 5 with context
+        logger.info(f"✅ Generated {len(recommendations)} AI recommendations")
         
-        # Step 5: Format output
-        logger.info("📝 Step 5: Formatting output...")
+        # Step 6: Format output
+        logger.info("📝 Step 6: Formatting output...")
         output = format_output(
             org_id=org_id,
             goal_kpi=goal_kpi,
@@ -127,8 +133,8 @@ def marketing_optimization_engine(request):
             }
         )
         
-        # Step 6: Store in Firestore
-        logger.info("💾 Step 6: Storing results in Firestore...")
+        # Step 7: Store in Firestore
+        logger.info("💾 Step 7: Storing results in Firestore...")
         store_results(org_id, output)
         
         # Complete

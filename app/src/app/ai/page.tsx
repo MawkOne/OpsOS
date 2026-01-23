@@ -21,7 +21,7 @@ export default function AIPage() {
             <div className="flex items-center gap-4">
               <div className="px-4 py-2 bg-white/20 rounded-lg">
                 <p className="text-sm text-purple-100">Powered by</p>
-                <p className="font-semibold">Google Gemini 3 Flash</p>
+                <p className="font-semibold">Gemini 3 Flash Preview</p>
               </div>
               <div className="px-4 py-2 bg-white/20 rounded-lg">
                 <p className="text-sm text-purple-100">Deployed on</p>
