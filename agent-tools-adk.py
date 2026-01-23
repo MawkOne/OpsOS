@@ -80,7 +80,7 @@ def analyze_traffic_sources(
 # Marketing Intelligence Agent (uses the custom tools)
 marketing_events_agent = LlmAgent(
     name='Marketing_Events_Agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description=(
         'Agent specialized in analyzing marketing events and categorizing them '
         'by business function (Acquisition, Activation, Engagement, etc.)'
@@ -95,7 +95,7 @@ marketing_events_agent = LlmAgent(
 
 marketing_traffic_agent = LlmAgent(
     name='Marketing_Traffic_Agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description=(
         'Agent specialized in analyzing traffic source performance and quality. '
         'Provides insights about which channels drive the best users.'
@@ -111,7 +111,7 @@ marketing_traffic_agent = LlmAgent(
 # Root Marketing AI Agent
 marketing_ai_root = LlmAgent(
     name='Marketing_Intelligence_Agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description=(
         'Marketing Intelligence AI that analyzes events and traffic sources to provide '
         'actionable insights about marketing performance. Can answer questions about '

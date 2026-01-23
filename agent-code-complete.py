@@ -108,7 +108,7 @@ def analyze_traffic_sources(
 # Your existing agents (keep these if you want Google Search & URL context)
 my_agent_google_search_agent = LlmAgent(
     name='My_Agent_google_search_agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description='Agent specialized in performing Google searches.',
     sub_agents=[],
     instruction='Use the GoogleSearchTool to find information on the web.',
@@ -117,7 +117,7 @@ my_agent_google_search_agent = LlmAgent(
 
 my_agent_url_context_agent = LlmAgent(
     name='My_Agent_url_context_agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description='Agent specialized in fetching content from URLs.',
     sub_agents=[],
     instruction='Use the UrlContextTool to retrieve content from provided URLs.',
@@ -127,7 +127,7 @@ my_agent_url_context_agent = LlmAgent(
 # ROOT AGENT - Replace your existing root_agent with this
 root_agent = LlmAgent(
     name='Marketing_Intelligence_Agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description=(
         'Marketing Intelligence AI that analyzes marketing events and traffic sources. '
         'Provides actionable insights about marketing performance, event tracking, '

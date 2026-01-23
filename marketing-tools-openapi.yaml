@@ -1,0 +1,224 @@
+openapi: 3.0.0
+info:
+  title: OpsOS Marketing Intelligence Tools
+  description: Custom tools for analyzing marketing events and traffic sources
+  version: 1.0.0
+servers:
+  - url: https://opsos-app.vercel.app
+    description: OpsOS Production API
+
+paths:
+  /api/agents/marketing/discover-events:
+    get:
+      operationId: discoverMarketingEvents
+      summary: Discover and categorize marketing events
+      description: |
+        Discovers all marketing events being tracked and categorizes them by business function:
+        - Acquisition (page views, sessions)
+        - Activation (signups, conversions)
+        - Engagement (clicks, scrolls, buttons)
+        - Monetization (purchases, checkouts)
+        - Friction (paywalls, restrictions)
+        - Retention (notifications, messages)
+        
+        Returns trend analysis (up/down/stable) and total event counts.
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema:
+            type: string
+            default: SBjucW1ztDyFYWBz7ZLE
+          description: The organization ID to analyze
+      responses:
+        '200':
+          description: Successfully discovered events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  summary:
+                    type: object
+                    properties:
+                      totalEvents:
+                        type: integer
+                        example: 80
+                      totalEventCount:
+                        type: integer
+                        example: 49089443
+                      totalUsers:
+                        type: integer
+                        example: 0
+                      categoryCounts:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      trendingUp:
+                        type: integer
+                        example: 7
+                      trendingDown:
+                        type: integer
+                        example: 65
+                  events:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          eventName:
+                            type: string
+                          category:
+                            type: string
+                          totalUsers:
+                            type: integer
+                          totalCount:
+                            type: integer
+                          lastMonth:
+                            type: string
+                          trend:
+                            type: string
+                            enum: [up, down, stable]
+                  organizationId:
+                    type: string
+        '400':
+          description: Missing organizationId
+        '500':
+          description: Server error
+
+  /api/agents/marketing/analyze-traffic:
+    get:
+      operationId: analyzeTrafficSources
+      summary: Analyze traffic source performance
+      description: |
+        Analyzes all traffic sources with quality scoring and performance metrics.
+        
+        Quality Score (0-10) based on:
+        - Conversion rate (max 4 points)
+        - Revenue per user (max 3 points)
+        - Engagement/session depth (max 3 points)
+        
+        Provides automated insights about:
+        - Best performing sources
+        - Underperforming sources
+        - Organic vs Paid comparison
+        - Actionable recommendations
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema:
+            type: string
+            default: SBjucW1ztDyFYWBz7ZLE
+          description: The organization ID to analyze
+        - name: months
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 12
+          description: Number of recent months to analyze
+      responses:
+        '200':
+          description: Successfully analyzed traffic sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  summary:
+                    type: object
+                    properties:
+                      totalSources:
+                        type: integer
+                        example: 11
+                      totalUsers:
+                        type: integer
+                        example: 672864
+                      totalConversions:
+                        type: integer
+                        example: 158543
+                      totalRevenue:
+                        type: number
+                        example: 90782
+                      avgConversionRate:
+                        type: number
+                        example: 24.98
+                      topSource:
+                        type: string
+                        example: "Organic Shopping"
+                      lowestQualitySource:
+                        type: string
+                        example: "Display"
+                  sources:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sourceName:
+                          type: string
+                        sourceId:
+                          type: string
+                        totalUsers:
+                          type: integer
+                        totalSessions:
+                          type: integer
+                        totalConversions:
+                          type: integer
+                        totalRevenue:
+                          type: number
+                        conversionRate:
+                          type: number
+                        revenuePerUser:
+                          type: number
+                        trend:
+                          type: string
+                          enum: [up, down, stable]
+                        qualityScore:
+                          type: number
+                          minimum: 0
+                          maximum: 10
+                        monthlyData:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              month:
+                                type: string
+                              users:
+                                type: integer
+                              sessions:
+                                type: integer
+                              conversions:
+                                type: integer
+                  insights:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [success, warning, info]
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        recommendation:
+                          type: string
+                  organizationId:
+                    type: string
+                  analyzedMonths:
+                    type: integer
+        '400':
+          description: Missing organizationId
+        '500':
+          description: Server error

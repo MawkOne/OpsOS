@@ -77,7 +77,7 @@ def analyze_traffic_sources(
 # ============================================
 root_agent = Agent(
     name='Marketing_Intelligence_Agent',
-    model='gemini-3.0-flash',
+    model='gemini-3-flash-preview',
     description=(
         'Marketing Intelligence AI that analyzes marketing events and traffic sources. '
         'Provides actionable insights about marketing performance, event tracking, '
