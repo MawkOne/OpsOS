@@ -46,6 +46,24 @@ interface OnPageTask {
   }>;
 }
 
+// Helper to make DataForSEO API calls
+async function dataforseoRequest(
+  endpoint: string,
+  method: "GET" | "POST",
+  credentials: string,
+  body?: unknown
+) {
+  const response = await fetch(`https://api.dataforseo.com/v3/${endpoint}`, {
+    method,
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return response.json();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { organizationId, action } = await request.json();
@@ -223,6 +241,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: crawlProgress });
     }
 
+    // Action: Sync keyword rankings
+    if (action === "sync_keywords") {
+      return await syncKeywordRankings(organizationId, domain, credentials, connectionRef);
+    }
+
+    // Action: Sync backlinks
+    if (action === "sync_backlinks") {
+      return await syncBacklinks(organizationId, domain, credentials, connectionRef);
+    }
+
+    // Action: Sync historical SERP rankings for tracked keywords
+    if (action === "sync_historical_serps") {
+      return await syncHistoricalSerps(organizationId, domain, credentials, connectionRef);
+    }
+
+    // Action: Full sync (page health + keywords + backlinks)
+    if (action === "full_sync") {
+      const results = {
+        pageHealth: null as unknown,
+        keywords: null as unknown,
+        backlinks: null as unknown,
+      };
+
+      // Start crawl if no task exists
+      if (!connection.currentTaskId) {
+        const targetUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+        const taskResponse = await dataforseoRequest("on_page/task_post", "POST", credentials, [
+          {
+            target: targetUrl,
+            max_crawl_pages: 500,
+            load_resources: true,
+            enable_javascript: true,
+            enable_browser_rendering: true,
+            respect_sitemap: true,
+            crawl_delay: 100,
+            store_raw_html: false,
+            calculate_keyword_density: true,
+          },
+        ]);
+
+        if (taskResponse.status_code === 20000) {
+          await setDoc(connectionRef, {
+            currentTaskId: taskResponse.tasks?.[0]?.id,
+            crawlStartedAt: Timestamp.now(),
+          }, { merge: true });
+        }
+      }
+
+      // Sync keywords
+      try {
+        const keywordsResult = await syncKeywordRankings(organizationId, domain, credentials, connectionRef);
+        results.keywords = await keywordsResult.json();
+      } catch (e) {
+        console.error("Keywords sync error:", e);
+      }
+
+      // Sync backlinks
+      try {
+        const backlinksResult = await syncBacklinks(organizationId, domain, credentials, connectionRef);
+        results.backlinks = await backlinksResult.json();
+      } catch (e) {
+        console.error("Backlinks sync error:", e);
+      }
+
+      await setDoc(connectionRef, { status: "connected", updatedAt: Timestamp.now() }, { merge: true });
+
+      return NextResponse.json({
+        success: true,
+        message: "Full sync initiated",
+        results,
+      });
+    }
+
     // Default: fetch existing results or start new crawl
     if (connection.currentTaskId) {
       // Check existing task
@@ -365,6 +456,451 @@ async function fetchAndStoreResults(
   }
 }
 
+// Sync keyword rankings from DataForSEO
+async function syncKeywordRankings(
+  organizationId: string,
+  domain: string,
+  credentials: string,
+  connectionRef: ReturnType<typeof doc>
+) {
+  try {
+    console.log("Syncing keyword rankings for:", domain);
+    
+    // Clean domain for API
+    const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+    // Fetch ranked keywords using Domain Analytics API
+    const rankedKeywordsData = await dataforseoRequest(
+      "dataforseo_labs/google/ranked_keywords/live",
+      "POST",
+      credentials,
+      [
+        {
+          target: cleanDomain,
+          language_code: "en",
+          location_code: 2840, // United States
+          limit: 1000,
+          order_by: ["keyword_data.keyword_info.search_volume,desc"],
+          filters: [
+            ["ranked_serp_element.serp_item.rank_absolute", "<=", 100]
+          ],
+        },
+      ]
+    );
+
+    if (rankedKeywordsData.status_code !== 20000) {
+      console.error("Ranked keywords error:", rankedKeywordsData);
+      return NextResponse.json({
+        error: rankedKeywordsData.status_message || "Failed to fetch keywords",
+      }, { status: 400 });
+    }
+
+    const keywords = rankedKeywordsData.tasks?.[0]?.result?.[0]?.items || [];
+    console.log(`Found ${keywords.length} ranked keywords`);
+
+    // Store keywords in Firestore
+    const BATCH_SIZE = 500;
+    let keywordCount = 0;
+    let totalSearchVolume = 0;
+    let top10Count = 0;
+    let top3Count = 0;
+
+    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchKeywords = keywords.slice(i, i + BATCH_SIZE);
+
+      for (const item of batchKeywords) {
+        const keyword = item.keyword_data?.keyword || "";
+        const keywordId = `${organizationId}_${Buffer.from(keyword).toString("base64").slice(0, 40)}`;
+        const keywordRef = doc(collection(db, "dataforseo_keywords"), keywordId);
+
+        const searchVolume = item.keyword_data?.keyword_info?.search_volume || 0;
+        const position = item.ranked_serp_element?.serp_item?.rank_absolute || 0;
+
+        totalSearchVolume += searchVolume;
+        if (position <= 10) top10Count++;
+        if (position <= 3) top3Count++;
+        keywordCount++;
+
+        batch.set(keywordRef, {
+          organizationId,
+          domain: cleanDomain,
+          keyword,
+          position,
+          previousPosition: item.ranked_serp_element?.serp_item?.rank_changes?.previous_rank_absolute || null,
+          positionChange: position - (item.ranked_serp_element?.serp_item?.rank_changes?.previous_rank_absolute || position),
+          url: item.ranked_serp_element?.serp_item?.url || "",
+          searchVolume,
+          cpc: item.keyword_data?.keyword_info?.cpc || 0,
+          competition: item.keyword_data?.keyword_info?.competition || 0,
+          competitionLevel: item.keyword_data?.keyword_info?.competition_level || "unknown",
+          monthlySearches: item.keyword_data?.keyword_info?.monthly_searches || [],
+          serpFeatures: item.ranked_serp_element?.serp_item?.type || "organic",
+          lastUpdated: item.keyword_data?.keyword_info?.last_updated_time || null,
+          syncedAt: Timestamp.now(),
+        });
+      }
+
+      await batch.commit();
+    }
+
+    // Update connection with keyword summary
+    await setDoc(connectionRef, {
+      keywordsSummary: {
+        totalKeywords: keywordCount,
+        totalSearchVolume,
+        top3Keywords: top3Count,
+        top10Keywords: top10Count,
+        lastSyncAt: Timestamp.now(),
+      },
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+
+    return NextResponse.json({
+      success: true,
+      keywordsFound: keywordCount,
+      totalSearchVolume,
+      top3Keywords: top3Count,
+      top10Keywords: top10Count,
+    });
+
+  } catch (error) {
+    console.error("Error syncing keywords:", error);
+    return NextResponse.json(
+      { error: "Failed to sync keywords" },
+      { status: 500 }
+    );
+  }
+}
+
+// Sync backlinks from DataForSEO
+async function syncBacklinks(
+  organizationId: string,
+  domain: string,
+  credentials: string,
+  connectionRef: ReturnType<typeof doc>
+) {
+  try {
+    console.log("Syncing backlinks for:", domain);
+    
+    const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+    // Get backlinks summary first
+    const summaryData = await dataforseoRequest(
+      "backlinks/summary/live",
+      "POST",
+      credentials,
+      [
+        {
+          target: cleanDomain,
+          include_subdomains: true,
+        },
+      ]
+    );
+
+    const summary = summaryData.tasks?.[0]?.result?.[0];
+    
+    // Get top backlinks
+    const backlinksData = await dataforseoRequest(
+      "backlinks/backlinks/live",
+      "POST",
+      credentials,
+      [
+        {
+          target: cleanDomain,
+          mode: "as_is",
+          limit: 500,
+          order_by: ["rank,desc"],
+          filters: [
+            ["dofollow", "=", true]
+          ],
+        },
+      ]
+    );
+
+    if (backlinksData.status_code !== 20000) {
+      console.error("Backlinks error:", backlinksData);
+      return NextResponse.json({
+        error: backlinksData.status_message || "Failed to fetch backlinks",
+      }, { status: 400 });
+    }
+
+    const backlinks = backlinksData.tasks?.[0]?.result?.[0]?.items || [];
+    console.log(`Found ${backlinks.length} backlinks`);
+
+    // Store backlinks in Firestore
+    const BATCH_SIZE = 500;
+    let backlinkCount = 0;
+
+    for (let i = 0; i < backlinks.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchBacklinks = backlinks.slice(i, i + BATCH_SIZE);
+
+      for (const item of batchBacklinks) {
+        const backlinkId = `${organizationId}_${Buffer.from(item.url_from || "").toString("base64").slice(0, 40)}`;
+        const backlinkRef = doc(collection(db, "dataforseo_backlinks"), backlinkId);
+
+        backlinkCount++;
+
+        batch.set(backlinkRef, {
+          organizationId,
+          domain: cleanDomain,
+          urlFrom: item.url_from || "",
+          urlTo: item.url_to || "",
+          domainFrom: item.domain_from || "",
+          anchor: item.anchor || "",
+          isDofollow: item.dofollow || false,
+          isNewLink: item.is_new || false,
+          isLost: item.is_lost || false,
+          pageFromRank: item.page_from_rank || 0,
+          domainFromRank: item.domain_from_rank || 0,
+          domainFromCountry: item.domain_from_country || null,
+          firstSeen: item.first_seen || null,
+          lastSeen: item.last_seen || null,
+          itemType: item.item_type || "anchor",
+          linkAttribute: item.link_attribute || [],
+          syncedAt: Timestamp.now(),
+        });
+      }
+
+      await batch.commit();
+    }
+
+    // Get referring domains
+    const refDomainsData = await dataforseoRequest(
+      "backlinks/referring_domains/live",
+      "POST",
+      credentials,
+      [
+        {
+          target: cleanDomain,
+          limit: 100,
+          order_by: ["rank,desc"],
+        },
+      ]
+    );
+
+    const referringDomains = refDomainsData.tasks?.[0]?.result?.[0]?.items || [];
+
+    // Store referring domains
+    const domainsBatch = writeBatch(db);
+    for (const item of referringDomains.slice(0, 100)) {
+      const domainId = `${organizationId}_${Buffer.from(item.domain || "").toString("base64").slice(0, 40)}`;
+      const domainRef = doc(collection(db, "dataforseo_referring_domains"), domainId);
+
+      domainsBatch.set(domainRef, {
+        organizationId,
+        targetDomain: cleanDomain,
+        referringDomain: item.domain || "",
+        rank: item.rank || 0,
+        backlinks: item.backlinks || 0,
+        firstSeen: item.first_seen || null,
+        lostDate: item.lost_date || null,
+        country: item.country || null,
+        syncedAt: Timestamp.now(),
+      });
+    }
+    await domainsBatch.commit();
+
+    // Update connection with backlink summary
+    await setDoc(connectionRef, {
+      backlinksSummary: {
+        totalBacklinks: summary?.backlinks || 0,
+        referringDomains: summary?.referring_domains || 0,
+        referringMainDomains: summary?.referring_main_domains || 0,
+        referringIps: summary?.referring_ips || 0,
+        dofollowBacklinks: summary?.referring_links_types?.anchor || 0,
+        nofollowBacklinks: summary?.referring_links_types?.alternate || 0,
+        rank: summary?.rank || 0,
+        brokenBacklinks: summary?.broken_backlinks || 0,
+        newBacklinksLast30Days: summary?.new_backlinks || 0,
+        lostBacklinksLast30Days: summary?.lost_backlinks || 0,
+        lastSyncAt: Timestamp.now(),
+      },
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+
+    return NextResponse.json({
+      success: true,
+      backlinksStored: backlinkCount,
+      referringDomainsStored: Math.min(referringDomains.length, 100),
+      summary: {
+        totalBacklinks: summary?.backlinks || 0,
+        referringDomains: summary?.referring_domains || 0,
+        rank: summary?.rank || 0,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error syncing backlinks:", error);
+    return NextResponse.json(
+      { error: "Failed to sync backlinks" },
+      { status: 500 }
+    );
+  }
+}
+
+// Sync historical rank overview for domain (last 12 months)
+async function syncHistoricalSerps(
+  organizationId: string,
+  domain: string,
+  credentials: string,
+  connectionRef: ReturnType<typeof doc>
+) {
+  try {
+    console.log("Syncing historical rank overview for:", domain);
+    
+    const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    
+    // Calculate date_from for last 12 months
+    const dateFrom = new Date();
+    dateFrom.setMonth(dateFrom.getMonth() - 12);
+    const dateFromStr = dateFrom.toISOString().split("T")[0];
+
+    // Use Historical Rank Overview endpoint - one API call for full domain history
+    const historicalData = await dataforseoRequest(
+      "dataforseo_labs/google/historical_rank_overview/live",
+      "POST",
+      credentials,
+      [
+        {
+          target: cleanDomain,
+          language_code: "en",
+          location_code: 2840, // United States
+          date_from: dateFromStr,
+        },
+      ]
+    );
+
+    if (historicalData.status_code !== 20000) {
+      console.error("Historical rank overview error:", historicalData);
+      return NextResponse.json({
+        error: historicalData.status_message || "Failed to fetch historical data",
+      }, { status: 400 });
+    }
+
+    const items = historicalData.tasks?.[0]?.result?.[0]?.items || [];
+    console.log(`Found ${items.length} months of historical data`);
+
+    // Store monthly historical data in Firestore
+    const batch = writeBatch(db);
+    const historyCollection = collection(db, "dataforseo_rank_history");
+
+    for (const item of items) {
+      const historyId = `${organizationId}_${item.year}_${String(item.month).padStart(2, "0")}`;
+      const historyRef = doc(historyCollection, historyId);
+
+      batch.set(historyRef, {
+        organizationId,
+        domain: cleanDomain,
+        year: item.year,
+        month: item.month,
+        date: `${item.year}-${String(item.month).padStart(2, "0")}-01`,
+        
+        // Ranking metrics
+        metrics: {
+          organicEtv: item.metrics?.organic?.etv || 0,
+          organicCount: item.metrics?.organic?.count || 0,
+          organicEstCost: item.metrics?.organic?.estimated_paid_traffic_cost || 0,
+          paidEtv: item.metrics?.paid?.etv || 0,
+          paidCount: item.metrics?.paid?.count || 0,
+        },
+        
+        // Rank distribution (positions 1-10, 11-20, etc.)
+        rankDistribution: {
+          pos1: item.metrics?.organic?.pos_1 || 0,
+          pos2_3: item.metrics?.organic?.pos_2_3 || 0,
+          pos4_10: item.metrics?.organic?.pos_4_10 || 0,
+          pos11_20: item.metrics?.organic?.pos_11_20 || 0,
+          pos21_30: item.metrics?.organic?.pos_21_30 || 0,
+          pos31_40: item.metrics?.organic?.pos_31_40 || 0,
+          pos41_50: item.metrics?.organic?.pos_41_50 || 0,
+          pos51_60: item.metrics?.organic?.pos_51_60 || 0,
+          pos61_70: item.metrics?.organic?.pos_61_70 || 0,
+          pos71_80: item.metrics?.organic?.pos_71_80 || 0,
+          pos81_90: item.metrics?.organic?.pos_81_90 || 0,
+          pos91_100: item.metrics?.organic?.pos_91_100 || 0,
+        },
+
+        // Calculated totals
+        totalKeywords: (item.metrics?.organic?.count || 0) + (item.metrics?.paid?.count || 0),
+        top3Keywords: (item.metrics?.organic?.pos_1 || 0) + (item.metrics?.organic?.pos_2_3 || 0),
+        top10Keywords: (item.metrics?.organic?.pos_1 || 0) + (item.metrics?.organic?.pos_2_3 || 0) + (item.metrics?.organic?.pos_4_10 || 0),
+        
+        syncedAt: Timestamp.now(),
+      });
+    }
+
+    await batch.commit();
+
+    // Calculate trends
+    const sortedItems = [...items].sort((a, b) => {
+      const dateA = a.year * 100 + a.month;
+      const dateB = b.year * 100 + b.month;
+      return dateA - dateB;
+    });
+
+    const latestMonth = sortedItems[sortedItems.length - 1];
+    const earliestMonth = sortedItems[0];
+    
+    const trafficChange = latestMonth && earliestMonth 
+      ? ((latestMonth.metrics?.organic?.etv || 0) - (earliestMonth.metrics?.organic?.etv || 0))
+      : 0;
+    
+    const keywordsChange = latestMonth && earliestMonth
+      ? ((latestMonth.metrics?.organic?.count || 0) - (earliestMonth.metrics?.organic?.count || 0))
+      : 0;
+
+    // Update connection with historical summary
+    await setDoc(connectionRef, {
+      historicalSummary: {
+        monthsOfData: items.length,
+        dateRange: {
+          from: earliestMonth ? `${earliestMonth.year}-${String(earliestMonth.month).padStart(2, "0")}` : null,
+          to: latestMonth ? `${latestMonth.year}-${String(latestMonth.month).padStart(2, "0")}` : null,
+        },
+        latestMetrics: latestMonth ? {
+          organicTraffic: latestMonth.metrics?.organic?.etv || 0,
+          organicKeywords: latestMonth.metrics?.organic?.count || 0,
+          top10Keywords: (latestMonth.metrics?.organic?.pos_1 || 0) + 
+                        (latestMonth.metrics?.organic?.pos_2_3 || 0) + 
+                        (latestMonth.metrics?.organic?.pos_4_10 || 0),
+        } : null,
+        trends: {
+          trafficChange,
+          keywordsChange,
+        },
+        lastSyncAt: Timestamp.now(),
+      },
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+
+    return NextResponse.json({
+      success: true,
+      monthsOfData: items.length,
+      dateRange: {
+        from: earliestMonth ? `${earliestMonth.year}-${String(earliestMonth.month).padStart(2, "0")}` : null,
+        to: latestMonth ? `${latestMonth.year}-${String(latestMonth.month).padStart(2, "0")}` : null,
+      },
+      latestMetrics: latestMonth ? {
+        organicTraffic: latestMonth.metrics?.organic?.etv || 0,
+        organicKeywords: latestMonth.metrics?.organic?.count || 0,
+      } : null,
+      trends: {
+        trafficChange,
+        keywordsChange,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error syncing historical rank overview:", error);
+    return NextResponse.json(
+      { error: "Failed to sync historical rank data" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const organizationId = searchParams.get("organizationId");
@@ -390,6 +926,11 @@ export async function GET(request: NextRequest) {
       status: connection.status,
       domain: connection.domain,
       summary: connection.summary || null,
+      keywordsSummary: connection.keywordsSummary || null,
+      backlinksSummary: connection.backlinksSummary || null,
+      historicalSummary: connection.historicalSummary || null,
+      domainInfo: connection.domainInfo || null,
+      pageMetrics: connection.pageMetrics || null,
       lastSyncAt: connection.lastSyncAt?.toDate?.() || null,
     });
   } catch (error) {

@@ -14,6 +14,7 @@ import {
   AlertCircle,
   ExternalLink,
   Zap,
+  Database,
 } from "lucide-react";
 import Link from "next/link";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -91,6 +92,14 @@ export default function SourcesPage() {
         href: "/sources/dataforseo",
         description: "SEO data and rankings",
       },
+      bigquery: {
+        name: "BigQuery",
+        type: "marketing",
+        icon: <Database className="w-6 h-6" />,
+        color: "#4285F4",
+        href: "/sources/bigquery",
+        description: "GA4 raw event data from BigQuery",
+      },
     };
 
     const config = configs[sourceName] || configs.stripe;
@@ -155,12 +164,21 @@ export default function SourcesPage() {
       }
     );
 
+    // Listen to BigQuery connection
+    const bqUnsubscribe = onSnapshot(
+      doc(db, "bigquery_connections", organizationId),
+      (snapshot) => {
+        updateSourceStatus("bigquery", snapshot.exists() ? snapshot.data() as ConnectionData : null);
+      }
+    );
+
     return () => {
       stripeUnsubscribe();
       qbUnsubscribe();
       gaUnsubscribe();
       acUnsubscribe();
       seoUnsubscribe();
+      bqUnsubscribe();
     };
   }, [organizationId, updateSourceStatus]);
 
@@ -168,7 +186,7 @@ export default function SourcesPage() {
   const marketingSources = sources.filter((s) => s.type === "marketing");
 
   const connectedCount = sources.filter((s) => s.status === "connected").length;
-  const totalCount = 5; // Total number of available sources
+  const totalCount = 6; // Total number of available sources
 
   return (
     <AppLayout title="Sources" subtitle="Manage your data connections">
@@ -225,7 +243,7 @@ export default function SourcesPage() {
                     Marketing Sources
                   </p>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {marketingSources.filter((s) => s.status === "connected").length} / {3}
+                    {marketingSources.filter((s) => s.status === "connected").length} / {4}
                   </p>
                 </div>
                 <div

@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import {
-  Search,
   RefreshCw,
   CheckCircle,
   AlertCircle,
@@ -19,6 +18,10 @@ import {
   Loader2,
   ExternalLink,
   Zap,
+  TrendingUp,
+  Link2,
+  Search,
+  Calendar,
 } from "lucide-react";
 
 interface ConnectionStatus {
@@ -35,6 +38,36 @@ interface ConnectionStatus {
     };
     taskId: string;
   };
+  keywordsSummary?: {
+    totalKeywords: number;
+    totalSearchVolume: number;
+    top3Keywords: number;
+    top10Keywords: number;
+    lastSyncAt?: Date;
+  };
+  backlinksSummary?: {
+    totalBacklinks: number;
+    referringDomains: number;
+    rank: number;
+    lastSyncAt?: Date;
+  };
+  historicalSummary?: {
+    monthsOfData: number;
+    dateRange?: {
+      from: string;
+      to: string;
+    };
+    latestMetrics?: {
+      organicTraffic: number;
+      organicKeywords: number;
+      top10Keywords: number;
+    };
+    trends?: {
+      trafficChange: number;
+      keywordsChange: number;
+    };
+    lastSyncAt?: Date;
+  };
   lastSyncAt?: Date;
 }
 
@@ -48,6 +81,7 @@ export default function DataForSEOPage() {
   const [domain, setDomain] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncingAction, setSyncingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crawlProgress, setCrawlProgress] = useState<{
     pagesCrawled: number;
@@ -68,6 +102,18 @@ export default function DataForSEOPage() {
           domain: data.domain,
           balance: data.balance,
           summary: data.summary,
+          keywordsSummary: data.keywordsSummary ? {
+            ...data.keywordsSummary,
+            lastSyncAt: data.keywordsSummary.lastSyncAt?.toDate?.(),
+          } : undefined,
+          backlinksSummary: data.backlinksSummary ? {
+            ...data.backlinksSummary,
+            lastSyncAt: data.backlinksSummary.lastSyncAt?.toDate?.(),
+          } : undefined,
+          historicalSummary: data.historicalSummary ? {
+            ...data.historicalSummary,
+            lastSyncAt: data.historicalSummary.lastSyncAt?.toDate?.(),
+          } : undefined,
           lastSyncAt: data.lastSyncAt?.toDate?.(),
         });
         if (data.domain) {
@@ -172,10 +218,11 @@ export default function DataForSEOPage() {
     }
   };
 
-  const handleStartCrawl = useCallback(async () => {
+  const handleSync = useCallback(async (action: string) => {
     if (!currentOrg?.id) return;
 
     setIsSyncing(true);
+    setSyncingAction(action);
     setError(null);
 
     try {
@@ -184,20 +231,27 @@ export default function DataForSEOPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId: currentOrg.id,
-          action: "start_crawl",
+          action,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start crawl");
+        throw new Error(data.error || `Failed to run ${action}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start crawl");
-      setIsSyncing(false);
+      setError(err instanceof Error ? err.message : `Failed to run ${action}`);
+    } finally {
+      // Don't clear syncing state for crawl as it runs in background
+      if (action !== "start_crawl") {
+        setIsSyncing(false);
+        setSyncingAction(null);
+      }
     }
   }, [currentOrg?.id]);
+
+  const handleStartCrawl = useCallback(() => handleSync("start_crawl"), [handleSync]);
 
   const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling";
 
@@ -350,74 +404,230 @@ export default function DataForSEOPage() {
                   <span className="font-medium" style={{ color: "var(--foreground)" }}>
                     {connectionStatus.domain}
                   </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleStartCrawl}
-                    disabled={isSyncing || connectionStatus.status === "crawling"}
-                    className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
-                    style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" }}
-                  >
-                    {connectionStatus.status === "crawling" ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Crawling...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4" />
-                        Start Crawl
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleDisconnect}
-                    className="px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-red-500/10 text-red-500"
-                    style={{ border: "1px solid rgba(239, 68, 68, 0.3)" }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-
-              {/* Crawl Progress */}
-              {crawlProgress && (
-                <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                      Crawl Progress
-                    </span>
+                  {connectionStatus.lastSyncAt && (
                     <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                      {crawlProgress.pagesCrawled} / {crawlProgress.maxPages} pages
+                      · Last sync: {connectionStatus.lastSyncAt.toLocaleDateString()}
                     </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700">
-                    <div
-                      className="h-2 rounded-full bg-blue-500 transition-all duration-300"
-                      style={{
-                        width: `${(crawlProgress.pagesCrawled / crawlProgress.maxPages) * 100}%`,
-                      }}
-                    />
-                  </div>
+                  )}
                 </div>
-              )}
-
-              {connectionStatus.lastSyncAt && (
-                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Last crawl: {connectionStatus.lastSyncAt.toLocaleDateString()} at{" "}
-                  {connectionStatus.lastSyncAt.toLocaleTimeString()}
-                </p>
-              )}
+                <button
+                  onClick={handleDisconnect}
+                  className="px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-red-500/10 text-red-500"
+                  style={{ border: "1px solid rgba(239, 68, 68, 0.3)" }}
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
           )}
         </motion.div>
+
+        {/* Manual Sync Section */}
+        {isConnected && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-2xl p-6"
+            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+          >
+            <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
+              Data Sync
+            </h2>
+            <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
+              SEO data updates weekly. Sync manually when you need fresh data.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Keywords Sync */}
+              <div
+                className="rounded-xl p-4"
+                style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="w-4 h-4 text-purple-500" />
+                  <span className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
+                    Keywords
+                  </span>
+                </div>
+                {connectionStatus.keywordsSummary ? (
+                  <div className="mb-3">
+                    <p className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+                      {connectionStatus.keywordsSummary.totalKeywords}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                      {connectionStatus.keywordsSummary.totalSearchVolume.toLocaleString()} monthly searches
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>Not synced yet</p>
+                )}
+                <button
+                  onClick={() => handleSync("sync_keywords")}
+                  disabled={isSyncing}
+                  className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                >
+                  {syncingAction === "sync_keywords" ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Syncing...</>
+                  ) : (
+                    <><RefreshCw className="w-3 h-3" /> Sync Keywords</>
+                  )}
+                </button>
+              </div>
+
+              {/* Backlinks Sync */}
+              <div
+                className="rounded-xl p-4"
+                style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4 text-blue-500" />
+                  <span className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
+                    Backlinks
+                  </span>
+                </div>
+                {connectionStatus.backlinksSummary ? (
+                  <div className="mb-3">
+                    <p className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+                      {connectionStatus.backlinksSummary.totalBacklinks.toLocaleString()}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                      {connectionStatus.backlinksSummary.referringDomains} referring domains
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>Not synced yet</p>
+                )}
+                <button
+                  onClick={() => handleSync("sync_backlinks")}
+                  disabled={isSyncing}
+                  className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                >
+                  {syncingAction === "sync_backlinks" ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Syncing...</>
+                  ) : (
+                    <><RefreshCw className="w-3 h-3" /> Sync Backlinks</>
+                  )}
+                </button>
+              </div>
+
+              {/* Historical Rankings Sync */}
+              <div
+                className="rounded-xl p-4"
+                style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <span className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
+                    Rank History
+                  </span>
+                </div>
+                {connectionStatus.historicalSummary ? (
+                  <div className="mb-3">
+                    <p className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+                      {connectionStatus.historicalSummary.monthsOfData} months
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                      {connectionStatus.historicalSummary.latestMetrics?.organicKeywords || 0} current keywords
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>Not synced yet</p>
+                )}
+                <button
+                  onClick={() => handleSync("sync_historical_serps")}
+                  disabled={isSyncing}
+                  className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                >
+                  {syncingAction === "sync_historical_serps" ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Syncing...</>
+                  ) : (
+                    <><RefreshCw className="w-3 h-3" /> Sync History</>
+                  )}
+                </button>
+              </div>
+
+              {/* Page Health Sync */}
+              <div
+                className="rounded-xl p-4"
+                style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-orange-500" />
+                  <span className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
+                    Page Health
+                  </span>
+                </div>
+                {connectionStatus.summary ? (
+                  <div className="mb-3">
+                    <p className="text-xl font-bold" style={{ 
+                      color: connectionStatus.summary.averageScore >= 80 ? "#10b981" : 
+                             connectionStatus.summary.averageScore >= 60 ? "#f59e0b" : "#ef4444" 
+                    }}>
+                      {connectionStatus.summary.averageScore}%
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                      {connectionStatus.summary.pagesAnalyzed} pages analyzed
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>Not crawled yet</p>
+                )}
+                <button
+                  onClick={handleStartCrawl}
+                  disabled={isSyncing || connectionStatus.status === "crawling"}
+                  className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                >
+                  {connectionStatus.status === "crawling" ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Crawling...</>
+                  ) : (
+                    <><Zap className="w-3 h-3" /> Start Crawl</>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Crawl Progress */}
+            {crawlProgress && (
+              <div className="mt-4 p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    Crawl Progress
+                  </span>
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                    {crawlProgress.pagesCrawled} / {crawlProgress.maxPages} pages
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-2 rounded-full bg-blue-500 transition-all duration-300"
+                    style={{
+                      width: `${(crawlProgress.pagesCrawled / crawlProgress.maxPages) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-4 p-3 rounded-lg bg-red-500/10 text-red-500 text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Summary Cards */}
         {isConnected && connectionStatus.summary && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.3 }}
             className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
           >
             <div
