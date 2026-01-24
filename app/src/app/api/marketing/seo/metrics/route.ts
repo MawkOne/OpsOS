@@ -10,6 +10,11 @@ import {
   getDocs,
   Timestamp 
 } from "firebase/firestore";
+import {
+  runComprehensiveAnalysis,
+  fetchHistoricalMetrics,
+  TimeSeriesPoint,
+} from "@/lib/marketingAnalysis";
 
 // Benchmarks for SEO metrics
 const SEO_BENCHMARKS = {
@@ -119,9 +124,10 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Calculate and store SEO metrics
+// Optional: { runFullAnalysis: true } to include comprehensive analysis
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId } = await request.json();
+    const { organizationId, runFullAnalysis = false } = await request.json();
 
     if (!organizationId) {
       return NextResponse.json(
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Calculating SEO metrics for:", organizationId);
+    console.log("Calculating SEO metrics for:", organizationId, runFullAnalysis ? "(with full analysis)" : "");
 
     // Fetch all SEO data from Firestore
     const [keywords, rankHistory, backlinks, referringDomains, pages] = await Promise.all([
@@ -172,21 +178,30 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Also store historical snapshot
+    // Also store historical snapshot (daily for trend tracking)
+    const today = new Date().toISOString().split('T')[0];
+    const dailyRef = doc(db, "marketing_metrics_seo", organizationId, "daily", today);
+    await setDoc(dailyRef, {
+      metrics,
+      calculatedAt: Timestamp.now(),
+    });
+
+    // Weekly snapshot for longer-term trends
     const weekNumber = getWeekNumber(new Date());
-    const historyRef = doc(
+    const weeklyRef = doc(
       db, 
       "marketing_metrics_seo", 
       organizationId, 
       "weekly", 
       `${new Date().getFullYear()}-W${weekNumber}`
     );
-    await setDoc(historyRef, {
+    await setDoc(weeklyRef, {
       metrics,
       calculatedAt: Timestamp.now(),
     });
 
-    return NextResponse.json({
+    // Base response
+    const response: any = {
       success: true,
       organizationId,
       metrics,
@@ -199,7 +214,57 @@ export async function POST(request: NextRequest) {
         referringDomains: referringDomains.length,
         pages: pages.length,
       },
-    });
+    };
+
+    // Run comprehensive analysis if requested
+    if (runFullAnalysis) {
+      try {
+        // Build historical time series from rank history
+        const historicalData = buildHistoricalTimeSeries(rankHistory, metrics);
+        
+        // Get stored historical snapshots
+        const storedHistory = await fetchHistoricalMetrics(organizationId, 'seo', 'weekly');
+        
+        // Merge data sources
+        const mergedHistory = { ...storedHistory, ...historicalData };
+        
+        // Convert metrics to a simple key-value for analysis
+        const currentMetrics: Record<string, number> = {
+          totalKeywords: metrics.totalKeywords,
+          top10Keywords: metrics.top10Keywords,
+          avgPosition: metrics.avgPosition,
+          organicTrafficEstimate: metrics.organicTrafficEstimate,
+          totalBacklinks: metrics.totalBacklinks,
+          referringDomains: metrics.referringDomains,
+          avgPageHealthScore: metrics.avgPageHealthScore,
+        };
+
+        // Run comprehensive analysis
+        const comprehensiveAnalysis = await runComprehensiveAnalysis(
+          organizationId,
+          'seo',
+          mergedHistory,
+          currentMetrics
+        );
+
+        // Add to response
+        response.analysis = {
+          summary: comprehensiveAnalysis.summary,
+          impactRankings: comprehensiveAnalysis.impactRankings.slice(0, 10),
+          trendAnalysis: comprehensiveAnalysis.trends,
+          seasonality: comprehensiveAnalysis.seasonality,
+          anomalies: comprehensiveAnalysis.anomalies,
+          causation: comprehensiveAnalysis.causationAnalysis.slice(0, 5),
+          relatedInitiatives: comprehensiveAnalysis.relatedInitiatives.slice(0, 5),
+          forecasts: comprehensiveAnalysis.forecasts.slice(0, 5),
+        };
+      } catch (analysisError) {
+        console.error("Error in comprehensive analysis:", analysisError);
+        response.analysisError = "Full analysis failed, but basic metrics calculated successfully";
+      }
+    }
+
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error("Error calculating SEO metrics:", error);
@@ -208,6 +273,50 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Build time series from rank history data
+function buildHistoricalTimeSeries(
+  rankHistory: any[], 
+  currentMetrics: SEOMetrics
+): Record<string, TimeSeriesPoint[]> {
+  const timeSeries: Record<string, TimeSeriesPoint[]> = {
+    organicTrafficEstimate: [],
+    totalKeywords: [],
+    top10Keywords: [],
+  };
+
+  // Add historical data points
+  rankHistory.forEach((h: any) => {
+    const date = h.date || h.month;
+    if (date) {
+      if (h.metrics?.organicEtv !== undefined) {
+        timeSeries.organicTrafficEstimate.push({
+          date,
+          value: h.metrics.organicEtv,
+        });
+      }
+      if (h.totalKeywords !== undefined) {
+        timeSeries.totalKeywords.push({
+          date,
+          value: h.totalKeywords,
+        });
+      }
+      if (h.keywordsTop10 !== undefined || h.metrics?.keywordsTop10 !== undefined) {
+        timeSeries.top10Keywords.push({
+          date,
+          value: h.keywordsTop10 || h.metrics?.keywordsTop10 || 0,
+        });
+      }
+    }
+  });
+
+  // Sort by date
+  Object.values(timeSeries).forEach(arr => 
+    arr.sort((a, b) => a.date.localeCompare(b.date))
+  );
+
+  return timeSeries;
 }
 
 // Fetch keywords from Firestore
