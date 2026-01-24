@@ -147,29 +147,30 @@ export default function PagesExpertPage() {
   return (
     <AppLayout title="Pages Expert" subtitle="AI-powered page performance analysis">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* Primary Action - Refresh Metrics Button */}
+        <div 
+          className="p-4 rounded-xl flex items-center justify-between"
+          style={{ background: "var(--accent)", color: "var(--background)" }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "#06b6d420" }}>
-              <FileText className="w-6 h-6 text-cyan-500" />
-            </div>
+            <FileText className="w-6 h-6" />
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Pages Expert</h1>
-              {lastUpdated && (
-                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Last updated: {lastUpdated.toLocaleString()}
-                </p>
-              )}
+              <p className="font-semibold">Refresh Page Metrics</p>
+              <p className="text-sm opacity-80">
+                {lastUpdated 
+                  ? `Last updated: ${lastUpdated.toLocaleString()}` 
+                  : "Click to analyze your GA4 page data"}
+              </p>
             </div>
           </div>
           <button
             onClick={runAnalysis}
             disabled={calculating}
-            className="px-4 py-2 rounded-lg flex items-center gap-2 font-semibold transition-all disabled:opacity-50"
-            style={{ background: "var(--accent)", color: "var(--background)" }}
+            className="px-6 py-3 rounded-lg flex items-center gap-2 font-bold transition-all disabled:opacity-50"
+            style={{ background: "var(--background)", color: "var(--accent)" }}
           >
-            {calculating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {calculating ? "Analyzing..." : "Run Analysis"}
+            {calculating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            {calculating ? "Analyzing..." : "Refresh Metrics"}
           </button>
         </div>
 

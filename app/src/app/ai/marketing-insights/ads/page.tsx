@@ -71,12 +71,15 @@ export default function AdsExpertPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [dataLimitations, setDataLimitations] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const fetchMetrics = async () => {
     if (!currentOrg?.id) return;
 
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch(
         `/api/marketing/ads/metrics?organizationId=${currentOrg.id}`
       );
@@ -92,22 +95,38 @@ export default function AdsExpertPage() {
       }
     } catch (err) {
       console.error("Error fetching ads metrics:", err);
+      setError("Failed to load metrics");
     } finally {
       setLoading(false);
     }
   };
 
   const runAnalysis = async () => {
-    if (!currentOrg?.id) return;
+    if (!currentOrg?.id) {
+      setError("No organization selected");
+      return;
+    }
 
     try {
       setCalculating(true);
+      setError(null);
+      setSuccess(null);
+      
+      console.log("Running ads analysis for org:", currentOrg.id);
+      
       const response = await fetch("/api/marketing/ads/metrics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ organizationId: currentOrg.id }),
       });
+      
       const data = await response.json();
+      console.log("Analysis response:", data);
+
+      if (!response.ok) {
+        setError(data.error || `API error: ${response.status}`);
+        return;
+      }
 
       if (data.success) {
         setMetrics(data.metrics);
@@ -116,9 +135,13 @@ export default function AdsExpertPage() {
         setOpportunities(data.opportunities || []);
         setDataLimitations(data.dataLimitations || []);
         setLastUpdated(new Date());
+        setSuccess(`Analysis complete! Found ${data.metrics?.totalPaidSessions || 0} paid sessions.`);
+      } else {
+        setError(data.error || "Analysis failed - no success flag");
       }
     } catch (err) {
       console.error("Error running analysis:", err);
+      setError(err instanceof Error ? err.message : "Failed to run analysis");
     } finally {
       setCalculating(false);
     }
@@ -146,31 +169,46 @@ export default function AdsExpertPage() {
   return (
     <AppLayout title="Ads Expert" subtitle="AI-powered advertising analysis">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* Primary Action - Refresh Metrics Button */}
+        <div 
+          className="p-4 rounded-xl flex items-center justify-between"
+          style={{ background: "var(--accent)", color: "var(--background)" }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "#f59e0b20" }}>
-              <Megaphone className="w-6 h-6 text-yellow-500" />
-            </div>
+            <Megaphone className="w-6 h-6" />
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Ads Expert</h1>
-              {lastUpdated && (
-                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                  Last updated: {lastUpdated.toLocaleString()}
-                </p>
-              )}
+              <p className="font-semibold">Refresh Advertising Metrics</p>
+              <p className="text-sm opacity-80">
+                {lastUpdated 
+                  ? `Last updated: ${lastUpdated.toLocaleString()}` 
+                  : "Click to analyze your paid traffic data"}
+              </p>
             </div>
           </div>
           <button
             onClick={runAnalysis}
             disabled={calculating}
-            className="px-4 py-2 rounded-lg flex items-center gap-2 font-semibold transition-all disabled:opacity-50"
-            style={{ background: "var(--accent)", color: "var(--background)" }}
+            className="px-6 py-3 rounded-lg flex items-center gap-2 font-bold transition-all disabled:opacity-50"
+            style={{ background: "var(--background)", color: "var(--accent)" }}
           >
-            {calculating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {calculating ? "Analyzing..." : "Run Analysis"}
+            {calculating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            {calculating ? "Analyzing..." : "Refresh Metrics"}
           </button>
         </div>
+
+        {/* Success/Error Messages */}
+        {error && (
+          <div className="p-4 rounded-lg flex items-center gap-3" style={{ background: "#ef444420", border: "1px solid #ef4444" }}>
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <p className="text-sm" style={{ color: "#ef4444" }}>{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="p-4 rounded-lg flex items-center gap-3" style={{ background: "#10b98120", border: "1px solid #10b981" }}>
+            <Activity className="w-5 h-5 text-green-500" />
+            <p className="text-sm" style={{ color: "#10b981" }}>{success}</p>
+          </div>
+        )}
 
         {/* Data Limitations Warning */}
         {dataLimitations.length > 0 && (
