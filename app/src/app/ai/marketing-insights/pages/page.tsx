@@ -44,6 +44,7 @@ interface PageData {
   bounceRate: number;
   conversions: number;
   conversionRate: number;
+  issue?: string;
 }
 
 interface Alert {
