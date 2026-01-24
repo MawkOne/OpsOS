@@ -1,665 +1,382 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
-import Card, { StatCard } from "@/components/Card";
+import Card from "@/components/Card";
 import { motion } from "framer-motion";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase-db";
-import { 
-  Brain, 
-  TrendingUp, 
-  Target, 
-  Sparkles, 
-  Clock, 
-  Zap,
-  CheckCircle2,
-  AlertCircle,
+import {
+  Brain,
+  Search,
+  Mail,
+  Megaphone,
+  FileText,
+  Users,
+  Layers,
   ChevronRight,
-  Lightbulb,
-  Activity,
-  BarChart3,
+  Sparkles,
   RefreshCw,
-  TrendingDown,
-  ArrowUpRight
+  CheckCircle2,
+  AlertTriangle,
+  Activity,
 } from "lucide-react";
 
-interface Recommendation {
+interface ExpertTool {
   id: string;
-  rank: number;
-  priority: string;
-  driver: string;
-  type: string;
-  title: string;
+  name: string;
   description: string;
-  rationale: string;
-  expected_lift: number;
-  pct_of_gap_closed: number;
-  effort: string;
-  confidence: string;
-  current_value: number;
-  target_value: number;
-  gap_pct: number;
-  actions: string[];
-  timeline: {
-    implementation_days: number;
-    testing_days: number;
-    results_visible_days: number;
-    phase: string;
+  icon: React.ReactNode;
+  color: string;
+  href: string;
+  status: 'ready' | 'limited' | 'no_data';
+  metrics?: {
+    healthScore?: number;
+    primaryMetric?: string;
+    primaryValue?: string;
+    alertCount?: number;
+    opportunityCount?: number;
   };
 }
 
-interface DriverHealth {
-  feature: string;
-  importance: number;
-  direction: string;
-  current_value: number;
-  historical_avg: number;
-  internal_best: number;
-  gap_vs_best: number;
-  trend: string;
-  trend_pct: number;
-  status: string;
-  rank: number;
-}
-
-interface MarketingInsight {
-  id: string;
-  organizationId: string;
-  timestamp: any;
-  goalKpi: string;
-  currentValue: number;
-  targetValue: number;
-  gap: number;
-  gapPct: number;
-  driverHealth: DriverHealth[];
-  recommendations: Recommendation[];
-  metadata: {
-    lookback_days: number;
-    num_observations: number;
-    num_features: number;
-    r_squared: number;
-    execution_time_seconds: number;
-  };
-  status: string;
-}
-
-const CHANNELS = [
-  { id: 'email', name: 'Email', icon: '📧', description: 'Email campaigns, open rates, CTR' },
-  { id: 'seo', name: 'SEO', icon: '🔍', description: 'Organic traffic, rankings, backlinks' },
-  { id: 'advertising', name: 'Advertising', icon: '📢', description: 'Paid ads, CPC, ROAS, conversions' },
-  { id: 'social', name: 'Social', icon: '👥', description: 'Engagement, followers, shares' },
-  { id: 'pages', name: 'Pages', icon: '📄', description: 'Landing pages, conversion rates' },
-  { id: 'articles', name: 'Articles', icon: '📝', description: 'Blog content, time on page, backlinks' },
+const EXPERT_TOOLS: ExpertTool[] = [
+  {
+    id: 'seo',
+    name: 'SEO Expert',
+    description: 'Keyword rankings, backlinks, page health, organic traffic',
+    icon: <Search className="w-6 h-6" />,
+    color: '#3b82f6',
+    href: '/ai/marketing-insights/seo',
+    status: 'ready',
+  },
+  {
+    id: 'email',
+    name: 'Email Expert',
+    description: 'Open rates, click rates, deliverability, automations',
+    icon: <Mail className="w-6 h-6" />,
+    color: '#ec4899',
+    href: '/ai/marketing-insights/email',
+    status: 'ready',
+  },
+  {
+    id: 'ads',
+    name: 'Ads Expert',
+    description: 'Campaign performance, conversions, traffic quality',
+    icon: <Megaphone className="w-6 h-6" />,
+    color: '#f59e0b',
+    href: '/ai/marketing-insights/ads',
+    status: 'limited',
+  },
+  {
+    id: 'pages',
+    name: 'Pages Expert',
+    description: 'Conversion rates, engagement, bounce rates, UX',
+    icon: <FileText className="w-6 h-6" />,
+    color: '#06b6d4',
+    href: '/ai/marketing-insights/pages',
+    status: 'ready',
+  },
+  {
+    id: 'content',
+    name: 'Content Expert',
+    description: 'Article performance, SEO overlap, content decay',
+    icon: <Layers className="w-6 h-6" />,
+    color: '#8b5cf6',
+    href: '/ai/marketing-insights/content',
+    status: 'ready',
+  },
+  {
+    id: 'social',
+    name: 'Social Expert',
+    description: 'Platform traffic, conversions, engagement quality',
+    icon: <Users className="w-6 h-6" />,
+    color: '#ec4899',
+    href: '/ai/marketing-insights/social',
+    status: 'limited',
+  },
 ];
 
-const GOALS = [
-  { id: 'signups', name: 'Total Signups', icon: '👥', target: 6000 },
-  { id: 'company_signups', name: 'Company Signups', icon: '👔', target: 3000 },
-  { id: 'talent_signups', name: 'Talent Signups', icon: '💼', target: 3000 },
-  { id: 'revenue', name: 'Revenue', icon: '💰', target: 100000 },
-  { id: 'conversions', name: 'Conversions', icon: '🎯', target: 1000 },
-];
-
-export default function MarketingInsightsPage() {
+export default function MarketingAIPage() {
   const { currentOrg } = useOrganization();
   const [loading, setLoading] = useState(true);
-  const [insight, setInsight] = useState<MarketingInsight | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState('email');
-  const [selectedGoal, setSelectedGoal] = useState(GOALS[0]);
+  const [tools, setTools] = useState<ExpertTool[]>(EXPERT_TOOLS);
+  const [totalAlerts, setTotalAlerts] = useState(0);
+  const [totalOpportunities, setTotalOpportunities] = useState(0);
 
-  const fetchLatestInsight = async () => {
+  const fetchAllMetrics = async () => {
     if (!currentOrg?.id) return;
 
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    const updatedTools = [...EXPERT_TOOLS];
+    let alerts = 0;
+    let opportunities = 0;
 
-      const insightsRef = collection(db, "marketing_insights");
-      const q = query(
-        insightsRef,
-        where("organizationId", "==", currentOrg.id),
-        orderBy("timestamp", "desc"),
-        limit(1)
-      );
+    // Fetch metrics for each tool in parallel
+    await Promise.all(
+      updatedTools.map(async (tool, index) => {
+        try {
+          const response = await fetch(
+            `/api/marketing/${tool.id}/metrics?organizationId=${currentOrg.id}`
+          );
+          const data = await response.json();
 
-      const snapshot = await getDocs(q);
+          if (data.hasData && data.metrics) {
+            const metrics = data.metrics;
+            updatedTools[index] = {
+              ...tool,
+              status: 'ready',
+              metrics: {
+                healthScore: metrics.overallHealthScore || metrics.trafficQualityScore,
+                alertCount: data.alerts?.length || 0,
+                opportunityCount: data.opportunities?.length || 0,
+              },
+            };
+            alerts += data.alerts?.length || 0;
+            opportunities += data.opportunities?.length || 0;
+          } else {
+            updatedTools[index] = { ...tool, status: 'no_data' };
+          }
+        } catch {
+          updatedTools[index] = { ...tool, status: 'no_data' };
+        }
+      })
+    );
 
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        setInsight({
-          id: doc.id,
-          ...doc.data(),
-        } as MarketingInsight);
-      } else {
-        setError("No insights available yet. Click 'Run Analysis' to generate insights.");
-      }
-    } catch (err: any) {
-      console.error("Error fetching insights:", err);
-      setError(err.message || "Failed to load insights");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runAnalysis = async () => {
-    if (!currentOrg?.id) return;
-
-    try {
-      setRefreshing(true);
-      setError(null);
-
-      const response = await fetch(
-        `https://marketing-optimization-engine-bgjb4fnyeq-uc.a.run.app?organizationId=${currentOrg.id}&goalKpi=${selectedGoal.id}&targetValue=${selectedGoal.target}&channel=${selectedChannel}`
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to run analysis");
-      }
-
-      const result = await response.json();
-
-      if (result.status === "success") {
-        // Refresh the insights after a short delay
-        setTimeout(() => {
-          fetchLatestInsight();
-        }, 2000);
-      } else {
-        throw new Error(result.error || "Analysis failed");
-      }
-    } catch (err: any) {
-      console.error("Error running analysis:", err);
-      setError(err.message || "Failed to run analysis");
-    } finally {
-      setRefreshing(false);
-    }
+    setTools(updatedTools);
+    setTotalAlerts(alerts);
+    setTotalOpportunities(opportunities);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchLatestInsight();
-  }, [currentOrg?.id, selectedChannel, selectedGoal]);
+    fetchAllMetrics();
+  }, [currentOrg?.id]);
 
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat("en-US").format(Math.round(num));
-  };
-
-  const formatTimestamp = (timestamp: any) => {
-    if (!timestamp) return "";
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  };
-
-  if (loading) {
+  const getStatusBadge = (status: string, healthScore?: number) => {
+    if (status === 'no_data') {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+          No Data
+        </span>
+      );
+    }
+    if (status === 'limited') {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-600">
+          Limited
+        </span>
+      );
+    }
+    if (healthScore !== undefined) {
+      const color = healthScore >= 70 ? '#10b981' : healthScore >= 50 ? '#f59e0b' : '#ef4444';
+      return (
+        <span
+          className="px-2 py-1 rounded-full text-xs font-medium"
+          style={{ background: `${color}20`, color }}
+        >
+          {healthScore}% Health
+        </span>
+      );
+    }
     return (
-      <AppLayout title="Marketing Insights" subtitle="AI-powered optimization recommendations">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: "var(--accent)" }} />
-            <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Loading insights...</p>
-          </div>
-        </div>
-      </AppLayout>
+      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-600">
+        Ready
+      </span>
     );
-  }
-
-  if (error && !insight) {
-    return (
-      <AppLayout title="Marketing Insights" subtitle="AI-powered optimization recommendations">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center max-w-md">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--foreground-muted)" }} />
-            <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>{error}</p>
-            <button
-              onClick={runAnalysis}
-              disabled={refreshing}
-              className="px-6 py-3 rounded-lg disabled:opacity-50 inline-flex items-center gap-2 font-semibold transition-all"
-              style={{ background: "var(--accent)", color: "var(--background)" }}
-            >
-              {refreshing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Running Analysis...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Run Analysis
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (!insight) return null;
-
-  const progressPct = (insight.currentValue / insight.targetValue) * 100;
-  const isExceeding = progressPct >= 100;
+  };
 
   return (
-    <AppLayout title="Marketing Insights" subtitle="AI-powered optimization recommendations">
+    <AppLayout title="Marketing AI" subtitle="AI-powered marketing analysis and recommendations">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Model Badge and Goal Selector */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg">
-              <Sparkles className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium text-purple-700">Powered by Gemini 3 Flash Preview</span>
+        {/* Hero Section */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-8 text-white">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <Brain className="w-10 h-10" />
+                <h1 className="text-3xl font-bold">Marketing AI</h1>
+              </div>
+              <p className="text-purple-100 max-w-xl">
+                Six specialized AI experts analyze your marketing data, detect patterns,
+                find opportunities, and generate prioritized recommendations.
+              </p>
+              <div className="flex items-center gap-4 mt-4">
+                <div className="px-3 py-1.5 bg-white/20 rounded-lg">
+                  <p className="text-sm text-purple-100">Powered by</p>
+                  <p className="font-semibold">Advanced Analytics</p>
+                </div>
+                <div className="px-3 py-1.5 bg-white/20 rounded-lg">
+                  <p className="text-sm text-purple-100">Data Sources</p>
+                  <p className="font-semibold">GA4, DataForSEO, ActiveCampaign</p>
+                </div>
+              </div>
             </div>
-            
-            {/* Goal Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-600">Optimize for:</span>
-              <select
-                value={selectedGoal.id}
-                onChange={(e) => setSelectedGoal(GOALS.find(g => g.id === e.target.value) || GOALS[0])}
-                className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-200 transition-all"
-              >
-                {GOALS.map((goal) => (
-                  <option key={goal.id} value={goal.id}>
-                    {goal.icon} {goal.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Sparkles className="w-20 h-20 opacity-20" />
           </div>
-          
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#8b5cf620" }}>
+                <Brain className="w-5 h-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>6</p>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Expert Tools</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#ef444420" }}>
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{totalAlerts}</p>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Active Alerts</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#10b98120" }}>
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{totalOpportunities}</p>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Opportunities</p>
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#3b82f620" }}>
+                <Activity className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {tools.filter(t => t.status === 'ready' && t.metrics?.healthScore).length}
+                </p>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Channels Active</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Expert Tools Grid */}
+        <div>
+          <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>Expert Tools</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tools.map((tool, index) => (
+              <motion.div
+                key={tool.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Link href={tool.href}>
+                  <Card className="h-full hover:border-purple-300 hover:shadow-lg transition-all cursor-pointer group">
+                    <div className="flex items-start justify-between mb-3">
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                        style={{ background: `${tool.color}20`, color: tool.color }}
+                      >
+                        {tool.icon}
+                      </div>
+                      {getStatusBadge(tool.status, tool.metrics?.healthScore)}
+                    </div>
+                    <h3 className="text-lg font-bold mb-1" style={{ color: "var(--foreground)" }}>
+                      {tool.name}
+                    </h3>
+                    <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
+                      {tool.description}
+                    </p>
+                    
+                    {tool.metrics && (
+                      <div className="flex items-center gap-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+                        {tool.metrics.alertCount !== undefined && tool.metrics.alertCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                            <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                              {tool.metrics.alertCount} alerts
+                            </span>
+                          </div>
+                        )}
+                        {tool.metrics.opportunityCount !== undefined && tool.metrics.opportunityCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-green-500" />
+                            <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                              {tool.metrics.opportunityCount} opportunities
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1 mt-4 text-purple-500 font-medium text-sm group-hover:gap-2 transition-all">
+                      <span>View Details</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </Card>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* How It Works */}
+        <Card>
+          <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>How It Works</h2>
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {[
+              { step: 1, title: 'Data Access', desc: 'Historical metrics to granular events' },
+              { step: 2, title: 'Pattern Detection', desc: 'Trends, seasonality, anomalies' },
+              { step: 3, title: 'Statistical Analysis', desc: 'Causation, KPI importance' },
+              { step: 4, title: 'Initiative Awareness', desc: 'Related plans & recommendations' },
+              { step: 5, title: 'Forecasting', desc: 'Project impact on revenue' },
+              { step: 6, title: 'Impact Ranking', desc: 'Prioritize by value' },
+            ].map((item) => (
+              <div key={item.step} className="text-center">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ background: "#8b5cf620", color: "#8b5cf6" }}
+                >
+                  <span className="font-bold">{item.step}</span>
+                </div>
+                <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+                  {item.title}
+                </h3>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Refresh All */}
+        <div className="flex justify-center">
           <button
-            onClick={runAnalysis}
-            disabled={refreshing}
-            className="px-4 py-2 rounded-lg disabled:opacity-50 inline-flex items-center gap-2 text-sm font-semibold transition-all"
-            style={{ background: "var(--accent)", color: "var(--background)" }}
+            onClick={fetchAllMetrics}
+            disabled={loading}
+            className="px-6 py-3 rounded-lg flex items-center gap-2 font-semibold transition-all disabled:opacity-50"
+            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
           >
-            {refreshing ? (
+            {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Analyzing...
+                Loading...
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4" />
-                Refresh Analysis
+                Refresh All Metrics
               </>
             )}
           </button>
         </div>
-        
-        {/* Channel Section Tabs */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3" style={{ color: "var(--foreground)" }}>
-            Marketing Channels
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {CHANNELS.map((channel) => (
-              <button
-                key={channel.id}
-                onClick={() => setSelectedChannel(channel.id)}
-                className={`p-4 rounded-xl text-left transition-all ${
-                  selectedChannel === channel.id
-                    ? 'bg-purple-100 border-2 border-purple-400 shadow-md'
-                    : 'bg-white border border-gray-200 hover:border-purple-200 hover:shadow-sm'
-                }`}
-                style={selectedChannel !== channel.id ? { background: "var(--background-secondary)" } : {}}
-              >
-                <div className="text-2xl mb-2">{channel.icon}</div>
-                <div className={`font-semibold text-sm mb-1 ${
-                  selectedChannel === channel.id ? 'text-purple-700' : ''
-                }`} style={selectedChannel !== channel.id ? { color: "var(--foreground)" } : {}}>
-                  {channel.name}
-                </div>
-                <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                  {channel.description}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Driver Health Section */}
-        <Card>
-          <div className="flex items-center gap-3 mb-6">
-            <div 
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ background: "#8b5cf620", color: "#8b5cf6" }}
-            >
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Driver Health</h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead style={{ background: "var(--background-secondary)", borderBottom: "1px solid var(--border)" }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Rank
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Driver
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Current
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Best
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Gap vs Best
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase" style={{ color: "var(--foreground-muted)" }}>
-                    Importance
-                  </th>
-                </tr>
-              </thead>
-              <tbody style={{ borderTop: "1px solid var(--border)" }}>
-                {insight.driverHealth.slice(0, 10).map((driver, driverIdx) => (
-                  <motion.tr 
-                    key={driver.feature}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: driverIdx * 0.03 }}
-                    className="transition-colors hover:bg-[var(--background-tertiary)]"
-                    style={{ borderBottom: "1px solid var(--border)" }}
-                  >
-                    <td className="px-6 py-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                      {driver.rank}
-                    </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: "var(--foreground)" }}>
-                      {driver.feature.replace(/_/g, " ")}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className="px-2 py-1 rounded-full text-xs font-medium"
-                        style={{
-                          background: driver.status === "excellent" ? "#00d4aa20" : 
-                                     driver.status === "good" ? "#3b82f620" : 
-                                     driver.status === "below_average" ? "#f59e0b20" : "#ef444420",
-                          color: driver.status === "excellent" ? "#00d4aa" : 
-                                driver.status === "good" ? "#3b82f6" : 
-                                driver.status === "below_average" ? "#f59e0b" : "#ef4444"
-                        }}
-                      >
-                        {driver.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground)" }}>
-                      {driver.current_value.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                      {driver.internal_best.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>
-                      {(driver.gap_vs_best * 100).toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right font-medium" style={{ color: "var(--foreground)" }}>
-                      {(driver.importance * 100).toFixed(1)}%
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-        
-        {/* Top Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-            <StatCard
-              label="Current Performance"
-              value={formatNumber(insight.currentValue)}
-              change={`${progressPct.toFixed(0)}% to goal`}
-              changeType={isExceeding ? "positive" : "neutral"}
-              icon={<Target className="w-5 h-5" />}
-            />
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <StatCard
-              label="Target Goal"
-              value={formatNumber(insight.targetValue)}
-              icon={<TrendingUp className="w-5 h-5" />}
-            />
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <StatCard
-              label={isExceeding ? "Exceeding By" : "Gap to Goal"}
-              value={`${isExceeding ? "+" : ""}${formatNumber(Math.abs(insight.gap))}`}
-              change={`${Math.abs(insight.gapPct).toFixed(0)}%`}
-              changeType={isExceeding ? "positive" : "negative"}
-              icon={isExceeding ? <CheckCircle2 className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-            />
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <StatCard
-              label="Opportunities"
-              value={insight.recommendations.length}
-              change="actionable"
-              changeType="positive"
-              icon={<Lightbulb className="w-5 h-5" />}
-            />
-          </motion.div>
-        </div>
-
-        {/* Header Metadata */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-            <Clock className="w-4 h-4" />
-            Updated {formatTimestamp(insight.timestamp)}
-          </div>
-          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-            <Activity className="w-4 h-4" />
-            R² Score: {(insight.metadata.r_squared * 100).toFixed(1)}%
-          </div>
-        </div>
-
-        {/* Goal Progress Card */}
-        <Card>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: isExceeding ? "#00d4aa20" : "#3b82f620", color: isExceeding ? "#00d4aa" : "#3b82f6" }}
-                >
-                  <Target className="w-5 h-5" />
-                </div>
-                <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Goal Progress</h2>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                {insight.goalKpi.charAt(0).toUpperCase() + insight.goalKpi.slice(1)} Performance
-              </p>
-            </div>
-            <div 
-              className="px-4 py-2 rounded-full flex items-center gap-2"
-              style={{ 
-                background: isExceeding ? "#00d4aa20" : "var(--background-tertiary)",
-                color: isExceeding ? "#00d4aa" : "var(--foreground-muted)"
-              }}
-            >
-              {isExceeding ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="text-sm font-semibold">Goal Met</span>
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="text-sm font-semibold">{progressPct.toFixed(0)}%</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="mb-4">
-            <div 
-              className="h-4 rounded-full overflow-hidden"
-              style={{ background: "var(--background-tertiary)" }}
-            >
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: isExceeding ? "#00d4aa" : "#3b82f6" }}
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(progressPct, 100)}%` }}
-                transition={{ delay: 0.3, duration: 0.8 }}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-              <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Current</p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {formatNumber(insight.currentValue)}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-              <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Target</p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {formatNumber(insight.targetValue)}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-              <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>
-                {isExceeding ? "Exceeding By" : "Remaining"}
-              </p>
-              <p className="text-2xl font-bold" style={{ color: isExceeding ? "#00d4aa" : "#ef4444" }}>
-                {isExceeding ? "+" : ""}
-                {formatNumber(Math.abs(insight.gap))}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Recommendations Section */}
-        <Card>
-          <div className="flex items-center gap-3 mb-6">
-            <div 
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ background: "#f59e0b20", color: "#f59e0b" }}
-            >
-              <Lightbulb className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-              Top Recommendations
-            </h2>
-            <span 
-              className="px-3 py-1 rounded-full text-sm font-medium"
-              style={{ background: "#f59e0b20", color: "#f59e0b" }}
-            >
-              {insight.recommendations.length} Opportunities
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {insight.recommendations.map((rec, idx) => (
-              <motion.div
-                key={rec.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="p-6 rounded-xl transition-all hover:bg-[var(--background-tertiary)]"
-                style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div 
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold"
-                        style={{ background: "var(--background-tertiary)", color: "var(--foreground-muted)" }}
-                      >
-                        {rec.rank}
-                      </div>
-                      <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                        {rec.title}
-                      </h3>
-                      <span
-                        className="px-3 py-1 rounded-full text-xs font-semibold"
-                        style={{
-                          background: rec.priority === "urgent" ? "#ef444420" : 
-                                     rec.priority === "high" ? "#f59e0b20" : 
-                                     rec.priority === "medium" ? "#3b82f620" : "#8b5cf620",
-                          color: rec.priority === "urgent" ? "#ef4444" : 
-                                rec.priority === "high" ? "#f59e0b" : 
-                                rec.priority === "medium" ? "#3b82f6" : "#8b5cf6"
-                        }}
-                      >
-                        {rec.priority.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>{rec.description}</p>
-                  </div>
-                  <div className="ml-4 text-right">
-                    <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Expected Lift</p>
-                    <p className="text-2xl font-bold" style={{ color: "#00d4aa" }}>
-                      +{formatNumber(rec.expected_lift)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Metrics */}
-                <div 
-                  className="grid grid-cols-4 gap-4 mb-4 py-4"
-                  style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}
-                >
-                  <div>
-                    <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Effort</p>
-                    <p className="font-semibold capitalize text-sm" style={{ color: "var(--foreground)" }}>{rec.effort}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Confidence</p>
-                    <p className="font-semibold capitalize text-sm" style={{ color: "var(--foreground)" }}>{rec.confidence}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Timeline</p>
-                    <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
-                      {rec.timeline.results_visible_days} days
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs mb-1" style={{ color: "var(--foreground-muted)" }}>Gap Closed</p>
-                    <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
-                      {rec.pct_of_gap_closed > 0
-                        ? `${rec.pct_of_gap_closed.toFixed(1)}%`
-                        : "Goal Exceeded"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                {rec.actions && rec.actions.length > 0 && (
-                  <div>
-                    <p className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-                      Action Items:
-                    </p>
-                    <ul className="space-y-2">
-                      {rec.actions.map((action, actionIdx) => (
-                        <li key={actionIdx} className="flex items-start gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                          <ChevronRight className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
-                          <span>{action}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </Card>
-
       </div>
     </AppLayout>
   );

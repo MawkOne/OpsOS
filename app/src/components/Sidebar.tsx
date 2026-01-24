@@ -126,7 +126,18 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "Marketing Insights", href: "/ai/marketing-insights", icon: <Lightbulb className="w-4 h-4" />, badge: "New" },
+      ],
+    },
+    {
+      title: "Marketing AI",
+      items: [
+        { label: "Overview", href: "/ai/marketing-insights", icon: <Lightbulb className="w-4 h-4" /> },
+        { label: "SEO Expert", href: "/ai/marketing-insights/seo", icon: <Search className="w-4 h-4" /> },
+        { label: "Email Expert", href: "/ai/marketing-insights/email", icon: <Mail className="w-4 h-4" /> },
+        { label: "Ads Expert", href: "/ai/marketing-insights/ads", icon: <Megaphone className="w-4 h-4" /> },
+        { label: "Pages Expert", href: "/ai/marketing-insights/pages", icon: <Activity className="w-4 h-4" /> },
+        { label: "Content Expert", href: "/ai/marketing-insights/content", icon: <Layers className="w-4 h-4" /> },
+        { label: "Social Expert", href: "/ai/marketing-insights/social", icon: <Users className="w-4 h-4" /> },
       ],
     },
   ],
