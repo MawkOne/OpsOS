@@ -674,7 +674,8 @@ function calculateExpectedImpact(
     });
   } else {
     // Default estimate based on priority
-    const impactMultiplier = { critical: 25, high: 15, medium: 10, low: 5 }[initiative.priority || 'medium'] || 10;
+    const priorityMap: Record<string, number> = { critical: 25, high: 15, medium: 10, low: 5 };
+    const impactMultiplier = priorityMap[initiative.priority || 'medium'] || 10;
     
     const primaryMetric = Object.entries(currentMetrics)[0];
     if (primaryMetric) {
