@@ -217,10 +217,51 @@ export async function POST(request: NextRequest) {
 
 // Fetch traffic acquisition data
 async function fetchTrafficData(organizationId: string) {
-  const trafficRef = collection(db, "ga_traffic");
+  // Try ga_traffic_sources first (from GA sync)
+  const trafficRef = collection(db, "ga_traffic_sources");
   const q = query(trafficRef, where("organizationId", "==", organizationId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  
+  if (snapshot.empty) {
+    // Fallback to ga_traffic if it exists
+    const fallbackRef = collection(db, "ga_traffic");
+    const fallbackQ = query(fallbackRef, where("organizationId", "==", organizationId));
+    const fallbackSnapshot = await getDocs(fallbackQ);
+    return fallbackSnapshot.docs.map(doc => doc.data());
+  }
+  
+  // Transform ga_traffic_sources format to flat traffic records
+  const trafficRecords: any[] = [];
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const sourceName = data.sourceName || data.sourceId;
+    const months = data.months || {};
+    
+    // Flatten monthly data into individual records
+    Object.entries(months).forEach(([month, metrics]: [string, any]) => {
+      trafficRecords.push({
+        organizationId,
+        sessionDefaultChannelGroup: sourceName,
+        channelGroup: sourceName,
+        medium: sourceName.toLowerCase().includes('paid') ? 'cpc' : 'organic',
+        campaign: data.campaignName || '(not set)',
+        sessions: metrics.sessions || 0,
+        totalUsers: metrics.users || 0,
+        users: metrics.users || 0,
+        keyEvents: metrics.conversions || 0,
+        conversions: metrics.conversions || 0,
+        totalRevenue: metrics.revenue || 0,
+        revenue: metrics.revenue || 0,
+        bounceRate: metrics.bounceRate || 0,
+        averageSessionDuration: metrics.avgEngagementTime || 0,
+        engagementRate: (metrics.engagementRate || 0) / 100,
+        screenPageViewsPerSession: metrics.eventsPerSession || 1,
+        month,
+      });
+    });
+  });
+  
+  return trafficRecords;
 }
 
 // Separate paid traffic from total

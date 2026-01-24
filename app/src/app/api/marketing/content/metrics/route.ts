@@ -223,15 +223,92 @@ async function fetchPagesData(organizationId: string) {
   const pagesRef = collection(db, "ga_pages");
   const q = query(pagesRef, where("organizationId", "==", organizationId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  
+  // Transform nested months format to flat page records with aggregated metrics
+  const pageRecords: any[] = [];
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const months = data.months || {};
+    
+    // Aggregate all months for each page
+    let totalPageViews = 0;
+    let totalUsers = 0;
+    let totalDuration = 0;
+    let totalConversions = 0;
+    let monthCount = 0;
+    
+    Object.values(months).forEach((metrics: any) => {
+      totalPageViews += metrics.pageViews || 0;
+      totalUsers += metrics.users || 0;
+      totalDuration += metrics.avgSessionDuration || 0;
+      totalConversions += metrics.conversions || 0;
+      monthCount++;
+    });
+    
+    pageRecords.push({
+      organizationId,
+      pageId: data.pageId,
+      pageTitle: data.pageTitle,
+      pagePath: data.pagePath,
+      screenPageViews: totalPageViews,
+      pageviews: totalPageViews,
+      totalUsers,
+      users: totalUsers,
+      averageSessionDuration: monthCount > 0 ? totalDuration / monthCount : 0,
+      conversions: totalConversions,
+    });
+  });
+  
+  return pageRecords;
 }
 
 // Fetch traffic acquisition data
 async function fetchTrafficData(organizationId: string) {
-  const trafficRef = collection(db, "ga_traffic");
+  // Try ga_traffic_sources first (from GA sync)
+  const trafficRef = collection(db, "ga_traffic_sources");
   const q = query(trafficRef, where("organizationId", "==", organizationId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  
+  if (snapshot.empty) {
+    // Fallback to ga_traffic if it exists
+    const fallbackRef = collection(db, "ga_traffic");
+    const fallbackQ = query(fallbackRef, where("organizationId", "==", organizationId));
+    const fallbackSnapshot = await getDocs(fallbackQ);
+    return fallbackSnapshot.docs.map(doc => doc.data());
+  }
+  
+  // Transform ga_traffic_sources format to flat traffic records
+  const trafficRecords: any[] = [];
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const sourceName = data.sourceName || data.sourceId;
+    const months = data.months || {};
+    
+    // Check if this is organic traffic
+    const isOrganic = sourceName.toLowerCase().includes('organic');
+    const isGoogle = sourceName.toLowerCase().includes('google') || 
+                     sourceName.toLowerCase().includes('search');
+    
+    // Flatten monthly data into individual records
+    Object.entries(months).forEach(([month, metrics]: [string, any]) => {
+      trafficRecords.push({
+        organizationId,
+        sessionSource: isGoogle ? 'google' : sourceName,
+        source: isGoogle ? 'google' : sourceName,
+        sessionMedium: isOrganic ? 'organic' : 'referral',
+        medium: isOrganic ? 'organic' : 'referral',
+        sessionDefaultChannelGroup: sourceName,
+        sessions: metrics.sessions || 0,
+        totalUsers: metrics.users || 0,
+        users: metrics.users || 0,
+        conversions: metrics.conversions || 0,
+        revenue: metrics.revenue || 0,
+        month,
+      });
+    });
+  });
+  
+  return trafficRecords;
 }
 
 // Fetch keywords from DataForSEO

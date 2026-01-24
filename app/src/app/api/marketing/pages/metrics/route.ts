@@ -203,15 +203,54 @@ async function fetchPagesAndScreens(organizationId: string) {
   const pagesRef = collection(db, "ga_pages");
   const q = query(pagesRef, where("organizationId", "==", organizationId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  
+  // Transform nested months format to flat page records with aggregated metrics
+  const pageRecords: any[] = [];
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const months = data.months || {};
+    
+    // Aggregate all months for each page
+    let totalPageViews = 0;
+    let totalUsers = 0;
+    let totalDuration = 0;
+    let totalConversions = 0;
+    let monthCount = 0;
+    
+    Object.values(months).forEach((metrics: any) => {
+      totalPageViews += metrics.pageViews || 0;
+      totalUsers += metrics.users || 0;
+      totalDuration += metrics.avgSessionDuration || 0;
+      totalConversions += metrics.conversions || 0;
+      monthCount++;
+    });
+    
+    pageRecords.push({
+      organizationId,
+      pageId: data.pageId,
+      pageTitle: data.pageTitle,
+      pagePath: data.pagePath,
+      screenPageViews: totalPageViews,
+      pageviews: totalPageViews,
+      totalUsers,
+      users: totalUsers,
+      sessions: totalUsers,
+      averageSessionDuration: monthCount > 0 ? totalDuration / monthCount : 0,
+      avgTimeOnPage: monthCount > 0 ? totalDuration / monthCount : 0,
+      conversions: totalConversions,
+      engagementRate: 0,
+      bounceRate: 0,
+    });
+  });
+  
+  return pageRecords;
 }
 
-// Fetch landing page data
+// Fetch landing page data (using ga_pages as landing pages aren't separately synced)
 async function fetchLandingPages(organizationId: string) {
-  const landingRef = collection(db, "ga_landing_pages");
-  const q = query(landingRef, where("organizationId", "==", organizationId));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  // Landing pages aren't synced separately - return empty array
+  // The main pages data will be used for landing page analysis
+  return [];
 }
 
 // Fetch events data
@@ -219,7 +258,34 @@ async function fetchEvents(organizationId: string) {
   const eventsRef = collection(db, "ga_events");
   const q = query(eventsRef, where("organizationId", "==", organizationId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data());
+  
+  // Transform nested months format to flat event records with aggregated metrics
+  const eventRecords: any[] = [];
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const months = data.months || {};
+    
+    // Aggregate all months for each event
+    let totalEvents = 0;
+    let totalConversions = 0;
+    let totalRevenue = 0;
+    
+    Object.values(months).forEach((metrics: any) => {
+      totalEvents += metrics.events || 0;
+      totalConversions += metrics.conversions || 0;
+      totalRevenue += metrics.revenue || 0;
+    });
+    
+    eventRecords.push({
+      organizationId,
+      eventName: data.eventName,
+      eventCount: totalEvents,
+      conversions: totalConversions,
+      revenue: totalRevenue,
+    });
+  });
+  
+  return eventRecords;
 }
 
 // Calculate all metrics
