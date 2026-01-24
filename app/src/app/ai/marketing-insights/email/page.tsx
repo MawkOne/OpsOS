@@ -22,15 +22,15 @@ interface EmailMetrics {
   totalContacts: number;
   activeContacts: number;
   totalLists: number;
-  avgOpenRate: number;
-  avgClickRate: number;
-  avgDeliveryRate: number;
-  avgBounceRate: number;
+  openRate: number;
+  clickRate: number;
+  deliveryRate: number;
+  bounceRate: number;
   listGrowthRate: number;
   unsubscribeRate: number;
   totalAutomations: number;
   activeAutomations: number;
-  avgAutomationCompletionRate: number;
+  automationCompletionRate: number;
   overallHealthScore: number;
   engagementScore: number;
   deliverabilityScore: number;
@@ -169,18 +169,18 @@ export default function EmailExpertPage() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <StatCard
                 label="Open Rate"
-                value={formatPercent(metrics.avgOpenRate)}
-                change={metrics.avgOpenRate >= 20 ? "Good" : "Below avg"}
-                changeType={metrics.avgOpenRate >= 20 ? "positive" : "negative"}
+                value={formatPercent(metrics.openRate)}
+                change={metrics.openRate >= 20 ? "Good" : "Below avg"}
+                changeType={metrics.openRate >= 20 ? "positive" : "negative"}
                 icon={<Eye className="w-5 h-5" />}
               />
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <StatCard
                 label="Click Rate"
-                value={formatPercent(metrics.avgClickRate)}
-                change={metrics.avgClickRate >= 2.5 ? "Good" : "Below avg"}
-                changeType={metrics.avgClickRate >= 2.5 ? "positive" : "negative"}
+                value={formatPercent(metrics.clickRate)}
+                change={metrics.clickRate >= 2.5 ? "Good" : "Below avg"}
+                changeType={metrics.clickRate >= 2.5 ? "positive" : "negative"}
                 icon={<MousePointerClick className="w-5 h-5" />}
               />
             </motion.div>
@@ -332,14 +332,14 @@ export default function EmailExpertPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Delivery Rate</span>
-                  <span className="font-semibold" style={{ color: metrics.avgDeliveryRate >= 95 ? "#10b981" : "#f59e0b" }}>
-                    {formatPercent(metrics.avgDeliveryRate)}
+                  <span className="font-semibold" style={{ color: metrics.deliveryRate >= 95 ? "#10b981" : "#f59e0b" }}>
+                    {formatPercent(metrics.deliveryRate)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Bounce Rate</span>
-                  <span className="font-semibold" style={{ color: metrics.avgBounceRate <= 2 ? "#10b981" : "#ef4444" }}>
-                    {formatPercent(metrics.avgBounceRate)}
+                  <span className="font-semibold" style={{ color: metrics.bounceRate <= 2 ? "#10b981" : "#ef4444" }}>
+                    {formatPercent(metrics.bounceRate)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -368,7 +368,7 @@ export default function EmailExpertPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>Avg Completion Rate</span>
                   <span className="font-semibold" style={{ color: "var(--foreground)" }}>
-                    {formatPercent(metrics.avgAutomationCompletionRate)}
+                    {formatPercent(metrics.automationCompletionRate)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--border)" }}>
