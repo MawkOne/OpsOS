@@ -8,9 +8,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   Search,
   TrendingUp,
-  TrendingDown,
   Link2,
-  Globe,
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
@@ -22,7 +20,6 @@ import {
   FileText,
   ArrowUpRight,
   ArrowDownRight,
-  Minus,
 } from "lucide-react";
 
 interface SEOMetrics {
@@ -89,6 +86,7 @@ export default function SEOExpertPage() {
     summary?: AnalysisSummary;
     impactRankings?: ImpactRanking[];
   } | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -150,6 +148,7 @@ export default function SEOExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => {
@@ -160,12 +159,6 @@ export default function SEOExpertPage() {
     if (score >= 70) return "#10b981";
     if (score >= 50) return "#f59e0b";
     return "#ef4444";
-  };
-
-  const getTrendIcon = (trend: number) => {
-    if (trend > 5) return <TrendingUp className="w-4 h-4 text-green-500" />;
-    if (trend < -5) return <TrendingDown className="w-4 h-4 text-red-500" />;
-    return <Minus className="w-4 h-4 text-gray-400" />;
   };
 
   if (loading) {

@@ -9,16 +9,11 @@ import {
   Mail,
   MousePointerClick,
   Users,
-  TrendingUp,
   AlertTriangle,
   RefreshCw,
-  ChevronRight,
-  Target,
   Lightbulb,
-  BarChart3,
   Send,
   Eye,
-  UserPlus,
   Activity,
 } from "lucide-react";
 
@@ -62,7 +57,7 @@ export default function EmailExpertPage() {
   const [metrics, setMetrics] = useState<EmailMetrics | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [topCampaigns, setTopCampaigns] = useState<any[]>([]);
+  const [topCampaigns, setTopCampaigns] = useState<Array<{ name: string; openRate: number; clickRate: number; recipients: number }>>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchMetrics = async () => {
@@ -117,6 +112,7 @@ export default function EmailExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => {

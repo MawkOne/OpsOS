@@ -7,14 +7,11 @@ import { motion } from "framer-motion";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   FileText,
-  Eye,
   Clock,
-  Link2,
   Search,
   AlertTriangle,
   RefreshCw,
   Lightbulb,
-  TrendingUp,
   Activity,
   ArrowUpRight,
   ArrowDownRight,
@@ -129,10 +126,10 @@ export default function ContentExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => new Intl.NumberFormat("en-US").format(Math.round(num));
-  const formatPercent = (num: number) => `${num.toFixed(1)}%`;
   const formatTime = (seconds: number) => {
     if (seconds < 60) return `${Math.round(seconds)}s`;
     return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;

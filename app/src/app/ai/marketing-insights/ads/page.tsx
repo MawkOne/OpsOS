@@ -9,7 +9,6 @@ import {
   Megaphone,
   DollarSign,
   MousePointerClick,
-  TrendingUp,
   AlertTriangle,
   RefreshCw,
   Lightbulb,
@@ -127,6 +126,7 @@ export default function AdsExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => new Intl.NumberFormat("en-US").format(Math.round(num));

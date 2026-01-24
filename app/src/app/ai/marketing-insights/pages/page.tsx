@@ -7,8 +7,6 @@ import { motion } from "framer-motion";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   FileText,
-  MousePointerClick,
-  Clock,
   TrendingUp,
   AlertTriangle,
   RefreshCw,
@@ -126,6 +124,7 @@ export default function PagesExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => new Intl.NumberFormat("en-US").format(Math.round(num));

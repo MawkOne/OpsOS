@@ -8,7 +8,6 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   Users,
   TrendingUp,
-  MousePointerClick,
   Target,
   AlertTriangle,
   RefreshCw,
@@ -137,6 +136,7 @@ export default function SocialExpertPage() {
 
   useEffect(() => {
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const formatNumber = (num: number) => new Intl.NumberFormat("en-US").format(Math.round(num));

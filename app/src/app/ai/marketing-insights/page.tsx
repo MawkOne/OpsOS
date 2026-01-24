@@ -150,6 +150,7 @@ export default function MarketingAIPage() {
 
   useEffect(() => {
     fetchAllMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
 
   const getStatusBadge = (status: string, healthScore?: number) => {
