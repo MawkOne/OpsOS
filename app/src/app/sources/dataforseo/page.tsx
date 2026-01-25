@@ -253,7 +253,7 @@ export default function DataForSEOPage() {
 
   const handleStartCrawl = useCallback(() => handleSync("start_crawl"), [handleSync]);
 
-  const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling";
+  const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling" || connectionStatus.status === "syncing";
 
   return (
     <AppLayout title="DataForSEO" subtitle="Site health analysis and SEO monitoring">
