@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import Card, { StatCard } from "@/components/Card";
+import Card from "@/components/Card";
 import { motion } from "framer-motion";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
@@ -13,16 +13,27 @@ import {
   RefreshCw,
   Lightbulb,
   Eye,
-  Target,
   Activity,
-  BarChart3,
   ArrowDown,
   ArrowUp,
   Users,
   Timer,
-  AlertCircle,
   Zap,
 } from "lucide-react";
+
+// Flexible page data type to handle different API response formats
+interface FlexiblePageData {
+  pagePath?: string;
+  path?: string;
+  pageTitle?: string;
+  title?: string;
+  pageviews?: number;
+  avgTimeOnPage?: number;
+  bounceRate?: number;
+  exitRate?: number;
+  engagementRate?: number;
+  issue?: string;
+}
 
 // Page performance benchmarks from Hotjar/Crazy Egg research
 const BENCHMARKS = {
@@ -578,7 +589,7 @@ export default function PagesExpertPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {topPages.slice(0, 10).map((page: any, i) => {
+                  {topPages.slice(0, 10).map((page: FlexiblePageData, i) => {
                     // Handle different API response formats
                     const pagePath = page.pagePath || page.path || '';
                     const pageTitle = page.pageTitle || page.title || pagePath;
@@ -658,7 +669,7 @@ export default function PagesExpertPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {underperformingPages.slice(0, 5).map((page: any, i) => {
+                  {underperformingPages.slice(0, 5).map((page: FlexiblePageData, i) => {
                     const pagePath = page.pagePath || page.path || '';
                     const pageviews = page.pageviews || 0;
                     const bounceRate = page.bounceRate || 0;
