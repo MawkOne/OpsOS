@@ -127,6 +127,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: "New" },
       ],
     },
     {
