@@ -258,8 +258,7 @@ export default function DataForSEOPage() {
       // Show success feedback
       if (data.success) {
         console.log(`Sync ${action} completed successfully`);
-        // Refresh connection status to show new data
-        fetchConnectionStatus();
+        // Connection status auto-updates via onSnapshot listener
       }
     } catch (err) {
       console.error(`Sync error:`, err);
@@ -301,14 +300,14 @@ export default function DataForSEOPage() {
       
       if (data.status === "complete" || data.status === "finished") {
         setCrawlProgress(null);
-        fetchConnectionStatus();
+        // Connection status auto-updates via onSnapshot listener
       }
       
       return data;
     } catch (err) {
       console.error("Error checking crawl status:", err);
     }
-  }, [currentOrg?.id, fetchConnectionStatus]);
+  }, [currentOrg?.id]);
 
   const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling" || connectionStatus.status === "syncing";
 
