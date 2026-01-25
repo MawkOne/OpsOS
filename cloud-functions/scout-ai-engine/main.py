@@ -437,19 +437,41 @@ def write_opportunities_to_bigquery(opportunities: list):
 def write_opportunities_to_firestore(opportunities: list):
     """Mirror opportunities to Firestore for real-time access"""
     if not opportunities:
+        logger.warning("No opportunities to write to Firestore")
         return
     
     try:
-        batch = db.batch()
-        for opp in opportunities:
-            doc_ref = db.collection('opportunities').document(opp['id'])
-            batch.set(doc_ref, opp)
-        batch.commit()
+        # Firestore batch can only handle 500 operations
+        # Write in batches of 400 to be safe
+        batch_size = 400
+        total_written = 0
         
-        logger.info(f"✅ Mirrored {len(opportunities)} opportunities to Firestore")
+        for i in range(0, len(opportunities), batch_size):
+            batch = db.batch()
+            chunk = opportunities[i:i + batch_size]
+            
+            for opp in chunk:
+                doc_ref = db.collection('opportunities').document(opp['id'])
+                
+                # Ensure all timestamps are strings
+                firestore_opp = {
+                    **opp,
+                    'detected_at': opp['detected_at'] if isinstance(opp['detected_at'], str) else opp['detected_at'].isoformat(),
+                    'created_at': opp['created_at'] if isinstance(opp['created_at'], str) else opp['created_at'].isoformat(),
+                    'updated_at': opp['updated_at'] if isinstance(opp['updated_at'], str) else opp['updated_at'].isoformat(),
+                }
+                
+                batch.set(doc_ref, firestore_opp)
+            
+            batch.commit()
+            total_written += len(chunk)
+            logger.info(f"✅ Wrote batch {i // batch_size + 1} ({len(chunk)} opportunities)")
+        
+        logger.info(f"✅ Successfully mirrored {total_written} opportunities to Firestore")
         
     except Exception as e:
         logger.error(f"❌ Error writing to Firestore: {e}")
+        logger.exception(e)
 
 
 def send_slack_notification(opportunities: list, organization_id: str):
