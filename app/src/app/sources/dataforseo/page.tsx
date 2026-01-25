@@ -219,8 +219,13 @@ export default function DataForSEOPage() {
   };
 
   const handleSync = useCallback(async (action: string) => {
-    if (!currentOrg?.id) return;
+    if (!currentOrg?.id) {
+      setError("No organization selected. Please refresh the page.");
+      console.error("handleSync: No organization ID");
+      return;
+    }
 
+    console.log(`Starting sync: ${action} for org ${currentOrg.id}`);
     setIsSyncing(true);
     setSyncingAction(action);
     setError(null);
@@ -235,12 +240,20 @@ export default function DataForSEOPage() {
         }),
       });
 
+      console.log(`Sync response status: ${response.status}`);
       const data = await response.json();
+      console.log(`Sync response data:`, data);
 
       if (!response.ok) {
         throw new Error(data.error || `Failed to run ${action}`);
       }
+      
+      // Show success feedback
+      if (data.success) {
+        console.log(`Sync ${action} completed successfully`);
+      }
     } catch (err) {
+      console.error(`Sync error:`, err);
       setError(err instanceof Error ? err.message : `Failed to run ${action}`);
     } finally {
       // Don't clear syncing state for crawl as it runs in background
