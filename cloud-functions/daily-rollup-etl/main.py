@@ -265,15 +265,18 @@ def process_stripe_products(organization_id: str, start_date: datetime, end_date
     invoices_ref = db.collection('stripe_invoices').where('organizationId', '==', organization_id).stream()
     
     product_daily_revenue = {}
+    product_daily_conversions = {}
     
     for invoice_doc in invoices_ref:
         invoice_data = invoice_doc.to_dict()
-        invoice_date = invoice_data.get('date')
+        
+        # Use 'created' timestamp instead of 'date'
+        invoice_date = invoice_data.get('created')
         
         if not invoice_date:
             continue
         
-        # Convert to date
+        # Convert Firestore timestamp to date
         if hasattr(invoice_date, 'date'):
             invoice_date = invoice_date.date()
         elif isinstance(invoice_date, str):
@@ -283,26 +286,50 @@ def process_stripe_products(organization_id: str, start_date: datetime, end_date
         if invoice_date < start_date.date() or invoice_date > end_date.date():
             continue
         
-        amount = invoice_data.get('amount', 0) / 100  # Convert cents to dollars
-        product_id = invoice_data.get('productId', 'unknown')
+        # Use 'total' instead of 'amount' and convert cents to dollars
+        amount = invoice_data.get('total', 0) / 100
         
-        canonical_id = entity_map.get('stripe', {}).get(product_id, f'product_{product_id}')
+        # Extract products from lineItems array
+        line_items = invoice_data.get('lineItems', [])
         
-        key = (invoice_date.isoformat(), canonical_id)
-        if key not in product_daily_revenue:
-            product_daily_revenue[key] = 0
-        
-        product_daily_revenue[key] += amount
+        if not line_items:
+            # No line items, aggregate as 'unknown' product
+            product_id = 'unknown'
+            canonical_id = entity_map.get('stripe', {}).get(product_id, f'product_{product_id}')
+            
+            key = (invoice_date.isoformat(), canonical_id)
+            if key not in product_daily_revenue:
+                product_daily_revenue[key] = 0
+                product_daily_conversions[key] = 0
+            
+            product_daily_revenue[key] += amount
+            product_daily_conversions[key] += 1
+        else:
+            # Process each line item
+            for item in line_items:
+                product_id = item.get('productId', 'unknown')
+                item_amount = item.get('amount', 0) / 100
+                
+                canonical_id = entity_map.get('stripe', {}).get(product_id, f'product_{product_id}')
+                
+                key = (invoice_date.isoformat(), canonical_id)
+                if key not in product_daily_revenue:
+                    product_daily_revenue[key] = 0
+                    product_daily_conversions[key] = 0
+                
+                product_daily_revenue[key] += item_amount
+                product_daily_conversions[key] += item.get('quantity', 1)
     
     # Convert to metrics
     for (date_str, canonical_id), revenue in product_daily_revenue.items():
+        conversions = product_daily_conversions.get((date_str, canonical_id), 1)
         metrics.append({
             'organization_id': organization_id,
             'date': date_str,
             'canonical_entity_id': canonical_id,
             'entity_type': 'product',
             'revenue': revenue,
-            'conversions': 1,  # One invoice = one conversion
+            'conversions': conversions,
             'cost': 0.0,
             'profit': revenue,
             'impressions': 0,
@@ -313,7 +340,7 @@ def process_stripe_products(organization_id: str, start_date: datetime, end_date
             'updated_at': datetime.utcnow().isoformat()
         })
     
-    logger.info(f"Processed {len(metrics)} daily product metrics")
+    logger.info(f"Processed {len(metrics)} daily product metrics from Stripe")
     return metrics
 
 
@@ -328,22 +355,32 @@ def process_activecampaign_emails(organization_id: str, start_date: datetime, en
     for campaign_doc in campaigns_ref:
         campaign_data = campaign_doc.to_dict()
         campaign_name = campaign_data.get('name', '')
-        campaign_id = str(campaign_data.get('id', ''))
+        
+        # Use 'activecampaignId' instead of 'id'
+        campaign_id = str(campaign_data.get('activecampaignId', ''))
         
         canonical_id = entity_map.get('activecampaign', {}).get(campaign_id)
         if not canonical_id:
-            canonical_id = f"email_{campaign_name.lower().replace(' ', '_')}"
+            # Clean campaign name for canonical ID
+            clean_name = campaign_name.lower().replace(' ', '_').replace('-', '_')[:50]
+            canonical_id = f"email_{clean_name}"
         
-        sends = campaign_data.get('total_sent', 0)
-        opens = campaign_data.get('total_opens', 0)
-        clicks = campaign_data.get('total_clicks', 0)
+        # Use correct field names from actual data
+        sends = campaign_data.get('sendAmt', 0)  # Was: total_sent
+        opens = campaign_data.get('opens', 0)  # Was: total_opens
+        clicks = campaign_data.get('linkClicks', 0)  # Was: total_clicks
+        unique_opens = campaign_data.get('uniqueOpens', 0)
+        unique_clicks = campaign_data.get('uniqueLinkClicks', 0)
         
         open_rate = (opens / sends * 100) if sends > 0 else 0
         ctr = (clicks / opens * 100) if opens > 0 else 0
+        unique_open_rate = (unique_opens / sends * 100) if sends > 0 else 0
         
-        # Get send date if available
-        send_date = campaign_data.get('send_date')
+        # Use 'sentAt' instead of 'send_date'
+        send_date = campaign_data.get('sentAt')
+        
         if send_date:
+            # Convert Firestore timestamp to date
             if hasattr(send_date, 'date'):
                 send_date = send_date.date()
             elif isinstance(send_date, str):
@@ -361,16 +398,21 @@ def process_activecampaign_emails(organization_id: str, start_date: datetime, en
                     'open_rate': open_rate,
                     'click_through_rate': ctr,
                     'impressions': sends,
-                    'sessions': 0,
+                    'sessions': clicks,  # Use clicks as proxy for sessions
                     'conversions': 0,
                     'revenue': 0.0,
                     'cost': 0.0,
-                    'source_breakdown': {'activecampaign': 1},
+                    'source_breakdown': {
+                        'activecampaign': 1,
+                        'unique_opens': unique_opens,
+                        'unique_clicks': unique_clicks,
+                        'unique_open_rate': unique_open_rate
+                    },
                     'created_at': datetime.utcnow().isoformat(),
                     'updated_at': datetime.utcnow().isoformat()
                 })
     
-    logger.info(f"Processed {len(metrics)} daily email metrics")
+    logger.info(f"Processed {len(metrics)} daily email metrics from ActiveCampaign")
     return metrics
 
 
