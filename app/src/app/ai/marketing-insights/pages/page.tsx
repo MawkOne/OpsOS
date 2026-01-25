@@ -35,19 +35,24 @@ const BENCHMARKS = {
 interface PagesMetrics {
   totalPages: number;
   totalPageviews: number;
-  totalUniquePageviews: number;
+  totalUniquePageviews?: number;
+  uniquePageviews?: number; // API uses this name
   avgTimeOnPage: number;
   avgBounceRate: number;
-  avgExitRate: number;
-  topPagesCount: number;
-  underperformingCount: number;
-  avgScrollDepth: number;
+  avgExitRate?: number;
+  avgEngagementRate?: number; // API uses this name
+  topPagesCount?: number;
+  topPages?: number; // API uses this name
+  underperformingCount?: number;
+  underperformingPages?: number; // API uses this name
+  avgScrollDepth?: number;
   overallHealthScore: number;
   conversionRate: number;
   engagementScore: number;
   pagesPerSession: number;
-  totalEntrances: number;
-  totalExits: number;
+  totalEntrances?: number;
+  totalExits?: number;
+  totalSessions?: number; // API uses this name
 }
 
 interface PageData {
@@ -282,15 +287,15 @@ export default function PagesExpertPage() {
                     <Eye className="w-5 h-5 text-blue-500" />
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "#3b82f620", color: "#3b82f6" }}>
-                    {metrics.totalPages} pages
+                    {metrics.totalPages || 0} pages
                   </span>
                 </div>
                 <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {formatNumber(metrics.totalPageviews)}
+                  {formatNumber(metrics.totalPageviews || 0)}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Total Pageviews</p>
                 <p className="text-xs mt-2" style={{ color: "var(--foreground-muted)" }}>
-                  {formatNumber(metrics.totalUniquePageviews)} unique
+                  {formatNumber(metrics.totalUniquePageviews || metrics.uniquePageviews || 0)} unique
                 </p>
               </Card>
             </motion.div>
@@ -298,13 +303,13 @@ export default function PagesExpertPage() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <Card className="h-full">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="p-2 rounded-lg" style={{ background: metrics.avgBounceRate <= 40 ? "#10b98120" : "#ef444420" }}>
-                    <ArrowUp className="w-5 h-5" style={{ color: metrics.avgBounceRate <= 40 ? "#10b981" : "#ef4444" }} />
+                  <div className="p-2 rounded-lg" style={{ background: (metrics.avgBounceRate || 0) <= 40 ? "#10b98120" : "#ef444420" }}>
+                    <ArrowUp className="w-5 h-5" style={{ color: (metrics.avgBounceRate || 0) <= 40 ? "#10b981" : "#ef4444" }} />
                   </div>
-                  <PerformanceRating value={metrics.avgBounceRate} metric="bounceRate" inverse />
+                  <PerformanceRating value={metrics.avgBounceRate || 0} metric="bounceRate" inverse />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: metrics.avgBounceRate <= 40 ? "#10b981" : metrics.avgBounceRate <= 55 ? "#f59e0b" : "#ef4444" }}>
-                  {formatPercent(metrics.avgBounceRate)}
+                <p className="text-2xl font-bold" style={{ color: (metrics.avgBounceRate || 0) <= 40 ? "#10b981" : (metrics.avgBounceRate || 0) <= 55 ? "#f59e0b" : "#ef4444" }}>
+                  {formatPercent(metrics.avgBounceRate || 0)}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Avg Bounce Rate</p>
                 <p className="text-xs mt-2" style={{ color: "var(--foreground-muted)" }}>
@@ -316,13 +321,13 @@ export default function PagesExpertPage() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card className="h-full">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="p-2 rounded-lg" style={{ background: metrics.avgExitRate <= 35 ? "#10b98120" : "#f59e0b20" }}>
-                    <ArrowDown className="w-5 h-5" style={{ color: metrics.avgExitRate <= 35 ? "#10b981" : "#f59e0b" }} />
+                  <div className="p-2 rounded-lg" style={{ background: (metrics.avgExitRate || metrics.avgEngagementRate || 0) <= 35 ? "#10b98120" : "#f59e0b20" }}>
+                    <ArrowDown className="w-5 h-5" style={{ color: (metrics.avgExitRate || metrics.avgEngagementRate || 0) <= 35 ? "#10b981" : "#f59e0b" }} />
                   </div>
-                  <PerformanceRating value={metrics.avgExitRate} metric="exitRate" inverse />
+                  <PerformanceRating value={metrics.avgExitRate || metrics.avgEngagementRate || 0} metric="exitRate" inverse />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: metrics.avgExitRate <= 35 ? "#10b981" : metrics.avgExitRate <= 50 ? "#f59e0b" : "#ef4444" }}>
-                  {formatPercent(metrics.avgExitRate)}
+                <p className="text-2xl font-bold" style={{ color: (metrics.avgExitRate || metrics.avgEngagementRate || 0) <= 35 ? "#10b981" : (metrics.avgExitRate || metrics.avgEngagementRate || 0) <= 50 ? "#f59e0b" : "#ef4444" }}>
+                  {formatPercent(metrics.avgExitRate || metrics.avgEngagementRate || 0)}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Avg Exit Rate</p>
                 <p className="text-xs mt-2" style={{ color: "var(--foreground-muted)" }}>
@@ -352,7 +357,15 @@ export default function PagesExpertPage() {
         )}
 
         {/* Visitor Flow Funnel (Hotjar-inspired) */}
-        {metrics && (
+        {metrics && (() => {
+          const totalEntrances = metrics.totalEntrances || metrics.totalSessions || 1;
+          const avgExitRate = metrics.avgExitRate || metrics.avgEngagementRate || 0;
+          const totalExits = metrics.totalExits || Math.round(totalEntrances * (avgExitRate / 100)) || 0;
+          const avgBounceRate = metrics.avgBounceRate || 0;
+          const pagesPerSession = metrics.pagesPerSession || 1;
+          const engagementScore = metrics.engagementScore || 0;
+          
+          return (
           <Card>
             <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--foreground)" }}>
               <Zap className="w-5 h-5" />
@@ -362,22 +375,22 @@ export default function PagesExpertPage() {
               <div className="space-y-4">
                 <FunnelStep 
                   label="Entrances" 
-                  value={metrics.totalEntrances} 
-                  total={metrics.totalEntrances} 
+                  value={totalEntrances} 
+                  total={totalEntrances} 
                   color="#3b82f6" 
                   icon={Users} 
                 />
                 <FunnelStep 
                   label="Pageviews" 
-                  value={metrics.totalPageviews} 
-                  total={metrics.totalEntrances * 3} 
+                  value={metrics.totalPageviews || 0} 
+                  total={totalEntrances * 3} 
                   color="#8b5cf6" 
                   icon={Eye} 
                 />
                 <FunnelStep 
                   label="Exits" 
-                  value={metrics.totalExits} 
-                  total={metrics.totalEntrances} 
+                  value={totalExits} 
+                  total={totalEntrances} 
                   color="#ef4444" 
                   icon={ArrowDown} 
                 />
@@ -385,19 +398,19 @@ export default function PagesExpertPage() {
               
               {/* Heatmap-style indicators */}
               <div className="col-span-2 flex items-center justify-center gap-8">
-                <HeatmapIndicator value={metrics.avgBounceRate} max={100} label="Bounce Rate" />
-                <HeatmapIndicator value={metrics.avgExitRate} max={100} label="Exit Rate" />
-                <HeatmapIndicator value={100 - metrics.avgBounceRate} max={100} label="Engagement" />
+                <HeatmapIndicator value={avgBounceRate} max={100} label="Bounce Rate" />
+                <HeatmapIndicator value={avgExitRate} max={100} label="Exit Rate" />
+                <HeatmapIndicator value={100 - avgBounceRate} max={100} label="Engagement" />
                 <div className="text-center">
                   <div 
                     className="w-16 h-16 rounded-lg mx-auto mb-1 flex items-center justify-center font-bold"
                     style={{ 
-                      background: metrics.engagementScore >= 60 ? "#10b98140" : "#f59e0b40",
-                      border: `2px solid ${metrics.engagementScore >= 60 ? "#10b981" : "#f59e0b"}`,
-                      color: metrics.engagementScore >= 60 ? "#10b981" : "#f59e0b"
+                      background: engagementScore >= 60 ? "#10b98140" : "#f59e0b40",
+                      border: `2px solid ${engagementScore >= 60 ? "#10b981" : "#f59e0b"}`,
+                      color: engagementScore >= 60 ? "#10b981" : "#f59e0b"
                     }}
                   >
-                    {Math.round(metrics.engagementScore)}
+                    {Math.round(engagementScore)}
                   </div>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Health Score</p>
                 </div>
@@ -409,17 +422,18 @@ export default function PagesExpertPage() {
               <Lightbulb className="w-5 h-5 text-blue-500 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                  Pages per session: {metrics.pagesPerSession.toFixed(1)}
+                  Pages per session: {pagesPerSession.toFixed(1)}
                 </p>
                 <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                  {metrics.pagesPerSession >= 2 
+                  {pagesPerSession >= 2 
                     ? "Good engagement! Users are exploring multiple pages." 
                     : "Users are viewing few pages. Consider improving internal linking and content recommendations."}
                 </p>
               </div>
             </div>
           </Card>
-        )}
+        );
+        })()}
 
         {/* Engagement Quality Section */}
         {metrics && (
@@ -430,33 +444,33 @@ export default function PagesExpertPage() {
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-secondary)" }}>
-                <p className="text-3xl font-bold" style={{ color: metrics.topPagesCount >= 5 ? "#10b981" : "#f59e0b" }}>
-                  {metrics.topPagesCount}
+                <p className="text-3xl font-bold" style={{ color: (metrics.topPagesCount || metrics.topPages || 0) >= 5 ? "#10b981" : "#f59e0b" }}>
+                  {metrics.topPagesCount || metrics.topPages || 0}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>High Performers</p>
                 <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Low bounce, high time</p>
               </div>
               <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-secondary)" }}>
-                <p className="text-3xl font-bold" style={{ color: metrics.underperformingCount <= 5 ? "#10b981" : "#ef4444" }}>
-                  {metrics.underperformingCount}
+                <p className="text-3xl font-bold" style={{ color: (metrics.underperformingCount || metrics.underperformingPages || 0) <= 5 ? "#10b981" : "#ef4444" }}>
+                  {metrics.underperformingCount || metrics.underperformingPages || 0}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Need Attention</p>
                 <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>High bounce or exit</p>
               </div>
               <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-secondary)" }}>
-                <p className="text-3xl font-bold" style={{ color: metrics.conversionRate >= 2 ? "#10b981" : "#f59e0b" }}>
-                  {formatPercent(metrics.conversionRate)}
+                <p className="text-3xl font-bold" style={{ color: (metrics.conversionRate || 0) >= 2 ? "#10b981" : "#f59e0b" }}>
+                  {formatPercent(metrics.conversionRate || 0)}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Conversion Rate</p>
                 <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Target: 2%+</p>
               </div>
               <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-secondary)" }}>
                 <p className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {formatPercent(metrics.avgScrollDepth)}
+                  {formatPercent(metrics.avgScrollDepth || 50)}
                 </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Avg Scroll Depth</p>
                 <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                  {metrics.avgScrollDepth >= 50 ? "Content engaging" : "Improve above fold"}
+                  {(metrics.avgScrollDepth || 50) >= 50 ? "Content engaging" : "Improve above fold"}
                 </p>
               </div>
             </div>
