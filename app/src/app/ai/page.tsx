@@ -2,7 +2,7 @@
 
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
-import { Brain, Lightbulb, TrendingUp, ChevronRight, Sparkles } from "lucide-react";
+import { Brain, Lightbulb, TrendingUp, ChevronRight, Sparkles, Target } from "lucide-react";
 
 export default function AIPage() {
   return (
