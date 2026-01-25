@@ -543,8 +543,9 @@ async function syncKeywordRankings(
       await batch.commit();
     }
 
-    // Update connection with keyword summary
+    // Update connection with keyword summary AND reset status to connected
     await setDoc(connectionRef, {
+      status: "connected",
       keywordsSummary: {
         totalKeywords: keywordCount,
         totalSearchVolume,
@@ -565,6 +566,8 @@ async function syncKeywordRankings(
 
   } catch (error) {
     console.error("Error syncing keywords:", error);
+    // Reset status on error too
+    await setDoc(connectionRef, { status: "connected", updatedAt: Timestamp.now() }, { merge: true });
     return NextResponse.json(
       { error: "Failed to sync keywords" },
       { status: 500 }
@@ -708,8 +711,9 @@ async function syncBacklinks(
       await domainsBatch.commit();
     }
 
-    // Update connection with backlink summary
+    // Update connection with backlink summary AND reset status to connected
     await setDoc(connectionRef, {
+      status: "connected",
       backlinksSummary: {
         totalBacklinks: summary?.backlinks || 0,
         referringDomains: summary?.referring_domains || 0,
@@ -739,6 +743,8 @@ async function syncBacklinks(
 
   } catch (error) {
     console.error("Error syncing backlinks:", error);
+    // Reset status on error too
+    await setDoc(connectionRef, { status: "connected", updatedAt: Timestamp.now() }, { merge: true });
     return NextResponse.json(
       { error: "Failed to sync backlinks" },
       { status: 500 }
@@ -857,8 +863,9 @@ async function syncHistoricalSerps(
       ? ((latestMonth.metrics?.organic?.count || 0) - (earliestMonth.metrics?.organic?.count || 0))
       : 0;
 
-    // Update connection with historical summary
+    // Update connection with historical summary AND reset status to connected
     await setDoc(connectionRef, {
+      status: "connected",
       historicalSummary: {
         monthsOfData: items.length,
         dateRange: {
@@ -900,6 +907,8 @@ async function syncHistoricalSerps(
 
   } catch (error) {
     console.error("Error syncing historical rank overview:", error);
+    // Reset status on error too
+    await setDoc(connectionRef, { status: "connected", updatedAt: Timestamp.now() }, { merge: true });
     return NextResponse.json(
       { error: "Failed to sync historical rank data" },
       { status: 500 }
