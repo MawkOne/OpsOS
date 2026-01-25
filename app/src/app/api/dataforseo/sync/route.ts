@@ -607,6 +607,22 @@ async function syncBacklinks(
         },
       ]
     );
+    console.log("Backlinks summary response:", JSON.stringify(summaryData, null, 2).substring(0, 2000));
+
+    // Check for subscription/access errors
+    const summaryTask = summaryData.tasks?.[0];
+    if (summaryTask?.status_code === 40204) {
+      console.log("Backlinks API requires separate subscription");
+      return NextResponse.json({
+        error: "Backlinks API requires a separate DataForSEO subscription",
+        subscriptionUrl: "https://app.dataforseo.com/backlinks-subscription",
+        success: false,
+        backlinksStored: 0,
+        referringDomainsStored: 0,
+        summary: { totalBacklinks: 0, referringDomains: 0, rank: 0 },
+        requiresSubscription: true
+      });
+    }
 
     const summary = summaryData.tasks?.[0]?.result?.[0];
     
