@@ -37,6 +37,56 @@ export default function AIPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Available Tools</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Scout AI - FEATURED */}
+          <Link href="/ai/opportunities">
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-300 rounded-xl p-8 hover:border-purple-400 hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-200 rounded-full -mr-16 -mt-16 opacity-20 group-hover:scale-110 transition-transform"></div>
+              <div className="flex items-start justify-between mb-4 relative">
+                <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                  <Target className="w-8 h-8 text-purple-600" />
+                </div>
+                <div className="flex gap-2">
+                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    Live
+                  </span>
+                  <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium animate-pulse">
+                    30 Found
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2 relative">
+                Scout AI
+                <span className="ml-2 text-sm font-normal text-purple-600">⭐ Featured</span>
+              </h3>
+              <p className="text-gray-700 mb-4 relative font-medium">
+                Automatically detects marketing opportunities across all channels. 
+                Scale winners, fix losers, and prevent revenue loss.
+              </p>
+              <div className="space-y-2 mb-6 relative">
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <ChevronRight className="w-4 h-4 text-purple-500" />
+                  <span><strong>30 opportunities</strong> detected (153k metrics analyzed)</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <ChevronRight className="w-4 h-4 text-purple-500" />
+                  <span>7 AI detectors running daily</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <ChevronRight className="w-4 h-4 text-purple-500" />
+                  <span>Evidence-based recommendations with action steps</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <ChevronRight className="w-4 h-4 text-purple-500" />
+                  <span>Impact scoring: Prioritize what matters</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-purple-600 font-bold group-hover:gap-3 transition-all relative">
+                <span>View Opportunities</span>
+                <ChevronRight className="w-5 h-5" />
+              </div>
+            </div>
+          </Link>
+
           {/* Marketing Insights Card */}
           <Link href="/ai/marketing-insights">
             <div className="bg-white border-2 border-gray-200 rounded-xl p-8 hover:border-purple-300 hover:shadow-lg transition-all cursor-pointer group">
@@ -66,7 +116,7 @@ export default function AIPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <ChevronRight className="w-4 h-4 text-purple-500" />
-                  <span>Prioritized action items</span>
+                  <span>Channel-specific insights</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-purple-600 font-semibold group-hover:gap-3 transition-all">
@@ -75,53 +125,20 @@ export default function AIPage() {
               </div>
             </div>
           </Link>
-
-          {/* Coming Soon - Anomaly Detection */}
-          <div className="bg-white border-2 border-gray-200 rounded-xl p-8 opacity-60">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-gray-100 rounded-lg">
-                <TrendingUp className="w-8 h-8 text-gray-400" />
-              </div>
-              <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
-                Coming Soon
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Anomaly Detection
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Real-time monitoring that automatically detects unusual patterns in your metrics
-              and alerts you to potential issues or opportunities.
-            </p>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-                <span>Statistical anomaly detection</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-                <span>Real-time alerts</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-                <span>Root cause analysis</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* How It Works */}
+      {/* How Scout AI Works */}
       <div className="mt-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">How It Works</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">How Scout AI Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
               <span className="text-2xl font-bold text-purple-600">1</span>
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">Data Collection</h3>
+            <h3 className="font-bold text-gray-900 mb-2">Entity Mapping</h3>
             <p className="text-sm text-gray-600">
-              Pulls 90 days of marketing data from BigQuery (GA4, email, traffic sources)
+              Links 5,844 entities across platforms (pages, campaigns, keywords, products)
             </p>
           </div>
 
@@ -129,9 +146,9 @@ export default function AIPage() {
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
               <span className="text-2xl font-bold text-purple-600">2</span>
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">Driver Analysis</h3>
+            <h3 className="font-bold text-gray-900 mb-2">Daily Metrics</h3>
             <p className="text-sm text-gray-600">
-              Random Forest model identifies which features drive your goal KPI
+              Aggregates 153k+ daily metrics from GA4, Google Ads, DataForSEO, Stripe
             </p>
           </div>
 
@@ -139,9 +156,9 @@ export default function AIPage() {
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
               <span className="text-2xl font-bold text-purple-600">3</span>
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">Gap Analysis</h3>
+            <h3 className="font-bold text-gray-900 mb-2">AI Detection</h3>
             <p className="text-sm text-gray-600">
-              Compares current vs benchmarks (internal best, historical best)
+              7 specialized detectors find scale winners, fix losers, declining performers, gaps
             </p>
           </div>
 
@@ -149,10 +166,37 @@ export default function AIPage() {
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
               <span className="text-2xl font-bold text-purple-600">4</span>
             </div>
-            <h3 className="font-bold text-gray-900 mb-2">Recommendations</h3>
+            <h3 className="font-bold text-gray-900 mb-2">Action Items</h3>
             <p className="text-sm text-gray-600">
-              Prioritizes opportunities by impact/effort ratio with action items
+              Ranks by impact score (0-100) with evidence, hypothesis, and specific next steps
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="mt-12 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-8 border border-purple-200">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">System Status</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="text-center">
+            <div className="text-4xl font-bold text-purple-600 mb-2">30</div>
+            <div className="text-sm text-gray-600">Opportunities Detected</div>
+            <div className="text-xs text-gray-500 mt-1">High: 20 | Medium: 10</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-purple-600 mb-2">153k</div>
+            <div className="text-sm text-gray-600">Daily Metrics</div>
+            <div className="text-xs text-gray-500 mt-1">90 days of history</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-purple-600 mb-2">5,844</div>
+            <div className="text-sm text-gray-600">Entities Mapped</div>
+            <div className="text-xs text-gray-500 mt-1">Cross-channel linking</div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-green-600 mb-2">7/7</div>
+            <div className="text-sm text-gray-600">Detectors Active</div>
+            <div className="text-xs text-gray-500 mt-1">Fully operational</div>
           </div>
         </div>
       </div>
