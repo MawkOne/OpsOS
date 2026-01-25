@@ -89,17 +89,17 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
                 'entity_type': 'page',
                 'title': f"🎯 Cross-Channel Gap: {entity_id}",
                 'description': f"This page gets {sessions} organic sessions with {conv_rate:.1f}% conversion but only ${ad_spend:.2f} in ad spend. Supporting with paid could amplify success.",
-                'evidence': json.dumps({
+                'evidence': {
                     'organic_sessions': sessions,
                     'conversion_rate': conv_rate,
                     'revenue': revenue,
                     'ad_spend': ad_spend
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_sessions': sessions,
                     'current_conversion_rate': conv_rate,
                     'current_ad_spend': ad_spend
-                }),
+                },
                 'hypothesis': f"This page proves it converts organically. Adding targeted paid traffic could scale revenue without the risk of testing an unproven page.",
                 'confidence_score': 0.80,
                 'potential_impact_score': min(100, (revenue / 100)),
@@ -113,8 +113,8 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'medium',
                 'estimated_timeline': '1-2 weeks',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -196,14 +196,14 @@ def detect_keyword_cannibalization(organization_id: str) -> list:
                 'entity_type': 'keyword',
                 'title': f"⚠️ Keyword Cannibalization: {keyword_id}",
                 'description': f"{competing_pages} pages are competing for this keyword (avg position: {position:.1f}). Consolidating could improve rankings.",
-                'evidence': json.dumps({
+                'evidence': {
                     'competing_pages': competing_pages,
                     'avg_position': position
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'competing_pages': competing_pages,
                     'current_position': position
-                }),
+                },
                 'hypothesis': f"When multiple pages target the same keyword, search engines struggle to determine which to rank, diluting authority and resulting in poor rankings for all.",
                 'confidence_score': 0.75,
                 'potential_impact_score': min(100, (competing_pages * 15)),
@@ -218,8 +218,8 @@ def detect_keyword_cannibalization(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'high',
                 'estimated_timeline': '2-4 weeks',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -293,17 +293,17 @@ def detect_cost_inefficiency(organization_id: str) -> list:
                 'entity_type': entity_type,
                 'title': f"💸 Cost Inefficiency: {entity_id}",
                 'description': f"This {entity_type} has spent ${cost:.2f} but only generated ${revenue:.2f} (ROAS: {roas:.2f}x). Consider pausing or optimizing.",
-                'evidence': json.dumps({
+                'evidence': {
                     'total_cost': cost,
                     'total_revenue': revenue,
                     'roas': roas,
                     'cpa': cpa
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_cost': cost,
                     'current_revenue': revenue,
                     'current_roas': roas
-                }),
+                },
                 'hypothesis': f"With ROAS below 1.0x, every dollar spent loses money. Either optimize or reallocate budget to better-performing entities.",
                 'confidence_score': 0.92,
                 'potential_impact_score': min(100, (cost - revenue) / 10),
@@ -318,8 +318,8 @@ def detect_cost_inefficiency(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'low',
                 'estimated_timeline': '< 1 week',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -408,15 +408,15 @@ def detect_email_engagement_drop(organization_id: str) -> list:
                 'entity_type': 'email',
                 'title': f"📧 Email Engagement Drop: {entity_id}",
                 'description': f"Open rate declined {abs(open_change):.1f}% to {current_open:.1f}%. Audience may be fatiguing or content needs refresh.",
-                'evidence': json.dumps({
+                'evidence': {
                     'current_open_rate': current_open,
                     'previous_open_rate': row['previous_open_rate'],
                     'open_rate_change': open_change
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_open_rate': current_open,
                     'change_pct': open_change
-                }),
+                },
                 'hypothesis': f"Declining email engagement suggests list fatigue, irrelevant content, or deliverability issues. Early intervention prevents further decline.",
                 'confidence_score': 0.78,
                 'potential_impact_score': min(100, abs(open_change) * 3),
@@ -431,8 +431,8 @@ def detect_email_engagement_drop(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'medium',
                 'estimated_timeline': '1-2 weeks',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })

@@ -64,10 +64,10 @@ def seed_pages(organization_id: str):
             'entity_type': 'page',
             'source': 'ga4',
             'source_entity_id': page_path,
-            'source_metadata': json.dumps({
+            'source_metadata': {
                 'title': page_title,
                 'firestore_doc_id': page_doc.id
-            }),
+            },
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
@@ -102,10 +102,10 @@ def seed_campaigns(organization_id: str):
             'entity_type': 'campaign',
             'source': 'ga4',
             'source_entity_id': campaign_id or campaign_name,
-            'source_metadata': json.dumps({
+            'source_metadata': {
                 'name': campaign_name,
                 'firestore_doc_id': campaign_doc.id
-            }),
+            },
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
@@ -139,10 +139,10 @@ def seed_keywords(organization_id: str):
             'entity_type': 'keyword',
             'source': 'dataforseo',
             'source_entity_id': keyword,
-            'source_metadata': json.dumps({
+            'source_metadata': {
                 'keyword': keyword,
                 'firestore_doc_id': keyword_doc.id
-            }),
+            },
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
@@ -177,11 +177,11 @@ def seed_products(organization_id: str):
             'entity_type': 'product',
             'source': 'stripe',
             'source_entity_id': stripe_id,
-            'source_metadata': json.dumps({
+            'source_metadata': {
                 'name': product_name,
                 'stripe_id': stripe_id,
                 'firestore_doc_id': product_doc.id
-            }),
+            },
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
@@ -216,11 +216,11 @@ def seed_email_campaigns(organization_id: str):
             'entity_type': 'email',
             'source': 'activecampaign',
             'source_entity_id': str(campaign_id),
-            'source_metadata': json.dumps({
+            'source_metadata': {
                 'name': campaign_name,
                 'campaign_id': campaign_id,
                 'firestore_doc_id': campaign_doc.id
-            }),
+            },
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }

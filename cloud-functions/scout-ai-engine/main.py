@@ -111,18 +111,18 @@ def detect_scale_winners(organization_id: str) -> list:
                 'entity_type': entity_type,
                 'title': f"🚀 Scale Winner: {entity_id}",
                 'description': f"This {entity_type} has {conv_rate:.1f}% conversion rate (top 30%) but only {sessions} sessions (bottom 30%). Increasing traffic could significantly boost revenue.",
-                'evidence': json.dumps({
+                'evidence': {
                     'conversion_rate': conv_rate,
                     'sessions': sessions,
                     'revenue': revenue,
                     'conversion_percentile': row['conversion_percentile'],
                     'traffic_percentile': row['traffic_percentile']
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_conversion_rate': conv_rate,
                     'current_sessions': sessions,
                     'current_revenue': revenue
-                }),
+                },
                 'hypothesis': f"This {entity_type} converts well but gets little traffic. Directing more qualified traffic here could multiply revenue with minimal additional effort.",
                 'confidence_score': 0.85,
                 'potential_impact_score': min(100, (conv_rate * 10)),
@@ -136,8 +136,8 @@ def detect_scale_winners(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'medium',
                 'estimated_timeline': '1-2 weeks',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -220,18 +220,18 @@ def detect_fix_losers(organization_id: str) -> list:
                 'entity_type': entity_type,
                 'title': f"🔧 Fix Opportunity: {entity_id}",
                 'description': f"This {entity_type} gets {sessions} sessions but only {conv_rate:.1f}% conversion rate. Small improvements here could have huge impact.",
-                'evidence': json.dumps({
+                'evidence': {
                     'conversion_rate': conv_rate,
                     'bounce_rate': bounce_rate,
                     'sessions': sessions,
                     'cost': cost,
                     'traffic_percentile': row['traffic_percentile']
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_conversion_rate': conv_rate,
                     'current_bounce_rate': bounce_rate,
                     'current_sessions': sessions
-                }),
+                },
                 'hypothesis': f"With {sessions} sessions, even a 1% improvement in conversion could generate significant additional revenue. High bounce rate ({bounce_rate:.1f}%) suggests UX or messaging issues.",
                 'confidence_score': 0.90,
                 'potential_impact_score': min(100, (sessions / 10)),
@@ -246,8 +246,8 @@ def detect_fix_losers(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'medium',
                 'estimated_timeline': '1-2 weeks',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -343,16 +343,16 @@ def detect_declining_performers(organization_id: str) -> list:
                 'entity_type': entity_type,
                 'title': f"📉 Declining: {entity_id}",
                 'description': f"This {entity_type} has declined {abs(sessions_change):.0f}% in traffic over the past 30 days. Investigate and address quickly.",
-                'evidence': json.dumps({
+                'evidence': {
                     'current_sessions': row['current_sessions'],
                     'previous_sessions': row['previous_sessions'],
                     'sessions_change_pct': sessions_change,
                     'revenue_change_pct': revenue_change
-                }),
-                'metrics': json.dumps({
+                },
+                'metrics': {
                     'current_sessions': row['current_sessions'],
                     'current_revenue': row['current_revenue']
-                }),
+                },
                 'hypothesis': f"Traffic decline of {abs(sessions_change):.0f}% suggests external factors (ranking loss, campaign pause, seasonal) or internal issues (site changes, broken links).",
                 'confidence_score': 0.88,
                 'potential_impact_score': min(100, abs(revenue_change)),
@@ -367,8 +367,8 @@ def detect_declining_performers(organization_id: str) -> list:
                 ],
                 'estimated_effort': 'low',
                 'estimated_timeline': '< 1 week',
-                'historical_performance': json.dumps({}),
-                'comparison_data': json.dumps({}),
+                'historical_performance': {},
+                'comparison_data': {},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })

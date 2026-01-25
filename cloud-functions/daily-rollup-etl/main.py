@@ -8,6 +8,7 @@ from google.cloud import firestore, bigquery
 from datetime import datetime, timedelta
 import json
 import logging
+import calendar
 from typing import Dict, List, Any
 
 logging.basicConfig(level=logging.INFO)
@@ -80,7 +81,6 @@ def process_ga_pages(organization_id: str, start_date: datetime, end_date: datet
             continue
         
         # Calculate days in that month
-        import calendar
         days_in_month = calendar.monthrange(year, month)[1]
         
         # Create daily estimates for each day in the range
@@ -108,7 +108,7 @@ def process_ga_pages(organization_id: str, start_date: datetime, end_date: datet
                 'conversions': 0,
                 'revenue': 0.0,
                 'cost': 0.0,
-                'source_breakdown': json.dumps({'ga4': int(sessions / days_in_month)}),
+                'source_breakdown': {'ga4': int(sessions / days_in_month)},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -227,7 +227,7 @@ def process_dataforseo_keywords(organization_id: str, start_date: datetime, end_
                 'conversions': 0,
                 'revenue': 0.0,
                 'cost': 0.0,
-                'source_breakdown': json.dumps({'dataforseo': 1}),
+                'source_breakdown': {'dataforseo': 1},
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             })
@@ -290,7 +290,7 @@ def process_stripe_products(organization_id: str, start_date: datetime, end_date
             'impressions': 0,
             'clicks': 0,
             'sessions': 0,
-            'source_breakdown': json.dumps({'stripe': 1}),
+            'source_breakdown': {'stripe': 1},
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         })
@@ -347,7 +347,7 @@ def process_activecampaign_emails(organization_id: str, start_date: datetime, en
                     'conversions': 0,
                     'revenue': 0.0,
                     'cost': 0.0,
-                    'source_breakdown': json.dumps({'activecampaign': 1}),
+                    'source_breakdown': {'activecampaign': 1},
                     'created_at': datetime.utcnow().isoformat(),
                     'updated_at': datetime.utcnow().isoformat()
                 })
