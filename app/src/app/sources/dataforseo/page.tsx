@@ -22,6 +22,7 @@ import {
   Link2,
   Search,
   Calendar,
+  Eye,
 } from "lucide-react";
 
 interface ConnectionStatus {
@@ -273,6 +274,41 @@ export default function DataForSEOPage() {
   }, [currentOrg?.id]);
 
   const handleStartCrawl = useCallback(() => handleSync("start_crawl"), [handleSync]);
+
+  const checkCrawlStatus = useCallback(async () => {
+    if (!currentOrg?.id) return;
+    
+    try {
+      const response = await fetch("/api/dataforseo/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: currentOrg.id,
+          action: "check_status",
+        }),
+      });
+      
+      const data = await response.json();
+      console.log("Crawl status:", data);
+      
+      if (data.progress) {
+        setCrawlProgress({
+          pagesCrawled: data.progress.pagesCrawled || 0,
+          pagesInQueue: data.progress.pagesInQueue || 0,
+          maxPages: data.progress.maxPages || 500,
+        });
+      }
+      
+      if (data.status === "complete" || data.status === "finished") {
+        setCrawlProgress(null);
+        fetchConnectionStatus();
+      }
+      
+      return data;
+    } catch (err) {
+      console.error("Error checking crawl status:", err);
+    }
+  }, [currentOrg?.id, fetchConnectionStatus]);
 
   const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling" || connectionStatus.status === "syncing";
 
@@ -597,18 +633,29 @@ export default function DataForSEOPage() {
                 ) : (
                   <p className="text-sm mb-3" style={{ color: "var(--foreground-muted)" }}>Not crawled yet</p>
                 )}
-                <button
-                  onClick={handleStartCrawl}
-                  disabled={isSyncing || connectionStatus.status === "crawling"}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
-                >
-                  {connectionStatus.status === "crawling" ? (
-                    <><Loader2 className="w-3 h-3 animate-spin" /> Crawling...</>
-                  ) : (
-                    <><Zap className="w-3 h-3" /> Start Crawl</>
-                  )}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleStartCrawl}
+                    disabled={isSyncing || connectionStatus.status === "crawling"}
+                    className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                    style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  >
+                    {connectionStatus.status === "crawling" ? (
+                      <><Loader2 className="w-3 h-3 animate-spin" /> Crawling...</>
+                    ) : (
+                      <><Zap className="w-3 h-3" /> Start Crawl</>
+                    )}
+                  </button>
+                  <button
+                    onClick={checkCrawlStatus}
+                    disabled={isSyncing}
+                    className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                    style={{ background: "var(--background-secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                    title="Check crawl status"
+                  >
+                    <Eye className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
 

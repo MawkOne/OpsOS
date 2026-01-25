@@ -190,9 +190,11 @@ export async function POST(request: NextRequest) {
       if (crawlProgress === "in_progress") {
         return NextResponse.json({
           status: "in_progress",
-          pagesCrawled: result.crawl_status?.pages_crawled || 0,
-          pagesInQueue: result.crawl_status?.pages_in_queue || 0,
-          maxPages: result.crawl_status?.max_crawl_pages || 100,
+          progress: {
+            pagesCrawled: result.crawl_status?.pages_crawled || 0,
+            pagesInQueue: result.crawl_status?.pages_in_queue || 0,
+            maxPages: result.crawl_status?.max_crawl_pages || 500,
+          },
         });
       }
 
