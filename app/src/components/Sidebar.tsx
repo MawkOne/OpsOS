@@ -213,6 +213,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Marketing",
       items: [
         { label: "Google Analytics", href: "/sources/google-analytics", icon: <Activity className="w-4 h-4" /> },
+        { label: "Google Ads", href: "/sources/google-ads", icon: <Megaphone className="w-4 h-4" /> },
         { label: "ActiveCampaign", href: "/sources/activecampaign", icon: <Mail className="w-4 h-4" /> },
         { label: "DataForSEO", href: "/sources/dataforseo", icon: <Search className="w-4 h-4" /> },
       ],

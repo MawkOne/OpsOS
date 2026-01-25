@@ -285,7 +285,8 @@ async function syncCampaigns(
   ];
 
   for (const month of months) {
-    const response = await fetch(
+    // First try with Google Ads cost metrics (if linked)
+    let response = await fetch(
       `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
       {
         method: 'POST',
@@ -302,6 +303,11 @@ async function syncCampaigns(
             { name: 'conversions' },
             { name: 'totalRevenue' },
             { name: 'engagedSessions' },
+            // Google Ads cost metrics (available if Google Ads is linked to GA4)
+            { name: 'advertiserAdClicks' },
+            { name: 'advertiserAdImpressions' },
+            { name: 'advertiserAdCost' },
+            { name: 'advertiserAdCostPerClick' },
           ],
           dimensionFilter: {
             filter: {
@@ -313,12 +319,51 @@ async function syncCampaigns(
             },
           },
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-          limit: 50,
+          limit: 100,
         }),
       }
     );
 
-    if (!response.ok) continue;
+    let hasCostMetrics = true;
+    
+    // If cost metrics fail (not linked), fallback to basic metrics
+    if (!response.ok) {
+      hasCostMetrics = false;
+      response = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
+            dimensions: [{ name: 'sessionCampaignName' }],
+            metrics: [
+              { name: 'sessions' },
+              { name: 'newUsers' },
+              { name: 'conversions' },
+              { name: 'totalRevenue' },
+              { name: 'engagedSessions' },
+            ],
+            dimensionFilter: {
+              filter: {
+                fieldName: 'sessionCampaignName',
+                stringFilter: {
+                  matchType: 'FULL_REGEXP',
+                  value: '.+',
+                },
+              },
+            },
+            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+            limit: 100,
+          }),
+        }
+      );
+      
+      if (!response.ok) continue;
+    }
 
     const data = await response.json();
     
@@ -343,15 +388,36 @@ async function syncCampaigns(
 
         const metrics = row.metricValues;
         const sessions = parseInt(metrics[0]?.value || '0');
+        const conversions = parseFloat(metrics[2]?.value || '0');
+        const revenue = parseFloat(metrics[3]?.value || '0');
         
-        campaignData[campaignId].months[month.key] = {
-          sessions: sessions,
+        // Build metrics object
+        const monthMetrics: Record<string, any> = {
+          sessions,
           newUsers: parseInt(metrics[1]?.value || '0'),
-          conversions: parseFloat(metrics[2]?.value || '0'),
-          revenue: parseFloat(metrics[3]?.value || '0'),
+          conversions,
+          revenue,
           engagedSessions: parseInt(metrics[4]?.value || '0'),
-          conversionRate: sessions > 0 ? (parseFloat(metrics[2]?.value || '0') / sessions) * 100 : 0,
+          conversionRate: sessions > 0 ? (conversions / sessions) * 100 : 0,
         };
+        
+        // Add cost metrics if available
+        if (hasCostMetrics) {
+          const clicks = parseInt(metrics[5]?.value || '0');
+          const impressions = parseInt(metrics[6]?.value || '0');
+          const spend = parseFloat(metrics[7]?.value || '0');
+          const cpc = parseFloat(metrics[8]?.value || '0');
+          
+          monthMetrics.clicks = clicks;
+          monthMetrics.impressions = impressions;
+          monthMetrics.spend = spend;
+          monthMetrics.cpc = cpc;
+          monthMetrics.ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+          monthMetrics.cpa = conversions > 0 ? spend / conversions : 0;
+          monthMetrics.roas = spend > 0 ? revenue / spend : 0;
+        }
+        
+        campaignData[campaignId].months[month.key] = monthMetrics;
       }
     }
   }

@@ -63,6 +63,17 @@ interface AdsMetrics {
   
   // Missing metrics flag
   hasCostData: boolean;
+  
+  // Google Ads specific (only when connected)
+  totalSpend?: number;
+  totalImpressions?: number;
+  totalClicks?: number;
+  ctr?: number;
+  cpc?: number;
+  cpa?: number;
+  roas?: number;
+  spendTrend?: number;
+  conversionsTrend?: number;
 }
 
 interface AdsAlert {
@@ -143,28 +154,48 @@ export async function POST(request: NextRequest) {
 
     console.log("Calculating ads metrics for:", organizationId);
 
-    // Fetch traffic data
-    const trafficData = await fetchTrafficData(organizationId);
+    // Check if Google Ads is connected and has data
+    const googleAdsData = await fetchGoogleAdsData(organizationId);
     
-    // Separate paid traffic
-    const { paidTraffic, totalSessions } = separatePaidTraffic(trafficData);
+    let metrics: AdsMetrics;
+    let dataLimitations: string[] = [];
+    let campaignBreakdown: CampaignMetrics[] = [];
 
-    // Calculate metrics
-    const metrics = calculateMetrics(paidTraffic, totalSessions);
+    if (googleAdsData && googleAdsData.campaigns?.length > 0) {
+      // Use campaign data from Firestore (synced from GA4)
+      console.log(`Using campaign data from ${googleAdsData.source}, hasCostData: ${googleAdsData.hasCostData}`);
+      metrics = buildMetricsFromGoogleAds(googleAdsData);
+      campaignBreakdown = googleAdsData.campaigns || [];
+      
+      if (googleAdsData.hasCostData) {
+        dataLimitations = []; // Full data available
+      } else {
+        // Have campaigns but no spend data (Google Ads not linked to GA4)
+        dataLimitations = [
+          "Cost data (spend, CPC, CPM) requires Google Ads linked to GA4",
+          "ROAS calculation requires ad spend data",
+        ];
+      }
+    } else {
+      // Fallback to GA4 traffic data
+      console.log("Using GA4 traffic data (no Google Ads connection)");
+      const trafficData = await fetchTrafficData(organizationId);
+      const { paidTraffic, totalSessions } = separatePaidTraffic(trafficData);
+      metrics = calculateMetrics(paidTraffic, totalSessions);
+      campaignBreakdown = metrics.campaignMetrics;
+      dataLimitations = [
+        "Cost data (spend, CPC, CPM) requires Google Ads API connection",
+        "ROAS calculation requires ad spend data",
+        "Quality Score requires Google Ads API connection",
+        "Impression and CTR data requires Google Ads API connection",
+      ];
+    }
     
     // Generate alerts
     const alerts = generateAlerts(metrics);
     
     // Find opportunities
     const opportunities = findOpportunities(metrics);
-
-    // Data limitations
-    const dataLimitations = [
-      "Cost data (spend, CPC, CPM) requires Google Ads API connection",
-      "ROAS calculation requires ad spend data",
-      "Quality Score requires Google Ads API connection",
-      "Impression and CTR data requires Google Ads API connection",
-    ];
 
     // Store in Firestore
     const metricsRef = doc(db, "marketing_metrics_ads", organizationId);
@@ -173,17 +204,17 @@ export async function POST(request: NextRequest) {
       metrics,
       alerts,
       opportunities,
-      campaignBreakdown: metrics.campaignMetrics,
+      campaignBreakdown,
       dataLimitations,
       calculatedAt: Timestamp.now(),
+      dataSource: googleAdsData ? 'google_ads_api' : 'ga4_traffic',
       dataPoints: {
-        totalTrafficSources: trafficData.length,
-        paidSources: paidTraffic.length,
         campaigns: metrics.totalCampaigns,
+        hasGoogleAds: !!googleAdsData,
       },
     });
 
-    // Store daily snapshot
+    // Store daily snapshot for historical tracking
     const today = new Date().toISOString().split('T')[0];
     const dailyRef = doc(db, "marketing_metrics_ads", organizationId, "daily", today);
     await setDoc(dailyRef, {
@@ -192,7 +223,15 @@ export async function POST(request: NextRequest) {
         totalConversions: metrics.totalConversions,
         conversionRate: metrics.conversionRate,
         totalRevenue: metrics.totalRevenue,
+        // Include Google Ads specific metrics if available
+        ...(googleAdsData ? {
+          totalSpend: googleAdsData.accountMetrics?.totalSpend || 0,
+          roas: googleAdsData.accountMetrics?.roas || 0,
+          cpc: googleAdsData.accountMetrics?.cpc || 0,
+          ctr: googleAdsData.accountMetrics?.ctr || 0,
+        } : {}),
       },
+      dataSource: googleAdsData ? 'google_ads_api' : 'ga4_traffic',
       calculatedAt: Timestamp.now(),
     });
 
@@ -202,8 +241,9 @@ export async function POST(request: NextRequest) {
       metrics,
       alerts,
       opportunities,
-      campaignBreakdown: metrics.campaignMetrics,
+      campaignBreakdown,
       dataLimitations,
+      dataSource: googleAdsData ? 'google_ads_api' : 'ga4_traffic',
     });
 
   } catch (error) {
@@ -213,6 +253,224 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Fetch Google Ads campaign data from Firestore (synced from GA4)
+async function fetchGoogleAdsData(organizationId: string) {
+  try {
+    // Read from ga_campaigns collection (synced by GA4 sync)
+    const campaignsRef = collection(db, "ga_campaigns");
+    const q = query(campaignsRef, where("organizationId", "==", organizationId));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      console.log("No campaigns found in ga_campaigns collection");
+      return null;
+    }
+    
+    const campaigns: any[] = [];
+    const allMonths = new Set<string>();
+    
+    // Aggregate metrics across all campaigns
+    let totalSpend = 0;
+    let totalClicks = 0;
+    let totalImpressions = 0;
+    let totalConversions = 0;
+    let totalRevenue = 0;
+    let totalSessions = 0;
+    
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const months = data.months || {};
+      
+      let campaignSpend = 0;
+      let campaignClicks = 0;
+      let campaignImpressions = 0;
+      let campaignConversions = 0;
+      let campaignRevenue = 0;
+      let campaignSessions = 0;
+      
+      Object.entries(months).forEach(([month, metrics]: [string, any]) => {
+        allMonths.add(month);
+        
+        // Aggregate totals
+        const spend = metrics.spend || 0;
+        const clicks = metrics.clicks || 0;
+        const impressions = metrics.impressions || 0;
+        const conversions = metrics.conversions || 0;
+        const revenue = metrics.revenue || 0;
+        const sessions = metrics.sessions || 0;
+        
+        totalSpend += spend;
+        totalClicks += clicks;
+        totalImpressions += impressions;
+        totalConversions += conversions;
+        totalRevenue += revenue;
+        totalSessions += sessions;
+        
+        campaignSpend += spend;
+        campaignClicks += clicks;
+        campaignImpressions += impressions;
+        campaignConversions += conversions;
+        campaignRevenue += revenue;
+        campaignSessions += sessions;
+      });
+      
+      campaigns.push({
+        id: data.campaignId,
+        name: data.campaignName,
+        spend: campaignSpend,
+        clicks: campaignClicks,
+        impressions: campaignImpressions,
+        conversions: campaignConversions,
+        conversionValue: campaignRevenue,
+        sessions: campaignSessions,
+        monthlyData: months,
+      });
+    });
+    
+    // Sort months for trend calculation
+    const sortedMonths = Array.from(allMonths).sort();
+    const currentMonth = sortedMonths[sortedMonths.length - 1];
+    const previousMonth = sortedMonths[sortedMonths.length - 2];
+    
+    // Calculate month-over-month trends
+    let currentMonthConversions = 0;
+    let previousMonthConversions = 0;
+    let currentMonthSessions = 0;
+    let previousMonthSessions = 0;
+    
+    campaigns.forEach(c => {
+      if (c.monthlyData[currentMonth]) {
+        currentMonthConversions += c.monthlyData[currentMonth].conversions || 0;
+        currentMonthSessions += c.monthlyData[currentMonth].sessions || 0;
+      }
+      if (previousMonth && c.monthlyData[previousMonth]) {
+        previousMonthConversions += c.monthlyData[previousMonth].conversions || 0;
+        previousMonthSessions += c.monthlyData[previousMonth].sessions || 0;
+      }
+    });
+    
+    // Check if we have cost data (spend > 0 means Google Ads is linked)
+    const hasCostData = totalSpend > 0;
+    
+    return {
+      source: 'firestore_ga_campaigns',
+      hasCostData,
+      accountMetrics: {
+        totalSpend,
+        totalClicks,
+        totalImpressions,
+        totalConversions,
+        totalConversionValue: totalRevenue,
+        totalSessions,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
+        roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+        conversionRate: totalSessions > 0 ? (totalConversions / totalSessions) * 100 : 0,
+      },
+      campaigns: campaigns.map(c => ({
+        ...c,
+        ctr: c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0,
+        cpc: c.clicks > 0 ? c.spend / c.clicks : 0,
+        cpa: c.conversions > 0 ? c.spend / c.conversions : 0,
+        roas: c.spend > 0 ? c.conversionValue / c.spend : 0,
+        conversionRate: c.sessions > 0 ? (c.conversions / c.sessions) * 100 : 0,
+      })),
+      trends: {
+        conversionsChange: previousMonthConversions > 0 
+          ? ((currentMonthConversions - previousMonthConversions) / previousMonthConversions) * 100 
+          : 0,
+        sessionsChange: previousMonthSessions > 0 
+          ? ((currentMonthSessions - previousMonthSessions) / previousMonthSessions) * 100 
+          : 0,
+      },
+      months: sortedMonths,
+    };
+  } catch (error) {
+    console.error("Error fetching campaign data from Firestore:", error);
+    return null;
+  }
+}
+
+// Build metrics from campaign data (from Firestore ga_campaigns collection)
+function buildMetricsFromGoogleAds(googleAdsData: any): AdsMetrics {
+  const accountMetrics = googleAdsData.accountMetrics || {};
+  const campaigns = googleAdsData.campaigns || [];
+  const trends = googleAdsData.trends || {};
+  const hasCostData = googleAdsData.hasCostData || false;
+  
+  // Map campaigns to our format
+  const campaignMetrics: CampaignMetrics[] = campaigns
+    .map((c: any) => ({
+      campaign: c.name || c.id,
+      sessions: c.sessions || 0,
+      users: c.sessions || 0,
+      conversions: c.conversions || 0,
+      conversionRate: c.conversionRate || (c.sessions > 0 ? round((c.conversions / c.sessions) * 100) : 0),
+      revenue: c.conversionValue || 0,
+      bounceRate: 0,
+      avgSessionDuration: 0,
+      // Cost data (may be 0 if Google Ads not linked)
+      spend: c.spend || 0,
+      impressions: c.impressions || 0,
+      clicks: c.clicks || 0,
+      ctr: c.ctr || 0,
+      cpc: c.cpc || 0,
+      cpa: c.cpa || 0,
+      roas: c.roas || 0,
+    }))
+    .sort((a: any, b: any) => (b.sessions || 0) - (a.sessions || 0)); // Sort by sessions if no spend
+  
+  // Find top campaigns
+  const sortedByConversions = [...campaigns].sort((a: any, b: any) => (b.conversions || 0) - (a.conversions || 0));
+  const sortedByRevenue = [...campaigns].sort((a: any, b: any) => (b.conversionValue || 0) - (a.conversionValue || 0));
+  
+  return {
+    totalPaidSessions: accountMetrics.totalSessions || 0,
+    totalPaidUsers: accountMetrics.totalSessions || 0,
+    paidTrafficShare: 0,
+    totalConversions: accountMetrics.totalConversions || 0,
+    conversionRate: accountMetrics.conversionRate || 0,
+    totalRevenue: accountMetrics.totalConversionValue || 0,
+    avgBounceRate: 0,
+    avgSessionDuration: 0,
+    avgEngagementRate: 0,
+    pagesPerSession: 0,
+    totalCampaigns: campaigns.length,
+    activeCampaigns: campaigns.filter((c: any) => (c.sessions || 0) > 0).length,
+    campaignMetrics,
+    topCampaignByConversions: sortedByConversions[0]?.name || 'none',
+    topCampaignByRevenue: sortedByRevenue[0]?.name || 'none',
+    trafficQualityScore: hasCostData 
+      ? calculateQualityScoreFromAds(accountMetrics) 
+      : Math.min(100, (accountMetrics.conversionRate || 0) * 20), // Simple score from conversion rate
+    hasCostData,
+    // Cost metrics (will be 0 if Google Ads not linked to GA4)
+    totalSpend: accountMetrics.totalSpend || 0,
+    totalImpressions: accountMetrics.totalImpressions || 0,
+    totalClicks: accountMetrics.totalClicks || 0,
+    ctr: accountMetrics.ctr || 0,
+    cpc: accountMetrics.cpc || 0,
+    cpa: accountMetrics.cpa || 0,
+    roas: accountMetrics.roas || 0,
+    spendTrend: trends.spendChange || 0,
+    conversionsTrend: trends.conversionsChange || 0,
+  };
+}
+
+function calculateQualityScoreFromAds(accountMetrics: any): number {
+  const roas = accountMetrics.roas || 0;
+  const convRate = accountMetrics.conversionRate || 0;
+  const ctr = accountMetrics.ctr || 0;
+  
+  // Score based on ROAS, conversion rate, and CTR
+  const roasScore = Math.min(100, (roas / ADS_BENCHMARKS.roas.excellent) * 100);
+  const convScore = Math.min(100, (convRate / ADS_BENCHMARKS.conversionRate.excellent) * 100);
+  const ctrScore = Math.min(100, (ctr / ADS_BENCHMARKS.ctr.excellent) * 100);
+  
+  return Math.round((roasScore * 0.4 + convScore * 0.4 + ctrScore * 0.2));
 }
 
 // Fetch traffic acquisition data
