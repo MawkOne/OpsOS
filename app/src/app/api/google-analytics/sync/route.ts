@@ -319,7 +319,7 @@ async function syncCampaigns(
             },
           },
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-          limit: 100,
+          limit: 1000, // Increased from 100 - get all campaigns
         }),
       }
     );
@@ -357,7 +357,7 @@ async function syncCampaigns(
               },
             },
             orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-            limit: 100,
+            limit: 1000, // Increased from 100
           }),
         }
       );
@@ -451,7 +451,7 @@ async function syncEvents(
             { name: 'totalRevenue' },
           ],
           orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
-          limit: 100,
+          limit: 500, // Increased from 100 - get all events
         }),
       }
     );
@@ -514,7 +514,7 @@ async function syncPages(
             { name: 'conversions' },
           ],
           orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-          limit: 50,
+          limit: 1000, // Increased from 50 - get all pages
         }),
       }
     );

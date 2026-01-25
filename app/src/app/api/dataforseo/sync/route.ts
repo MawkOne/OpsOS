@@ -470,6 +470,7 @@ async function syncKeywordRankings(
     const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
     // Fetch ranked keywords using Domain Analytics API
+    // Pull ALL keywords (no artificial limits) - SEO data should be comprehensive
     const rankedKeywordsData = await dataforseoRequest(
       "dataforseo_labs/google/ranked_keywords/live",
       "POST",
@@ -479,11 +480,9 @@ async function syncKeywordRankings(
           target: cleanDomain,
           language_code: "en",
           location_code: 2840, // United States
-          limit: 1000,
+          limit: 10000, // Get all available keywords
           order_by: ["keyword_data.keyword_info.search_volume,desc"],
-          filters: [
-            ["ranked_serp_element.serp_item.rank_absolute", "<=", 100]
-          ],
+          // No position filter - capture full keyword footprint
         },
       ]
     );
@@ -600,7 +599,7 @@ async function syncBacklinks(
 
     const summary = summaryData.tasks?.[0]?.result?.[0];
     
-    // Get top backlinks
+    // Get ALL backlinks (dofollow + nofollow) - comprehensive data
     const backlinksData = await dataforseoRequest(
       "backlinks/backlinks/live",
       "POST",
@@ -609,11 +608,9 @@ async function syncBacklinks(
         {
           target: cleanDomain,
           mode: "as_is",
-          limit: 500,
+          limit: 10000, // Get all available backlinks
           order_by: ["rank,desc"],
-          filters: [
-            ["dofollow", "=", true]
-          ],
+          // No dofollow filter - capture full backlink profile
         },
       ]
     );
@@ -666,7 +663,7 @@ async function syncBacklinks(
       await batch.commit();
     }
 
-    // Get referring domains
+    // Get ALL referring domains - comprehensive data
     const refDomainsData = await dataforseoRequest(
       "backlinks/referring_domains/live",
       "POST",
@@ -674,33 +671,42 @@ async function syncBacklinks(
       [
         {
           target: cleanDomain,
-          limit: 100,
+          limit: 10000, // Get all referring domains
           order_by: ["rank,desc"],
         },
       ]
     );
 
     const referringDomains = refDomainsData.tasks?.[0]?.result?.[0]?.items || [];
+    console.log(`Found ${referringDomains.length} referring domains`);
 
-    // Store referring domains
-    const domainsBatch = writeBatch(db);
-    for (const item of referringDomains.slice(0, 100)) {
-      const domainId = `${organizationId}_${Buffer.from(item.domain || "").toString("base64").slice(0, 40)}`;
-      const domainRef = doc(collection(db, "dataforseo_referring_domains"), domainId);
+    // Store ALL referring domains (batch in chunks of 500)
+    const DOMAIN_BATCH_SIZE = 500;
+    let domainCount = 0;
+    
+    for (let i = 0; i < referringDomains.length; i += DOMAIN_BATCH_SIZE) {
+      const domainsBatch = writeBatch(db);
+      const batchDomains = referringDomains.slice(i, i + DOMAIN_BATCH_SIZE);
+      
+      for (const item of batchDomains) {
+        const domainId = `${organizationId}_${Buffer.from(item.domain || "").toString("base64").slice(0, 40)}`;
+        const domainRef = doc(collection(db, "dataforseo_referring_domains"), domainId);
 
-      domainsBatch.set(domainRef, {
-        organizationId,
-        targetDomain: cleanDomain,
-        referringDomain: item.domain || "",
-        rank: item.rank || 0,
-        backlinks: item.backlinks || 0,
-        firstSeen: item.first_seen || null,
-        lostDate: item.lost_date || null,
-        country: item.country || null,
-        syncedAt: Timestamp.now(),
-      });
+        domainCount++;
+        domainsBatch.set(domainRef, {
+          organizationId,
+          targetDomain: cleanDomain,
+          referringDomain: item.domain || "",
+          rank: item.rank || 0,
+          backlinks: item.backlinks || 0,
+          firstSeen: item.first_seen || null,
+          lostDate: item.lost_date || null,
+          country: item.country || null,
+          syncedAt: Timestamp.now(),
+        });
+      }
+      await domainsBatch.commit();
     }
-    await domainsBatch.commit();
 
     // Update connection with backlink summary
     await setDoc(connectionRef, {
@@ -723,7 +729,7 @@ async function syncBacklinks(
     return NextResponse.json({
       success: true,
       backlinksStored: backlinkCount,
-      referringDomainsStored: Math.min(referringDomains.length, 100),
+      referringDomainsStored: domainCount,
       summary: {
         totalBacklinks: summary?.backlinks || 0,
         referringDomains: summary?.referring_domains || 0,
