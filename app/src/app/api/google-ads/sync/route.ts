@@ -204,34 +204,44 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Process account metrics
-    const accountMetrics = accountData.length > 0 ? {
-      customerId: accountData[0].customer?.id,
-      customerName: accountData[0].customer?.descriptiveName,
-      currency: accountData[0].customer?.currencyCode,
-      totalSpend: accountData.reduce((sum, r) => sum + (parseInt(r.metrics?.costMicros || '0') / 1000000), 0),
-      totalImpressions: accountData.reduce((sum, r) => sum + parseInt(r.metrics?.impressions || '0'), 0),
-      totalClicks: accountData.reduce((sum, r) => sum + parseInt(r.metrics?.clicks || '0'), 0),
-      totalConversions: accountData.reduce((sum, r) => sum + parseFloat(r.metrics?.conversions || '0'), 0),
-      totalConversionValue: accountData.reduce((sum, r) => sum + parseFloat(r.metrics?.conversionsValue || '0'), 0),
-    } : null;
-
-    // Calculate derived metrics
-    if (accountMetrics) {
-      accountMetrics.ctr = accountMetrics.totalImpressions > 0 
-        ? (accountMetrics.totalClicks / accountMetrics.totalImpressions) * 100 
-        : 0;
-      accountMetrics.cpc = accountMetrics.totalClicks > 0 
-        ? accountMetrics.totalSpend / accountMetrics.totalClicks 
-        : 0;
-      accountMetrics.cpa = accountMetrics.totalConversions > 0 
-        ? accountMetrics.totalSpend / accountMetrics.totalConversions 
-        : 0;
-      accountMetrics.roas = accountMetrics.totalSpend > 0 
-        ? accountMetrics.totalConversionValue / accountMetrics.totalSpend 
-        : 0;
-      accountMetrics.conversionRate = accountMetrics.totalClicks > 0 
-        ? (accountMetrics.totalConversions / accountMetrics.totalClicks) * 100 
-        : 0;
+    let accountMetrics: {
+      customerId: string;
+      customerName: string;
+      currency: string;
+      totalSpend: number;
+      totalImpressions: number;
+      totalClicks: number;
+      totalConversions: number;
+      totalConversionValue: number;
+      ctr: number;
+      cpc: number;
+      cpa: number;
+      roas: number;
+      conversionRate: number;
+    } | null = null;
+    
+    if (accountData.length > 0) {
+      const totalSpend = accountData.reduce((sum, r) => sum + (parseInt(r.metrics?.costMicros || '0') / 1000000), 0);
+      const totalImpressions = accountData.reduce((sum, r) => sum + parseInt(r.metrics?.impressions || '0'), 0);
+      const totalClicks = accountData.reduce((sum, r) => sum + parseInt(r.metrics?.clicks || '0'), 0);
+      const totalConversions = accountData.reduce((sum, r) => sum + parseFloat(r.metrics?.conversions || '0'), 0);
+      const totalConversionValue = accountData.reduce((sum, r) => sum + parseFloat(r.metrics?.conversionsValue || '0'), 0);
+      
+      accountMetrics = {
+        customerId: accountData[0].customer?.id,
+        customerName: accountData[0].customer?.descriptiveName,
+        currency: accountData[0].customer?.currencyCode,
+        totalSpend,
+        totalImpressions,
+        totalClicks,
+        totalConversions,
+        totalConversionValue,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
+        roas: totalSpend > 0 ? totalConversionValue / totalSpend : 0,
+        conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0,
+      };
     }
 
     // Process campaign data
