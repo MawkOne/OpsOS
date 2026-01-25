@@ -470,7 +470,7 @@ async function syncKeywordRankings(
     const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
     // Fetch ranked keywords using Domain Analytics API
-    // Pull ALL keywords (no artificial limits) - SEO data should be comprehensive
+    // DataForSEO max limit is 1000 per request
     const rankedKeywordsData = await dataforseoRequest(
       "dataforseo_labs/google/ranked_keywords/live",
       "POST",
@@ -480,9 +480,8 @@ async function syncKeywordRankings(
           target: cleanDomain,
           language_code: "en",
           location_code: 2840, // United States
-          limit: 10000, // Get all available keywords
+          limit: 1000, // DataForSEO max is 1000
           order_by: ["keyword_data.keyword_info.search_volume,desc"],
-          // No position filter - capture full keyword footprint
         },
       ]
     );
@@ -612,6 +611,7 @@ async function syncBacklinks(
     const summary = summaryData.tasks?.[0]?.result?.[0];
     
     // Get ALL backlinks (dofollow + nofollow) - comprehensive data
+    // DataForSEO max limit is 1000 per request
     const backlinksData = await dataforseoRequest(
       "backlinks/backlinks/live",
       "POST",
@@ -620,9 +620,8 @@ async function syncBacklinks(
         {
           target: cleanDomain,
           mode: "as_is",
-          limit: 10000, // Get all available backlinks
+          limit: 1000, // DataForSEO max is 1000
           order_by: ["rank,desc"],
-          // No dofollow filter - capture full backlink profile
         },
       ]
     );
@@ -676,6 +675,7 @@ async function syncBacklinks(
     }
 
     // Get ALL referring domains - comprehensive data
+    // DataForSEO max limit is 1000 per request
     const refDomainsData = await dataforseoRequest(
       "backlinks/referring_domains/live",
       "POST",
@@ -683,7 +683,7 @@ async function syncBacklinks(
       [
         {
           target: cleanDomain,
-          limit: 10000, // Get all referring domains
+          limit: 1000, // DataForSEO max is 1000
           order_by: ["rank,desc"],
         },
       ]
