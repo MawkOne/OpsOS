@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, orderBy, limit as firestoreLimit } from 'firebase/firestore';
 
 /**
  * Opportunities API
- * GET - List opportunities (reads from BigQuery)
- * PATCH - Update opportunity status (writes to Firestore + BigQuery)
+ * GET - List opportunities (reads from Firestore - synced from BigQuery)
+ * PATCH - Update opportunity status
  */
 
 // GET /api/opportunities?organizationId=xxx&status=new&priority=high
@@ -24,72 +24,66 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const BigQuery = require('@google-cloud/bigquery').BigQuery;
-    const bigquery = new BigQuery({ projectId: 'opsos-864a1' });
+    // Read from Firestore instead of BigQuery (works better in serverless)
+    let q = query(
+      collection(db, 'opportunities'),
+      where('organization_id', '==', organizationId)
+    );
 
-    // Build WHERE clauses
-    const whereClauses = [`organization_id = @organizationId`];
     if (status && status !== 'all') {
-      whereClauses.push(`status = @status`);
+      q = query(q, where('status', '==', status));
     }
+
     if (priority && priority !== 'all') {
-      whereClauses.push(`priority = @priority`);
+      q = query(q, where('priority', '==', priority));
     }
+
     if (category && category !== 'all') {
-      whereClauses.push(`category = @category`);
+      q = query(q, where('category', '==', category));
     }
 
-    const query = `
-      SELECT 
-        id, organization_id, detected_at, category, type, priority, status,
-        entity_id, entity_type, title, description,
-        JSON_VALUE(evidence) as evidence_json,
-        JSON_VALUE(metrics) as metrics_json,
-        hypothesis, confidence_score, potential_impact_score, urgency_score,
-        recommended_actions, estimated_effort, estimated_timeline,
-        JSON_VALUE(historical_performance) as historical_performance_json,
-        JSON_VALUE(comparison_data) as comparison_data_json,
-        created_at, updated_at
-      FROM \`opsos-864a1.marketing_ai.opportunities\`
-      WHERE ${whereClauses.join(' AND ')}
-      ORDER BY potential_impact_score DESC, detected_at DESC
-      LIMIT 100
-    `;
+    // Limit to 100 opportunities
+    q = query(q, firestoreLimit(100));
 
-    const params = {
-      organizationId,
-      ...(status && status !== 'all' && { status }),
-      ...(priority && priority !== 'all' && { priority }),
-      ...(category && category !== 'all' && { category }),
-    };
+    const snapshot = await getDocs(q);
+    
+    const opportunities = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        organization_id: data.organization_id,
+        detected_at: data.detected_at,
+        category: data.category,
+        type: data.type,
+        priority: data.priority,
+        status: data.status || 'new',
+        entity_id: data.entity_id,
+        entity_type: data.entity_type,
+        title: data.title,
+        description: data.description,
+        evidence: data.evidence || {},
+        metrics: data.metrics || {},
+        hypothesis: data.hypothesis,
+        confidence_score: data.confidence_score || 0,
+        potential_impact_score: data.potential_impact_score || 0,
+        urgency_score: data.urgency_score || 0,
+        recommended_actions: data.recommended_actions || [],
+        estimated_effort: data.estimated_effort,
+        estimated_timeline: data.estimated_timeline,
+        historical_performance: data.historical_performance || {},
+        comparison_data: data.comparison_data || {},
+      };
+    });
 
-    const [rows] = await bigquery.query({ query, params });
-
-    // Transform BigQuery rows to API format
-    const opportunities = rows.map((row: any) => ({
-      id: row.id,
-      organization_id: row.organization_id,
-      detected_at: row.detected_at?.value || row.detected_at,
-      category: row.category,
-      type: row.type,
-      priority: row.priority,
-      status: row.status,
-      entity_id: row.entity_id,
-      entity_type: row.entity_type,
-      title: row.title,
-      description: row.description,
-      evidence: row.evidence_json ? JSON.parse(row.evidence_json) : {},
-      metrics: row.metrics_json ? JSON.parse(row.metrics_json) : {},
-      hypothesis: row.hypothesis,
-      confidence_score: row.confidence_score,
-      potential_impact_score: row.potential_impact_score,
-      urgency_score: row.urgency_score,
-      recommended_actions: row.recommended_actions || [],
-      estimated_effort: row.estimated_effort,
-      estimated_timeline: row.estimated_timeline,
-      historical_performance: row.historical_performance_json ? JSON.parse(row.historical_performance_json) : {},
-      comparison_data: row.comparison_data_json ? JSON.parse(row.comparison_data_json) : {},
-    }));
+    // Sort by impact score (client-side since Firestore has limited ordering with filters)
+    opportunities.sort((a, b) => {
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+      
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      return b.potential_impact_score - a.potential_impact_score;
+    });
 
     return NextResponse.json({
       opportunities,
@@ -99,7 +93,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching opportunities:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch opportunities', details: String(error) },
+      { error: 'Failed to fetch opportunities', details: String(error), opportunities: [], total: 0 },
       { status: 500 }
     );
   }
