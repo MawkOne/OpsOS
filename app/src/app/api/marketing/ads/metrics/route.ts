@@ -319,12 +319,17 @@ async function fetchGoogleAdsData(organizationId: string) {
       campaigns.push({
         id: data.campaignId,
         name: data.campaignName,
+        campaign: data.campaignName, // Alias for frontend compatibility
         spend: campaignSpend,
         clicks: campaignClicks,
         impressions: campaignImpressions,
         conversions: campaignConversions,
         conversionValue: campaignRevenue,
+        revenue: campaignRevenue, // Alias for frontend compatibility
         sessions: campaignSessions,
+        users: campaignSessions, // Approximate
+        bounceRate: 0, // Not available from GA campaigns
+        avgSessionDuration: 0, // Not available from GA campaigns
         monthlyData: months,
       });
     });
@@ -377,6 +382,11 @@ async function fetchGoogleAdsData(organizationId: string) {
         cpa: c.conversions > 0 ? c.spend / c.conversions : 0,
         roas: c.spend > 0 ? c.conversionValue / c.spend : 0,
         conversionRate: c.sessions > 0 ? (c.conversions / c.sessions) * 100 : 0,
+        // Ensure frontend-expected fields exist
+        campaign: c.name,
+        revenue: c.conversionValue,
+        bounceRate: c.bounceRate || 0,
+        avgSessionDuration: c.avgSessionDuration || 0,
       })),
       trends: {
         conversionsChange: previousMonthConversions > 0 
