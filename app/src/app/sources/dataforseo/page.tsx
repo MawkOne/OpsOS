@@ -248,9 +248,17 @@ export default function DataForSEOPage() {
         throw new Error(data.error || `Failed to run ${action}`);
       }
       
+      // Check for subscription requirement
+      if (data.requiresSubscription) {
+        setError(`${action === "sync_backlinks" ? "Backlinks" : "This"} API requires a separate DataForSEO subscription. Visit app.dataforseo.com to upgrade.`);
+        return;
+      }
+      
       // Show success feedback
       if (data.success) {
         console.log(`Sync ${action} completed successfully`);
+        // Refresh connection status to show new data
+        fetchConnectionStatus();
       }
     } catch (err) {
       console.error(`Sync error:`, err);
