@@ -9,6 +9,16 @@ from datetime import datetime, timedelta
 import json
 import logging
 import uuid
+import os
+import requests
+
+# Import additional detectors
+from detectors import (
+    detect_cross_channel_gaps,
+    detect_keyword_cannibalization,
+    detect_cost_inefficiency,
+    detect_email_engagement_drop
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -417,6 +427,79 @@ def write_opportunities_to_firestore(opportunities: list):
         logger.error(f"❌ Error writing to Firestore: {e}")
 
 
+def send_slack_notification(opportunities: list, organization_id: str):
+    """Send Slack notification with opportunity summary"""
+    slack_webhook = os.environ.get('SLACK_WEBHOOK_URL')
+    
+    if not slack_webhook:
+        logger.warning("No Slack webhook URL configured, skipping notification")
+        return
+    
+    if not opportunities:
+        return
+    
+    # Group by priority
+    high = [o for o in opportunities if o['priority'] == 'high']
+    medium = [o for o in opportunities if o['priority'] == 'medium']
+    low = [o for o in opportunities if o['priority'] == 'low']
+    
+    # Build message
+    message = {
+        "text": f"🤖 *Scout AI Daily Summary* - {datetime.now().strftime('%B %d, %Y')}",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"🎯 {len(opportunities)} New Opportunities Detected"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Organization:* {organization_id}\n\n"
+                            f"🔴 *{len(high)}* High Priority\n"
+                            f"🟡 *{len(medium)}* Medium Priority\n"
+                            f"🔵 *{len(low)}* Low Priority"
+                }
+            },
+            {"type": "divider"}
+        ]
+    }
+    
+    # Add top 3 high priority opportunities
+    for opp in high[:3]:
+        message["blocks"].append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*{opp['title']}*\n{opp['description']}\n\n"
+                        f"💰 Impact: {opp['potential_impact_score']:.0f} | "
+                        f"⚡ Urgency: {opp['urgency_score']:.0f} | "
+                        f"🎯 Confidence: {opp['confidence_score']*100:.0f}%"
+            }
+        })
+    
+    # Add link to dashboard
+    message["blocks"].append({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "<https://v0-ops-ai.vercel.app/ai/opportunities|View All Opportunities →>"
+        }
+    })
+    
+    try:
+        response = requests.post(slack_webhook, json=message)
+        if response.status_code == 200:
+            logger.info("✅ Slack notification sent successfully")
+        else:
+            logger.error(f"❌ Slack notification failed: {response.status_code}")
+    except Exception as e:
+        logger.error(f"❌ Error sending Slack notification: {e}")
+
+
 @functions_framework.http
 def run_scout_ai(request):
     """
@@ -424,7 +507,8 @@ def run_scout_ai(request):
     
     Request body:
     {
-      "organizationId": "SBjucW1ztDyFYWBz7ZLE"
+      "organizationId": "SBjucW1ztDyFYWBz7ZLE",
+      "sendSlackNotification": true  // optional
     }
     """
     
@@ -433,6 +517,7 @@ def run_scout_ai(request):
         return {'error': 'Missing organizationId'}, 400
     
     organization_id = request_json['organizationId']
+    send_slack = request_json.get('sendSlackNotification', False)
     
     logger.info(f"🤖 Starting Scout AI for {organization_id}")
     
@@ -443,10 +528,18 @@ def run_scout_ai(request):
         all_opportunities.extend(detect_scale_winners(organization_id))
         all_opportunities.extend(detect_fix_losers(organization_id))
         all_opportunities.extend(detect_declining_performers(organization_id))
+        all_opportunities.extend(detect_cross_channel_gaps(organization_id))
+        all_opportunities.extend(detect_keyword_cannibalization(organization_id))
+        all_opportunities.extend(detect_cost_inefficiency(organization_id))
+        all_opportunities.extend(detect_email_engagement_drop(organization_id))
         
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
         write_opportunities_to_firestore(all_opportunities)
+        
+        # Send Slack notification if requested
+        if send_slack:
+            send_slack_notification(all_opportunities, organization_id)
         
         logger.info(f"✅ Scout AI complete! Found {len(all_opportunities)} opportunities")
         
@@ -457,7 +550,11 @@ def run_scout_ai(request):
             'breakdown': {
                 'scale_winners': len([o for o in all_opportunities if o['category'] == 'scale_winner']),
                 'fix_losers': len([o for o in all_opportunities if o['category'] == 'fix_loser']),
-                'declining_performers': len([o for o in all_opportunities if o['category'] == 'declining_performer'])
+                'declining_performers': len([o for o in all_opportunities if o['category'] == 'declining_performer']),
+                'cross_channel': len([o for o in all_opportunities if o['category'] == 'cross_channel']),
+                'seo_issues': len([o for o in all_opportunities if o['category'] == 'seo_issue']),
+                'cost_inefficiency': len([o for o in all_opportunities if o['category'] == 'cost_inefficiency']),
+                'email_issues': len([o for o in all_opportunities if o['category'] == 'email_issue'])
             }
         }, 200
         
