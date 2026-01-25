@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 
 /**
  * Opportunities API
- * GET - List opportunities
- * PATCH - Update opportunity status
+ * GET - List opportunities (reads from BigQuery)
+ * PATCH - Update opportunity status (writes to Firestore + BigQuery)
  */
 
 // GET /api/opportunities?organizationId=xxx&status=new&priority=high
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const organizationId = searchParams.get('organizationId');
-  const status = searchParams.get('status');
+  const status = searchParams.get('status') || 'new';
   const priority = searchParams.get('priority');
   const category = searchParams.get('category');
 
@@ -24,30 +24,71 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let q = query(
-      collection(db, 'opportunities'),
-      where('organization_id', '==', organizationId)
-    );
+    const BigQuery = require('@google-cloud/bigquery').BigQuery;
+    const bigquery = new BigQuery({ projectId: 'opsos-864a1' });
 
-    if (status) {
-      q = query(q, where('status', '==', status));
+    // Build WHERE clauses
+    const whereClauses = [`organization_id = @organizationId`];
+    if (status && status !== 'all') {
+      whereClauses.push(`status = @status`);
+    }
+    if (priority && priority !== 'all') {
+      whereClauses.push(`priority = @priority`);
+    }
+    if (category && category !== 'all') {
+      whereClauses.push(`category = @category`);
     }
 
-    if (priority) {
-      q = query(q, where('priority', '==', priority));
-    }
+    const query = `
+      SELECT 
+        id, organization_id, detected_at, category, type, priority, status,
+        entity_id, entity_type, title, description,
+        JSON_VALUE(evidence) as evidence_json,
+        JSON_VALUE(metrics) as metrics_json,
+        hypothesis, confidence_score, potential_impact_score, urgency_score,
+        recommended_actions, estimated_effort, estimated_timeline,
+        JSON_VALUE(historical_performance) as historical_performance_json,
+        JSON_VALUE(comparison_data) as comparison_data_json,
+        created_at, updated_at
+      FROM \`opsos-864a1.marketing_ai.opportunities\`
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY potential_impact_score DESC, detected_at DESC
+      LIMIT 100
+    `;
 
-    if (category) {
-      q = query(q, where('category', '==', category));
-    }
+    const params = {
+      organizationId,
+      ...(status && status !== 'all' && { status }),
+      ...(priority && priority !== 'all' && { priority }),
+      ...(category && category !== 'all' && { category }),
+    };
 
-    // Order by detected_at descending
-    q = query(q, orderBy('detected_at', 'desc'), limit(100));
+    const [rows] = await bigquery.query({ query, params });
 
-    const snapshot = await getDocs(q);
-    const opportunities = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    // Transform BigQuery rows to API format
+    const opportunities = rows.map((row: any) => ({
+      id: row.id,
+      organization_id: row.organization_id,
+      detected_at: row.detected_at?.value || row.detected_at,
+      category: row.category,
+      type: row.type,
+      priority: row.priority,
+      status: row.status,
+      entity_id: row.entity_id,
+      entity_type: row.entity_type,
+      title: row.title,
+      description: row.description,
+      evidence: row.evidence_json ? JSON.parse(row.evidence_json) : {},
+      metrics: row.metrics_json ? JSON.parse(row.metrics_json) : {},
+      hypothesis: row.hypothesis,
+      confidence_score: row.confidence_score,
+      potential_impact_score: row.potential_impact_score,
+      urgency_score: row.urgency_score,
+      recommended_actions: row.recommended_actions || [],
+      estimated_effort: row.estimated_effort,
+      estimated_timeline: row.estimated_timeline,
+      historical_performance: row.historical_performance_json ? JSON.parse(row.historical_performance_json) : {},
+      comparison_data: row.comparison_data_json ? JSON.parse(row.comparison_data_json) : {},
     }));
 
     return NextResponse.json({
@@ -58,7 +99,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching opportunities:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch opportunities' },
+      { error: 'Failed to fetch opportunities', details: String(error) },
       { status: 500 }
     );
   }
