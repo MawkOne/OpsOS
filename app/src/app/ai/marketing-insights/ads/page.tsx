@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import Card, { StatCard } from "@/components/Card";
+import Card from "@/components/Card";
 import { motion } from "framer-motion";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
@@ -16,9 +16,6 @@ import {
   Activity,
   BarChart3,
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  Eye,
   Zap,
 } from "lucide-react";
 
@@ -118,7 +115,7 @@ export default function AdsExpertPage() {
   const [campaigns, setCampaigns] = useState<CampaignMetric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [dataLimitations, setDataLimitations] = useState<string[]>([]);
+  const [_dataLimitations, setDataLimitations] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
