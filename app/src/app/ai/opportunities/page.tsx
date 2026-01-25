@@ -52,6 +52,7 @@ export default function OpportunitiesPage() {
     try {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
+      console.log("API Response:", { total: data.total, count: data.opportunities?.length });
       setOpportunities(data.opportunities || []);
     } catch (error) {
       console.error("Error fetching opportunities:", error);
@@ -143,6 +144,13 @@ export default function OpportunitiesPage() {
 
   const channelGroups = groupByChannel();
   const topOpportunities = getTopOpportunities();
+  
+  console.log("Render state:", { 
+    loading, 
+    oppCount: opportunities.length,
+    topCount: topOpportunities.length,
+    channels: Object.keys(channelGroups).map(k => ({ [k]: channelGroups[k as keyof typeof channelGroups].length }))
+  });
 
   const channels = [
     {
