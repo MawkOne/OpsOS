@@ -203,11 +203,28 @@ export default function OpportunitiesPage() {
     }
   ];
 
+  if (!currentOrg) {
+    return (
+      <AppLayout title="Scout AI" subtitle="Marketing opportunities detected by AI">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600">Loading organization...</p>
+            <p className="text-sm text-gray-500 mt-2">Please log in to view opportunities</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   if (loading) {
     return (
       <AppLayout title="Scout AI" subtitle="Marketing opportunities detected by AI">
         <div className="flex items-center justify-center h-64">
-          <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
+          <div className="text-center">
+            <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">Loading {opportunities.length || 0} opportunities...</p>
+          </div>
         </div>
       </AppLayout>
     );
