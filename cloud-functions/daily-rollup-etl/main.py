@@ -144,57 +144,67 @@ def process_ga_campaigns(organization_id: str, start_date: datetime, end_date: d
         if not canonical_id:
             canonical_id = f"campaign_{campaign_name.lower().replace(' ', '_')}"
         
-        sessions = campaign_data.get('sessions', 0)
-        users = campaign_data.get('users', 0)
-        conversions = campaign_data.get('conversions', 0)
-        revenue = campaign_data.get('revenue', 0.0)
-        cost = campaign_data.get('cost', 0.0)
+        # Data is stored in months object: {"2025-10": {sessions: 100, conversions: 10, ...}, ...}
+        months_data = campaign_data.get('months', {})
         
-        # Get month/year
-        month = campaign_data.get('month')
-        year = campaign_data.get('year')
-        
-        if not month or not year:
+        if not months_data:
             continue
         
-        import calendar
-        days_in_month = calendar.monthrange(year, month)[1]
-        
-        month_start = datetime(year, month, 1).date()
-        month_end = datetime(year, month, days_in_month).date()
-        
-        process_start = max(month_start, start_date.date())
-        process_end = min(month_end, end_date.date())
-        
-        current_date = process_start
-        while current_date <= process_end:
-            daily_sessions = int(sessions / days_in_month)
-            daily_cost = cost / days_in_month
-            daily_revenue = revenue / days_in_month
-            daily_conversions = int(conversions / days_in_month)
+        # Process each month
+        for month_key, month_metrics in months_data.items():
+            # Parse month_key (format: "YYYY-MM")
+            try:
+                year, month = month_key.split('-')
+                year = int(year)
+                month = int(month)
+            except (ValueError, AttributeError):
+                continue
             
-            metrics.append({
-                'organization_id': organization_id,
-                'date': current_date.isoformat(),
-                'canonical_entity_id': canonical_id,
-                'entity_type': 'campaign',
-                'sessions': daily_sessions,
-                'users': int(users / days_in_month),
-                'conversions': daily_conversions,
-                'conversion_rate': (daily_conversions / daily_sessions * 100) if daily_sessions > 0 else 0,
-                'revenue': daily_revenue,
-                'cost': daily_cost,
-                'profit': daily_revenue - daily_cost,
-                'roas': (daily_revenue / daily_cost) if daily_cost > 0 else 0,
-                'roi': ((daily_revenue - daily_cost) / daily_cost * 100) if daily_cost > 0 else 0,
-                'impressions': 0,
-                'clicks': 0,
-                'pageviews': 0,
-                'source_breakdown': json.dumps({'ga4': daily_sessions}),
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            })
-            current_date += timedelta(days=1)
+            # Extract metrics
+            sessions = month_metrics.get('sessions', 0)
+            users = month_metrics.get('newUsers', month_metrics.get('users', 0))
+            conversions = month_metrics.get('conversions', 0)
+            revenue = month_metrics.get('revenue', 0.0)
+            cost = month_metrics.get('spend', month_metrics.get('cost', 0.0))
+            
+            # Calculate days in that month
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            month_start = datetime(year, month, 1).date()
+            month_end = datetime(year, month, days_in_month).date()
+            
+            process_start = max(month_start, start_date.date())
+            process_end = min(month_end, end_date.date())
+            
+            current_date = process_start
+            while current_date <= process_end:
+                daily_sessions = int(sessions / days_in_month) if sessions else 0
+                daily_cost = cost / days_in_month if cost else 0
+                daily_revenue = revenue / days_in_month if revenue else 0
+                daily_conversions = int(conversions / days_in_month) if conversions else 0
+                
+                metrics.append({
+                    'organization_id': organization_id,
+                    'date': current_date.isoformat(),
+                    'canonical_entity_id': canonical_id,
+                    'entity_type': 'campaign',
+                    'sessions': daily_sessions,
+                    'users': int(users / days_in_month) if users else 0,
+                    'conversions': daily_conversions,
+                    'conversion_rate': (daily_conversions / daily_sessions * 100) if daily_sessions > 0 else 0,
+                    'revenue': daily_revenue,
+                    'cost': daily_cost,
+                    'profit': daily_revenue - daily_cost,
+                    'roas': (daily_revenue / daily_cost) if daily_cost > 0 else 0,
+                    'roi': ((daily_revenue - daily_cost) / daily_cost * 100) if daily_cost > 0 else 0,
+                    'impressions': int(month_metrics.get('impressions', 0) / days_in_month) if month_metrics.get('impressions') else 0,
+                    'clicks': int(month_metrics.get('clicks', 0) / days_in_month) if month_metrics.get('clicks') else 0,
+                    'pageviews': 0,
+                    'source_breakdown': {'ga4': daily_sessions},
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                })
+                current_date += timedelta(days=1)
     
     logger.info(f"Processed {len(metrics)} daily campaign metrics")
     return metrics
