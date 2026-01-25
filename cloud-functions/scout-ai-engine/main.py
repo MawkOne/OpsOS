@@ -391,7 +391,32 @@ def write_opportunities_to_bigquery(opportunities: list):
     
     job_config = bigquery.LoadJobConfig(
         write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-        autodetect=True
+        schema=[
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("organization_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("detected_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("category", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("type", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("priority", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("status", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("entity_id", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("entity_type", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("title", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("description", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("evidence", "JSON", mode="REQUIRED"),
+            bigquery.SchemaField("metrics", "JSON", mode="REQUIRED"),
+            bigquery.SchemaField("hypothesis", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("confidence_score", "FLOAT64", mode="NULLABLE"),
+            bigquery.SchemaField("potential_impact_score", "FLOAT64", mode="NULLABLE"),
+            bigquery.SchemaField("urgency_score", "FLOAT64", mode="NULLABLE"),
+            bigquery.SchemaField("recommended_actions", "STRING", mode="REPEATED"),
+            bigquery.SchemaField("estimated_effort", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("estimated_timeline", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("historical_performance", "JSON", mode="NULLABLE"),
+            bigquery.SchemaField("comparison_data", "JSON", mode="NULLABLE"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
+            bigquery.SchemaField("updated_at", "TIMESTAMP", mode="NULLABLE"),
+        ]
     )
     
     try:
