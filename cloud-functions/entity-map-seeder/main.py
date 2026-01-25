@@ -204,10 +204,15 @@ def seed_email_campaigns(organization_id: str):
     for campaign_doc in campaigns_ref:
         campaign_data = campaign_doc.to_dict()
         campaign_name = campaign_data.get('name', '')
-        campaign_id = campaign_data.get('id', '')
+        # Use 'activecampaignId' instead of 'id' to match actual Firestore field
+        campaign_id = campaign_data.get('activecampaignId', '')
         
-        if not campaign_name or not campaign_id:
+        if not campaign_name:
             continue
+        
+        # Use campaign ID if available, otherwise use name
+        if not campaign_id:
+            campaign_id = campaign_name
         
         canonical_id = create_canonical_id('email', campaign_name)
         
