@@ -927,9 +927,23 @@ export async function GET(request: NextRequest) {
     }
 
     const connection = connectionDoc.data();
+    
+    // Auto-fix stuck "syncing" status if lastSyncAt was more than 5 minutes ago
+    let status = connection.status;
+    if (status === "syncing" && connection.lastSyncAt) {
+      const lastSync = connection.lastSyncAt.toDate?.() || new Date(0);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (lastSync < fiveMinutesAgo) {
+        // Status is stuck, reset it
+        await setDoc(connectionRef, { status: "connected", updatedAt: Timestamp.now() }, { merge: true });
+        status = "connected";
+        console.log("Auto-reset stuck syncing status for:", organizationId);
+      }
+    }
+    
     return NextResponse.json({
       connected: true,
-      status: connection.status,
+      status,
       domain: connection.domain,
       summary: connection.summary || null,
       keywordsSummary: connection.keywordsSummary || null,
