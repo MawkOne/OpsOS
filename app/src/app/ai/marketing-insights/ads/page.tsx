@@ -45,14 +45,16 @@ interface AdsMetrics {
   topCampaignByRevenue: string;
   trafficQualityScore: number;
   hasCostData: boolean;
-  // New metrics if available
-  impressions?: number;
-  clicks?: number;
+  // Google Ads cost metrics (from GA4 linked data)
+  totalSpend?: number;
+  totalImpressions?: number;
+  totalClicks?: number;
   ctr?: number;
-  spend?: number;
   cpc?: number;
   cpa?: number;
   roas?: number;
+  spendTrend?: number;
+  conversionsTrend?: number;
 }
 
 interface CampaignMetric {
@@ -385,6 +387,69 @@ export default function AdsExpertPage() {
               </Card>
             </motion.div>
           </div>
+        )}
+
+        {/* Google Ads Cost Metrics - Only show when we have cost data */}
+        {metrics && metrics.hasCostData && (
+          <Card>
+            <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+              <DollarSign className="w-5 h-5 text-green-500" />
+              Google Ads Performance
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div>
+                <p className="text-sm mb-1" style={{ color: "var(--foreground-muted)" }}>Total Spend</p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  {formatCurrency(metrics.totalSpend || 0)}
+                </p>
+                {metrics.spendTrend !== undefined && metrics.spendTrend !== 0 && (
+                  <p className="text-xs" style={{ color: metrics.spendTrend > 0 ? "#f59e0b" : "#10b981" }}>
+                    {metrics.spendTrend > 0 ? "↑" : "↓"} {Math.abs(metrics.spendTrend).toFixed(1)}% MoM
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>ROAS</span>
+                  <PerformanceRating value={metrics.roas || 0} metric="roas" />
+                </div>
+                <p className="text-2xl font-bold" style={{ color: (metrics.roas || 0) >= 4 ? "#10b981" : (metrics.roas || 0) >= 2 ? "#f59e0b" : "#ef4444" }}>
+                  {(metrics.roas || 0).toFixed(2)}x
+                </p>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Target: 4x+</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>CTR</span>
+                  <PerformanceRating value={metrics.ctr || 0} metric="ctr" />
+                </div>
+                <p className="text-2xl font-bold" style={{ color: (metrics.ctr || 0) >= 3 ? "#10b981" : (metrics.ctr || 0) >= 2 ? "#f59e0b" : "#ef4444" }}>
+                  {formatPercent(metrics.ctr || 0)}
+                </p>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {metrics.totalImpressions ? formatNumber(metrics.totalImpressions) + ' impressions' : 'Target: 3%+'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm mb-1" style={{ color: "var(--foreground-muted)" }}>CPC</p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  ${(metrics.cpc || 0).toFixed(2)}
+                </p>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {metrics.totalClicks ? formatNumber(metrics.totalClicks) + ' clicks' : ''}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm mb-1" style={{ color: "var(--foreground-muted)" }}>CPA</p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                  ${(metrics.cpa || 0).toFixed(2)}
+                </p>
+                <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  Cost per conversion
+                </p>
+              </div>
+            </div>
+          </Card>
         )}
 
         {/* Traffic Quality Breakdown */}
