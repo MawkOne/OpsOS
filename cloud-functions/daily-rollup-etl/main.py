@@ -65,54 +65,62 @@ def process_ga_pages(organization_id: str, start_date: datetime, end_date: datet
         if not canonical_id:
             canonical_id = f"page_{page_path.replace('/', '_').strip('_')}"
         
-        # Note: Firestore has monthly data, we need to divide by days in month for daily estimate
-        # This is a temporary workaround - proper daily data should come from GA4 API
-        pageviews = page_data.get('pageviews', 0)
-        sessions = page_data.get('sessions', 0)
-        users = page_data.get('users', 0)
-        avg_time = page_data.get('avgTimeOnPage', 0)
-        bounce_rate = page_data.get('bounceRate', 0)
+        # Data is stored in months object: {"2025-10": {users: 100, pageViews: 200, ...}, "2025-11": {...}}
+        months_data = page_data.get('months', {})
         
-        # Get the month/year from the document
-        month = page_data.get('month')
-        year = page_data.get('year')
-        
-        if not month or not year:
+        if not months_data:
             continue
         
-        # Calculate days in that month
-        days_in_month = calendar.monthrange(year, month)[1]
-        
-        # Create daily estimates for each day in the range
-        month_start = datetime(year, month, 1).date()
-        month_end = datetime(year, month, days_in_month).date()
-        
-        # Only process days within our requested range
-        process_start = max(month_start, start_date.date())
-        process_end = min(month_end, end_date.date())
-        
-        current_date = process_start
-        while current_date <= process_end:
-            metrics.append({
-                'organization_id': organization_id,
-                'date': current_date.isoformat(),
-                'canonical_entity_id': canonical_id,
-                'entity_type': 'page',
-                'pageviews': int(pageviews / days_in_month),
-                'sessions': int(sessions / days_in_month),
-                'users': int(users / days_in_month),
-                'avg_session_duration': avg_time,
-                'bounce_rate': bounce_rate,
-                'impressions': 0,
-                'clicks': 0,
-                'conversions': 0,
-                'revenue': 0.0,
-                'cost': 0.0,
-                'source_breakdown': {'ga4': int(sessions / days_in_month)},
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            })
-            current_date += timedelta(days=1)
+        # Process each month
+        for month_key, month_metrics in months_data.items():
+            # Parse month_key (format: "YYYY-MM")
+            try:
+                year, month = month_key.split('-')
+                year = int(year)
+                month = int(month)
+            except (ValueError, AttributeError):
+                continue
+            
+            # Extract metrics
+            pageviews = month_metrics.get('pageViews', 0)
+            users = month_metrics.get('users', 0)
+            conversions = month_metrics.get('conversions', 0)
+            avg_time = month_metrics.get('avgSessionDuration', 0)
+            
+            # Calculate days in that month
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            # Create daily estimates for each day in the range
+            month_start = datetime(year, month, 1).date()
+            month_end = datetime(year, month, days_in_month).date()
+            
+            # Only process days within our requested range
+            process_start = max(month_start, start_date.date())
+            process_end = min(month_end, end_date.date())
+            
+            current_date = process_start
+            while current_date <= process_end:
+                metrics.append({
+                    'organization_id': organization_id,
+                    'date': current_date.isoformat(),
+                    'canonical_entity_id': canonical_id,
+                    'entity_type': 'page',
+                    'pageviews': int(pageviews / days_in_month) if pageviews else 0,
+                    'sessions': int(pageviews / days_in_month) if pageviews else 0,  # Approximation
+                    'users': int(users / days_in_month) if users else 0,
+                    'avg_session_duration': avg_time,
+                    'bounce_rate': 0.0,
+                    'conversions': int(conversions / days_in_month) if conversions else 0,
+                    'conversion_rate': (conversions / pageviews * 100) if pageviews > 0 else 0,
+                    'impressions': 0,
+                    'clicks': 0,
+                    'revenue': 0.0,
+                    'cost': 0.0,
+                    'source_breakdown': {'ga4': int(pageviews / days_in_month) if pageviews else 0},
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                })
+                current_date += timedelta(days=1)
     
     logger.info(f"Processed {len(metrics)} daily page metrics")
     return metrics
@@ -396,7 +404,7 @@ def write_to_bigquery(metrics: List[Dict]):
             bigquery.SchemaField("opens", "INT64", mode="NULLABLE"),
             bigquery.SchemaField("open_rate", "FLOAT64", mode="NULLABLE"),
             bigquery.SchemaField("click_through_rate", "FLOAT64", mode="NULLABLE"),
-            bigquery.SchemaField("source_breakdown", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("source_breakdown", "JSON", mode="NULLABLE"),
             bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
             bigquery.SchemaField("updated_at", "TIMESTAMP", mode="NULLABLE"),
         ]
