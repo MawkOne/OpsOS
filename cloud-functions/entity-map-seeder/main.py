@@ -247,7 +247,7 @@ def write_to_bigquery(mappings: list):
             bigquery.SchemaField("entity_type", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("source", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("source_entity_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("source_metadata", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("source_metadata", "JSON", mode="NULLABLE"),
             bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
             bigquery.SchemaField("updated_at", "TIMESTAMP", mode="NULLABLE"),
         ]
