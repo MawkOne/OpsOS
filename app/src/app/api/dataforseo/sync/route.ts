@@ -87,6 +87,11 @@ export async function POST(request: NextRequest) {
     }
 
     const connection = connectionDoc.data();
+    console.log("DataForSEO connection data:", { 
+      login: connection.login, 
+      domain: connection.domain,
+      hasPassword: !!connection.password 
+    });
     const credentials = Buffer.from(`${connection.login}:${connection.password}`).toString("base64");
     const domain = connection.domain;
 
