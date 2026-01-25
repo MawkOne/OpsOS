@@ -487,15 +487,24 @@ async function syncKeywordRankings(
       ]
     );
 
+    console.log("Ranked keywords API response:", JSON.stringify(rankedKeywordsData, null, 2).substring(0, 2000));
+    
     if (rankedKeywordsData.status_code !== 20000) {
       console.error("Ranked keywords error:", rankedKeywordsData);
       return NextResponse.json({
         error: rankedKeywordsData.status_message || "Failed to fetch keywords",
+        debug: { status_code: rankedKeywordsData.status_code, status_message: rankedKeywordsData.status_message }
       }, { status: 400 });
     }
 
     const keywords = rankedKeywordsData.tasks?.[0]?.result?.[0]?.items || [];
-    console.log(`Found ${keywords.length} ranked keywords`);
+    const totalCount = rankedKeywordsData.tasks?.[0]?.result?.[0]?.total_count || 0;
+    console.log(`Found ${keywords.length} ranked keywords (total_count: ${totalCount})`);
+    
+    // If no keywords found, return debug info
+    if (keywords.length === 0) {
+      console.log("No keywords found. Task result:", JSON.stringify(rankedKeywordsData.tasks?.[0]?.result, null, 2));
+    }
 
     // Store keywords in Firestore
     const BATCH_SIZE = 500;
