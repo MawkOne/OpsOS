@@ -180,7 +180,7 @@ export default function PagesExpertPage() {
 
       if (data.hasData) {
         setMetrics(data.metrics);
-        setTopPages(data.topPages || []);
+        setTopPages(data.topPerformingPages || data.topPages || []);
         setUnderperformingPages(data.underperformingPages || []);
         setAlerts(data.alerts || []);
         setOpportunities(data.opportunities || []);
@@ -207,7 +207,7 @@ export default function PagesExpertPage() {
 
       if (data.success) {
         setMetrics(data.metrics);
-        setTopPages(data.topPages || []);
+        setTopPages(data.topPerformingPages || data.topPages || []);
         setUnderperformingPages(data.underperformingPages || []);
         setAlerts(data.alerts || []);
         setOpportunities(data.opportunities || []);
@@ -564,14 +564,22 @@ export default function PagesExpertPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {topPages.slice(0, 10).map((page, i) => {
+                  {topPages.slice(0, 10).map((page: any, i) => {
+                    // Handle different API response formats
+                    const pagePath = page.pagePath || page.path || '';
+                    const pageTitle = page.pageTitle || page.title || pagePath;
+                    const pageviews = page.pageviews || 0;
+                    const avgTimeOnPage = page.avgTimeOnPage || 0;
+                    const bounceRate = page.bounceRate || 0;
+                    const exitRate = page.exitRate || page.engagementRate || 0;
+                    
                     // Calculate page grade
                     let score = 0;
-                    if (page.bounceRate <= 40) score += 2;
-                    else if (page.bounceRate <= 55) score += 1;
-                    if (page.avgTimeOnPage >= 120) score += 2;
-                    else if (page.avgTimeOnPage >= 60) score += 1;
-                    if (page.exitRate <= 35) score += 1;
+                    if (bounceRate <= 40) score += 2;
+                    else if (bounceRate <= 55) score += 1;
+                    if (avgTimeOnPage >= 120) score += 2;
+                    else if (avgTimeOnPage >= 60) score += 1;
+                    if (exitRate <= 35) score += 1;
                     const grade = score >= 4 ? "A" : score >= 3 ? "B" : score >= 2 ? "C" : "D";
                     const gradeColor = score >= 4 ? "#10b981" : score >= 3 ? "#22c55e" : score >= 2 ? "#f59e0b" : "#ef4444";
                     
@@ -580,20 +588,20 @@ export default function PagesExpertPage() {
                         <td className="px-4 py-3">
                           <div>
                             <p className="text-sm font-medium truncate max-w-xs" style={{ color: "var(--foreground)" }}>
-                              {page.pageTitle || page.pagePath}
+                              {pageTitle}
                             </p>
-                            <p className="text-xs truncate max-w-xs" style={{ color: "var(--foreground-muted)" }}>{page.pagePath}</p>
+                            <p className="text-xs truncate max-w-xs" style={{ color: "var(--foreground-muted)" }}>{pagePath}</p>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>{formatNumber(page.pageviews)}</td>
-                        <td className="px-4 py-3 text-sm text-right" style={{ color: page.avgTimeOnPage >= 60 ? "#10b981" : "var(--foreground-muted)" }}>
-                          {formatTime(page.avgTimeOnPage)}
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>{formatNumber(pageviews)}</td>
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: avgTimeOnPage >= 60 ? "#10b981" : "var(--foreground-muted)" }}>
+                          {formatTime(avgTimeOnPage)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right" style={{ color: page.bounceRate <= 40 ? "#10b981" : page.bounceRate <= 55 ? "#f59e0b" : "#ef4444" }}>
-                          {formatPercent(page.bounceRate)}
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: bounceRate <= 40 ? "#10b981" : bounceRate <= 55 ? "#f59e0b" : "#ef4444" }}>
+                          {formatPercent(bounceRate)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right" style={{ color: page.exitRate <= 35 ? "#10b981" : "var(--foreground-muted)" }}>
-                          {formatPercent(page.exitRate)}
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: exitRate <= 35 ? "#10b981" : "var(--foreground-muted)" }}>
+                          {formatPercent(exitRate)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span 
@@ -636,25 +644,33 @@ export default function PagesExpertPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {underperformingPages.slice(0, 5).map((page, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="px-4 py-3">
-                        <p className="text-sm truncate max-w-xs" style={{ color: "var(--foreground)" }}>{page.pagePath}</p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>{formatNumber(page.pageviews)}</td>
-                      <td className="px-4 py-3 text-sm text-right" style={{ color: page.bounceRate > 55 ? "#ef4444" : "var(--foreground-muted)" }}>
-                        {formatPercent(page.bounceRate)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right" style={{ color: page.exitRate > 50 ? "#ef4444" : "var(--foreground-muted)" }}>
-                        {formatPercent(page.exitRate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-1 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>
-                          {page.issue || (page.bounceRate > 55 ? "High Bounce" : "High Exit")}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {underperformingPages.slice(0, 5).map((page: any, i) => {
+                    const pagePath = page.pagePath || page.path || '';
+                    const pageviews = page.pageviews || 0;
+                    const bounceRate = page.bounceRate || 0;
+                    const exitRate = page.exitRate || page.engagementRate || 0;
+                    const issue = page.issue || (bounceRate > 55 ? "High Bounce" : "High Exit");
+                    
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td className="px-4 py-3">
+                          <p className="text-sm truncate max-w-xs" style={{ color: "var(--foreground)" }}>{pagePath}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: "var(--foreground-muted)" }}>{formatNumber(pageviews)}</td>
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: bounceRate > 55 ? "#ef4444" : "var(--foreground-muted)" }}>
+                          {formatPercent(bounceRate)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right" style={{ color: exitRate > 50 ? "#ef4444" : "var(--foreground-muted)" }}>
+                          {formatPercent(exitRate)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>
+                            {issue}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
