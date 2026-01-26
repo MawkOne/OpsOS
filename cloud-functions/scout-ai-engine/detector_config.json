@@ -1,0 +1,70 @@
+{
+  "default_config": {
+    "enabled_areas": {
+      "email": true,
+      "seo": true,
+      "advertising": true,
+      "pages": true,
+      "content": true,
+      "traffic": true,
+      "revenue": true,
+      "social": false
+    }
+  },
+  "organization_overrides": {
+    "SBjucW1ztDyFYWBz7ZLE": {
+      "enabled_areas": {
+        "email": true,
+        "seo": true,
+        "advertising": true,
+        "pages": true,
+        "content": true,
+        "traffic": true,
+        "revenue": true,
+        "social": false
+      }
+    }
+  },
+  "detector_metadata": {
+    "email": {
+      "display_name": "Email Marketing",
+      "description": "Email campaigns, automation, and engagement",
+      "detector_count": 3
+    },
+    "seo": {
+      "display_name": "SEO & Organic Search",
+      "description": "Rankings, keywords, and organic traffic",
+      "detector_count": 4
+    },
+    "advertising": {
+      "display_name": "Paid Advertising",
+      "description": "PPC campaigns, ad spend efficiency",
+      "detector_count": 3
+    },
+    "pages": {
+      "display_name": "Landing Pages & Conversion",
+      "description": "Page performance and conversion optimization",
+      "detector_count": 5
+    },
+    "content": {
+      "display_name": "Content Marketing",
+      "description": "Blog posts, articles, content performance",
+      "detector_count": 2
+    },
+    "traffic": {
+      "display_name": "Traffic & Channels",
+      "description": "Traffic sources, channel performance",
+      "detector_count": 3
+    },
+    "revenue": {
+      "display_name": "Revenue & Metrics",
+      "description": "Revenue tracking and anomaly detection",
+      "detector_count": 3
+    },
+    "social": {
+      "display_name": "Social Media",
+      "description": "Social posts, engagement, growth (Coming Soon)",
+      "detector_count": 0
+    }
+  }
+}

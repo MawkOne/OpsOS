@@ -12,33 +12,40 @@ import uuid
 import os
 import requests
 
-# Import additional detectors
-from detectors import (
-    detect_cross_channel_gaps,
-    detect_keyword_cannibalization,
-    detect_cost_inefficiency,
+# Import detectors organized by marketing area
+from detectors.email_detectors import (
     detect_email_engagement_drop,
-    # Phase 2A: The "Free 9"
-    detect_revenue_anomaly,
-    detect_metric_anomalies,
-    detect_high_traffic_low_conversion_pages,
-    detect_page_engagement_decay,
+    detect_email_high_opens_low_clicks,
+    detect_email_trends_multitimeframe
+)
+from detectors.seo_detectors import (
     detect_seo_striking_distance,
     detect_seo_rank_drops,
-    detect_paid_waste,
-    detect_email_high_opens_low_clicks,
-    detect_content_decay
+    detect_keyword_cannibalization,
+    detect_seo_rank_trends_multitimeframe
 )
-
-# Import multi-timeframe detectors with monthly trends
-from monthly_trend_detectors import (
-    detect_content_decay_multitimeframe,
-    detect_revenue_trends_multitimeframe,
-    detect_email_trends_multitimeframe,
-    detect_seo_rank_trends_multitimeframe,
-    detect_scale_winners_multitimeframe,
-    detect_declining_performers_multitimeframe,
+from detectors.advertising_detectors import (
+    detect_cost_inefficiency,
+    detect_paid_waste,
     detect_paid_campaigns_multitimeframe
+)
+from detectors.pages_detectors import (
+    detect_high_traffic_low_conversion_pages,
+    detect_page_engagement_decay,
+    detect_scale_winners_multitimeframe
+)
+from detectors.content_detectors import (
+    detect_content_decay,
+    detect_content_decay_multitimeframe
+)
+from detectors.traffic_detectors import (
+    detect_cross_channel_gaps,
+    detect_declining_performers_multitimeframe
+)
+from detectors.revenue_detectors import (
+    detect_revenue_anomaly,
+    detect_metric_anomalies,
+    detect_revenue_trends_multitimeframe
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +54,30 @@ logger = logging.getLogger(__name__)
 # Initialize clients
 bq_client = bigquery.Client()
 db = firestore.Client()
+
+# Load detector configuration
+def load_detector_config():
+    """Load detector configuration from JSON file"""
+    config_path = os.path.join(os.path.dirname(__file__), 'detector_config.json')
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load detector config: {e}. Using defaults.")
+        return {"default_config": {"enabled_areas": {
+            "email": True, "seo": True, "advertising": True,
+            "pages": True, "content": True, "traffic": True, "revenue": True
+        }}}
+
+DETECTOR_CONFIG = load_detector_config()
+
+def get_enabled_areas(organization_id):
+    """Get enabled detector areas for an organization"""
+    # Check for org-specific overrides
+    if organization_id in DETECTOR_CONFIG.get('organization_overrides', {}):
+        return DETECTOR_CONFIG['organization_overrides'][organization_id]['enabled_areas']
+    # Fall back to default
+    return DETECTOR_CONFIG['default_config']['enabled_areas']
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
@@ -639,38 +670,59 @@ def run_scout_ai(request):
     try:
         all_opportunities = []
         
-        # OLD DETECTORS DISABLED - They don't respect is_active filter
-        # Multi-timeframe detectors provide better analysis and DO respect filters
-        # TODO: Add is_active filter to old detectors if we want to re-enable them
+        # Get enabled areas for this organization
+        enabled_areas = get_enabled_areas(organization_id)
+        logger.info(f"📋 Enabled detector areas: {[k for k, v in enabled_areas.items() if v]}")
         
-        # # Run all detectors (original 7) - DISABLED
-        # all_opportunities.extend(detect_scale_winners(organization_id))
-        # all_opportunities.extend(detect_fix_losers(organization_id))
-        # all_opportunities.extend(detect_declining_performers(organization_id))
-        # all_opportunities.extend(detect_cross_channel_gaps(organization_id))
-        # all_opportunities.extend(detect_keyword_cannibalization(organization_id))
-        # all_opportunities.extend(detect_cost_inefficiency(organization_id))
-        # all_opportunities.extend(detect_email_engagement_drop(organization_id))
+        # Run detectors by area (only if enabled)
         
-        # # Run Phase 2A detectors (the "Free 9") - DISABLED
-        # all_opportunities.extend(detect_revenue_anomaly(organization_id))
-        # all_opportunities.extend(detect_metric_anomalies(organization_id))
-        # all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
-        # all_opportunities.extend(detect_page_engagement_decay(organization_id))
-        # all_opportunities.extend(detect_seo_striking_distance(organization_id))
-        # all_opportunities.extend(detect_seo_rank_drops(organization_id))
-        # all_opportunities.extend(detect_paid_waste(organization_id))
-        # all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
-        # all_opportunities.extend(detect_content_decay(organization_id))
+        # EMAIL detectors
+        if enabled_areas.get('email', True):
+            logger.info("📧 Running Email detectors...")
+            all_opportunities.extend(detect_email_engagement_drop(organization_id))
+            all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
+            all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
         
-        # Run Multi-Timeframe detectors with monthly trends (THESE HAVE is_active FILTER)
-        all_opportunities.extend(detect_content_decay_multitimeframe(organization_id))
-        all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
-        all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
-        all_opportunities.extend(detect_seo_rank_trends_multitimeframe(organization_id))
-        all_opportunities.extend(detect_scale_winners_multitimeframe(organization_id))
-        all_opportunities.extend(detect_declining_performers_multitimeframe(organization_id))
-        all_opportunities.extend(detect_paid_campaigns_multitimeframe(organization_id))
+        # SEO detectors
+        if enabled_areas.get('seo', True):
+            logger.info("🔍 Running SEO detectors...")
+            all_opportunities.extend(detect_seo_striking_distance(organization_id))
+            all_opportunities.extend(detect_seo_rank_drops(organization_id))
+            all_opportunities.extend(detect_keyword_cannibalization(organization_id))
+            all_opportunities.extend(detect_seo_rank_trends_multitimeframe(organization_id))
+        
+        # ADVERTISING detectors
+        if enabled_areas.get('advertising', True):
+            logger.info("💰 Running Advertising detectors...")
+            all_opportunities.extend(detect_cost_inefficiency(organization_id))
+            all_opportunities.extend(detect_paid_waste(organization_id))
+            all_opportunities.extend(detect_paid_campaigns_multitimeframe(organization_id))
+        
+        # PAGES detectors
+        if enabled_areas.get('pages', True):
+            logger.info("📄 Running Pages detectors...")
+            all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
+            all_opportunities.extend(detect_page_engagement_decay(organization_id))
+            all_opportunities.extend(detect_scale_winners_multitimeframe(organization_id))
+        
+        # CONTENT detectors
+        if enabled_areas.get('content', True):
+            logger.info("✍️ Running Content detectors...")
+            all_opportunities.extend(detect_content_decay(organization_id))
+            all_opportunities.extend(detect_content_decay_multitimeframe(organization_id))
+        
+        # TRAFFIC detectors
+        if enabled_areas.get('traffic', True):
+            logger.info("🚦 Running Traffic detectors...")
+            all_opportunities.extend(detect_cross_channel_gaps(organization_id))
+            all_opportunities.extend(detect_declining_performers_multitimeframe(organization_id))
+        
+        # REVENUE detectors
+        if enabled_areas.get('revenue', True):
+            logger.info("💵 Running Revenue detectors...")
+            all_opportunities.extend(detect_revenue_anomaly(organization_id))
+            all_opportunities.extend(detect_metric_anomalies(organization_id))
+            all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
         
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
