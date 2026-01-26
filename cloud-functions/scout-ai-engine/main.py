@@ -408,6 +408,27 @@ def write_opportunities_to_bigquery(opportunities: list):
         logger.warning("No opportunities to write")
         return
     
+    # First, delete old opportunities for this organization
+    org_id = opportunities[0]['organization_id'] if opportunities else None
+    if org_id:
+        logger.info(f"🗑️  Deleting old opportunities for org: {org_id}")
+        delete_query = f"""
+        DELETE FROM `{PROJECT_ID}.{DATASET_ID}.opportunities`
+        WHERE organization_id = @org_id
+        """
+        job_config_delete = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("org_id", "STRING", org_id)
+            ]
+        )
+        try:
+            delete_job = bq_client.query(delete_query, job_config=job_config_delete)
+            delete_job.result()
+            logger.info(f"✅ Deleted old opportunities for org: {org_id}")
+        except Exception as e:
+            logger.error(f"❌ Error deleting old opportunities: {e}")
+            # Continue anyway to write new ones
+    
     table_ref = f"{PROJECT_ID}.{DATASET_ID}.opportunities"
     
     job_config = bigquery.LoadJobConfig(
