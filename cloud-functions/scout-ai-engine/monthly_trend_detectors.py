@@ -734,3 +734,500 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
         logger.error(f"❌ Error in seo_rank_trends_multitimeframe detector: {e}")
     
     return opportunities
+
+
+def detect_scale_winners_multitimeframe(organization_id: str) -> list:
+    """
+    Enhanced Scale Winners with Monthly Momentum
+    Detects: High CVR entities with low traffic, prioritizing those with improving CVR trends
+    """
+    logger.info("🔍 Running Scale Winners (Multi-Timeframe) detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH monthly_performance AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        conversion_rate,
+        sessions,
+        revenue,
+        LAG(conversion_rate, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_cvr,
+        LAG(conversion_rate, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago_cvr,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_sessions,
+        MAX(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as best_cvr_ever,
+        STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) / AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as cvr_volatility
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'campaign')
+        AND sessions > 10
+    ),
+    
+    current_month AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        conversion_rate as current_cvr,
+        sessions as current_sessions,
+        revenue as current_revenue,
+        month_1_ago_cvr,
+        month_2_ago_cvr,
+        month_1_ago_sessions,
+        best_cvr_ever,
+        cvr_volatility,
+        
+        -- CVR momentum
+        CASE 
+          WHEN conversion_rate > month_1_ago_cvr AND month_1_ago_cvr > month_2_ago_cvr THEN 'Improving'
+          WHEN conversion_rate < month_1_ago_cvr AND month_1_ago_cvr < month_2_ago_cvr THEN 'Declining'
+          WHEN cvr_volatility < 0.15 THEN 'Stable'
+          ELSE 'Volatile'
+        END as cvr_momentum,
+        
+        SAFE_DIVIDE(conversion_rate - month_1_ago_cvr, month_1_ago_cvr) * 100 as mom_cvr_change
+        
+      FROM monthly_performance
+      WHERE year_month = (SELECT MAX(year_month) FROM monthly_performance)
+        AND conversion_rate > 2.0  -- Minimum CVR threshold
+    ),
+    
+    peer_benchmarks AS (
+      SELECT 
+        entity_type,
+        APPROX_QUANTILES(current_cvr, 100)[OFFSET(70)] as cvr_p70,
+        APPROX_QUANTILES(current_sessions, 100)[OFFSET(30)] as sessions_p30
+      FROM current_month
+      GROUP BY entity_type
+    )
+    
+    SELECT 
+      c.*,
+      p.cvr_p70,
+      p.sessions_p30
+    FROM current_month c
+    JOIN peer_benchmarks p ON c.entity_type = p.entity_type
+    WHERE c.current_cvr > p.cvr_p70  -- Top 30% CVR
+      AND c.current_sessions < p.sessions_p30  -- Bottom 30% traffic
+    ORDER BY 
+      CASE 
+        WHEN cvr_momentum = 'Improving' THEN 1
+        WHEN cvr_momentum = 'Stable' THEN 2
+        ELSE 3
+      END,
+      current_cvr DESC
+    LIMIT 20
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        results = bq_client.query(query, job_config=job_config).result()
+        
+        for row in results:
+            entity_id = row['canonical_entity_id']
+            entity_type = row['entity_type']
+            cvr = row['current_cvr']
+            sessions = row['current_sessions']
+            momentum = row['cvr_momentum']
+            mom_cvr = row['mom_cvr_change'] or 0
+            volatility = row['cvr_volatility'] or 0
+            
+            # Priority based on momentum
+            if momentum == 'Improving':
+                priority = 'high'
+                confidence = 0.92
+            elif momentum == 'Stable':
+                priority = 'high'
+                confidence = 0.88
+            else:
+                priority = 'medium'
+                confidence = 0.75
+            
+            opportunities.append({
+                'id': str(uuid.uuid4()),
+                'organization_id': organization_id,
+                'detected_at': datetime.utcnow().isoformat(),
+                'category': 'scale_winner',
+                'type': f'high_cvr_low_traffic_{momentum.lower()}',
+                'priority': priority,
+                'status': 'new',
+                'entity_id': entity_id,
+                'entity_type': entity_type,
+                'title': f"🚀 Scale Winner ({momentum} CVR): {entity_id}",
+                'description': f"CVR {cvr:.1f}% (top 30%) with only {sessions:,.0f} sessions. {momentum} trend ({mom_cvr:+.1f}% MoM). {'Low volatility' if volatility < 0.15 else 'Some volatility'} = {'High' if momentum == 'Improving' else 'Good'} confidence scale opportunity.",
+                'evidence': {
+                    'current_cvr': cvr,
+                    'current_sessions': sessions,
+                    'cvr_momentum': momentum,
+                    'mom_cvr_change': mom_cvr,
+                    'cvr_volatility': volatility,
+                    'best_cvr_ever': row['best_cvr_ever'],
+                    'month_1_ago_cvr': row['month_1_ago_cvr'],
+                    'month_2_ago_cvr': row['month_2_ago_cvr']
+                },
+                'metrics': {
+                    'current_conversion_rate': cvr,
+                    'current_sessions': sessions,
+                    'momentum': momentum
+                },
+                'hypothesis': f"{'Improving CVR over multiple months + proven conversion ability = HIGH confidence scale opportunity. CVR trend shows this is getting BETTER, not a fluke.' if momentum == 'Improving' else 'Stable CVR over time = Predictable, reliable performance. Low risk to scale.' if momentum == 'Stable' else 'High CVR but volatile. Test with caution before scaling aggressively.'}",
+                'confidence_score': confidence,
+                'potential_impact_score': min(100, cvr * 8),
+                'urgency_score': 75 if momentum == 'Improving' else 65,
+                'recommended_actions': [
+                    f"MOMENTUM: CVR {momentum.lower()} monthly - {'capitalize on this positive trend!' if momentum == 'Improving' else 'proven stable performer' if momentum == 'Stable' else 'investigate volatility before scaling'}",
+                    'Increase paid ad budget targeting this page/campaign',
+                    'Create content linking to this high-converting asset',
+                    'Feature prominently in email campaigns',
+                    'Improve SEO for related keywords',
+                    'Add CTAs from high-traffic pages',
+                    'Monitor CVR as traffic scales to ensure it holds'
+                ],
+                'estimated_effort': 'medium',
+                'estimated_timeline': '1-2 weeks',
+                'historical_performance': {
+                    'best_cvr_ever': row['best_cvr_ever'],
+                    'cvr_volatility': volatility
+                },
+                'comparison_data': {},
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            })
+        
+        logger.info(f"✅ Found {len(opportunities)} scale winner (multi-timeframe) opportunities")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in scale_winners_multitimeframe detector: {e}")
+    
+    return opportunities
+
+
+def detect_declining_performers_multitimeframe(organization_id: str) -> list:
+    """
+    Enhanced Declining Performers with Acceleration Detection
+    Detects: Entities declining with analysis of whether decline is accelerating or decelerating
+    """
+    logger.info("🔍 Running Declining Performers (Multi-Timeframe) detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH monthly_performance AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        sessions,
+        revenue,
+        conversions,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago,
+        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago,
+        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_3_ago
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'campaign')
+    ),
+    
+    current AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        sessions as current_sessions,
+        month_1_ago,
+        month_2_ago,
+        month_3_ago,
+        
+        -- Calculate MoM changes
+        SAFE_DIVIDE(sessions - month_1_ago, month_1_ago) * 100 as current_mom,
+        SAFE_DIVIDE(month_1_ago - month_2_ago, month_2_ago) * 100 as prev_mom_1,
+        SAFE_DIVIDE(month_2_ago - month_3_ago, month_3_ago) * 100 as prev_mom_2,
+        
+        -- Count consecutive declining months
+        CASE 
+          WHEN sessions < month_1_ago AND month_1_ago < month_2_ago AND month_2_ago < month_3_ago THEN 4
+          WHEN sessions < month_1_ago AND month_1_ago < month_2_ago THEN 3
+          WHEN sessions < month_1_ago THEN 2
+          ELSE 0
+        END as consecutive_declining,
+        
+        -- Detect acceleration/deceleration
+        CASE 
+          WHEN sessions < month_1_ago AND month_1_ago < month_2_ago THEN
+            CASE 
+              WHEN ABS(SAFE_DIVIDE(sessions - month_1_ago, month_1_ago)) > 
+                   ABS(SAFE_DIVIDE(month_1_ago - month_2_ago, month_2_ago)) 
+              THEN 'Accelerating Decline'
+              WHEN ABS(SAFE_DIVIDE(sessions - month_1_ago, month_1_ago)) < 
+                   ABS(SAFE_DIVIDE(month_1_ago - month_2_ago, month_2_ago)) 
+              THEN 'Decelerating Decline'
+              ELSE 'Steady Decline'
+            END
+          ELSE 'Not Declining'
+        END as decline_pattern
+        
+      FROM monthly_performance
+      WHERE year_month = (SELECT MAX(year_month) FROM monthly_performance)
+        AND month_1_ago IS NOT NULL
+        AND month_1_ago > 100  -- Was getting meaningful traffic
+    )
+    
+    SELECT *
+    FROM current
+    WHERE consecutive_declining >= 2
+      AND ABS(current_mom) > 10  -- At least 10% decline
+    ORDER BY consecutive_declining DESC, ABS(current_mom) DESC
+    LIMIT 20
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        results = bq_client.query(query, job_config=job_config).result()
+        
+        for row in results:
+            entity_id = row['canonical_entity_id']
+            entity_type = row['entity_type']
+            current = row['current_sessions']
+            month_1 = row['month_1_ago']
+            month_2 = row['month_2_ago']
+            month_3 = row['month_3_ago']
+            mom = row['current_mom'] or 0
+            consecutive = row['consecutive_declining']
+            pattern = row['decline_pattern']
+            
+            # Build monthly trend
+            monthly_trend = []
+            if month_3:
+                monthly_trend.append({'month': '3mo ago', 'sessions': month_3})
+            if month_2:
+                monthly_trend.append({'month': '2mo ago', 'sessions': month_2, 'mom': f"{row['prev_mom_1']:+.1f}%"})
+            if month_1:
+                monthly_trend.append({'month': '1mo ago', 'sessions': month_1, 'mom': f"{row['prev_mom_1']:+.1f}%"})
+            monthly_trend.append({'month': 'Current', 'sessions': current, 'mom': f"{mom:+.1f}%"})
+            
+            priority = 'high' if pattern == 'Accelerating Decline' or consecutive >= 3 else 'medium'
+            urgency = 90 if pattern == 'Accelerating Decline' else 75 if consecutive >= 3 else 65
+            
+            opportunities.append({
+                'id': str(uuid.uuid4()),
+                'organization_id': organization_id,
+                'detected_at': datetime.utcnow().isoformat(),
+                'category': 'declining_performer',
+                'type': pattern.lower().replace(' ', '_'),
+                'priority': priority,
+                'status': 'new',
+                'entity_id': entity_id,
+                'entity_type': entity_type,
+                'title': f"📉 Declining: {entity_id} ({pattern})",
+                'description': f"{consecutive} consecutive months declining. {pattern}. Sessions: {month_1:,.0f} → {current:,.0f} ({mom:+.1f}% MoM)",
+                'evidence': {
+                    'monthly_trend': monthly_trend,
+                    'current_sessions': current,
+                    'month_1_ago': month_1,
+                    'mom_change_pct': mom,
+                    'consecutive_declining': consecutive,
+                    'decline_pattern': pattern
+                },
+                'metrics': {
+                    'current_sessions': current,
+                    'previous_month': month_1,
+                    'mom_change': mom,
+                    'pattern': pattern
+                },
+                'hypothesis': f"{pattern} over {consecutive} months. " + 
+                             (f"URGENT: Decline is getting faster - immediate intervention needed!" if pattern == 'Accelerating Decline'
+                              else f"Rate of decline is slowing - may stabilize soon." if pattern == 'Decelerating Decline'
+                              else f"Steady decline suggests systematic issue."),
+                'confidence_score': min(0.95, 0.75 + (consecutive * 0.08)),
+                'potential_impact_score': min(100, abs(mom) * 2),
+                'urgency_score': urgency,
+                'recommended_actions': [
+                    f"PATTERN: {pattern} over {consecutive} months",
+                    'Investigate root cause of decline',
+                    'Check for recent changes or external factors',
+                    'Analyze competitor improvements',
+                    'Review traffic sources and quality',
+                    'Consider content refresh or technical audit',
+                    'Act quickly before further deterioration' if pattern == 'Accelerating Decline' else 'Monitor for stabilization' if pattern == 'Decelerating Decline' else 'Address systematic issues'
+                ],
+                'estimated_effort': 'medium',
+                'estimated_timeline': '2-3 weeks',
+                'historical_performance': {},
+                'comparison_data': {
+                    'timeframes': monthly_trend
+                },
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            })
+        
+        logger.info(f"✅ Found {len(opportunities)} declining performer (multi-timeframe) opportunities")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in declining_performers_multitimeframe detector: {e}")
+    
+    return opportunities
+
+
+def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
+    """
+    Enhanced Paid Campaign Analysis with Monthly Spend & ROAS Trends
+    Detects: Campaign efficiency trends over time
+    """
+    logger.info("🔍 Running Paid Campaigns (Multi-Timeframe) detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH monthly_campaigns AS (
+      SELECT 
+        canonical_entity_id,
+        year_month,
+        cost,
+        revenue,
+        conversions,
+        avg_roas,
+        avg_cpa,
+        LAG(avg_roas, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_roas,
+        LAG(avg_roas, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_roas,
+        LAG(avg_cpa, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_cpa,
+        MAX(avg_roas) OVER (PARTITION BY canonical_entity_id) as best_roas_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'campaign'
+        AND cost > 0
+    ),
+    
+    current AS (
+      SELECT 
+        canonical_entity_id,
+        cost,
+        revenue,
+        conversions,
+        avg_roas as current_roas,
+        avg_cpa as current_cpa,
+        month_1_ago_roas,
+        month_2_ago_roas,
+        month_1_ago_cpa,
+        best_roas_ever,
+        
+        -- ROAS trend
+        CASE 
+          WHEN avg_roas < month_1_ago_roas AND month_1_ago_roas < month_2_ago_roas THEN 'Deteriorating'
+          WHEN avg_roas > month_1_ago_roas AND month_1_ago_roas > month_2_ago_roas THEN 'Improving'
+          WHEN avg_roas < month_1_ago_roas THEN 'Declining'
+          WHEN avg_roas > month_1_ago_roas THEN 'Recovering'
+          ELSE 'Stable'
+        END as efficiency_trend,
+        
+        SAFE_DIVIDE(avg_roas - month_1_ago_roas, month_1_ago_roas) * 100 as mom_roas_change
+        
+      FROM monthly_campaigns
+      WHERE year_month = (SELECT MAX(year_month) FROM monthly_campaigns)
+        AND cost > 100  -- Meaningful spend
+    )
+    
+    SELECT *
+    FROM current
+    WHERE (
+      current_roas < 2.0  -- Below efficiency threshold
+      OR efficiency_trend = 'Deteriorating'  -- Getting worse
+      OR (efficiency_trend = 'Declining' AND current_roas < 3.0)  -- Recently declined
+    )
+    ORDER BY 
+      CASE 
+        WHEN efficiency_trend = 'Deteriorating' THEN 1
+        WHEN current_roas < 1.0 THEN 2
+        ELSE 3
+      END,
+      cost DESC
+    LIMIT 15
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        results = bq_client.query(query, job_config=job_config).result()
+        
+        for row in results:
+            entity_id = row['canonical_entity_id']
+            roas = row['current_roas'] or 0
+            cpa = row['current_cpa'] or 0
+            cost = row['cost']
+            trend = row['efficiency_trend']
+            mom_roas = row['mom_roas_change'] or 0
+            
+            is_deteriorating = trend == 'Deteriorating'
+            priority = 'high' if is_deteriorating or roas < 1.0 else 'medium'
+            
+            opportunities.append({
+                'id': str(uuid.uuid4()),
+                'organization_id': organization_id,
+                'detected_at': datetime.utcnow().isoformat(),
+                'category': 'cost_inefficiency',
+                'type': f'poor_roas_{trend.lower()}',
+                'priority': priority,
+                'status': 'new',
+                'entity_id': entity_id,
+                'entity_type': 'campaign',
+                'title': f"💸 Campaign Efficiency ({trend}): {entity_id}",
+                'description': f"ROAS {roas:.2f}x ({mom_roas:+.1f}% MoM), CPA ${cpa:.0f}. Trend: {trend}. {'URGENT - efficiency getting worse!' if is_deteriorating else 'Below target efficiency.'}",
+                'evidence': {
+                    'current_roas': roas,
+                    'current_cpa': cpa,
+                    'cost': cost,
+                    'revenue': row['revenue'],
+                    'efficiency_trend': trend,
+                    'mom_roas_change': mom_roas,
+                    'month_1_ago_roas': row['month_1_ago_roas'],
+                    'best_roas_ever': row['best_roas_ever']
+                },
+                'metrics': {
+                    'current_roas': roas,
+                    'current_cpa': cpa,
+                    'current_cost': cost,
+                    'trend': trend
+                },
+                'hypothesis': f"{'Campaign efficiency deteriorating monthly - getting worse over time. Cut losses or fix immediately.' if is_deteriorating else 'Campaign below efficiency threshold. Consider pausing or optimizing.' if roas < 1.0 else 'Campaign efficiency declining. Intervention may prevent further deterioration.'}",
+                'confidence_score': 0.90 if is_deteriorating else 0.80,
+                'potential_impact_score': min(100, cost / 10),
+                'urgency_score': 95 if is_deteriorating else 85 if roas < 1.0 else 70,
+                'recommended_actions': [
+                    f"TREND: Efficiency {trend.lower()} - {'immediate action required!' if is_deteriorating else 'needs optimization'}",
+                    'Pause campaign to stop losses' if roas < 1.0 else 'Optimize targeting and keywords',
+                    'Audit targeting, keywords, and landing pages',
+                    'Compare to better-performing campaigns',
+                    'Check conversion tracking accuracy',
+                    'Test different audiences or ad creative',
+                    'Consider reallocating budget to winners'
+                ],
+                'estimated_effort': 'low',
+                'estimated_timeline': 'immediate',
+                'historical_performance': {
+                    'best_roas_ever': row['best_roas_ever']
+                },
+                'comparison_data': {},
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            })
+        
+        logger.info(f"✅ Found {len(opportunities)} paid campaign (multi-timeframe) opportunities")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in paid_campaigns_multitimeframe detector: {e}")
+    
+    return opportunities
+

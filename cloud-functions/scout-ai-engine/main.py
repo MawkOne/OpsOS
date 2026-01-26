@@ -35,7 +35,10 @@ from monthly_trend_detectors import (
     detect_content_decay_multitimeframe,
     detect_revenue_trends_multitimeframe,
     detect_email_trends_multitimeframe,
-    detect_seo_rank_trends_multitimeframe
+    detect_seo_rank_trends_multitimeframe,
+    detect_scale_winners_multitimeframe,
+    detect_declining_performers_multitimeframe,
+    detect_paid_campaigns_multitimeframe
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -614,6 +617,9 @@ def run_scout_ai(request):
         all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
         all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
         all_opportunities.extend(detect_seo_rank_trends_multitimeframe(organization_id))
+        all_opportunities.extend(detect_scale_winners_multitimeframe(organization_id))
+        all_opportunities.extend(detect_declining_performers_multitimeframe(organization_id))
+        all_opportunities.extend(detect_paid_campaigns_multitimeframe(organization_id))
         
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
