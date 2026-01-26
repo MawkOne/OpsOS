@@ -462,6 +462,32 @@ def write_opportunities_to_firestore(opportunities: list):
         return
     
     try:
+        # First, delete all existing opportunities for this organization
+        org_id = opportunities[0]['organization_id'] if opportunities else None
+        if org_id:
+            logger.info(f"🗑️  Clearing old opportunities for org: {org_id}")
+            old_docs = db.collection('opportunities').where('organization_id', '==', org_id).stream()
+            
+            delete_batch = db.batch()
+            delete_count = 0
+            batch_count = 0
+            
+            for doc in old_docs:
+                delete_batch.delete(doc.reference)
+                batch_count += 1
+                delete_count += 1
+                
+                if batch_count >= 500:
+                    delete_batch.commit()
+                    delete_batch = db.batch()
+                    batch_count = 0
+            
+            if batch_count > 0:
+                delete_batch.commit()
+            
+            logger.info(f"✅ Deleted {delete_count} old opportunities")
+        
+        # Now write new opportunities
         # Firestore batch can only handle 500 operations
         # Write in batches of 400 to be safe
         batch_size = 400
