@@ -639,27 +639,31 @@ def run_scout_ai(request):
     try:
         all_opportunities = []
         
-        # Run all detectors (original 7)
-        all_opportunities.extend(detect_scale_winners(organization_id))
-        all_opportunities.extend(detect_fix_losers(organization_id))
-        all_opportunities.extend(detect_declining_performers(organization_id))
-        all_opportunities.extend(detect_cross_channel_gaps(organization_id))
-        all_opportunities.extend(detect_keyword_cannibalization(organization_id))
-        all_opportunities.extend(detect_cost_inefficiency(organization_id))
-        all_opportunities.extend(detect_email_engagement_drop(organization_id))
+        # OLD DETECTORS DISABLED - They don't respect is_active filter
+        # Multi-timeframe detectors provide better analysis and DO respect filters
+        # TODO: Add is_active filter to old detectors if we want to re-enable them
         
-        # Run Phase 2A detectors (the "Free 9")
-        all_opportunities.extend(detect_revenue_anomaly(organization_id))
-        all_opportunities.extend(detect_metric_anomalies(organization_id))
-        all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
-        all_opportunities.extend(detect_page_engagement_decay(organization_id))
-        all_opportunities.extend(detect_seo_striking_distance(organization_id))
-        all_opportunities.extend(detect_seo_rank_drops(organization_id))
-        all_opportunities.extend(detect_paid_waste(organization_id))
-        all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
-        all_opportunities.extend(detect_content_decay(organization_id))
+        # # Run all detectors (original 7) - DISABLED
+        # all_opportunities.extend(detect_scale_winners(organization_id))
+        # all_opportunities.extend(detect_fix_losers(organization_id))
+        # all_opportunities.extend(detect_declining_performers(organization_id))
+        # all_opportunities.extend(detect_cross_channel_gaps(organization_id))
+        # all_opportunities.extend(detect_keyword_cannibalization(organization_id))
+        # all_opportunities.extend(detect_cost_inefficiency(organization_id))
+        # all_opportunities.extend(detect_email_engagement_drop(organization_id))
         
-        # Run Multi-Timeframe detectors with monthly trends
+        # # Run Phase 2A detectors (the "Free 9") - DISABLED
+        # all_opportunities.extend(detect_revenue_anomaly(organization_id))
+        # all_opportunities.extend(detect_metric_anomalies(organization_id))
+        # all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
+        # all_opportunities.extend(detect_page_engagement_decay(organization_id))
+        # all_opportunities.extend(detect_seo_striking_distance(organization_id))
+        # all_opportunities.extend(detect_seo_rank_drops(organization_id))
+        # all_opportunities.extend(detect_paid_waste(organization_id))
+        # all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
+        # all_opportunities.extend(detect_content_decay(organization_id))
+        
+        # Run Multi-Timeframe detectors with monthly trends (THESE HAVE is_active FILTER)
         all_opportunities.extend(detect_content_decay_multitimeframe(organization_id))
         all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
         all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
