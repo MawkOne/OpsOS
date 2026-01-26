@@ -8,20 +8,20 @@ import { TrendingUp, TrendingDown, Activity, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 export default function TrendAnalysisPage() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentOrganization?.id) {
+    if (currentOrg?.id) {
       fetchData();
     }
-  }, [currentOrganization]);
+  }, [currentOrg]);
 
   async function fetchData() {
     try {
       const response = await fetch(
-        `/api/opportunities?organizationId=${currentOrganization?.id}&limit=100`
+        `/api/opportunities?organizationId=${currentOrg?.id}&limit=100`
       );
       const data = await response.json();
 

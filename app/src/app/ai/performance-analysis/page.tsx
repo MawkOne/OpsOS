@@ -7,13 +7,13 @@ import { Activity } from "lucide-react";
 import Link from "next/link";
 
 export default function performanceanalysisPage() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentOrganization?.id) {
-      fetch(`/api/opportunities?organizationId=${currentOrganization.id}&limit=100`)
+    if (currentOrg?.id) {
+      fetch(`/api/opportunities?organizationId=${currentOrg.id}&limit=100`)
         .then((res) => res.json())
         .then((data) => {
           setOpportunities(data.opportunities || []);
@@ -21,7 +21,7 @@ export default function performanceanalysisPage() {
         })
         .catch(() => setLoading(false));
     }
-  }, [currentOrganization]);
+  }, [currentOrg]);
 
   return (
     <AppLayout

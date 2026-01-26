@@ -23,21 +23,21 @@ interface Opportunity {
 
 export default function AnomalyDetectionPage() {
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, high: 0, critical: 0 });
 
   useEffect(() => {
-    if (currentOrganization?.id) {
+    if (currentOrg?.id) {
       fetchAnomalies();
     }
-  }, [currentOrganization]);
+  }, [currentOrg]);
 
   async function fetchAnomalies() {
     try {
       const response = await fetch(
-        `/api/opportunities?organizationId=${currentOrganization?.id}&limit=100`
+        `/api/opportunities?organizationId=${currentOrg?.id}&limit=100`
       );
       const data = await response.json();
 
