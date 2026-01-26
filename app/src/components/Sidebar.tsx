@@ -127,19 +127,42 @@ const navigationByModule: Record<Module, NavSection[]> = {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: "New" },
+        { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: "104" },
       ],
     },
     {
-      title: "Marketing AI",
+      title: "Detection & Patterns",
       items: [
-        { label: "Overview", href: "/ai/marketing-insights", icon: <Lightbulb className="w-4 h-4" /> },
-        { label: "SEO Expert", href: "/ai/marketing-insights/seo", icon: <Search className="w-4 h-4" /> },
-        { label: "Email Expert", href: "/ai/marketing-insights/email", icon: <Mail className="w-4 h-4" /> },
-        { label: "Ads Expert", href: "/ai/marketing-insights/ads", icon: <Megaphone className="w-4 h-4" /> },
-        { label: "Pages Expert", href: "/ai/marketing-insights/pages", icon: <Activity className="w-4 h-4" /> },
-        { label: "Content Expert", href: "/ai/marketing-insights/content", icon: <Layers className="w-4 h-4" /> },
-        { label: "Social Expert", href: "/ai/marketing-insights/social", icon: <Users className="w-4 h-4" /> },
+        { label: "Anomaly Detection", href: "/ai/anomaly-detection", icon: <Activity className="w-4 h-4" /> },
+        { label: "Trend Analysis", href: "/ai/trend-analysis", icon: <TrendingUp className="w-4 h-4" /> },
+        { label: "Pattern Classification", href: "/ai/pattern-classification", icon: <Layers className="w-4 h-4" /> },
+        { label: "Lookback Analysis", href: "/ai/lookback-analysis", icon: <BarChart3 className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Performance & Efficiency",
+      items: [
+        { label: "Performance Analysis", href: "/ai/performance-analysis", icon: <Zap className="w-4 h-4" /> },
+        { label: "Efficiency Analysis", href: "/ai/efficiency-analysis", icon: <Percent className="w-4 h-4" /> },
+        { label: "Confidence Scoring", href: "/ai/confidence-scoring", icon: <Check className="w-4 h-4" /> },
+        { label: "Volatility Analysis", href: "/ai/volatility-analysis", icon: <Activity className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Channel Intelligence",
+      items: [
+        { label: "Cross-Channel", href: "/ai/cross-channel-analysis", icon: <Network className="w-4 h-4" /> },
+        { label: "Content Analysis", href: "/ai/content-analysis", icon: <Lightbulb className="w-4 h-4" /> },
+        { label: "SEO Analysis", href: "/ai/seo-analysis", icon: <Search className="w-4 h-4" /> },
+        { label: "Email Analysis", href: "/ai/email-analysis", icon: <Mail className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "Business Metrics",
+      items: [
+        { label: "Revenue Analysis", href: "/ai/revenue-analysis", icon: <DollarSign className="w-4 h-4" /> },
+        { label: "Funnel Analysis", href: "/ai/funnel-analysis", icon: <Users className="w-4 h-4" /> },
+        { label: "Historical Analysis", href: "/ai/historical-analysis", icon: <BarChart3 className="w-4 h-4" /> },
       ],
     },
   ],
