@@ -17,7 +17,17 @@ from detectors import (
     detect_cross_channel_gaps,
     detect_keyword_cannibalization,
     detect_cost_inefficiency,
-    detect_email_engagement_drop
+    detect_email_engagement_drop,
+    # Phase 2A: The "Free 9"
+    detect_revenue_anomaly,
+    detect_metric_anomalies,
+    detect_high_traffic_low_conversion_pages,
+    detect_page_engagement_decay,
+    detect_seo_striking_distance,
+    detect_seo_rank_drops,
+    detect_paid_waste,
+    detect_email_high_opens_low_clicks,
+    detect_content_decay
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -571,7 +581,7 @@ def run_scout_ai(request):
     try:
         all_opportunities = []
         
-        # Run all detectors
+        # Run all detectors (original 7)
         all_opportunities.extend(detect_scale_winners(organization_id))
         all_opportunities.extend(detect_fix_losers(organization_id))
         all_opportunities.extend(detect_declining_performers(organization_id))
@@ -579,6 +589,17 @@ def run_scout_ai(request):
         all_opportunities.extend(detect_keyword_cannibalization(organization_id))
         all_opportunities.extend(detect_cost_inefficiency(organization_id))
         all_opportunities.extend(detect_email_engagement_drop(organization_id))
+        
+        # Run Phase 2A detectors (the "Free 9")
+        all_opportunities.extend(detect_revenue_anomaly(organization_id))
+        all_opportunities.extend(detect_metric_anomalies(organization_id))
+        all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
+        all_opportunities.extend(detect_page_engagement_decay(organization_id))
+        all_opportunities.extend(detect_seo_striking_distance(organization_id))
+        all_opportunities.extend(detect_seo_rank_drops(organization_id))
+        all_opportunities.extend(detect_paid_waste(organization_id))
+        all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
+        all_opportunities.extend(detect_content_decay(organization_id))
         
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
@@ -599,9 +620,14 @@ def run_scout_ai(request):
                 'fix_losers': len([o for o in all_opportunities if o['category'] == 'fix_loser']),
                 'declining_performers': len([o for o in all_opportunities if o['category'] == 'declining_performer']),
                 'cross_channel': len([o for o in all_opportunities if o['category'] == 'cross_channel']),
-                'seo_issues': len([o for o in all_opportunities if o['category'] == 'seo_issue']),
+                'seo_issues': len([o for o in all_opportunities if o['category'] in ['seo_issue', 'seo_opportunity']]),
                 'cost_inefficiency': len([o for o in all_opportunities if o['category'] == 'cost_inefficiency']),
-                'email_issues': len([o for o in all_opportunities if o['category'] == 'email_issue'])
+                'email_issues': len([o for o in all_opportunities if o['category'] in ['email_issue', 'email_optimization']]),
+                'paid_waste': len([o for o in all_opportunities if o['category'] == 'paid_waste']),
+                'revenue_anomalies': len([o for o in all_opportunities if o['category'] == 'revenue_anomaly']),
+                'anomalies': len([o for o in all_opportunities if o['category'] == 'anomaly']),
+                'page_optimization': len([o for o in all_opportunities if o['category'] == 'page_optimization']),
+                'content_decay': len([o for o in all_opportunities if o['category'] == 'content_decay'])
             }
         }, 200
         

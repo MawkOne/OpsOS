@@ -21,6 +21,7 @@ bq_client = bigquery.Client()
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 TABLE_ID = "daily_entity_metrics"
+ETL_LOG_TABLE = "etl_run_log"
 
 
 def get_entity_mapping(organization_id: str) -> Dict[str, Dict]:
@@ -416,6 +417,46 @@ def process_activecampaign_emails(organization_id: str, start_date: datetime, en
     return metrics
 
 
+def log_etl_run(organization_id: str, source: str, status: str, row_count: int, start_date: str, end_date: str, error_message: str = None):
+    """Log ETL run metadata to BigQuery for monitoring"""
+    try:
+        log_entry = {
+            'organization_id': organization_id,
+            'source': source,
+            'status': status,  # 'success', 'partial', 'failed'
+            'row_count': row_count,
+            'start_date': start_date,
+            'end_date': end_date,
+            'run_timestamp': datetime.utcnow().isoformat(),
+            'error_message': error_message
+        }
+        
+        table_ref = f"{PROJECT_ID}.{DATASET_ID}.{ETL_LOG_TABLE}"
+        
+        job_config = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            schema=[
+                bigquery.SchemaField("organization_id", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("source", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("row_count", "INT64", mode="REQUIRED"),
+                bigquery.SchemaField("start_date", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("end_date", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("run_timestamp", "TIMESTAMP", mode="REQUIRED"),
+                bigquery.SchemaField("error_message", "STRING", mode="NULLABLE"),
+            ]
+        )
+        
+        job = bq_client.load_table_from_json([log_entry], table_ref, job_config=job_config)
+        job.result()
+        
+        logger.info(f"✅ Logged ETL run for {source}: {status}, {row_count} rows")
+        
+    except Exception as e:
+        logger.error(f"❌ Error logging ETL run: {e}")
+        # Don't raise - logging failures shouldn't break the ETL
+
+
 def write_to_bigquery(metrics: List[Dict]):
     """Write daily metrics to BigQuery"""
     if not metrics:
@@ -513,14 +554,69 @@ def run_daily_rollup(request):
         # Load entity mappings
         entity_map = get_entity_mapping(organization_id)
         
-        # Process each source
+        # Process each source with logging
         all_metrics = []
+        sources_processed = {}
         
-        all_metrics.extend(process_ga_pages(organization_id, start_date, end_date, entity_map))
-        all_metrics.extend(process_ga_campaigns(organization_id, start_date, end_date, entity_map))
-        all_metrics.extend(process_dataforseo_keywords(organization_id, start_date, end_date, entity_map))
-        all_metrics.extend(process_stripe_products(organization_id, start_date, end_date, entity_map))
-        all_metrics.extend(process_activecampaign_emails(organization_id, start_date, end_date, entity_map))
+        # GA4 Pages
+        try:
+            pages_metrics = process_ga_pages(organization_id, start_date, end_date, entity_map)
+            all_metrics.extend(pages_metrics)
+            sources_processed['ga4_pages'] = len(pages_metrics)
+            log_etl_run(organization_id, 'ga4_pages', 'success', len(pages_metrics), 
+                       start_date.date().isoformat(), end_date.date().isoformat())
+        except Exception as e:
+            logger.error(f"Error processing GA4 pages: {e}")
+            log_etl_run(organization_id, 'ga4_pages', 'failed', 0, 
+                       start_date.date().isoformat(), end_date.date().isoformat(), str(e))
+        
+        # GA4 Campaigns
+        try:
+            campaigns_metrics = process_ga_campaigns(organization_id, start_date, end_date, entity_map)
+            all_metrics.extend(campaigns_metrics)
+            sources_processed['ga4_campaigns'] = len(campaigns_metrics)
+            log_etl_run(organization_id, 'ga4_campaigns', 'success', len(campaigns_metrics),
+                       start_date.date().isoformat(), end_date.date().isoformat())
+        except Exception as e:
+            logger.error(f"Error processing GA4 campaigns: {e}")
+            log_etl_run(organization_id, 'ga4_campaigns', 'failed', 0,
+                       start_date.date().isoformat(), end_date.date().isoformat(), str(e))
+        
+        # DataForSEO Keywords
+        try:
+            keywords_metrics = process_dataforseo_keywords(organization_id, start_date, end_date, entity_map)
+            all_metrics.extend(keywords_metrics)
+            sources_processed['dataforseo'] = len(keywords_metrics)
+            log_etl_run(organization_id, 'dataforseo', 'success', len(keywords_metrics),
+                       start_date.date().isoformat(), end_date.date().isoformat())
+        except Exception as e:
+            logger.error(f"Error processing DataForSEO keywords: {e}")
+            log_etl_run(organization_id, 'dataforseo', 'failed', 0,
+                       start_date.date().isoformat(), end_date.date().isoformat(), str(e))
+        
+        # Stripe Products
+        try:
+            products_metrics = process_stripe_products(organization_id, start_date, end_date, entity_map)
+            all_metrics.extend(products_metrics)
+            sources_processed['stripe'] = len(products_metrics)
+            log_etl_run(organization_id, 'stripe', 'success', len(products_metrics),
+                       start_date.date().isoformat(), end_date.date().isoformat())
+        except Exception as e:
+            logger.error(f"Error processing Stripe products: {e}")
+            log_etl_run(organization_id, 'stripe', 'failed', 0,
+                       start_date.date().isoformat(), end_date.date().isoformat(), str(e))
+        
+        # ActiveCampaign Emails
+        try:
+            emails_metrics = process_activecampaign_emails(organization_id, start_date, end_date, entity_map)
+            all_metrics.extend(emails_metrics)
+            sources_processed['activecampaign'] = len(emails_metrics)
+            log_etl_run(organization_id, 'activecampaign', 'success', len(emails_metrics),
+                       start_date.date().isoformat(), end_date.date().isoformat())
+        except Exception as e:
+            logger.error(f"Error processing ActiveCampaign emails: {e}")
+            log_etl_run(organization_id, 'activecampaign', 'failed', 0,
+                       start_date.date().isoformat(), end_date.date().isoformat(), str(e))
         
         # Write to BigQuery
         write_to_bigquery(all_metrics)
@@ -533,6 +629,7 @@ def run_daily_rollup(request):
             'start_date': start_date.date().isoformat(),
             'end_date': end_date.date().isoformat(),
             'total_metrics': len(all_metrics),
+            'sources_processed': sources_processed,
             'breakdown': {
                 'pages': len([m for m in all_metrics if m['entity_type'] == 'page']),
                 'campaigns': len([m for m in all_metrics if m['entity_type'] == 'campaign']),
