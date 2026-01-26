@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -121,13 +121,14 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 // Define the order for module selector dropdown
 const moduleOrder: Module[] = ["ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
 
-const navigationByModule: Record<Module, NavSection[]> = {
+// Create navigation function to make it dynamic
+const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> => ({
   ai: [
     {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: "104" },
+        { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
       ],
     },
     {
@@ -313,7 +314,7 @@ const navigationByModule: Record<Module, NavSection[]> = {
       ],
     },
   ],
-};
+});
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -321,6 +322,19 @@ export default function Sidebar() {
   const { organizations, currentOrg, switchOrganization } = useOrganization();
   const [moduleMenuOpen, setModuleMenuOpen] = useState(false);
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
+  const [opportunityCount, setOpportunityCount] = useState<number>(0);
+
+  // Fetch opportunity count
+  useEffect(() => {
+    if (currentOrg?.id) {
+      fetch(`/api/opportunities?organizationId=${currentOrg.id}&limit=1000`)
+        .then(res => res.json())
+        .then(data => {
+          setOpportunityCount(data.opportunities?.length || 0);
+        })
+        .catch(err => console.error('Error fetching opportunity count:', err));
+    }
+  }, [currentOrg?.id]);
 
   // Determine current module from URL path
   const getCurrentModule = (): Module => {
@@ -356,6 +370,7 @@ export default function Sidebar() {
     router.refresh();
   };
 
+  const navigationByModule = getNavigationByModule(opportunityCount);
   const navigation = navigationByModule[currentModule];
   const currentModuleConfig = moduleConfig[currentModule];
 
