@@ -28,18 +28,21 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_trends AS (
       SELECT 
-        canonical_entity_id,
-        year_month,
-        sessions,
-        mom_change_pct,
-        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago,
-        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago,
-        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago,
-        MAX(sessions) OVER (PARTITION BY canonical_entity_id) as all_time_peak
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type = 'page'
-      ORDER BY canonical_entity_id, year_month
+        m.canonical_entity_id,
+        m.year_month,
+        m.sessions,
+        m.mom_change_pct,
+        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago,
+        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago,
+        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago,
+        MAX(m.sessions) OVER (PARTITION BY m.canonical_entity_id) as all_time_peak
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type = 'page'
+      ORDER BY m.canonical_entity_id, m.year_month
     ),
     
     current_month AS (
@@ -224,14 +227,17 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_revenue AS (
       SELECT 
-        year_month,
-        SUM(revenue) as total_revenue,
-        SUM(conversions) as total_conversions,
-        SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-      GROUP BY year_month
-      ORDER BY year_month
+        m.year_month,
+        SUM(m.revenue) as total_revenue,
+        SUM(m.conversions) as total_conversions,
+        SUM(m.cost) as total_cost
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+      GROUP BY m.year_month
+      ORDER BY m.year_month
     ),
     
     with_trends AS (
@@ -407,21 +413,24 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_email AS (
       SELECT 
-        canonical_entity_id,
-        year_month,
-        sends,
-        opens,
-        open_rate,
-        click_through_rate,
-        LAG(open_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_open_rate,
-        LAG(open_rate, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_open_rate,
-        LAG(click_through_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_ctr,
-        MAX(open_rate) OVER (PARTITION BY canonical_entity_id) as best_open_rate,
-        MIN(open_rate) OVER (PARTITION BY canonical_entity_id) as worst_open_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type = 'email'
-        AND sends > 0
+        m.canonical_entity_id,
+        m.year_month,
+        m.sends,
+        m.opens,
+        m.open_rate,
+        m.click_through_rate,
+        LAG(m.open_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_open_rate,
+        LAG(m.open_rate, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_open_rate,
+        LAG(m.click_through_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_ctr,
+        MAX(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as best_open_rate,
+        MIN(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as worst_open_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type = 'email'
+        AND m.sends > 0
     ),
     
     current AS (
@@ -563,19 +572,22 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_ranks AS (
       SELECT 
-        canonical_entity_id,
-        year_month,
-        avg_position,
-        avg_search_volume,
-        LAG(avg_position, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_position,
-        LAG(avg_position, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_position,
-        LAG(avg_position, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago_position,
-        MIN(avg_position) OVER (PARTITION BY canonical_entity_id) as best_position_ever,
-        MAX(avg_position) OVER (PARTITION BY canonical_entity_id) as worst_position_ever
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type = 'keyword'
-        AND avg_position IS NOT NULL
+        m.canonical_entity_id,
+        m.year_month,
+        m.avg_position,
+        m.avg_search_volume,
+        LAG(m.avg_position, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_position,
+        LAG(m.avg_position, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_position,
+        LAG(m.avg_position, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago_position,
+        MIN(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as best_position_ever,
+        MAX(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as worst_position_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type = 'keyword'
+        AND m.avg_position IS NOT NULL
     ),
     
     current AS (
@@ -748,21 +760,24 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
-        year_month,
-        conversion_rate,
-        sessions,
-        revenue,
-        LAG(conversion_rate, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_cvr,
-        LAG(conversion_rate, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago_cvr,
-        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_sessions,
-        MAX(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as best_cvr_ever,
-        STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) / AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as cvr_volatility
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type IN ('page', 'campaign')
-        AND sessions > 10
+        m.canonical_entity_id,
+        m.entity_type,
+        m.year_month,
+        m.conversion_rate,
+        m.sessions,
+        m.revenue,
+        LAG(m.conversion_rate, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_cvr,
+        LAG(m.conversion_rate, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago_cvr,
+        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_sessions,
+        MAX(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as best_cvr_ever,
+        STDDEV(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) / AVG(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as cvr_volatility
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type IN ('page', 'campaign')
+        AND m.sessions > 10
     ),
     
     current_month AS (
@@ -920,18 +935,21 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
-        year_month,
-        sessions,
-        revenue,
-        conversions,
-        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago,
-        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago,
-        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_3_ago
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type IN ('page', 'campaign')
+        m.canonical_entity_id,
+        m.entity_type,
+        m.year_month,
+        m.sessions,
+        m.revenue,
+        m.conversions,
+        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago,
+        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago,
+        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_3_ago
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type IN ('page', 'campaign')
     ),
     
     current AS (
@@ -1090,20 +1108,23 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_campaigns AS (
       SELECT 
-        canonical_entity_id,
-        year_month,
-        cost,
-        revenue,
-        conversions,
-        avg_roas,
-        avg_cpa,
-        LAG(avg_roas, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_roas,
-        LAG(avg_roas, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_roas,
-        LAG(avg_cpa, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_cpa,
-        MAX(avg_roas) OVER (PARTITION BY canonical_entity_id) as best_roas_ever
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-      WHERE organization_id = @org_id
-        AND entity_type = 'campaign'
+        m.canonical_entity_id,
+        m.year_month,
+        m.cost,
+        m.revenue,
+        m.conversions,
+        m.avg_roas,
+        m.avg_cpa,
+        LAG(m.avg_roas, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_roas,
+        LAG(m.avg_roas, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_roas,
+        LAG(m.avg_cpa, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_cpa,
+        MAX(m.avg_roas) OVER (PARTITION BY m.canonical_entity_id) as best_roas_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.entity_type = 'campaign'
         AND cost > 0
     ),
     
