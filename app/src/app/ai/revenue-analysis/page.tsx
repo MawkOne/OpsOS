@@ -1,70 +1,134 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
+import Card from "@/components/Card";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 import Link from "next/link";
 
-export default function revenueanalysisPage() {
+export default function RevenueAnalysisPage() {
   const { currentOrg } = useOrganization();
-  const [opportunities, setOpportunities] = useState([]);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (currentOrg?.id) {
-      fetch(`/api/opportunities?organizationId=${currentOrg.id}&limit=100`)
-        .then((res) => res.json())
-        .then((data) => {
-          setOpportunities(data.opportunities || []);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+      fetchData();
     }
   }, [currentOrg]);
+
+  async function fetchData() {
+    try {
+      const response = await fetch(
+        `/api/opportunities?organizationId=${currentOrg?.id}&limit=100`
+      );
+      const data = await response.json();
+
+      // Filter opportunities
+      const filtered = data.opportunities?.filter(
+        (opp: any) => opp.category === "revenue_anomaly" || opp.description?.toLowerCase().includes("revenue") || opp.description?.toLowerCase().includes("mrr")
+      ) || [];
+
+      setOpportunities(filtered);
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    const colors = {
+      high: "bg-red-500/10 text-red-400 border-red-500/20",
+      medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+      low: "bg-blue-500/10 text-blue-400 border-blue-500/20"
+    };
+    return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+  };
 
   return (
     <AppLayout
       title="Revenue Analysis"
-      subtitle="Intelligent analysis for Revenue Analysis insights"
+      subtitle="Revenue patterns, MRR trends, and AOV optimization"
     >
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">All Opportunities</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Showing {opportunities.length} opportunities
+      {/* What This Detects */}
+      <Card className="glass mb-8">
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>What Revenue Analysis Finds</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
+            <div>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Revenue Patterns</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Monthly revenue trends and anomalies</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
+            <div>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>MRR Trends</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Monthly recurring revenue changes</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
+            <div>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>AOV Optimization</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Average order value improvements</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
+            <div>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Revenue Acceleration</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Growing revenue momentum</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Opportunities */}
+      <Card className="glass">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>Opportunities</h2>
+          <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+            {opportunities.length} opportunities found
           </p>
         </div>
 
-        <div className="divide-y divide-gray-200">
+        <div className="space-y-4">
           {loading ? (
-            <div className="p-12 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+            <div className="py-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: "var(--accent)" }}></div>
             </div>
           ) : opportunities.length === 0 ? (
-            <div className="p-12 text-center">
-              <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600">No opportunities found</p>
+            <div className="py-12 text-center">
+              <Activity className="w-16 h-16 mx-auto mb-4" style={{ color: "var(--foreground-subtle)" }} />
+              <p style={{ color: "var(--foreground-muted)" }}>No opportunities found</p>
             </div>
           ) : (
             opportunities.map((opp: any) => (
               <Link
                 key={opp.id}
                 href={`/ai/opportunities?id=${opp.id}`}
-                className="block p-6 hover:bg-gray-50 transition-colors"
+                className="block p-6 rounded-lg transition-all border hover:border-[var(--accent)]"
+                style={{
+                  background: "var(--background-secondary)",
+                  borderColor: "var(--border)"
+                }}
               >
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900">{opp.title}</h3>
-                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                  <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>{opp.title}</h3>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
                     {opp.priority}
                   </span>
                 </div>
-                <p className="text-gray-700 text-sm">{opp.description}</p>
+                <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>{opp.description}</p>
               </Link>
             ))
           )}
         </div>
-      </div>
+      </Card>
     </AppLayout>
   );
 }

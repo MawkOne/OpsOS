@@ -1,10 +1,11 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
+import Card from "@/components/Card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useEffect, useState } from "react";
-import { AlertTriangle, TrendingDown, TrendingUp, Activity, ChevronRight } from "lucide-react";
+import { AlertTriangle, TrendingDown, TrendingUp, Activity } from "lucide-react";
 import Link from "next/link";
 
 interface Opportunity {
@@ -68,99 +69,108 @@ export default function AnomalyDetectionPage() {
     }
   }
 
+  const getPriorityColor = (priority: string) => {
+    const colors = {
+      high: "bg-red-500/10 text-red-400 border-red-500/20",
+      medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+      low: "bg-blue-500/10 text-blue-400 border-blue-500/20"
+    };
+    return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+  };
+
   return (
     <AppLayout
       title="Anomaly Detection"
-      subtitle="Identifies sudden changes and unusual patterns in your metrics"
+      subtitle="Sudden changes and unusual patterns in your metrics"
     >
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+        <Card className="glass">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Anomalies</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Total Anomalies</p>
+              <p className="text-3xl font-bold mt-1" style={{ color: "var(--foreground)" }}>{stats.total}</p>
             </div>
-            <Activity className="w-12 h-12 text-blue-500 opacity-20" />
+            <Activity className="w-12 h-12" style={{ color: "var(--accent)", opacity: 0.2 }} />
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <Card className="glass">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">High Priority</p>
-              <p className="text-3xl font-bold text-orange-600 mt-1">{stats.high}</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>High Priority</p>
+              <p className="text-3xl font-bold text-orange-400 mt-1">{stats.high}</p>
             </div>
-            <AlertTriangle className="w-12 h-12 text-orange-500 opacity-20" />
+            <AlertTriangle className="w-12 h-12 text-orange-400" style={{ opacity: 0.2 }} />
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <Card className="glass">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Critical Urgency</p>
-              <p className="text-3xl font-bold text-red-600 mt-1">{stats.critical}</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Critical Urgency</p>
+              <p className="text-3xl font-bold text-red-400 mt-1">{stats.critical}</p>
             </div>
-            <AlertTriangle className="w-12 h-12 text-red-500 opacity-20" />
+            <AlertTriangle className="w-12 h-12 text-red-400" style={{ opacity: 0.2 }} />
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* What This Detects */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">What Anomaly Detection Finds</h2>
+      <Card className="glass mb-8">
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>What Anomaly Detection Finds</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-start gap-3">
-            <ChevronRight className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
             <div>
-              <p className="font-semibold text-gray-900">Revenue Anomalies</p>
-              <p className="text-sm text-gray-600">±20% deviations from 7d/28d baseline</p>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Revenue Anomalies</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>±20% deviations from 7d/28d baseline</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <ChevronRight className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
             <div>
-              <p className="font-semibold text-gray-900">Traffic Spikes/Drops</p>
-              <p className="text-sm text-gray-600">Sessions 40%+ above/below baseline</p>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Traffic Spikes/Drops</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Sessions 40%+ above/below baseline</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <ChevronRight className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
             <div>
-              <p className="font-semibold text-gray-900">Conversion Rate Changes</p>
-              <p className="text-sm text-gray-600">CVR 30%+ deviation from normal</p>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Conversion Rate Changes</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>CVR 30%+ deviation from normal</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <ChevronRight className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="w-2 h-2 rounded-full mt-2" style={{ background: "var(--accent)" }}></div>
             <div>
-              <p className="font-semibold text-gray-900">Cost Anomalies</p>
-              <p className="text-sm text-gray-600">Spend 50%+ deviation from expected</p>
+              <p className="font-semibold" style={{ color: "var(--foreground)" }}>Cost Anomalies</p>
+              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Spend 50%+ deviation from expected</p>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Opportunities List */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Detected Anomalies</h2>
-          <p className="text-sm text-gray-600 mt-1">
+      <Card className="glass">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>Detected Anomalies</h2>
+          <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
             Sudden changes flagged in the last 7 days
           </p>
         </div>
 
-        <div className="divide-y divide-gray-200">
+        <div className="space-y-4">
           {loading ? (
-            <div className="p-12 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-              <p className="text-gray-600 mt-4">Loading anomalies...</p>
+            <div className="py-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: "var(--accent)" }}></div>
+              <p className="mt-4" style={{ color: "var(--foreground-muted)" }}>Loading anomalies...</p>
             </div>
           ) : opportunities.length === 0 ? (
-            <div className="p-12 text-center">
-              <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg font-medium">No anomalies detected</p>
-              <p className="text-gray-500 text-sm mt-2">
+            <div className="py-12 text-center">
+              <Activity className="w-16 h-16 mx-auto mb-4" style={{ color: "var(--foreground-subtle)" }} />
+              <p className="text-lg font-medium" style={{ color: "var(--foreground-muted)" }}>No anomalies detected</p>
+              <p className="text-sm mt-2" style={{ color: "var(--foreground-subtle)" }}>
                 Your metrics are performing within normal ranges
               </p>
             </div>
@@ -169,53 +179,51 @@ export default function AnomalyDetectionPage() {
               <Link
                 key={opp.id}
                 href={`/ai/opportunities?id=${opp.id}`}
-                className="block p-6 hover:bg-gray-50 transition-colors"
+                className="block p-6 rounded-lg transition-all border"
+                style={{
+                  background: "var(--background-secondary)",
+                  borderColor: "var(--border)"
+                }}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     {opp.evidence?.delta_pct > 0 ? (
-                      <TrendingUp className="w-6 h-6 text-green-600" />
+                      <TrendingUp className="w-6 h-6 text-green-400" />
                     ) : (
-                      <TrendingDown className="w-6 h-6 text-red-600" />
+                      <TrendingDown className="w-6 h-6 text-red-400" />
                     )}
-                    <h3 className="font-semibold text-gray-900">{opp.title}</h3>
+                    <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>{opp.title}</h3>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        opp.priority === "high"
-                          ? "bg-red-100 text-red-700"
-                          : opp.priority === "medium"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
                       {opp.priority}
                     </span>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    <span className="px-3 py-1 rounded-full text-xs font-medium border" style={{
+                      background: "var(--accent-muted)",
+                      color: "var(--accent)",
+                      borderColor: "var(--accent)"
+                    }}>
                       {Math.round(opp.confidence_score * 100)}% conf
                     </span>
                   </div>
                 </div>
-                <p className="text-gray-700 mb-3">{opp.description}</p>
+                <p className="mb-3" style={{ color: "var(--foreground-muted)" }}>{opp.description}</p>
                 {opp.evidence && (
                   <div className="flex flex-wrap gap-4 text-sm">
                     {opp.evidence.current !== undefined && (
-                      <span className="text-gray-600">
+                      <span style={{ color: "var(--foreground-muted)" }}>
                         <strong>Current:</strong> {opp.evidence.current.toLocaleString()}
                       </span>
                     )}
                     {opp.evidence.baseline && (
-                      <span className="text-gray-600">
+                      <span style={{ color: "var(--foreground-muted)" }}>
                         <strong>Baseline:</strong> {opp.evidence.baseline.toLocaleString()}
                       </span>
                     )}
                     {opp.evidence.delta_pct !== undefined && (
-                      <span
-                        className={`font-semibold ${
-                          opp.evidence.delta_pct > 0 ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
+                      <span className={`font-semibold ${
+                        opp.evidence.delta_pct > 0 ? "text-green-400" : "text-red-400"
+                      }`}>
                         {opp.evidence.delta_pct > 0 ? "+" : ""}
                         {opp.evidence.delta_pct.toFixed(1)}%
                       </span>
@@ -226,7 +234,7 @@ export default function AnomalyDetectionPage() {
             ))
           )}
         </div>
-      </div>
+      </Card>
     </AppLayout>
   );
 }
