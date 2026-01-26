@@ -9,8 +9,13 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from _old_detectors import detect_cross_channel_gaps
-from main import detect_declining_performers
 from _old_monthly_trend_detectors import detect_declining_performers_multitimeframe
+
+# Dynamic import to avoid circular dependency
+def detect_declining_performers(organization_id):
+    """Wrapper to import and call detect_declining_performers from main"""
+    from main import detect_declining_performers as _detect_declining_performers
+    return _detect_declining_performers(organization_id)
 
 __all__ = [
     'detect_cross_channel_gaps',

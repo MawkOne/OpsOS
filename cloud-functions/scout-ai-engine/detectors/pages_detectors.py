@@ -8,9 +8,21 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import detect_scale_winners, detect_fix_losers
+# Note: detect_scale_winners and detect_fix_losers are defined in main.py
+# To avoid circular imports, we'll import them dynamically when needed
 from _old_detectors import detect_high_traffic_low_conversion_pages, detect_page_engagement_decay
 from _old_monthly_trend_detectors import detect_scale_winners_multitimeframe
+
+# Dynamic imports to avoid circular dependency
+def detect_scale_winners(organization_id):
+    """Wrapper to import and call detect_scale_winners from main"""
+    from main import detect_scale_winners as _detect_scale_winners
+    return _detect_scale_winners(organization_id)
+
+def detect_fix_losers(organization_id):
+    """Wrapper to import and call detect_fix_losers from main"""
+    from main import detect_fix_losers as _detect_fix_losers
+    return _detect_fix_losers(organization_id)
 
 __all__ = [
     'detect_scale_winners',
