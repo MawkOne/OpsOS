@@ -30,6 +30,14 @@ from detectors import (
     detect_content_decay
 )
 
+# Import multi-timeframe detectors with monthly trends
+from monthly_trend_detectors import (
+    detect_content_decay_multitimeframe,
+    detect_revenue_trends_multitimeframe,
+    detect_email_trends_multitimeframe,
+    detect_seo_rank_trends_multitimeframe
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -601,6 +609,12 @@ def run_scout_ai(request):
         all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
         all_opportunities.extend(detect_content_decay(organization_id))
         
+        # Run Multi-Timeframe detectors with monthly trends
+        all_opportunities.extend(detect_content_decay_multitimeframe(organization_id))
+        all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
+        all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
+        all_opportunities.extend(detect_seo_rank_trends_multitimeframe(organization_id))
+        
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
         write_opportunities_to_firestore(all_opportunities)
@@ -620,14 +634,14 @@ def run_scout_ai(request):
                 'fix_losers': len([o for o in all_opportunities if o['category'] == 'fix_loser']),
                 'declining_performers': len([o for o in all_opportunities if o['category'] == 'declining_performer']),
                 'cross_channel': len([o for o in all_opportunities if o['category'] == 'cross_channel']),
-                'seo_issues': len([o for o in all_opportunities if o['category'] in ['seo_issue', 'seo_opportunity']]),
+                'seo_issues': len([o for o in all_opportunities if o['category'] in ['seo_issue', 'seo_opportunity', 'seo_rank_trend']]),
                 'cost_inefficiency': len([o for o in all_opportunities if o['category'] == 'cost_inefficiency']),
-                'email_issues': len([o for o in all_opportunities if o['category'] in ['email_issue', 'email_optimization']]),
+                'email_issues': len([o for o in all_opportunities if o['category'] in ['email_issue', 'email_optimization', 'email_trend']]),
                 'paid_waste': len([o for o in all_opportunities if o['category'] == 'paid_waste']),
-                'revenue_anomalies': len([o for o in all_opportunities if o['category'] == 'revenue_anomaly']),
+                'revenue_anomalies': len([o for o in all_opportunities if o['category'] in ['revenue_anomaly', 'revenue_trend']]),
                 'anomalies': len([o for o in all_opportunities if o['category'] == 'anomaly']),
                 'page_optimization': len([o for o in all_opportunities if o['category'] == 'page_optimization']),
-                'content_decay': len([o for o in all_opportunities if o['category'] == 'content_decay'])
+                'content_decay': len([o for o in all_opportunities if o['category'] in ['content_decay', 'content_trend']])
             }
         }, 200
         
