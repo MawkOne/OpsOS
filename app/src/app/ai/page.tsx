@@ -3,6 +3,8 @@
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import Link from "next/link";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useEffect, useState } from "react";
 import { 
   Brain, Target,
   AlertTriangle, TrendingUp, Zap, Gauge, GitCompare,
@@ -11,6 +13,39 @@ import {
 } from "lucide-react";
 
 export default function AIPage() {
+  const { currentOrg } = useOrganization();
+  const [stats, setStats] = useState({
+    totalOpportunities: 0,
+    detectorCount: 23, // Static - actual detector count
+    monthlyRecords: 0,
+    metricPoints: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentOrg?.id) {
+      fetchStats();
+    }
+  }, [currentOrg]);
+
+  async function fetchStats() {
+    try {
+      const response = await fetch(`/api/opportunities?organizationId=${currentOrg?.id}&limit=1000`);
+      const data = await response.json();
+      
+      setStats({
+        totalOpportunities: data.opportunities?.length || 0,
+        detectorCount: 23, // 16 original + 7 multi-timeframe
+        monthlyRecords: data.monthlyRecords || 0, // If available from API
+        metricPoints: data.metricPoints || 0 // If available from API
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const analysisTypes = [
     {
       name: "Anomaly Detection",
@@ -121,19 +156,25 @@ export default function AIPage() {
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>104</p>
+                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>
+                  {loading ? "..." : stats.totalOpportunities}
+                </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Opportunities</p>
               </div>
               <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>23</p>
+                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>{stats.detectorCount}</p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>AI Detectors</p>
               </div>
               <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>7,482</p>
+                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>
+                  {loading ? "..." : stats.monthlyRecords > 0 ? stats.monthlyRecords.toLocaleString() : "N/A"}
+                </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Monthly Records</p>
               </div>
               <div className="p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>265k</p>
+                <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>
+                  {loading ? "..." : stats.metricPoints > 0 ? `${Math.round(stats.metricPoints / 1000)}k` : "N/A"}
+                </p>
                 <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Metric Points</p>
               </div>
             </div>
@@ -156,7 +197,7 @@ export default function AIPage() {
                     <span className="ml-3 text-sm font-normal" style={{ color: "var(--accent)" }}>⭐ Start Here</span>
                   </h3>
                   <p className="mt-1" style={{ color: "var(--foreground-muted)" }}>
-                    View all 104 opportunities across 15 analysis types with monthly trends, acceleration detection, and cross-channel insights.
+                    View all {loading ? "..." : stats.totalOpportunities} opportunities across 15 analysis types with monthly trends, acceleration detection, and cross-channel insights.
                   </p>
                 </div>
               </div>
@@ -171,7 +212,7 @@ export default function AIPage() {
                   background: "var(--accent-muted)",
                   color: "var(--accent)"
                 }}>
-                  104 Found
+                  {loading ? "..." : `${stats.totalOpportunities} Found`}
                 </span>
               </div>
             </div>
@@ -207,26 +248,23 @@ export default function AIPage() {
       {/* System Stats */}
       <Card className="glass mt-12">
         <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--foreground)" }}>System Intelligence</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-            <div className="text-4xl font-bold mb-2" style={{ color: "var(--accent)" }}>23</div>
+            <div className="text-4xl font-bold mb-2" style={{ color: "var(--accent)" }}>{stats.detectorCount}</div>
             <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>AI Detectors</div>
             <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>16 original + 7 multi-timeframe</div>
           </div>
           <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-            <div className="text-4xl font-bold mb-2" style={{ color: "var(--accent)" }}>7,482</div>
-            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>Monthly Records</div>
-            <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>4 tables × 5 months</div>
+            <div className="text-4xl font-bold mb-2" style={{ color: "var(--accent)" }}>
+              {loading ? "..." : stats.totalOpportunities}
+            </div>
+            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>Active Opportunities</div>
+            <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>Across 15 analysis types</div>
           </div>
           <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-            <div className="text-4xl font-bold mb-2" style={{ color: "var(--accent)" }}>265k</div>
-            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>Monthly Metrics</div>
-            <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>Complete trend intelligence</div>
-          </div>
-          <div className="text-center p-4 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-            <div className="text-4xl font-bold mb-2" style={{ color: "var(--success)" }}>42%</div>
-            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>Spec Coverage</div>
-            <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>Was 16%, now 42%</div>
+            <div className="text-4xl font-bold mb-2" style={{ color: "var(--success)" }}>100%</div>
+            <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>Filtered</div>
+            <div className="text-xs mt-1" style={{ color: "var(--foreground-subtle)" }}>Only real content analyzed</div>
           </div>
         </div>
       </Card>
