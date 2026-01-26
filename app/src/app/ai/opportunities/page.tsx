@@ -135,11 +135,11 @@ export default function OpportunitiesPage() {
 
   const getPriorityColor = (priority: string) => {
     const colors = {
-      high: "bg-red-50 text-red-700 border-red-200",
-      medium: "bg-yellow-50 text-yellow-700 border-yellow-200",
-      low: "bg-blue-50 text-blue-700 border-blue-200"
+      high: "bg-red-500/10 text-red-400 border-red-500/20",
+      medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+      low: "bg-blue-500/10 text-blue-400 border-blue-500/20"
     };
-    return colors[priority as keyof typeof colors] || "bg-gray-50 text-gray-700 border-gray-200";
+    return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
   };
 
   const channelGroups = groupByChannel();
@@ -208,9 +208,9 @@ export default function OpportunitiesPage() {
       <AppLayout title="Scout AI" subtitle="Marketing opportunities detected by AI">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600">Loading organization...</p>
-            <p className="text-sm text-gray-500 mt-2">Please log in to view opportunities</p>
+            <Target className="w-16 h-16 mx-auto mb-4" style={{ color: "var(--foreground-subtle)" }} />
+            <p style={{ color: "var(--foreground-muted)" }}>Loading organization...</p>
+            <p className="text-sm mt-2" style={{ color: "var(--foreground-subtle)" }}>Please log in to view opportunities</p>
           </div>
         </div>
       </AppLayout>
@@ -222,8 +222,8 @@ export default function OpportunitiesPage() {
       <AppLayout title="Scout AI" subtitle="Marketing opportunities detected by AI">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Loading {opportunities.length || 0} opportunities...</p>
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: "var(--accent)" }} />
+            <p style={{ color: "var(--foreground-muted)" }}>Loading {opportunities.length || 0} opportunities...</p>
           </div>
         </div>
       </AppLayout>
@@ -234,71 +234,77 @@ export default function OpportunitiesPage() {
     <AppLayout title="Scout AI" subtitle="Marketing opportunities detected by AI">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Target className="w-7 h-7 text-purple-600" />
-              {opportunities.length} Opportunities Found
-            </h1>
-            <p className="text-gray-600 mt-1">
-              AI-detected opportunities to scale winners, fix losers, and improve performance
-            </p>
+        <Card className="glass">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <Target className="w-7 h-7" style={{ color: "var(--accent)" }} />
+                {opportunities.length} Opportunities Found
+              </h1>
+              <p className="mt-1" style={{ color: "var(--foreground-muted)" }}>
+                AI-detected opportunities to scale winners, fix losers, and improve performance
+              </p>
+            </div>
+            <button
+              onClick={handleRunScoutAI}
+              disabled={running}
+              className="px-6 py-3 rounded-lg disabled:opacity-50 flex items-center gap-2 font-medium transition-all"
+              style={{
+                background: "var(--accent)",
+                color: "var(--background)"
+              }}
+            >
+              {running ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  Run Scout AI
+                </>
+              )}
+            </button>
           </div>
-          <button
-            onClick={handleRunScoutAI}
-            disabled={running}
-            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 font-medium shadow-sm"
-          >
-            {running ? (
-              <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Zap className="w-5 h-5" />
-                Run Scout AI
-              </>
-            )}
-          </button>
-        </div>
+        </Card>
 
         {/* Top Opportunities List */}
-        <Card>
+        <Card className="glass">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
+              <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <TrendingUp className="w-5 h-5" style={{ color: "var(--accent)" }} />
                 Priority Opportunities
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setTopListView("top10")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    topListView === "top10"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
+                  style={{
+                    background: topListView === "top10" ? "var(--accent)" : "var(--background-tertiary)",
+                    color: topListView === "top10" ? "var(--background)" : "var(--foreground-muted)"
+                  }}
                 >
                   Top 10
                 </button>
                 <button
                   onClick={() => setTopListView("new")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    topListView === "new"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
+                  style={{
+                    background: topListView === "new" ? "var(--accent)" : "var(--background-tertiary)",
+                    color: topListView === "new" ? "var(--background)" : "var(--foreground-muted)"
+                  }}
                 >
                   New
                 </button>
                 <button
                   onClick={() => setTopListView("all")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    topListView === "all"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
+                  style={{
+                    background: topListView === "all" ? "var(--accent)" : "var(--background-tertiary)",
+                    color: topListView === "all" ? "var(--background)" : "var(--foreground-muted)"
+                  }}
                 >
                   All
                 </button>
@@ -306,7 +312,7 @@ export default function OpportunitiesPage() {
             </div>
 
             {topOpportunities.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
                 No opportunities found. Run Scout AI to detect opportunities.
               </div>
             ) : (
@@ -314,10 +320,14 @@ export default function OpportunitiesPage() {
                 {topOpportunities.map((opp, index) => (
                   <div
                     key={opp.id}
-                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+                    className="flex items-center gap-4 p-4 rounded-lg transition-colors border"
+                    style={{
+                      background: "var(--background-secondary)",
+                      borderColor: "var(--border)"
+                    }}
                   >
-                    <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-bold text-purple-600">{index + 1}</span>
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--accent-muted)" }}>
+                      <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>{index + 1}</span>
                     </div>
                     
                     <div className="flex-1 min-w-0">
@@ -325,31 +335,31 @@ export default function OpportunitiesPage() {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
                           {opp.priority.toUpperCase()}
                         </span>
-                        <span className="text-xs text-gray-500">{opp.entity_type}</span>
+                        <span className="text-xs" style={{ color: "var(--foreground-subtle)" }}>{opp.entity_type}</span>
                       </div>
-                      <h3 className="font-semibold text-gray-900 truncate">{opp.title}</h3>
-                      <p className="text-sm text-gray-600 truncate">{opp.description}</p>
+                      <h3 className="font-semibold truncate" style={{ color: "var(--foreground)" }}>{opp.title}</h3>
+                      <p className="text-sm truncate" style={{ color: "var(--foreground-muted)" }}>{opp.description}</p>
                     </div>
 
                     <div className="flex items-center gap-4 text-sm">
                       <div className="text-center">
                         <div className="flex items-center gap-1">
-                          <DollarSign className="w-4 h-4 text-green-600" />
-                          <span className="font-bold text-gray-900">{opp.potential_impact_score.toFixed(0)}</span>
+                          <DollarSign className="w-4 h-4 text-green-400" />
+                          <span className="font-bold" style={{ color: "var(--foreground)" }}>{opp.potential_impact_score.toFixed(0)}</span>
                         </div>
-                        <div className="text-xs text-gray-500">Impact</div>
+                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Impact</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-bold text-gray-900">{(opp.confidence_score * 100).toFixed(0)}%</div>
-                        <div className="text-xs text-gray-500">Confidence</div>
+                        <div className="font-bold" style={{ color: "var(--foreground)" }}>{(opp.confidence_score * 100).toFixed(0)}%</div>
+                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Confidence</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-bold text-gray-900">{opp.recommended_actions.length}</div>
-                        <div className="text-xs text-gray-500">Actions</div>
+                        <div className="font-bold" style={{ color: "var(--foreground)" }}>{opp.recommended_actions.length}</div>
+                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Actions</div>
                       </div>
                     </div>
 
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                    <ChevronRight className="w-5 h-5" style={{ color: "var(--foreground-subtle)" }} />
                   </div>
                 ))}
               </div>
@@ -359,30 +369,32 @@ export default function OpportunitiesPage() {
 
         {/* Channel Cards Grid */}
         <div>
-          <h2 className="text-xl font-bold mb-4">Opportunities by Channel</h2>
+          <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>Opportunities by Channel</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {channels.map((channel) => (
-              <Card key={channel.id}>
+              <Card key={channel.id} className="glass">
                 <div className="space-y-4">
                   {/* Channel Header */}
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`p-3 ${channel.color} rounded-lg text-white`}>
-                        {channel.icon}
+                      <div className={`p-3 rounded-lg`} style={{ background: "var(--accent-muted)" }}>
+                        <div style={{ color: "var(--accent)" }}>
+                          {channel.icon}
+                        </div>
                       </div>
                       <div>
-                        <h3 className="font-bold text-lg">{channel.name}</h3>
-                        <p className="text-sm text-gray-500">{channel.description}</p>
+                        <h3 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{channel.name}</h3>
+                        <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>{channel.description}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Opportunity Count */}
-                  <div className="flex items-center justify-between py-3 border-t border-b">
-                    <span className="text-3xl font-bold text-gray-900">
+                  <div className="flex items-center justify-between py-3 border-t border-b" style={{ borderColor: "var(--border)" }}>
+                    <span className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>
                       {channel.opportunities.length}
                     </span>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
                       {channel.opportunities.length === 0 
                         ? "No issues"
                         : channel.opportunities.length === 1 
@@ -395,25 +407,25 @@ export default function OpportunitiesPage() {
                   {channel.opportunities.length > 0 ? (
                     <div className="space-y-2">
                       {channel.opportunities.slice(0, 3).map((opp) => (
-                        <div key={opp.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded text-sm">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${getPriorityColor(opp.priority)}`}>
+                        <div key={opp.id} className="flex items-start gap-2 p-2 rounded text-sm" style={{ background: "var(--background-tertiary)" }}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 border ${getPriorityColor(opp.priority)}`}>
                             {opp.priority[0].toUpperCase()}
                           </span>
-                          <p className="text-gray-700 line-clamp-2">{opp.title}</p>
+                          <p className="line-clamp-2" style={{ color: "var(--foreground-muted)" }}>{opp.title}</p>
                         </div>
                       ))}
                       {channel.opportunities.length > 3 && (
-                        <div className="text-sm text-gray-500 text-center pt-2">
+                        <div className="text-sm text-center pt-2" style={{ color: "var(--foreground-subtle)" }}>
                           +{channel.opportunities.length - 3} more
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="text-center py-6">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                        <Target className="w-6 h-6 text-gray-400" />
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2" style={{ background: "var(--background-tertiary)" }}>
+                        <Target className="w-6 h-6" style={{ color: "var(--foreground-subtle)" }} />
                       </div>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
                         {channel.id === 'social' ? 'Coming Soon' : 'All clear!'}
                       </p>
                     </div>
