@@ -9,6 +9,7 @@ interface CardProps {
   hover?: boolean;
   glow?: "accent" | "secondary" | "none";
   padding?: "none" | "sm" | "md" | "lg";
+  style?: React.CSSProperties;
 }
 
 const paddingMap = {
@@ -23,7 +24,8 @@ export default function Card({
   className = "", 
   hover = false,
   glow = "none",
-  padding = "md"
+  padding = "md",
+  style
 }: CardProps) {
   const glowClass = glow === "accent" 
     ? "glow-accent" 
@@ -46,6 +48,7 @@ export default function Card({
       style={{
         background: "var(--background-secondary)",
         border: "1px solid var(--border)",
+        ...style
       }}
       whileHover={hover ? { 
         scale: 1.01,
