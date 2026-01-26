@@ -55,19 +55,22 @@ def create_monthly_aggregates(organization_id: str, year_month: str):
     
     WITH daily_data AS (
       SELECT 
-        organization_id,
-        canonical_entity_id,
-        entity_type,
-        date,
-        impressions, clicks, sessions, users, pageviews,
-        avg_session_duration, bounce_rate, engagement_rate,
-        conversions, conversion_rate, revenue, cost, profit,
-        ctr, cpc, cpa, roas, roi,
-        position, search_volume,
-        sends, opens, open_rate, click_through_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE organization_id = @org_id
-        AND FORMAT_DATE('%Y-%m', date) = @year_month
+        m.organization_id,
+        m.canonical_entity_id,
+        m.entity_type,
+        m.date,
+        m.impressions, m.clicks, m.sessions, m.users, m.pageviews,
+        m.avg_session_duration, m.bounce_rate, m.engagement_rate,
+        m.conversions, m.conversion_rate, m.revenue, m.cost, m.profit,
+        m.ctr, m.cpc, m.cpa, m.roas, m.roi,
+        m.position, m.search_volume,
+        m.sends, m.opens, m.open_rate, m.click_through_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND FORMAT_DATE('%Y-%m', m.date) = @year_month
     ),
     
     monthly_agg AS (

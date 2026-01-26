@@ -27,24 +27,55 @@ ETL_LOG_TABLE = "etl_run_log"
 def get_entity_mapping(organization_id: str) -> Dict[str, Dict]:
     """
     Load entity mappings to translate source IDs to canonical IDs
+    Only loads ACTIVE entities (is_active = TRUE)
     Returns: {source: {source_entity_id: canonical_entity_id}}
     """
     mappings = {}
     
-    entity_map_ref = db.collection('entity_map').where('organizationId', '==', organization_id).stream()
+    # Query BigQuery entity_map to respect is_active filter
+    query = f"""
+    SELECT 
+        source,
+        source_entity_id,
+        canonical_entity_id
+    FROM `{PROJECT_ID}.{DATASET_ID}.entity_map`
+    WHERE is_active = TRUE
+    """
     
-    for doc in entity_map_ref:
-        data = doc.to_dict()
-        source = data.get('source')
-        source_id = data.get('source_entity_id')
-        canonical_id = data.get('canonical_entity_id')
+    try:
+        results = bq_client.query(query).result()
         
-        if source not in mappings:
-            mappings[source] = {}
+        for row in results:
+            source = row['source']
+            source_id = row['source_entity_id']
+            canonical_id = row['canonical_entity_id']
+            
+            if source not in mappings:
+                mappings[source] = {}
+            
+            mappings[source][source_id] = canonical_id
         
-        mappings[source][source_id] = canonical_id
+        logger.info(f"Loaded {len(mappings)} source mappings (active entities only)")
+    except Exception as e:
+        logger.error(f"Error loading entity mappings from BigQuery: {e}")
+        logger.info("Falling back to Firestore entity_map...")
+        
+        # Fallback to Firestore if BigQuery fails
+        entity_map_ref = db.collection('entity_map').where('organizationId', '==', organization_id).stream()
+        
+        for doc in entity_map_ref:
+            data = doc.to_dict()
+            source = data.get('source')
+            source_id = data.get('source_entity_id')
+            canonical_id = data.get('canonical_entity_id')
+            
+            if source not in mappings:
+                mappings[source] = {}
+            
+            mappings[source][source_id] = canonical_id
+        
+        logger.info(f"Loaded {len(mappings)} source mappings from Firestore")
     
-    logger.info(f"Loaded {len(mappings)} source mappings")
     return mappings
 
 

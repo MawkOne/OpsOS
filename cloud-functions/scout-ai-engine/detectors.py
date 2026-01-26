@@ -27,23 +27,29 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
     query = f"""
     WITH ga_metrics AS (
       SELECT 
-        canonical_entity_id,
-        SUM(sessions) as organic_sessions,
-        AVG(conversion_rate) as avg_conversion_rate,
-        SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'page'
-        AND JSON_EXTRACT_SCALAR(source_breakdown, '$.ga4') IS NOT NULL
-      GROUP BY canonical_entity_id
+        m.canonical_entity_id,
+        SUM(m.sessions) as organic_sessions,
+        AVG(m.conversion_rate) as avg_conversion_rate,
+        SUM(m.revenue) as total_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.entity_type = 'page'
+        AND JSON_EXTRACT_SCALAR(m.source_breakdown, '$.ga4') IS NOT NULL
+      GROUP BY m.canonical_entity_id
       HAVING organic_sessions > 100
     ),
     ads_spend AS (
       SELECT 
         canonical_entity_id,
         SUM(cost) as total_ad_spend
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'
@@ -250,7 +256,10 @@ def detect_cost_inefficiency(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         SAFE_DIVIDE(SUM(revenue), SUM(cost)) as roas,
         SAFE_DIVIDE(SUM(cost), SUM(conversions)) as cpa
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND cost > 0
@@ -347,7 +356,10 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
@@ -359,7 +371,10 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -466,7 +481,10 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY date
@@ -601,7 +619,10 @@ def detect_metric_anomalies(organization_id: str) -> list:
         ctr,
         bounce_rate,
         position
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
     ),
@@ -745,7 +766,10 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'
@@ -856,7 +880,10 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement,
         SUM(sessions) as total_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
         AND date < CURRENT_DATE()
@@ -869,7 +896,10 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(avg_session_duration) as avg_duration,
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
@@ -985,7 +1015,10 @@ def detect_seo_striking_distance(organization_id: str) -> list:
         AVG(search_volume) as avg_search_volume,
         SUM(impressions) as total_impressions,
         AVG(ctr) as avg_ctr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'keyword'
@@ -1098,7 +1131,10 @@ def detect_seo_rank_drops(organization_id: str) -> list:
         canonical_entity_id,
         AVG(position) as avg_position_recent,
         AVG(search_volume) as avg_volume
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND entity_type = 'keyword'
@@ -1109,7 +1145,10 @@ def detect_seo_rank_drops(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(position) as avg_position_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -1220,7 +1259,10 @@ def detect_paid_waste(organization_id: str) -> list:
         SUM(clicks) as total_clicks,
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'campaign'
@@ -1326,7 +1368,10 @@ def detect_email_high_opens_low_clicks(organization_id: str) -> list:
         SUM(sends) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'email'
@@ -1423,7 +1468,10 @@ def detect_content_decay(organization_id: str) -> list:
         canonical_entity_id,
         SUM(sessions) as sessions_recent,
         AVG(conversion_rate) as cvr_recent
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'
@@ -1434,7 +1482,10 @@ def detect_content_decay(organization_id: str) -> list:
         canonical_entity_id,
         SUM(sessions) as sessions_historical,
         AVG(conversion_rate) as cvr_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
