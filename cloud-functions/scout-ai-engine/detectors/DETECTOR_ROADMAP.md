@@ -1,7 +1,12 @@
 # Scout AI Detector Implementation Roadmap
 
 **Last Updated:** January 27, 2026  
-**Progress:** 117 of 117 detectors built (100%) | 47 operational (40%)
+**Progress:** 117 of 117 detectors built (100%) | 59 operational (50%) 🎊
+
+**Recent Progress:**
+- ✅ Content detectors: 2 → 7 (+5, completed Jan 27)
+- ✅ SEO detectors: 4 → 11 (+7, completed Jan 26)
+- ✅ Total: 47 → 59 operational (+12 in 2 days!)
 
 ---
 
@@ -10,8 +15,8 @@
 | Metric | Count | % |
 |--------|-------|---|
 | **Detectors Built** | 117/117 | 100% |
-| **Fully Operational** | 54/117 | 46% |
-| **Awaiting Data** | 63/117 | 54% |
+| **Fully Operational** | 59/117 | 50% 🎊 |
+| **Awaiting Data** | 58/117 | 50% |
 
 ---
 
@@ -227,37 +232,37 @@
 
 ---
 
-## ✍️ Content (11/11 built, 2/11 operational)
+## ✍️ Content (11/11 built, 7/11 operational)
 
 | # | Detector | Code | Data | Status | Blocks |
 |---|----------|------|------|--------|--------|
 | 1 | Content Decay | ✅ | ✅ | 🟢 | None |
 | 2 | Content Decay (Multi-Timeframe) | ✅ | ✅ | 🟢 | None |
-| 3 | Publishing Volume Gap | ✅ | ❌ | 🟡 | Need content publish tracking |
+| 3 | Publishing Volume Gap | ✅ | ✅ | 🟢 | None - Uses `publish_date` |
 | 4 | Content-to-Lead Attribution | ✅ | ❌ | 🟡 | Need lead source attribution |
 | 5 | Topic Gap Analysis | ✅ | ❌ | 🟡 | Need content taxonomy/topics |
-| 6 | Content Format Winners | ✅ | ❌ | 🟡 | Need content format tracking |
-| 7 | Engagement Rate Decline | ✅ | ❌ | 🟡 | Need engagement metrics by content |
-| 8 | Dwell Time Decline | ✅ | ❌ | 🟡 | Need `dwell_time` / `avg_time_on_page` |
+| 6 | Content Format Winners | ✅ | ✅ | 🟢 | None - Uses `content_type` |
+| 7 | Engagement Rate Decline | ✅ | ✅ | 🟢 | None - Uses `engagement_rate` from GA4 |
+| 8 | Dwell Time Decline | ✅ | ✅ | 🟢 | None - Uses `dwell_time` from GA4 |
 | 9 | Content Pillar Opportunities | ✅ | ❌ | 🟡 | Need content pillar/cluster tracking |
-| 10 | Republishing Opportunities | ✅ | ❌ | 🟡 | Need content age + performance history |
+| 10 | Republishing Opportunities | ✅ | ✅ | 🟢 | None - Uses `publish_date` + history |
 | 11 | Content Distribution Gap | ✅ | ❌ | 🟡 | Need distribution channel tracking |
 
-**Category Status:** 🟡 **18% Operational**
+**Category Status:** 🟢 **64% Operational** (7/11)
 
-**Required Data Additions:**
-- Content metadata:
-  - `content_type` (blog, video, infographic, etc.)
-  - `publish_date`, `last_update_date`
-  - `topic_tags` / `content_pillar`
-  - `author`, `word_count`
-- Engagement metrics:
-  - `dwell_time` / `avg_time_on_page`
-  - `scroll_depth`
-  - `shares`, `comments`
-- Distribution tracking:
-  - `distribution_channels` (email, social, organic, etc.)
-  - `syndication_performance`
+**✅ Data Now Available (Phase 2):**
+- ✅ `content_type` - Inferred from URL paths (blog, video, guide, etc.)
+- ✅ `publish_date`, `last_update_date` - Added in Phase 2
+- ✅ `dwell_time` - From GA4 `userEngagementDuration`
+- ✅ `engagement_rate` - From GA4 engaged sessions
+- ✅ `scroll_depth` - From GA4 scrolled users
+- ✅ Performance history - Full 365-day lookback
+
+**🟡 Still Need for Remaining 4 Detectors:**
+- `topic_tags` / `content_pillar` (for Topic Gap & Pillar Opportunities)
+- Lead source attribution data (for Content-to-Lead)
+- Distribution channel tracking (for Distribution Gap)
+- Social shares, comments (nice-to-have)
 
 ---
 
@@ -776,19 +781,25 @@ Copy this checklist to start implementation:
 - [ ] Task 1.5: Add customer revenue details → Aggregation tables
 
 ### Enhanced Analytics (8 detectors) - PRIORITY 2
-- [ ] Task 2.1: Add device dimension → GA4 sync update
-- [ ] Task 2.2: Add page performance metrics → PageSpeed API
-- [ ] Task 2.3: Add funnel events → Ecommerce tracking
-- [ ] Task 2.4: Add CTA/engagement tracking → Event tracking
+- [x] Task 2.1: Add device dimension → ✅ DONE (GA4 sync updated)
+- [x] Task 2.2: Add page performance metrics → ✅ DONE (dwell_time, scroll_depth added)
+- [x] Task 2.3: Add funnel events → ✅ DONE (add_to_cart, checkout, purchase)
+- [ ] Task 2.4: ETL aggregation → Need to aggregate device/performance data to page level
+- [ ] Task 2.5: Add CTA/engagement tracking → Event tracking
 
-### SEO Tools (8 detectors) - PRIORITY 3
-- [ ] Task 3.1: Add content metadata → Content API/scraping
-- [ ] Task 3.2: Technical SEO crawler → Screaming Frog integration
-- [ ] Task 3.3: Internal link graph → Link structure analysis
-- [ ] Task 3.4: Featured snippets → Search Console enhancement
-- [ ] Task 3.5: Backlink data → Ahrefs/Moz API
-- [ ] Task 3.6: PageSpeed Insights → API integration
-- [ ] Task 3.7: Schema markup → Detection system
+**Status:** Data captured in Firestore & BigQuery, needs ETL aggregation for remaining detectors
+
+### SEO Tools (1 remaining detector) - PRIORITY 3
+- [x] Task 3.1: Add content metadata → ✅ DONE (publish_date, content_type, word_count)
+- [x] Task 3.2: Technical SEO data → ✅ DONE (DataForSEO onpage_score, broken_links)
+- [x] Task 3.3: Internal link data → ✅ DONE (DataForSEO broken_links_count)
+- [x] Task 3.4: Backlink data → ✅ DONE (DataForSEO backlinks, referring_domains)
+- [x] Task 3.5: PageSpeed/Core Web Vitals → ✅ DONE (DataForSEO LCP, FID, CLS)
+- [x] Task 3.6: Schema markup → ✅ DONE (DataForSEO has_schema_markup)
+- [x] Task 3.7: Rank tracking → ✅ DONE (DataForSEO position, position_change)
+- [ ] Task 3.8: Featured snippets → Search Console enhancement (for 1 remaining detector)
+
+**Status:** 11/12 operational (92%) - DataForSEO integration unlocked everything!
 
 ### Google Ads (10 detectors) - PRIORITY 4
 - [ ] Task 4.1: Quality scores → Ads API enhancement
@@ -800,13 +811,15 @@ Copy this checklist to start implementation:
 - [ ] Task 4.7: Creative tracking → Ad variation tracking
 - [ ] Task 4.8: Audience data → Audience performance
 
-### Content Intelligence (9 detectors) - PRIORITY 5
-- [ ] Task 5.1: Publishing metadata → Content management
-- [ ] Task 5.2: Topic taxonomy → Classification system
-- [ ] Task 5.3: Format tracking → Format performance
-- [ ] Task 5.4: Engagement depth → Deep engagement metrics
-- [ ] Task 5.5: Lead attribution → Content-to-lead linking
-- [ ] Task 5.6: Distribution channels → Multi-channel tracking
+### Content Intelligence (4 remaining detectors) - PRIORITY 5
+- [x] Task 5.1: Publishing metadata → ✅ DONE (Phase 2)
+- [x] Task 5.2: Format tracking → ✅ DONE (content_type inference)
+- [x] Task 5.3: Engagement depth → ✅ DONE (dwell_time, engagement_rate)
+- [ ] Task 5.4: Topic taxonomy → Classification system (for Topic Gap)
+- [ ] Task 5.5: Lead attribution → Content-to-lead linking (for Attribution detector)
+- [ ] Task 5.6: Distribution channels → Multi-channel tracking (for Distribution Gap)
+
+**Status:** 7/11 operational (64%) - Phase 2 data unlocked 5 detectors!
 
 ### Attribution & Traffic (9 detectors) - PRIORITY 6
 - [ ] Task 6.1: Multi-touch attribution → Attribution engine
@@ -834,17 +847,22 @@ Copy this checklist to start implementation:
 
 ---
 
-## 🚀 Quick Start: Unlock 20+ Detectors Fast
+## 🚀 Quick Start: Path to 85% Operational
 
-If you want to activate 20+ detectors quickly, do these 5 tasks:
+**Current Status:** 59/117 operational (50%) 🎊
 
-1. **Add 5 revenue columns** (Task 1.1, 1.2, 1.3) → +11 detectors
-2. **Add device dimension** (Task 2.1) → +1 detector
-3. **Add page performance** (Task 2.2) → +2 detectors
-4. **Add funnel events** (Task 2.3) → +2 detectors
-5. **Fix SQL queries** (Task 8.1) → +5-10 detectors
+**To reach 70% (15 more detectors):**
+1. **ETL aggregation for device/performance data** (Task 2.1-2.2) → +5-8 detectors
+2. **Google Ads enhanced metrics** (Task 4.1-4.2) → +3-5 detectors
+3. **Traffic quality scoring** (Task 6.5) → +2-3 detectors
 
-**Total Quick Win: 21-26 detectors activated** (bringing you to ~68-73 operational, 58-62%)
+**To reach 85% (20 more after that):**
+4. **Add 5 revenue columns** (Task 1.1, 1.2, 1.3) → +11 detectors
+5. **Attribution engine** (Task 6.1-6.2) → +5 detectors
+6. **Content taxonomy** (Task 5.4) → +2 detectors
+7. **SQL refinement** (Task 8.1) → +2-3 detectors
+
+**Total Path: 50% → 70% → 85%** (100/117 operational)
 
 ---
 
