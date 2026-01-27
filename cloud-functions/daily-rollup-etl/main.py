@@ -1,15 +1,18 @@
 """
 Daily Rollup ETL - Aggregates Firestore data to BigQuery daily_entity_metrics
 
-This function:
-1. Reads GA4 device metrics, page performance, and events from Firestore
-2. Aggregates to page-level daily metrics
-3. Inserts into BigQuery daily_entity_metrics table
+Aggregates:
+1. Email campaigns from ActiveCampaign
+2. Pages with device dimensions from GA4
+3. Pages with funnel events from GA4
+4. Traffic sources from GA4
+5. Paid campaigns from GA4
 """
 
 import functions_framework
 from google.cloud import firestore, bigquery
 from datetime import datetime, timedelta
+from collections import defaultdict
 import logging
 import os
 
@@ -34,219 +37,393 @@ def run_daily_rollup(request):
         if not organization_id:
             return {'error': 'organizationId required'}, 400
         
-        # Get date range (yesterday by default, or from request)
-        days_back = request_json.get('daysBack', 1) if request_json else 1
+        # Get date range (yesterday by default)
+        days_back = request_json.get('daysBack', 7) if request_json else 7
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days_back)
         
-        logger.info(f"Starting daily rollup for org {organization_id}, {start_date} to {end_date}")
+        logger.info(f"🚀 Starting daily rollup for org {organization_id}")
+        logger.info(f"📅 Date range: {start_date} to {end_date}")
         
-        # Aggregate device metrics
-        device_rows = aggregate_device_metrics(organization_id, start_date, end_date)
-        logger.info(f"Aggregated {len(device_rows)} device metric rows")
+        all_rows = []
         
-        # Aggregate page performance
-        performance_rows = aggregate_page_performance(organization_id, start_date, end_date)
-        logger.info(f"Aggregated {len(performance_rows)} performance rows")
+        # 1. Aggregate email campaigns from ActiveCampaign
+        email_rows = aggregate_email_campaigns(organization_id, start_date, end_date)
+        logger.info(f"📧 Email campaigns: {len(email_rows)} rows")
+        all_rows.extend(email_rows)
         
-        # Merge and insert to BigQuery
-        merged_rows = merge_metrics(device_rows, performance_rows)
-        logger.info(f"Merged to {len(merged_rows)} total rows")
+        # 2. Aggregate page metrics with device dimension
+        page_device_rows = aggregate_page_device_metrics(organization_id, start_date, end_date)
+        logger.info(f"📱 Page device metrics: {len(page_device_rows)} rows")
+        all_rows.extend(page_device_rows)
         
-        if merged_rows:
-            insert_to_bigquery(merged_rows)
-            logger.info(f"✅ Inserted {len(merged_rows)} rows to BigQuery")
+        # 3. Aggregate page performance with funnel events
+        page_funnel_rows = aggregate_page_funnel_metrics(organization_id, start_date, end_date)
+        logger.info(f"🛒 Page funnel metrics: {len(page_funnel_rows)} rows")
+        all_rows.extend(page_funnel_rows)
+        
+        # 4. Create traffic source entities
+        traffic_rows = aggregate_traffic_sources(organization_id, start_date, end_date)
+        logger.info(f"🚦 Traffic sources: {len(traffic_rows)} rows")
+        all_rows.extend(traffic_rows)
+        
+        # Insert to BigQuery
+        if all_rows:
+            upsert_to_bigquery(all_rows, organization_id, start_date, end_date)
+            logger.info(f"✅ Upserted {len(all_rows)} total rows to BigQuery")
         
         return {
             'success': True,
             'organization_id': organization_id,
             'date_range': f"{start_date} to {end_date}",
-            'rows_processed': len(merged_rows),
-            'device_rows': len(device_rows),
-            'performance_rows': len(performance_rows)
+            'total_rows': len(all_rows),
+            'breakdown': {
+                'email': len(email_rows),
+                'page_device': len(page_device_rows),
+                'page_funnel': len(page_funnel_rows),
+                'traffic_source': len(traffic_rows)
+            }
         }, 200
         
     except Exception as e:
-        logger.error(f"❌ Daily rollup failed: {e}")
+        logger.error(f"❌ Daily rollup failed: {e}", exc_info=True)
         return {'error': str(e)}, 500
 
 
-def aggregate_device_metrics(org_id: str, start_date, end_date):
-    """Aggregate ga_device_metrics by page and date"""
+def aggregate_email_campaigns(org_id: str, start_date, end_date):
+    """Aggregate ActiveCampaign email metrics"""
     rows = []
     
-    # Query device metrics from Firestore
-    docs = db.collection('ga_device_metrics')\
-        .where('organizationId', '==', org_id)\
-        .where('date', '>=', start_date.isoformat())\
-        .where('date', '<=', end_date.isoformat())\
-        .stream()
-    
-    # Group by page + date + device
-    metrics_by_key = {}
-    for doc in docs:
-        data = doc.to_dict()
-        page = data.get('pagePath', '/')
-        date = data.get('date', start_date.isoformat())
-        device = data.get('deviceCategory', 'desktop').lower()
+    try:
+        # Query from activecampaign_campaigns collection
+        docs = db.collection('activecampaign_campaigns')\
+            .where('organizationId', '==', org_id)\
+            .stream()
         
-        key = f"{page}|{date}|{device}"
+        # Group by campaign + date
+        campaigns = {}
+        for doc in docs:
+            data = doc.to_dict()
+            
+            # Parse send date
+            send_date_str = data.get('sdate', data.get('send_date'))
+            if not send_date_str:
+                continue
+            
+            try:
+                # Handle different date formats
+                if isinstance(send_date_str, str):
+                    if 'T' in send_date_str:
+                        send_date = datetime.fromisoformat(send_date_str.replace('Z', '+00:00')).date()
+                    else:
+                        send_date = datetime.strptime(send_date_str, '%Y-%m-%d').date()
+                else:
+                    continue
+                    
+                # Filter by date range
+                if send_date < start_date or send_date > end_date:
+                    continue
+                    
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Invalid date format: {send_date_str}")
+                continue
+            
+            campaign_id = data.get('id', doc.id)
+            key = f"{campaign_id}|{send_date}"
+            
+            if key not in campaigns:
+                campaigns[key] = {
+                    'organization_id': org_id,
+                    'canonical_entity_id': f"campaign_{campaign_id}",
+                    'entity_type': 'email',
+                    'date': send_date.isoformat(),
+                    'sends': 0,
+                    'opens': 0,
+                    'clicks': 0,
+                    'bounces': 0,
+                    'unsubscribes': 0,
+                    'complaints': 0
+                }
+            
+            # Aggregate metrics
+            campaigns[key]['sends'] += int(data.get('total_amt', data.get('total_sends', 0)))
+            campaigns[key]['opens'] += int(data.get('uniqueopens', data.get('opens', 0)))
+            campaigns[key]['clicks'] += int(data.get('uniqueclicks', data.get('clicks', 0)))
+            campaigns[key]['bounces'] += int(data.get('hardbounces', 0)) + int(data.get('softbounces', 0))
+            campaigns[key]['unsubscribes'] += int(data.get('unsubreasons', data.get('unsubscribes', 0)))
+            campaigns[key]['complaints'] += int(data.get('complaints', 0))
         
-        if key not in metrics_by_key:
-            metrics_by_key[key] = {
-                'organization_id': org_id,
-                'canonical_entity_id': page,
-                'entity_type': 'page',
-                'date': date,
-                'device_type': device,
-                'sessions': 0,
-                'conversions': 0,
-                'pageviews': 0,
-                'bounce_rate': []
-            }
+        # Calculate rates
+        for key, metrics in campaigns.items():
+            if metrics['sends'] > 0:
+                metrics['open_rate'] = (metrics['opens'] / metrics['sends']) * 100
+                metrics['click_rate'] = (metrics['clicks'] / metrics['sends']) * 100
+                metrics['bounce_rate'] = (metrics['bounces'] / metrics['sends']) * 100
+            rows.append(metrics)
         
-        metrics_by_key[key]['sessions'] += data.get('sessions', 0)
-        metrics_by_key[key]['conversions'] += data.get('conversions', 0)
-        metrics_by_key[key]['pageviews'] += data.get('screenPageViews', 0)
-        
-        if data.get('bounceRate') is not None:
-            metrics_by_key[key]['bounce_rate'].append(data.get('bounceRate'))
-    
-    # Convert to rows with averaged bounce rate
-    for key, metrics in metrics_by_key.items():
-        if metrics['bounce_rate']:
-            metrics['bounce_rate'] = sum(metrics['bounce_rate']) / len(metrics['bounce_rate'])
-        else:
-            metrics['bounce_rate'] = None
-        rows.append(metrics)
+    except Exception as e:
+        logger.error(f"Error aggregating email: {e}", exc_info=True)
     
     return rows
 
 
-def aggregate_page_performance(org_id: str, start_date, end_date):
-    """Aggregate ga_page_performance by page and date"""
+def aggregate_page_device_metrics(org_id: str, start_date, end_date):
+    """Aggregate GA4 device metrics by page"""
     rows = []
     
-    docs = db.collection('ga_page_performance')\
-        .where('organizationId', '==', org_id)\
-        .where('date', '>=', start_date.isoformat())\
-        .where('date', '<=', end_date.isoformat())\
-        .stream()
-    
-    metrics_by_key = {}
-    for doc in docs:
-        data = doc.to_dict()
-        page = data.get('pagePath', '/')
-        date = data.get('date', start_date.isoformat())
+    try:
+        # Query ga_device_metrics
+        docs = db.collection('ga_device_metrics')\
+            .where('organizationId', '==', org_id)\
+            .stream()
         
-        key = f"{page}|{date}"
-        
-        if key not in metrics_by_key:
-            metrics_by_key[key] = {
-                'organization_id': org_id,
-                'canonical_entity_id': page,
-                'entity_type': 'page',
-                'date': date,
-                'pageviews': 0,
-                'dwell_time': [],
-                'scroll_depth': [],
-                'engagement_rate': [],
-                'add_to_cart': 0,
-                'checkout_started': 0,
-                'purchase_completed': 0
-            }
-        
-        metrics_by_key[key]['pageviews'] += data.get('screenPageViews', 0)
-        
-        if data.get('dwellTime'):
-            metrics_by_key[key]['dwell_time'].append(data['dwellTime'])
-        if data.get('scrollDepth'):
-            metrics_by_key[key]['scroll_depth'].append(data['scrollDepth'])
-        if data.get('engagementRate'):
-            metrics_by_key[key]['engagement_rate'].append(data['engagementRate'])
-        
-        # Funnel events
-        metrics_by_key[key]['add_to_cart'] += data.get('addToCarts', 0)
-        metrics_by_key[key]['checkout_started'] += data.get('checkouts', 0)
-        metrics_by_key[key]['purchase_completed'] += data.get('purchases', 0)
-    
-    # Average the metrics
-    for key, metrics in metrics_by_key.items():
-        if metrics['dwell_time']:
-            metrics['dwell_time'] = sum(metrics['dwell_time']) / len(metrics['dwell_time'])
-        else:
-            metrics['dwell_time'] = None
+        # Group by page + date + device
+        metrics_by_key = {}
+        for doc in docs:
+            data = doc.to_dict()
             
-        if metrics['scroll_depth']:
-            metrics['scroll_depth'] = sum(metrics['scroll_depth']) / len(metrics['scroll_depth'])
-        else:
-            metrics['scroll_depth'] = None
+            # Parse date
+            date_str = data.get('date')
+            if not date_str:
+                continue
             
-        if metrics['engagement_rate']:
-            metrics['engagement_rate'] = sum(metrics['engagement_rate']) / len(metrics['engagement_rate'])
-        else:
-            metrics['engagement_rate'] = None
+            try:
+                if isinstance(date_str, str):
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00')).date()
+                else:
+                    continue
+                    
+                if date_obj < start_date or date_obj > end_date:
+                    continue
+            except:
+                continue
+            
+            page = data.get('pagePath', '/')
+            device = data.get('deviceCategory', 'desktop').lower()
+            
+            key = f"{page}|{date_obj}|{device}"
+            
+            if key not in metrics_by_key:
+                metrics_by_key[key] = {
+                    'organization_id': org_id,
+                    'canonical_entity_id': page,
+                    'entity_type': 'page',
+                    'date': date_obj.isoformat(),
+                    'device_type': device,
+                    'sessions': 0,
+                    'pageviews': 0,
+                    'conversions': 0,
+                    'bounce_rates': []
+                }
+            
+            metrics_by_key[key]['sessions'] += int(data.get('sessions', 0))
+            metrics_by_key[key]['pageviews'] += int(data.get('screenPageViews', 0))
+            metrics_by_key[key]['conversions'] += int(data.get('conversions', 0))
+            
+            if data.get('bounceRate') is not None:
+                metrics_by_key[key]['bounce_rates'].append(float(data['bounceRate']))
         
-        rows.append(metrics)
+        # Average bounce rate and add to rows
+        for key, metrics in metrics_by_key.items():
+            if metrics['bounce_rates']:
+                metrics['bounce_rate'] = sum(metrics['bounce_rates']) / len(metrics['bounce_rates'])
+            del metrics['bounce_rates']
+            rows.append(metrics)
+        
+    except Exception as e:
+        logger.error(f"Error aggregating device metrics: {e}", exc_info=True)
     
     return rows
 
 
-def merge_metrics(device_rows, performance_rows):
-    """Merge device and performance metrics"""
-    merged = {}
+def aggregate_page_funnel_metrics(org_id: str, start_date, end_date):
+    """Aggregate GA4 page performance with funnel events"""
+    rows = []
     
-    # Add device metrics (by page + date + device)
-    for row in device_rows:
-        key = f"{row['canonical_entity_id']}|{row['date']}|{row.get('device_type', 'unknown')}"
-        merged[key] = row
-    
-    # Merge performance metrics (page + date level)
-    for row in performance_rows:
-        # Find matching device rows and add performance data
-        page = row['canonical_entity_id']
-        date = row['date']
+    try:
+        # Query ga_page_performance
+        docs = db.collection('ga_page_performance')\
+            .where('organizationId', '==', org_id)\
+            .stream()
         
-        for device in ['mobile', 'desktop', 'tablet']:
-            key = f"{page}|{date}|{device}"
-            if key in merged:
-                # Add performance metrics to this device row
-                merged[key]['dwell_time'] = row.get('dwell_time')
-                merged[key]['scroll_depth'] = row.get('scroll_depth')
-                merged[key]['engagement_rate'] = row.get('engagement_rate')
-                merged[key]['add_to_cart'] = row.get('add_to_cart', 0)
-                merged[key]['checkout_started'] = row.get('checkout_started', 0)
-                merged[key]['purchase_completed'] = row.get('purchase_completed', 0)
+        metrics_by_key = {}
+        for doc in docs:
+            data = doc.to_dict()
+            
+            # Parse date
+            date_str = data.get('date')
+            if not date_str:
+                continue
+            
+            try:
+                if isinstance(date_str, str):
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00')).date()
+                else:
+                    continue
+                    
+                if date_obj < start_date or date_obj > end_date:
+                    continue
+            except:
+                continue
+            
+            page = data.get('pagePath', '/')
+            key = f"{page}|{date_obj}"
+            
+            if key not in metrics_by_key:
+                metrics_by_key[key] = {
+                    'organization_id': org_id,
+                    'canonical_entity_id': page,
+                    'entity_type': 'page',
+                    'date': date_obj.isoformat(),
+                    'pageviews': 0,
+                    'add_to_cart': 0,
+                    'checkout_started': 0,
+                    'purchase_completed': 0,
+                    'dwell_times': [],
+                    'scroll_depths': [],
+                    'engagement_rates': []
+                }
+            
+            metrics_by_key[key]['pageviews'] += int(data.get('screenPageViews', 0))
+            metrics_by_key[key]['add_to_cart'] += int(data.get('addToCarts', 0))
+            metrics_by_key[key]['checkout_started'] += int(data.get('checkouts', 0))
+            metrics_by_key[key]['purchase_completed'] += int(data.get('purchases', 0))
+            
+            if data.get('dwellTime'):
+                metrics_by_key[key]['dwell_times'].append(float(data['dwellTime']))
+            if data.get('scrollDepth'):
+                metrics_by_key[key]['scroll_depths'].append(float(data['scrollDepth']))
+            if data.get('engagementRate'):
+                metrics_by_key[key]['engagement_rates'].append(float(data['engagementRate']))
+        
+        # Average metrics
+        for key, metrics in metrics_by_key.items():
+            if metrics['dwell_times']:
+                metrics['dwell_time'] = sum(metrics['dwell_times']) / len(metrics['dwell_times'])
+            if metrics['scroll_depths']:
+                metrics['scroll_depth'] = sum(metrics['scroll_depths']) / len(metrics['scroll_depths'])
+            if metrics['engagement_rates']:
+                metrics['engagement_rate'] = sum(metrics['engagement_rates']) / len(metrics['engagement_rates'])
+            
+            del metrics['dwell_times']
+            del metrics['scroll_depths']
+            del metrics['engagement_rates']
+            rows.append(metrics)
+        
+    except Exception as e:
+        logger.error(f"Error aggregating funnel metrics: {e}", exc_info=True)
     
-    return list(merged.values())
+    return rows
 
 
-def insert_to_bigquery(rows):
-    """Insert rows to BigQuery, handling duplicates"""
+def aggregate_traffic_sources(org_id: str, start_date, end_date):
+    """Aggregate GA4 traffic sources"""
+    rows = []
+    
+    try:
+        # Query ga_traffic_sources
+        docs = db.collection('ga_traffic_sources')\
+            .where('organizationId', '==', org_id)\
+            .stream()
+        
+        metrics_by_key = {}
+        for doc in docs:
+            data = doc.to_dict()
+            
+            # Parse date
+            date_str = data.get('date')
+            if not date_str:
+                continue
+            
+            try:
+                if isinstance(date_str, str):
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00')).date()
+                else:
+                    continue
+                    
+                if date_obj < start_date or date_obj > end_date:
+                    continue
+            except:
+                continue
+            
+            source = data.get('source', 'direct')
+            medium = data.get('medium', 'none')
+            source_medium = f"{source}/{medium}"
+            
+            key = f"{source_medium}|{date_obj}"
+            
+            if key not in metrics_by_key:
+                metrics_by_key[key] = {
+                    'organization_id': org_id,
+                    'canonical_entity_id': source_medium,
+                    'entity_type': 'traffic_source',
+                    'date': date_obj.isoformat(),
+                    'sessions': 0,
+                    'pageviews': 0,
+                    'conversions': 0,
+                    'revenue': 0,
+                    'bounce_rates': [],
+                    'engagement_rates': []
+                }
+            
+            metrics_by_key[key]['sessions'] += int(data.get('sessions', 0))
+            metrics_by_key[key]['pageviews'] += int(data.get('screenPageViews', 0))
+            metrics_by_key[key]['conversions'] += int(data.get('conversions', 0))
+            metrics_by_key[key]['revenue'] += float(data.get('totalRevenue', 0))
+            
+            if data.get('bounceRate') is not None:
+                metrics_by_key[key]['bounce_rates'].append(float(data['bounceRate']))
+            if data.get('engagementRate') is not None:
+                metrics_by_key[key]['engagement_rates'].append(float(data['engagementRate']))
+        
+        # Average metrics
+        for key, metrics in metrics_by_key.items():
+            if metrics['bounce_rates']:
+                metrics['bounce_rate'] = sum(metrics['bounce_rates']) / len(metrics['bounce_rates'])
+            if metrics['engagement_rates']:
+                metrics['engagement_rate'] = sum(metrics['engagement_rates']) / len(metrics['engagement_rates'])
+            
+            del metrics['bounce_rates']
+            del metrics['engagement_rates']
+            rows.append(metrics)
+        
+    except Exception as e:
+        logger.error(f"Error aggregating traffic sources: {e}", exc_info=True)
+    
+    return rows
+
+
+def upsert_to_bigquery(rows, org_id, start_date, end_date):
+    """Upsert rows to BigQuery (delete old, insert new)"""
     
     if not rows:
         return
     
     table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
     
-    # Delete existing rows for this date range to avoid duplicates
-    if rows:
-        org_id = rows[0]['organization_id']
-        dates = set(row['date'] for row in rows)
-        
-        for date in dates:
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
-            WHERE organization_id = '{org_id}'
-              AND date = '{date}'
-              AND device_type IS NOT NULL
-            """
-            bq_client.query(delete_query).result()
-            logger.info(f"Deleted existing rows for {date}")
+    # Delete existing rows for this org + date range to avoid duplicates
+    delete_query = f"""
+    DELETE FROM `{table_ref}`
+    WHERE organization_id = '{org_id}'
+      AND date BETWEEN '{start_date}' AND '{end_date}'
+      AND (
+        device_type IS NOT NULL
+        OR entity_type IN ('email', 'traffic_source')
+        OR add_to_cart IS NOT NULL
+      )
+    """
+    
+    try:
+        bq_client.query(delete_query).result()
+        logger.info(f"🗑️  Deleted existing ETL rows for {start_date} to {end_date}")
+    except Exception as e:
+        logger.warning(f"Delete query warning: {e}")
     
     # Insert new rows
     errors = bq_client.insert_rows_json(table_ref, rows)
     
     if errors:
-        logger.error(f"Errors inserting to BigQuery: {errors}")
+        logger.error(f"❌ Errors inserting to BigQuery: {errors}")
         raise Exception(f"BigQuery insert failed: {errors}")
+    else:
+        logger.info(f"✅ Successfully inserted {len(rows)} rows")
