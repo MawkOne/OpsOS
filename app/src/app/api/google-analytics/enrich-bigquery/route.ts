@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       accessToken = newToken;
     }
 
-    const propertyId = connection.selectedPropertyId;
+    const propertyId = connection.selectedPropertyId.replace('properties/', '');
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
     const endDate = new Date();
