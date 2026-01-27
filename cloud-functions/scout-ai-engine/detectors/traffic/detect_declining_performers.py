@@ -30,29 +30,29 @@ def detect_declining_performers(organization_id: str) -> list:
     query = f"""
     WITH last_30_days AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(sessions) as total_sessions,
         SUM(revenue) as total_revenue
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
-      GROUP BY canonical_entity_id, entity_type
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < CURRENT_DATE()
+      GROUP BY e.canonical_entity_id, e.entity_type
     ),
     previous_30_days AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(sessions) as total_sessions,
         SUM(revenue) as total_revenue
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-      GROUP BY canonical_entity_id, entity_type
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      GROUP BY e.canonical_entity_id, e.entity_type
     )
     SELECT 
       l.canonical_entity_id,

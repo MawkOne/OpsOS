@@ -31,7 +31,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
     query = f"""
     WITH page_performance AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_cvr,
         SUM(conversions) as total_conversions,
@@ -41,10 +41,10 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'page'
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.entity_type = 'page'
+      GROUP BY e.canonical_entity_id
       HAVING total_sessions > 100  -- Meaningful traffic
     ),
     peer_avg AS (

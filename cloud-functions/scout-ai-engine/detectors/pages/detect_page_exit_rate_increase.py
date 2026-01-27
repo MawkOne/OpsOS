@@ -31,7 +31,7 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         AVG(exit_rate) as avg_exit_rate,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate
@@ -39,11 +39,11 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
-        AND entity_type = 'page'
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < CURRENT_DATE()
+        AND m.entity_type = 'page'
+      GROUP BY e.canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
@@ -53,11 +53,11 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'page'
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.entity_type = 'page'
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       r.canonical_entity_id,

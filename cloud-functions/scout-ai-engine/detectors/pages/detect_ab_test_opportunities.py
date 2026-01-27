@@ -14,9 +14,9 @@ def detect_ab_test_opportunities(organization_id: str) -> list:
     SELECT e.canonical_entity_id, e.entity_name, SUM(m.sessions) as sessions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-    WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-      AND entity_type = 'page' AND sessions > 1000
-    GROUP BY canonical_entity_id, entity_name
+    WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      AND m.entity_type = 'page' AND sessions > 1000
+    GROUP BY e.canonical_entity_id, e.entity_name
     LIMIT 10
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

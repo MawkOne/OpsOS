@@ -31,8 +31,8 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
     query = f"""
     WITH recent_traffic AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         SUM(sessions) as total_sessions,
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration,
@@ -41,10 +41,10 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND date < CURRENT_DATE()
-      GROUP BY canonical_entity_id, entity_type
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.date < CURRENT_DATE()
+      GROUP BY e.canonical_entity_id, e.entity_type
     ),
     baseline_traffic AS (
       SELECT 
@@ -54,10 +54,10 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       r.canonical_entity_id,

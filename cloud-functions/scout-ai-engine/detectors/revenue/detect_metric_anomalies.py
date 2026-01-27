@@ -32,8 +32,8 @@ def detect_metric_anomalies(organization_id: str) -> list:
     query = f"""
     WITH recent_metrics AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         date,
         sessions,
         conversion_rate,
@@ -46,8 +46,8 @@ def detect_metric_anomalies(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
     ),
     yesterday AS (
       SELECT *
@@ -56,8 +56,8 @@ def detect_metric_anomalies(organization_id: str) -> list:
     ),
     baseline AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         AVG(sessions) as avg_sessions,
         AVG(conversion_rate) as avg_cvr,
         AVG(cost) as avg_cost,
@@ -67,9 +67,9 @@ def detect_metric_anomalies(organization_id: str) -> list:
         AVG(position) as avg_position,
         STDDEV(sessions) as stddev_sessions
       FROM recent_metrics
-      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-      GROUP BY canonical_entity_id, entity_type
+      WHERE m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      GROUP BY e.canonical_entity_id, e.entity_type
       HAVING AVG(sessions) > 10  -- Meaningful traffic
     )
     SELECT 

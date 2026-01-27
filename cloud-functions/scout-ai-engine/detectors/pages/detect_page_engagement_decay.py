@@ -31,7 +31,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
     query = f"""
     WITH recent_engagement AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         AVG(avg_session_duration) as avg_duration,
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement,
@@ -40,11 +40,11 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        AND date < CURRENT_DATE()
-        AND entity_type = 'page'
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+        AND m.date < CURRENT_DATE()
+        AND m.entity_type = 'page'
+      GROUP BY e.canonical_entity_id
     ),
     historical_engagement AS (
       SELECT 
@@ -56,11 +56,11 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        AND entity_type = 'page'
-      GROUP BY canonical_entity_id
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+        AND m.entity_type = 'page'
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       r.canonical_entity_id,

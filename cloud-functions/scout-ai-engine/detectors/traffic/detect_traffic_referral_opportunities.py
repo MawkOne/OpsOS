@@ -31,7 +31,7 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
     query = f"""
     WITH referral_performance AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         SUM(sessions) as total_sessions,
         SUM(conversions) as total_conversions,
         AVG(conversion_rate) as avg_conversion_rate,
@@ -41,12 +41,12 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND m.date < CURRENT_DATE()
         AND (entity_type = 'source' OR entity_type = 'campaign')
         AND canonical_entity_id LIKE '%referral%'
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     ),
     overall_avg AS (
       SELECT 
@@ -55,8 +55,8 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
     )
     SELECT 
       r.canonical_entity_id,

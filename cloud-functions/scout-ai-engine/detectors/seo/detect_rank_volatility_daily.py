@@ -13,9 +13,9 @@ def detect_rank_volatility_daily(organization_id: str) -> list:
     SELECT e.canonical_entity_id, e.entity_name, AVG(m.position) as avg_position, SUM(m.impressions) as impressions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-    WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      AND entity_type = 'seo_keyword' AND impressions > 100
-    GROUP BY canonical_entity_id, entity_name
+    WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      AND m.entity_type = 'seo_keyword' AND impressions > 100
+    GROUP BY e.canonical_entity_id, e.entity_name
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

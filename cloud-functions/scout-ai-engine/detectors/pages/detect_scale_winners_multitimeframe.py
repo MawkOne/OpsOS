@@ -53,8 +53,8 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     
     current_month AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         conversion_rate as current_cvr,
         sessions as current_sessions,
         revenue as current_revenue,

@@ -41,9 +41,9 @@ def detect_revenue_discount_cannibalization(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
@@ -52,9 +52,9 @@ def detect_revenue_discount_cannibalization(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
     )
     SELECT 
       r.avg_refund_rate,

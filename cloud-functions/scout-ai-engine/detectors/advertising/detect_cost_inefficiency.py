@@ -30,8 +30,8 @@ def detect_cost_inefficiency(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         SUM(cost) as total_cost,
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
@@ -41,10 +41,10 @@ def detect_cost_inefficiency(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND cost > 0
-      GROUP BY canonical_entity_id, entity_type
+      GROUP BY e.canonical_entity_id, e.entity_type
       HAVING total_cost > 100  -- Spending at least $100
     )
     SELECT *

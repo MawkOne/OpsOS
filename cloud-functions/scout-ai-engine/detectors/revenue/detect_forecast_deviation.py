@@ -37,9 +37,9 @@ def detect_forecast_deviation(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+        AND m.date < CURRENT_DATE()
       GROUP BY month
     ),
     forecast AS (

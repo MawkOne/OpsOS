@@ -33,8 +33,8 @@ def detect_traffic_utm_parameter_gaps(organization_id: str) -> list:
     query = f"""
     WITH recent_traffic AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         SUM(sessions) as total_sessions,
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue,
@@ -43,11 +43,11 @@ def detect_traffic_utm_parameter_gaps(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < CURRENT_DATE()
         AND entity_type IN ('campaign', 'page')
-      GROUP BY canonical_entity_id, entity_type
+      GROUP BY e.canonical_entity_id, e.entity_type
     )
     SELECT 
       canonical_entity_id,

@@ -39,9 +39,9 @@ def detect_unit_economics_dashboard(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND m.date < CURRENT_DATE()
         AND (ltv > 0 OR cac > 0 OR gross_margin > 0)
     )
     SELECT 

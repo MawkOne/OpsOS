@@ -38,9 +38,9 @@ def detect_revenue_payment_failure_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
@@ -49,9 +49,9 @@ def detect_revenue_payment_failure_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
     )
     SELECT 
       r.avg_failure_rate as current_failure_rate,

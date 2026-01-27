@@ -50,8 +50,8 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     
     current AS (
       SELECT 
-        canonical_entity_id,
-        entity_type,
+        e.canonical_entity_id,
+        e.entity_type,
         sessions as current_sessions,
         month_1_ago,
         month_2_ago,

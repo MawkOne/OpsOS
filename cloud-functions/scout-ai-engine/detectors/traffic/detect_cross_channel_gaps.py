@@ -54,11 +54,11 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'page'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.entity_type = 'page'
         AND cost > 0
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       g.*,

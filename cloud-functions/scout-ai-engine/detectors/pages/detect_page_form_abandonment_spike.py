@@ -31,7 +31,7 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         AVG(form_abandonment_rate) as avg_abandonment_rate,
         SUM(form_starts) as total_form_starts,
         SUM(form_submits) as total_form_submits
@@ -39,12 +39,12 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND date < CURRENT_DATE()
-        AND entity_type = 'page'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.date < CURRENT_DATE()
+        AND m.entity_type = 'page'
         AND form_starts > 0
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
@@ -54,12 +54,12 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND entity_type = 'page'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.entity_type = 'page'
         AND form_starts > 0
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       r.canonical_entity_id,

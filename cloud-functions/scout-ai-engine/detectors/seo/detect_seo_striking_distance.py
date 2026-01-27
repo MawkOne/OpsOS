@@ -31,7 +31,7 @@ def detect_seo_striking_distance(organization_id: str) -> list:
     query = f"""
     WITH keyword_performance AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         AVG(position) as avg_position,
         AVG(search_volume) as avg_search_volume,
         SUM(impressions) as total_impressions,
@@ -40,11 +40,11 @@ def detect_seo_striking_distance(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'keyword'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.entity_type = 'keyword'
         AND position IS NOT NULL
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
       HAVING avg_position BETWEEN 4 AND 15  -- Striking distance
         AND avg_search_volume > 100  -- Meaningful volume
     )

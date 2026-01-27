@@ -39,9 +39,9 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND m.date < CURRENT_DATE()
         AND add_to_cart > 0
     ),
     historical_performance AS (
@@ -51,9 +51,9 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND add_to_cart > 0
     )
     SELECT 

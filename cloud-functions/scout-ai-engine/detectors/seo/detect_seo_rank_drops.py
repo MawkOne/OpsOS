@@ -31,18 +31,18 @@ def detect_seo_rank_drops(organization_id: str) -> list:
     query = f"""
     WITH recent_ranks AS (
       SELECT 
-        canonical_entity_id,
+        e.canonical_entity_id,
         AVG(position) as avg_position_recent,
         AVG(search_volume) as avg_volume
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND entity_type = 'keyword'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.entity_type = 'keyword'
         AND position IS NOT NULL
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     ),
     historical_ranks AS (
       SELECT 
@@ -52,12 +52,12 @@ def detect_seo_rank_drops(organization_id: str) -> list:
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
-      WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND entity_type = 'keyword'
+      WHERE m.organization_id = @org_id
+        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
+        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND m.entity_type = 'keyword'
         AND position IS NOT NULL
-      GROUP BY canonical_entity_id
+      GROUP BY e.canonical_entity_id
     )
     SELECT 
       r.canonical_entity_id,

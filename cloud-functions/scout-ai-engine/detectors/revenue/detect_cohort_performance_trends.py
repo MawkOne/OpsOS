@@ -14,7 +14,7 @@ def detect_cohort_performance_trends(organization_id: str) -> list:
       SELECT DATE_TRUNC(first_purchase_date, MONTH) as cohort_month, canonical_entity_id, SUM(revenue) as cohort_revenue
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-      WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH) AND first_purchase_date IS NOT NULL
+      WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH) AND first_purchase_date IS NOT NULL
       GROUP BY cohort_month, canonical_entity_id
     ),
     cohort_stats AS (
