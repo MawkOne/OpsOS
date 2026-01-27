@@ -10,8 +10,8 @@
 | Metric | Count | % |
 |--------|-------|---|
 | **Detectors Built** | 117/117 | 100% |
-| **Fully Operational** | 47/117 | 40% |
-| **Awaiting Data** | 70/117 | 60% |
+| **Fully Operational** | 54/117 | 46% |
+| **Awaiting Data** | 63/117 | 54% |
 
 ---
 
