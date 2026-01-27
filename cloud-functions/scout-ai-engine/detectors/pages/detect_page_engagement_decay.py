@@ -43,7 +43,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
         AND m.date < CURRENT_DATE()
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       GROUP BY e.canonical_entity_id
     ),
     historical_engagement AS (
@@ -59,7 +59,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       GROUP BY e.canonical_entity_id
     )
     SELECT 

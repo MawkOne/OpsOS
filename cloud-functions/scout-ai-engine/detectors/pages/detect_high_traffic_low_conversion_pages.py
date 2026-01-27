@@ -43,7 +43,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       GROUP BY e.canonical_entity_id
       HAVING total_sessions > 100  -- Meaningful traffic
     ),

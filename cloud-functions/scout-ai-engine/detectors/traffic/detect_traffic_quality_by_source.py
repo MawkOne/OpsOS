@@ -14,7 +14,7 @@ def detect_traffic_quality_by_source(organization_id: str) -> list:
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      AND m.entity_type = 'traffic_source' AND sessions > 100
+      AND e.entity_type = 'traffic_source' AND sessions > 100
     GROUP BY e.canonical_entity_id source
     LIMIT 20
     """

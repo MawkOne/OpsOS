@@ -42,7 +42,7 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND m.date < CURRENT_DATE()
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
         AND form_starts > 0
       GROUP BY e.canonical_entity_id
     ),
@@ -57,7 +57,7 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
         AND form_starts > 0
       GROUP BY e.canonical_entity_id
     )

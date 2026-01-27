@@ -42,7 +42,7 @@ def detect_paid_waste(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'campaign'
+        AND e.entity_type = 'campaign'
         AND cost > 0
       GROUP BY e.canonical_entity_id
       HAVING total_cost > 50  -- Spent at least $50

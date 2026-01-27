@@ -45,7 +45,7 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
-        AND m.entity_type IN ('page', 'campaign')
+        AND e.entity_type IN ('page', 'campaign')
     ),
     
     current AS (

@@ -48,7 +48,7 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
-        AND m.entity_type = 'email'
+        AND e.entity_type = 'email'
         AND m.sends > 0
     ),
     

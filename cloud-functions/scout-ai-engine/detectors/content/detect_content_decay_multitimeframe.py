@@ -44,7 +44,7 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       ORDER BY m.canonical_entity_id, m.year_month
     ),
     

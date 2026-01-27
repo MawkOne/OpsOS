@@ -47,7 +47,7 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
-        AND m.entity_type = 'campaign'
+        AND e.entity_type = 'campaign'
         AND cost > 0
     ),
     

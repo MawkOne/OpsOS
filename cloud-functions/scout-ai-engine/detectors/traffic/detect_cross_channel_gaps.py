@@ -41,7 +41,7 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
         AND JSON_EXTRACT_SCALAR(m.source_breakdown, '$.ga4') IS NOT NULL
       GROUP BY m.canonical_entity_id
       HAVING organic_sessions > 100
@@ -56,7 +56,7 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
         AND cost > 0
       GROUP BY e.canonical_entity_id
     )

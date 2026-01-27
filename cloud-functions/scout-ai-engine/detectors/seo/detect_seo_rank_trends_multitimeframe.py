@@ -45,7 +45,7 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
         ON m.canonical_entity_id = e.canonical_entity_id
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
-        AND m.entity_type = 'keyword'
+        AND e.entity_type = 'keyword'
         AND m.avg_position IS NOT NULL
     ),
     

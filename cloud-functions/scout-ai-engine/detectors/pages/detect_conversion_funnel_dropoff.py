@@ -15,7 +15,7 @@ def detect_conversion_funnel_dropoff(organization_id: str) -> list:
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-      AND m.entity_type = 'page' AND sessions > 1000
+      AND e.entity_type = 'page' AND sessions > 1000
     GROUP BY e.canonical_entity_id, e.entity_name
     LIMIT 10
     """

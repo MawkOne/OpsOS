@@ -40,7 +40,7 @@ def detect_content_decay(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       GROUP BY e.canonical_entity_id
     ),
     historical_performance AS (
@@ -55,7 +55,7 @@ def detect_content_decay(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'page'
+        AND e.entity_type = 'page'
       GROUP BY e.canonical_entity_id
     )
     SELECT 

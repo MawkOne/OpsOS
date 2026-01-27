@@ -42,7 +42,7 @@ def detect_seo_striking_distance(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.entity_type = 'keyword'
+        AND e.entity_type = 'keyword'
         AND position IS NOT NULL
       GROUP BY e.canonical_entity_id
       HAVING avg_position BETWEEN 4 AND 15  -- Striking distance

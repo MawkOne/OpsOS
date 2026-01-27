@@ -40,7 +40,7 @@ def detect_seo_rank_drops(organization_id: str) -> list:
         AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.entity_type = 'keyword'
+        AND e.entity_type = 'keyword'
         AND position IS NOT NULL
       GROUP BY e.canonical_entity_id
     ),
@@ -55,7 +55,7 @@ def detect_seo_rank_drops(organization_id: str) -> list:
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.entity_type = 'keyword'
+        AND e.entity_type = 'keyword'
         AND position IS NOT NULL
       GROUP BY e.canonical_entity_id
     )
