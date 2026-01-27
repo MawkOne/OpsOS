@@ -180,11 +180,8 @@ async function fetchFunnelMetrics(propertyId: string, accessToken: string, start
         ],
         metrics: [
           { name: 'screenPageViews' },
-          { name: 'userEngagementDuration' },
-          { name: 'engagementRate' },
-          { name: 'addToCarts' },
-          { name: 'checkouts' },
-          { name: 'purchases' }
+          { name: 'activeUsers' },
+          { name: 'averageSessionDuration' }
         ],
         limit: 10000
       }),
@@ -206,17 +203,18 @@ async function fetchFunnelMetrics(propertyId: string, accessToken: string, start
       const pagePath = row.dimensionValues[0].value;
 
       const pageviews = parseInt(row.metricValues[0].value || '0');
-      const engagementDuration = parseFloat(row.metricValues[1].value || '0');
+      const activeUsers = parseInt(row.metricValues[1].value || '0');
+      const avgDuration = parseFloat(row.metricValues[2].value || '0');
 
       rows.push({
         date: dateStr,
         pagePath,
         pageviews,
-        dwell_time: pageviews > 0 ? engagementDuration / pageviews : null,
-        engagement_rate: parseFloat(row.metricValues[2].value || '0') * 100,
-        add_to_cart: parseInt(row.metricValues[3].value || '0'),
-        checkout_started: parseInt(row.metricValues[4].value || '0'),
-        purchase_completed: parseInt(row.metricValues[5].value || '0'),
+        dwell_time: avgDuration,
+        engagement_rate: null,  // Skip for now
+        add_to_cart: 0,  // Skip ecommerce for now
+        checkout_started: 0,
+        purchase_completed: 0,
       });
     }
   }
