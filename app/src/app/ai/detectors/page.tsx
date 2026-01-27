@@ -317,15 +317,16 @@ function DetectorCard({ detector, onClick }: DetectorCardProps) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.2 }}
+      onClick={onClick}
+      className="cursor-pointer"
     >
       <Card
-        className="glass cursor-pointer relative"
+        className="glass relative"
         hover
         style={{
           borderColor: detector.status === "active" ? "var(--success)" : "var(--border)",
           borderWidth: "2px",
         }}
-        onClick={onClick}
       >
         {/* Status Badge */}
         <div className="absolute top-4 right-4">
