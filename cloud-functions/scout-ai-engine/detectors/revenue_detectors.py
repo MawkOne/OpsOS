@@ -484,4 +484,567 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
     return opportunities
 
 
-__all__ = ['detect_revenue_anomaly', 'detect_metric_anomalies', 'detect_revenue_trends_multitimeframe']
+def detect_revenue_aov_decline(organization_id: str) -> list:
+    """
+    Detect: Average Order Value declining
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running Revenue AOV Decline detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        AVG(average_order_value) as avg_aov,
+        SUM(transactions) as total_transactions,
+        SUM(revenue) as total_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND average_order_value > 0
+    ),
+    historical_performance AS (
+      SELECT 
+        AVG(average_order_value) as baseline_aov
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND average_order_value > 0
+    )
+    SELECT 
+      r.avg_aov as current_aov,
+      h.baseline_aov,
+      r.total_transactions,
+      r.total_revenue,
+      SAFE_DIVIDE((r.avg_aov - h.baseline_aov), h.baseline_aov) * 100 as aov_change_pct
+    FROM recent_performance r
+    CROSS JOIN historical_performance h
+    WHERE h.baseline_aov > 0
+      AND r.avg_aov < h.baseline_aov * 0.9  -- 10%+ decline
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.aov_change_pct < -20 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "revenue_optimization",
+                "type": "aov_decline",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "revenue",
+                "title": f"Average Order Value Declining: ${row.current_aov:.2f} ({row.aov_change_pct:+.1f}%)",
+                "description": f"AOV has declined {abs(row.aov_change_pct):.1f}% from ${row.baseline_aov:.2f} to ${row.current_aov:.2f}",
+                "evidence": {
+                    "current_aov": float(row.current_aov),
+                    "baseline_aov": float(row.baseline_aov),
+                    "aov_change_pct": float(row.aov_change_pct),
+                    "total_transactions": int(row.total_transactions),
+                    "total_revenue": float(row.total_revenue),
+                },
+                "metrics": {
+                    "aov": float(row.current_aov),
+                    "aov_change": float(row.aov_change_pct),
+                },
+                "hypothesis": "Customers are buying lower-value items or fewer items per order",
+                "confidence_score": 0.85,
+                "potential_impact_score": min(100, abs(row.aov_change_pct) * 3),
+                "urgency_score": 80 if row.aov_change_pct < -20 else 60,
+                "recommended_actions": [
+                    "Analyze product mix - are customers shifting to lower-value items?",
+                    "Check for discount/coupon overuse",
+                    "Implement upsell/cross-sell strategies",
+                    "Test free shipping thresholds to encourage larger orders",
+                    "Review pricing strategy",
+                    f"Potential revenue recovery: ${(row.baseline_aov - row.current_aov) * row.total_transactions:,.0f}"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "1-2 weeks",
+            })
+        
+        logger.info(f"✅ Revenue AOV Decline detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Revenue AOV Decline detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_revenue_payment_failure_spike(organization_id: str) -> list:
+    """
+    Detect: Payment failure rate spiking
+    Fast Layer: Daily check
+    """
+    logger.info("🔍 Running Revenue Payment Failure Spike detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        AVG(payment_failure_rate) as avg_failure_rate,
+        SUM(payment_failures) as total_failures,
+        SUM(transactions) as total_transactions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+    ),
+    historical_performance AS (
+      SELECT 
+        AVG(payment_failure_rate) as baseline_failure_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+    )
+    SELECT 
+      r.avg_failure_rate as current_failure_rate,
+      h.baseline_failure_rate,
+      r.total_failures,
+      r.total_transactions,
+      SAFE_DIVIDE((r.avg_failure_rate - h.baseline_failure_rate), h.baseline_failure_rate) * 100 as failure_rate_increase_pct
+    FROM recent_performance r
+    CROSS JOIN historical_performance h
+    WHERE r.avg_failure_rate > 2  -- >2% failure rate
+      OR (h.baseline_failure_rate > 0 AND r.avg_failure_rate > h.baseline_failure_rate * 1.5)  -- 50% increase
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.current_failure_rate > 5 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "revenue_protection",
+                "type": "payment_failure_spike",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "revenue",
+                "title": f"Payment Failure Rate Spiking: {row.current_failure_rate:.1f}%",
+                "description": f"Payment failures at {row.current_failure_rate:.1f}% (up from {row.baseline_failure_rate:.1f}%), blocking revenue",
+                "evidence": {
+                    "current_failure_rate": float(row.current_failure_rate),
+                    "baseline_failure_rate": float(row.baseline_failure_rate),
+                    "failure_rate_increase_pct": float(row.failure_rate_increase_pct) if row.failure_rate_increase_pct else None,
+                    "total_failures": int(row.total_failures),
+                    "total_transactions": int(row.total_transactions),
+                },
+                "metrics": {
+                    "payment_failure_rate": float(row.current_failure_rate),
+                },
+                "hypothesis": "Payment processor issues, expired cards, or fraud detection blocking legitimate purchases",
+                "confidence_score": 0.9,
+                "potential_impact_score": min(100, row.current_failure_rate * 10),
+                "urgency_score": 90 if row.current_failure_rate > 5 else 70,
+                "recommended_actions": [
+                    "Check payment processor status - any outages?",
+                    "Review fraud detection settings - too aggressive?",
+                    "Send dunning emails to recover failed payments",
+                    "Check for expired credit cards",
+                    "Test checkout flow for technical issues",
+                    "Consider backup payment processor",
+                    f"Revenue at risk: ~${(row.total_failures / (row.total_transactions + row.total_failures)) * 100:,.0f} per transaction"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "1-3 days",
+            })
+        
+        logger.info(f"✅ Payment Failure Spike detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Payment Failure Spike detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_revenue_new_customer_decline(organization_id: str) -> list:
+    """
+    Detect: New customer revenue declining vs returning
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running New Customer Revenue Decline detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        SUM(CASE WHEN first_time_customers > 0 THEN revenue ELSE 0 END) as new_customer_revenue,
+        SUM(CASE WHEN returning_customers > 0 THEN revenue ELSE 0 END) as returning_customer_revenue,
+        SUM(first_time_customers) as total_new_customers,
+        SUM(returning_customers) as total_returning_customers,
+        SUM(revenue) as total_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+    ),
+    historical_performance AS (
+      SELECT 
+        SUM(CASE WHEN first_time_customers > 0 THEN revenue ELSE 0 END) as baseline_new_customer_revenue,
+        SUM(CASE WHEN returning_customers > 0 THEN revenue ELSE 0 END) as baseline_returning_customer_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    )
+    SELECT 
+      r.new_customer_revenue,
+      r.returning_customer_revenue,
+      h.baseline_new_customer_revenue,
+      h.baseline_returning_customer_revenue,
+      r.total_new_customers,
+      r.total_returning_customers,
+      r.total_revenue,
+      SAFE_DIVIDE(r.new_customer_revenue, r.total_revenue) * 100 as new_customer_pct,
+      SAFE_DIVIDE(h.baseline_new_customer_revenue, (h.baseline_new_customer_revenue + h.baseline_returning_customer_revenue)) * 100 as baseline_new_customer_pct,
+      SAFE_DIVIDE((r.new_customer_revenue - h.baseline_new_customer_revenue), h.baseline_new_customer_revenue) * 100 as new_customer_revenue_change_pct
+    FROM recent_performance r
+    CROSS JOIN historical_performance h
+    WHERE h.baseline_new_customer_revenue > 0
+      AND r.new_customer_revenue < h.baseline_new_customer_revenue * 0.85  -- 15%+ decline
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.new_customer_revenue_change_pct < -30 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "revenue_growth",
+                "type": "new_customer_decline",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "revenue",
+                "title": f"New Customer Revenue Declining: {row.new_customer_revenue_change_pct:+.1f}%",
+                "description": f"New customer revenue down {abs(row.new_customer_revenue_change_pct):.1f}% while returning customer revenue stable",
+                "evidence": {
+                    "current_new_customer_revenue": float(row.new_customer_revenue),
+                    "baseline_new_customer_revenue": float(row.baseline_new_customer_revenue),
+                    "new_customer_revenue_change_pct": float(row.new_customer_revenue_change_pct),
+                    "new_customer_pct_of_total": float(row.new_customer_pct),
+                    "baseline_new_customer_pct": float(row.baseline_new_customer_pct),
+                    "total_new_customers": int(row.total_new_customers),
+                },
+                "metrics": {
+                    "new_customer_revenue": float(row.new_customer_revenue),
+                    "new_customer_pct": float(row.new_customer_pct),
+                },
+                "hypothesis": "Customer acquisition declining or new customer quality dropping",
+                "confidence_score": 0.85,
+                "potential_impact_score": min(100, abs(row.new_customer_revenue_change_pct) * 2),
+                "urgency_score": 80 if row.new_customer_revenue_change_pct < -30 else 60,
+                "recommended_actions": [
+                    "Review acquisition channels - where has new customer traffic dropped?",
+                    "Check onboarding flow for friction",
+                    "Review first-purchase offers and incentives",
+                    "Analyze new customer CAC vs LTV",
+                    "Test welcome campaigns and first-purchase nurture",
+                    f"Growth opportunity: Recover to baseline = ${row.baseline_new_customer_revenue - row.new_customer_revenue:,.0f}"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "2-3 weeks",
+            })
+        
+        logger.info(f"✅ New Customer Revenue Decline detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ New Customer Revenue Decline detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_revenue_discount_cannibalization(organization_id: str) -> list:
+    """
+    Detect: Discount usage increasing but revenue flat/declining
+    Strategic Layer: Monthly check
+    """
+    logger.info("🔍 Running Discount Cannibalization detector...")
+    
+    opportunities = []
+    
+    # Note: This requires discount data from Stripe
+    # For now, we'll check if refund_rate is increasing as a proxy
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        AVG(refund_rate) as avg_refund_rate,
+        SUM(refunds) as total_refunds,
+        SUM(revenue) as total_revenue,
+        SUM(transactions) as total_transactions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+    ),
+    historical_performance AS (
+      SELECT 
+        AVG(refund_rate) as baseline_refund_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    )
+    SELECT 
+      r.avg_refund_rate,
+      h.baseline_refund_rate,
+      r.total_refunds,
+      r.total_revenue,
+      r.total_transactions,
+      SAFE_DIVIDE((r.avg_refund_rate - h.baseline_refund_rate), h.baseline_refund_rate) * 100 as refund_rate_increase_pct
+    FROM recent_performance r
+    CROSS JOIN historical_performance h
+    WHERE r.avg_refund_rate > 3  -- >3% refund rate
+      OR (h.baseline_refund_rate > 0 AND r.avg_refund_rate > h.baseline_refund_rate * 1.5)  -- 50% increase
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "revenue_optimization",
+                "type": "refund_rate_increase",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "revenue",
+                "title": f"Refund Rate Increasing: {row.avg_refund_rate:.1f}%",
+                "description": f"Refund rate at {row.avg_refund_rate:.1f}%, up from baseline of {row.baseline_refund_rate:.1f}%",
+                "evidence": {
+                    "current_refund_rate": float(row.avg_refund_rate),
+                    "baseline_refund_rate": float(row.baseline_refund_rate),
+                    "refund_rate_increase_pct": float(row.refund_rate_increase_pct) if row.refund_rate_increase_pct else None,
+                    "total_refunds": float(row.total_refunds),
+                    "total_revenue": float(row.total_revenue),
+                },
+                "metrics": {
+                    "refund_rate": float(row.avg_refund_rate),
+                },
+                "hypothesis": "Product quality issues, expectation mismatch, or policy abuse",
+                "confidence_score": 0.75,
+                "potential_impact_score": min(100, row.avg_refund_rate * 10),
+                "urgency_score": 60,
+                "recommended_actions": [
+                    "Analyze refund reasons - product, delivery, or policy issues?",
+                    "Check for discount/coupon abuse patterns",
+                    "Review product descriptions and images - setting wrong expectations?",
+                    "Tighten refund policy if being abused",
+                    "Improve product quality or fulfillment",
+                    f"Revenue recovery potential: ${row.total_refunds:,.0f}"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "2-4 weeks",
+            })
+        
+        logger.info(f"✅ Refund Rate Increase detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Refund Rate Increase detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_revenue_seasonality_deviation(organization_id: str) -> list:
+    """
+    Detect: Revenue deviating from expected seasonal patterns
+    Strategic Layer: Monthly check
+    """
+    logger.info("🔍 Running Revenue Seasonality Deviation detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH monthly_revenue AS (
+      SELECT 
+        DATE_TRUNC(date, MONTH) as month,
+        EXTRACT(MONTH FROM date) as month_number,
+        SUM(revenue) as monthly_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH)  -- 2 years of data
+      GROUP BY month, month_number
+    ),
+    current_month AS (
+      SELECT 
+        month,
+        month_number,
+        monthly_revenue as current_revenue
+      FROM monthly_revenue
+      WHERE month = DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+    ),
+    same_month_history AS (
+      SELECT 
+        cm.month_number,
+        cm.current_revenue,
+        AVG(mr.monthly_revenue) as avg_same_month_revenue,
+        STDDEV(mr.monthly_revenue) as stddev_same_month_revenue,
+        COUNT(*) as years_of_data
+      FROM current_month cm
+      JOIN monthly_revenue mr ON mr.month_number = cm.month_number
+        AND mr.month < cm.month  -- Only historical data
+      GROUP BY cm.month_number, cm.current_revenue
+    )
+    SELECT 
+      month_number,
+      current_revenue,
+      avg_same_month_revenue,
+      stddev_same_month_revenue,
+      years_of_data,
+      SAFE_DIVIDE((current_revenue - avg_same_month_revenue), stddev_same_month_revenue) as z_score,
+      SAFE_DIVIDE((current_revenue - avg_same_month_revenue), avg_same_month_revenue) * 100 as deviation_pct
+    FROM same_month_history
+    WHERE years_of_data >= 2  -- Need at least 2 years of history
+      AND ABS(SAFE_DIVIDE((current_revenue - avg_same_month_revenue), stddev_same_month_revenue)) > 2  -- 2 standard deviations
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            is_underperforming = row.current_revenue < row.avg_same_month_revenue
+            priority = "high" if is_underperforming and abs(row.deviation_pct) > 20 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "revenue_trend",
+                "type": "seasonality_deviation",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "revenue",
+                "title": f"Revenue {'Under' if is_underperforming else 'Over'}performing vs Seasonal Baseline: {row.deviation_pct:+.1f}%",
+                "description": f"Revenue ${row.current_revenue:,.0f} vs expected ${row.avg_same_month_revenue:,.0f} for this month ({abs(row.deviation_pct):.1f}% deviation)",
+                "evidence": {
+                    "current_revenue": float(row.current_revenue),
+                    "expected_revenue": float(row.avg_same_month_revenue),
+                    "deviation_pct": float(row.deviation_pct),
+                    "z_score": float(row.z_score),
+                    "years_of_history": int(row.years_of_data),
+                },
+                "metrics": {
+                    "revenue": float(row.current_revenue),
+                    "deviation_from_seasonal": float(row.deviation_pct),
+                },
+                "hypothesis": "Revenue significantly deviating from historical seasonal patterns" if is_underperforming else "Revenue exceeding seasonal expectations - identify what's working",
+                "confidence_score": 0.8,
+                "potential_impact_score": min(100, abs(row.deviation_pct)),
+                "urgency_score": 70 if is_underperforming else 40,
+                "recommended_actions": [
+                    f"Investigate why revenue is {'below' if is_underperforming else 'above'} seasonal baseline",
+                    "Compare to industry seasonal patterns",
+                    "Review marketing campaigns vs same period last year",
+                    "Check for external factors (economy, competition, events)",
+                    f"{'Recovery' if is_underperforming else 'Scale'} opportunity: ${abs(row.current_revenue - row.avg_same_month_revenue):,.0f}"
+                ] if is_underperforming else [
+                    "Identify what's driving outperformance",
+                    "Scale successful tactics",
+                    "Document learnings for future seasons",
+                    f"Excess revenue vs baseline: ${row.current_revenue - row.avg_same_month_revenue:,.0f}"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "1-2 weeks",
+            })
+        
+        logger.info(f"✅ Seasonality Deviation detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Seasonality Deviation detector failed: {e}")
+    
+    return opportunities
+
+
+__all__ = [
+    'detect_revenue_anomaly', 
+    'detect_metric_anomalies', 
+    'detect_revenue_trends_multitimeframe',
+    'detect_revenue_aov_decline',
+    'detect_revenue_payment_failure_spike',
+    'detect_revenue_new_customer_decline',
+    'detect_revenue_discount_cannibalization',
+    'detect_revenue_seasonality_deviation'
+]

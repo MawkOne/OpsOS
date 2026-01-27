@@ -39,7 +39,12 @@ from detectors.pages_detectors import (
     detect_page_engagement_decay,
     detect_scale_winners_multitimeframe,
     detect_scale_winners,
-    detect_fix_losers
+    detect_fix_losers,
+    detect_page_form_abandonment_spike,
+    detect_page_cart_abandonment_increase,
+    detect_page_error_rate_spike,
+    detect_page_micro_conversion_drop,
+    detect_page_exit_rate_increase
 )
 from detectors.content_detectors import (
     detect_content_decay,
@@ -48,12 +53,21 @@ from detectors.content_detectors import (
 from detectors.traffic_detectors import (
     detect_cross_channel_gaps,
     detect_declining_performers_multitimeframe,
-    detect_declining_performers
+    detect_declining_performers,
+    detect_traffic_bot_spam_spike,
+    detect_traffic_spike_quality_check,
+    detect_traffic_utm_parameter_gaps,
+    detect_traffic_referral_opportunities
 )
 from detectors.revenue_detectors import (
     detect_revenue_anomaly,
     detect_metric_anomalies,
-    detect_revenue_trends_multitimeframe
+    detect_revenue_trends_multitimeframe,
+    detect_revenue_aov_decline,
+    detect_revenue_payment_failure_spike,
+    detect_revenue_new_customer_decline,
+    detect_revenue_discount_cannibalization,
+    detect_revenue_seasonality_deviation
 )
 
 # Import new expansion detectors (32 additional detectors)
@@ -380,6 +394,11 @@ def run_scout_ai(request):
             all_opportunities.extend(detect_high_traffic_low_conversion_pages(organization_id))
             all_opportunities.extend(detect_page_engagement_decay(organization_id))
             all_opportunities.extend(detect_scale_winners_multitimeframe(organization_id))
+            all_opportunities.extend(detect_page_form_abandonment_spike(organization_id))
+            all_opportunities.extend(detect_page_cart_abandonment_increase(organization_id))
+            all_opportunities.extend(detect_page_error_rate_spike(organization_id))
+            all_opportunities.extend(detect_page_micro_conversion_drop(organization_id))
+            all_opportunities.extend(detect_page_exit_rate_increase(organization_id))
         
         # CONTENT detectors
         if enabled_areas.get('content', True):
@@ -392,6 +411,10 @@ def run_scout_ai(request):
             logger.info("🚦 Running Traffic detectors...")
             all_opportunities.extend(detect_cross_channel_gaps(organization_id))
             all_opportunities.extend(detect_declining_performers_multitimeframe(organization_id))
+            all_opportunities.extend(detect_traffic_bot_spam_spike(organization_id))
+            all_opportunities.extend(detect_traffic_spike_quality_check(organization_id))
+            all_opportunities.extend(detect_traffic_utm_parameter_gaps(organization_id))
+            all_opportunities.extend(detect_traffic_referral_opportunities(organization_id))
         
         # REVENUE detectors
         if enabled_areas.get('revenue', True):
@@ -399,6 +422,11 @@ def run_scout_ai(request):
             all_opportunities.extend(detect_revenue_anomaly(organization_id))
             all_opportunities.extend(detect_metric_anomalies(organization_id))
             all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
+            all_opportunities.extend(detect_revenue_aov_decline(organization_id))
+            all_opportunities.extend(detect_revenue_payment_failure_spike(organization_id))
+            all_opportunities.extend(detect_revenue_new_customer_decline(organization_id))
+            all_opportunities.extend(detect_revenue_discount_cannibalization(organization_id))
+            all_opportunities.extend(detect_revenue_seasonality_deviation(organization_id))
         
         # NEW EXPANSION DETECTORS (32 additional detectors)
         logger.info("🚀 Running Expansion Detectors...")

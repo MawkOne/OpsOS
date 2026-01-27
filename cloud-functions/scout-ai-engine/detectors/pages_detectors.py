@@ -660,4 +660,591 @@ def detect_fix_losers(organization_id: str) -> list:
     return opportunities
 
 
-__all__ = ['detect_high_traffic_low_conversion_pages', 'detect_page_engagement_decay', 'detect_scale_winners_multitimeframe', 'detect_scale_winners', 'detect_fix_losers']
+def detect_page_form_abandonment_spike(organization_id: str) -> list:
+    """
+    Detect: Form abandonment rate spiking
+    Fast Layer: Daily check
+    """
+    logger.info("🔍 Running Form Abandonment Spike detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(form_abandonment_rate) as avg_abandonment_rate,
+        SUM(form_starts) as total_form_starts,
+        SUM(form_submits) as total_form_submits
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+        AND form_starts > 0
+      GROUP BY canonical_entity_id
+    ),
+    historical_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(form_abandonment_rate) as baseline_abandonment_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND entity_type = 'page'
+        AND form_starts > 0
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.avg_abandonment_rate,
+      h.baseline_abandonment_rate,
+      r.total_form_starts,
+      r.total_form_submits,
+      SAFE_DIVIDE((r.avg_abandonment_rate - h.baseline_abandonment_rate), h.baseline_abandonment_rate) * 100 as abandonment_increase_pct
+    FROM recent_performance r
+    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE r.avg_abandonment_rate > 50  -- >50% abandonment is concerning
+      OR (h.baseline_abandonment_rate > 0 AND r.avg_abandonment_rate > h.baseline_abandonment_rate * 1.2)  -- 20%+ increase
+      AND r.total_form_starts > 20
+    ORDER BY r.avg_abandonment_rate DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.avg_abandonment_rate > 70 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "conversion_optimization",
+                "type": "form_abandonment_spike",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": "page",
+                "title": f"Form Abandonment Spike: {row.avg_abandonment_rate:.1f}%",
+                "description": f"Form abandonment at {row.avg_abandonment_rate:.1f}% (baseline: {row.baseline_abandonment_rate:.1f}%)",
+                "evidence": {
+                    "current_abandonment_rate": float(row.avg_abandonment_rate),
+                    "baseline_abandonment_rate": float(row.baseline_abandonment_rate) if row.baseline_abandonment_rate else None,
+                    "abandonment_increase_pct": float(row.abandonment_increase_pct) if row.abandonment_increase_pct else None,
+                    "total_form_starts": int(row.total_form_starts),
+                    "total_form_submits": int(row.total_form_submits),
+                },
+                "metrics": {
+                    "form_abandonment_rate": float(row.avg_abandonment_rate),
+                },
+                "hypothesis": "Form friction, too many fields, technical errors, or trust issues causing abandonment",
+                "confidence_score": 0.85,
+                "potential_impact_score": min(100, row.avg_abandonment_rate * 0.8),
+                "urgency_score": 85 if row.avg_abandonment_rate > 70 else 65,
+                "recommended_actions": [
+                    "Reduce form fields - remove non-essential questions",
+                    "Add progress indicators for multi-step forms",
+                    "Check for technical errors (JavaScript console)",
+                    "Add trust signals near submit button",
+                    "Test autofill and validation",
+                    "Consider breaking into smaller steps",
+                    f"Potential conversions: {int(row.total_form_starts * (row.avg_abandonment_rate / 100))} form starts lost"
+                ],
+                "estimated_effort": "low",
+                "estimated_timeline": "3-5 days",
+            })
+        
+        logger.info(f"✅ Form Abandonment Spike detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Form Abandonment Spike detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_page_cart_abandonment_increase(organization_id: str) -> list:
+    """
+    Detect: Cart abandonment rate increasing
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running Cart Abandonment Increase detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        AVG(cart_abandonment_rate) as avg_cart_abandonment,
+        SUM(add_to_cart) as total_add_to_cart,
+        SUM(begin_checkout) as total_begin_checkout,
+        SUM(purchase_count) as total_purchases
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND add_to_cart > 0
+    ),
+    historical_performance AS (
+      SELECT 
+        AVG(cart_abandonment_rate) as baseline_cart_abandonment
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND add_to_cart > 0
+    )
+    SELECT 
+      r.avg_cart_abandonment as current_cart_abandonment,
+      h.baseline_cart_abandonment,
+      r.total_add_to_cart,
+      r.total_begin_checkout,
+      r.total_purchases,
+      SAFE_DIVIDE((r.avg_cart_abandonment - h.baseline_cart_abandonment), h.baseline_cart_abandonment) * 100 as cart_abandonment_increase_pct
+    FROM recent_performance r
+    CROSS JOIN historical_performance h
+    WHERE r.avg_cart_abandonment > 60  -- >60% is concerning
+      OR (h.baseline_cart_abandonment > 0 AND r.avg_cart_abandonment > h.baseline_cart_abandonment * 1.15)  -- 15%+ increase
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.current_cart_abandonment > 75 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "conversion_optimization",
+                "type": "cart_abandonment_increase",
+                "priority": priority,
+                "status": "new",
+                "entity_id": "aggregate",
+                "entity_type": "ecommerce",
+                "title": f"Cart Abandonment Increasing: {row.current_cart_abandonment:.1f}%",
+                "description": f"Cart abandonment at {row.current_cart_abandonment:.1f}%, up from {row.baseline_cart_abandonment:.1f}%",
+                "evidence": {
+                    "current_cart_abandonment": float(row.current_cart_abandonment),
+                    "baseline_cart_abandonment": float(row.baseline_cart_abandonment),
+                    "cart_abandonment_increase_pct": float(row.cart_abandonment_increase_pct),
+                    "total_add_to_cart": int(row.total_add_to_cart),
+                    "total_begin_checkout": int(row.total_begin_checkout),
+                    "total_purchases": int(row.total_purchases),
+                },
+                "metrics": {
+                    "cart_abandonment_rate": float(row.current_cart_abandonment),
+                },
+                "hypothesis": "Shipping costs, checkout friction, payment issues, or lack of trust causing cart abandonment",
+                "confidence_score": 0.85,
+                "potential_impact_score": min(100, row.current_cart_abandonment * 0.8),
+                "urgency_score": 85 if row.current_cart_abandonment > 75 else 65,
+                "recommended_actions": [
+                    "Review shipping costs - too high or surprise fees?",
+                    "Simplify checkout process - reduce steps",
+                    "Add more payment options",
+                    "Display trust badges and security info",
+                    "Test guest checkout option",
+                    "Send cart abandonment emails",
+                    f"Revenue recovery potential: {int(row.total_add_to_cart - row.total_purchases)} abandoned carts"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "1-2 weeks",
+            })
+        
+        logger.info(f"✅ Cart Abandonment Increase detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Cart Abandonment Increase detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_page_error_rate_spike(organization_id: str) -> list:
+    """
+    Detect: Page error rate spiking (JS errors, 404s, etc.)
+    Fast Layer: Daily check
+    """
+    logger.info("🔍 Running Page Error Rate Spike detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        canonical_entity_id,
+        SUM(error_count) as total_errors,
+        SUM(sessions) as total_sessions,
+        SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as error_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    ),
+    historical_performance AS (
+      SELECT 
+        canonical_entity_id,
+        SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as baseline_error_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.error_rate as current_error_rate,
+      h.baseline_error_rate,
+      r.total_errors,
+      r.total_sessions,
+      SAFE_DIVIDE((r.error_rate - h.baseline_error_rate), h.baseline_error_rate) * 100 as error_rate_increase_pct
+    FROM recent_performance r
+    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE r.error_rate > 5  -- >5% error rate is concerning
+      OR (h.baseline_error_rate > 0 AND r.error_rate > h.baseline_error_rate * 2)  -- 2x increase
+      AND r.total_sessions > 50
+    ORDER BY r.error_rate DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.current_error_rate > 10 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "technical_health",
+                "type": "page_error_spike",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": "page",
+                "title": f"Page Error Rate Spiking: {row.current_error_rate:.1f}%",
+                "description": f"Page errors at {row.current_error_rate:.1f}% of sessions (baseline: {row.baseline_error_rate:.1f}%)",
+                "evidence": {
+                    "current_error_rate": float(row.current_error_rate),
+                    "baseline_error_rate": float(row.baseline_error_rate) if row.baseline_error_rate else None,
+                    "error_rate_increase_pct": float(row.error_rate_increase_pct) if row.error_rate_increase_pct else None,
+                    "total_errors": int(row.total_errors),
+                    "total_sessions": int(row.total_sessions),
+                },
+                "metrics": {
+                    "error_rate": float(row.current_error_rate),
+                },
+                "hypothesis": "JavaScript errors, broken API calls, or deployment issues affecting user experience",
+                "confidence_score": 0.95,
+                "potential_impact_score": min(100, row.current_error_rate * 5),
+                "urgency_score": 95 if row.current_error_rate > 10 else 75,
+                "recommended_actions": [
+                    "Check browser console for JavaScript errors",
+                    "Review recent deployments - rollback if needed",
+                    "Test page functionality across browsers/devices",
+                    "Check API endpoints for failures",
+                    "Monitor error tracking (Sentry, Bugsnag, etc.)",
+                    "Test with ad blockers disabled",
+                    f"{int(row.total_errors)} errors affecting user experience"
+                ],
+                "estimated_effort": "high",
+                "estimated_timeline": "1-3 days",
+            })
+        
+        logger.info(f"✅ Page Error Rate Spike detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Page Error Rate Spike detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_page_micro_conversion_drop(organization_id: str) -> list:
+    """
+    Detect: Micro-conversions (scroll, video, clicks) declining
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running Micro-Conversion Drop detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(scroll_depth_avg) as avg_scroll_depth,
+        SUM(scroll_depth_75) as total_scroll_75,
+        SUM(sessions) as total_sessions,
+        SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as scroll_75_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    ),
+    historical_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(scroll_depth_avg) as baseline_scroll_depth,
+        SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as baseline_scroll_75_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.avg_scroll_depth,
+      h.baseline_scroll_depth,
+      r.scroll_75_rate,
+      h.baseline_scroll_75_rate,
+      r.total_sessions,
+      SAFE_DIVIDE((r.avg_scroll_depth - h.baseline_scroll_depth), h.baseline_scroll_depth) * 100 as scroll_depth_change_pct
+    FROM recent_performance r
+    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE h.baseline_scroll_depth > 0
+      AND r.avg_scroll_depth < h.baseline_scroll_depth * 0.85  -- 15%+ drop
+      AND r.total_sessions > 100
+    ORDER BY scroll_depth_change_pct ASC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "engagement_optimization",
+                "type": "micro_conversion_drop",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": "page",
+                "title": f"Scroll Depth Declining: {row.scroll_depth_change_pct:+.1f}%",
+                "description": f"Average scroll depth down to {row.avg_scroll_depth:.1f}% (from {row.baseline_scroll_depth:.1f}%)",
+                "evidence": {
+                    "current_scroll_depth": float(row.avg_scroll_depth),
+                    "baseline_scroll_depth": float(row.baseline_scroll_depth),
+                    "scroll_depth_change_pct": float(row.scroll_depth_change_pct),
+                    "scroll_75_rate": float(row.scroll_75_rate),
+                    "baseline_scroll_75_rate": float(row.baseline_scroll_75_rate) if row.baseline_scroll_75_rate else None,
+                    "total_sessions": int(row.total_sessions),
+                },
+                "metrics": {
+                    "scroll_depth": float(row.avg_scroll_depth),
+                },
+                "hypothesis": "Content quality declining, page too long, or engagement hooks missing",
+                "confidence_score": 0.75,
+                "potential_impact_score": min(100, abs(row.scroll_depth_change_pct)),
+                "urgency_score": 60,
+                "recommended_actions": [
+                    "Review content quality - is it engaging?",
+                    "Add engagement elements (videos, images, interactive)",
+                    "Check page load speed - slow pages lose readers",
+                    "Move important content higher up",
+                    "Test different content formats",
+                    "Add internal links to keep users engaged",
+                    f"{int(row.total_sessions * (1 - row.avg_scroll_depth / 100))} sessions not seeing full content"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "1-2 weeks",
+            })
+        
+        logger.info(f"✅ Micro-Conversion Drop detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Micro-Conversion Drop detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_page_exit_rate_increase(organization_id: str) -> list:
+    """
+    Detect: Exit rate increasing on important pages
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running Exit Rate Increase detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(exit_rate) as avg_exit_rate,
+        SUM(sessions) as total_sessions,
+        AVG(conversion_rate) as avg_conversion_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    ),
+    historical_performance AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(exit_rate) as baseline_exit_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.avg_exit_rate,
+      h.baseline_exit_rate,
+      r.total_sessions,
+      r.avg_conversion_rate,
+      SAFE_DIVIDE((r.avg_exit_rate - h.baseline_exit_rate), h.baseline_exit_rate) * 100 as exit_rate_increase_pct
+    FROM recent_performance r
+    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE h.baseline_exit_rate > 0
+      AND r.avg_exit_rate > h.baseline_exit_rate * 1.2  -- 20%+ increase
+      AND r.total_sessions > 100
+    ORDER BY exit_rate_increase_pct DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high" if row.exit_rate_increase_pct > 50 else "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "engagement_optimization",
+                "type": "exit_rate_increase",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": "page",
+                "title": f"Exit Rate Increasing: {row.avg_exit_rate:.1f}% (+{row.exit_rate_increase_pct:.1f}%)",
+                "description": f"Exit rate up to {row.avg_exit_rate:.1f}% from {row.baseline_exit_rate:.1f}%",
+                "evidence": {
+                    "current_exit_rate": float(row.avg_exit_rate),
+                    "baseline_exit_rate": float(row.baseline_exit_rate),
+                    "exit_rate_increase_pct": float(row.exit_rate_increase_pct),
+                    "total_sessions": int(row.total_sessions),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                },
+                "metrics": {
+                    "exit_rate": float(row.avg_exit_rate),
+                },
+                "hypothesis": "Missing next steps, broken links, or content not meeting user intent",
+                "confidence_score": 0.80,
+                "potential_impact_score": min(100, row.exit_rate_increase_pct * 0.8),
+                "urgency_score": 75 if row.exit_rate_increase_pct > 50 else 60,
+                "recommended_actions": [
+                    "Add clear next steps and CTAs",
+                    "Check for broken internal links",
+                    "Add related content links",
+                    "Review page intent vs actual content",
+                    "Test different CTA placements",
+                    "Add exit-intent popups with offers",
+                    f"{int(row.total_sessions * (row.avg_exit_rate / 100))} sessions exiting - keep them engaged"
+                ],
+                "estimated_effort": "low",
+                "estimated_timeline": "3-5 days",
+            })
+        
+        logger.info(f"✅ Exit Rate Increase detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Exit Rate Increase detector failed: {e}")
+    
+    return opportunities
+
+
+__all__ = [
+    'detect_high_traffic_low_conversion_pages', 
+    'detect_page_engagement_decay', 
+    'detect_scale_winners_multitimeframe', 
+    'detect_scale_winners', 
+    'detect_fix_losers',
+    'detect_page_form_abandonment_spike',
+    'detect_page_cart_abandonment_increase',
+    'detect_page_error_rate_spike',
+    'detect_page_micro_conversion_drop',
+    'detect_page_exit_rate_increase'
+]

@@ -16,7 +16,7 @@ export default function AIPage() {
   const { currentOrg } = useOrganization();
   const [stats, setStats] = useState({
     totalOpportunities: 0,
-    detectorCount: 60, // Static - actual detector count (55 + 5 new email detectors)
+    detectorCount: 74, // Static - actual detector count (60 + 14 new detectors)
     monthlyRecords: 0,
     metricPoints: 0
   });
@@ -35,7 +35,7 @@ export default function AIPage() {
       
       setStats({
         totalOpportunities: data.opportunities?.length || 0,
-        detectorCount: 60, // 55 original + 5 new email detectors
+        detectorCount: 74, // 60 + 14 new detectors (5 revenue, 5 page, 4 traffic)
         monthlyRecords: data.monthlyRecords || 0, // If available from API
         metricPoints: data.metricPoints || 0 // If available from API
       });
@@ -104,7 +104,7 @@ export default function AIPage() {
   ];
 
   return (
-    <AppLayout title="Scout AI" subtitle="60 detectors across 7 marketing areas powered by multi-timeframe analysis">
+    <AppLayout title="Scout AI" subtitle="74 detectors across 7 marketing areas powered by multi-timeframe analysis">
       {/* Hero Section */}
       <Card className="glass mb-8">
         <div className="flex items-start justify-between">

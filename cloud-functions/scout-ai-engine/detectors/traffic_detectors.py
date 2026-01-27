@@ -428,4 +428,486 @@ def detect_declining_performers(organization_id: str) -> list:
     return opportunities
 
 
-__all__ = ['detect_cross_channel_gaps', 'detect_declining_performers_multitimeframe', 'detect_declining_performers']
+def detect_traffic_bot_spam_spike(organization_id: str) -> list:
+    """
+    Detect: Bot/spam traffic spike (high bounce, low duration)
+    Fast Layer: Daily check
+    """
+    logger.info("🔍 Running Bot/Spam Traffic Spike detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_traffic AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        SUM(sessions) as total_sessions,
+        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(avg_session_duration) as avg_duration,
+        AVG(conversion_rate) as avg_conversion_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+      GROUP BY canonical_entity_id, entity_type
+    ),
+    baseline_traffic AS (
+      SELECT 
+        canonical_entity_id,
+        SUM(sessions) as baseline_sessions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.entity_type,
+      r.total_sessions,
+      b.baseline_sessions,
+      r.avg_bounce_rate,
+      r.avg_duration,
+      r.avg_conversion_rate,
+      SAFE_DIVIDE((r.total_sessions - b.baseline_sessions), b.baseline_sessions) * 100 as traffic_increase_pct
+    FROM recent_traffic r
+    LEFT JOIN baseline_traffic b ON r.canonical_entity_id = b.canonical_entity_id
+    WHERE r.avg_bounce_rate > 80  -- >80% bounce
+      AND r.avg_duration < 10  -- <10 seconds
+      AND (b.baseline_sessions IS NULL OR r.total_sessions > b.baseline_sessions * 1.5)  -- 50%+ traffic increase
+      AND r.total_sessions > 50
+    ORDER BY r.total_sessions DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "traffic_quality",
+                "type": "bot_spam_spike",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": row.entity_type,
+                "title": f"Bot/Spam Traffic Detected: {row.total_sessions:,.0f} sessions",
+                "description": f"Traffic spike with {row.avg_bounce_rate:.1f}% bounce and {row.avg_duration:.1f}s duration - likely bot/spam",
+                "evidence": {
+                    "current_sessions": int(row.total_sessions),
+                    "baseline_sessions": int(row.baseline_sessions) if row.baseline_sessions else None,
+                    "traffic_increase_pct": float(row.traffic_increase_pct) if row.traffic_increase_pct else None,
+                    "bounce_rate": float(row.avg_bounce_rate),
+                    "avg_duration": float(row.avg_duration),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                },
+                "metrics": {
+                    "sessions": int(row.total_sessions),
+                    "bounce_rate": float(row.avg_bounce_rate),
+                    "avg_duration": float(row.avg_duration),
+                },
+                "hypothesis": "Bot traffic or low-quality referral spam inflating session counts without real engagement",
+                "confidence_score": 0.9,
+                "potential_impact_score": 70,
+                "urgency_score": 75,
+                "recommended_actions": [
+                    "Check GA4 for suspicious traffic sources",
+                    "Implement bot filtering/reCAPTCHA if needed",
+                    "Block suspicious referral domains",
+                    "Review server logs for bot patterns",
+                    "Filter bot traffic from analytics",
+                    f"Clean up: {int(row.total_sessions)} suspicious sessions"
+                ],
+                "estimated_effort": "low",
+                "estimated_timeline": "1-2 days",
+            })
+        
+        logger.info(f"✅ Bot/Spam Traffic Spike detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Bot/Spam Traffic Spike detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_traffic_spike_quality_check(organization_id: str) -> list:
+    """
+    Detect: Unexpected traffic spikes with quality concerns
+    Fast Layer: Daily check
+    """
+    logger.info("🔍 Running Traffic Spike Quality Check detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH recent_traffic AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        SUM(sessions) as total_sessions,
+        AVG(conversion_rate) as avg_conversion_rate,
+        AVG(bounce_rate) as avg_bounce_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+      GROUP BY canonical_entity_id, entity_type
+    ),
+    baseline_traffic AS (
+      SELECT 
+        canonical_entity_id,
+        AVG(sessions_per_day) as avg_daily_sessions,
+        AVG(avg_conversion_rate) as baseline_conversion_rate
+      FROM (
+        SELECT 
+          canonical_entity_id,
+          date,
+          SUM(sessions) as sessions_per_day,
+          AVG(conversion_rate) as avg_conversion_rate
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+        JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+          ON m.canonical_entity_id = e.canonical_entity_id
+          AND e.is_active = TRUE
+        WHERE organization_id = @org_id
+          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+          AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        GROUP BY canonical_entity_id, date
+      )
+      GROUP BY canonical_entity_id
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.entity_type,
+      r.total_sessions,
+      r.avg_conversion_rate,
+      r.avg_bounce_rate,
+      b.avg_daily_sessions * 7 as expected_weekly_sessions,
+      b.baseline_conversion_rate,
+      SAFE_DIVIDE((r.total_sessions - (b.avg_daily_sessions * 7)), (b.avg_daily_sessions * 7)) * 100 as traffic_spike_pct
+    FROM recent_traffic r
+    LEFT JOIN baseline_traffic b ON r.canonical_entity_id = b.canonical_entity_id
+    WHERE b.avg_daily_sessions > 0
+      AND r.total_sessions > b.avg_daily_sessions * 7 * 2  -- 2x normal traffic
+      AND r.avg_conversion_rate < b.baseline_conversion_rate * 0.7  -- 30%+ CVR drop
+    ORDER BY traffic_spike_pct DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "high"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "traffic_quality",
+                "type": "traffic_spike_quality_concern",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": row.entity_type,
+                "title": f"Traffic Spike (+{row.traffic_spike_pct:.0f}%) with Low Quality",
+                "description": f"Traffic up {row.traffic_spike_pct:.0f}% but CVR down to {row.avg_conversion_rate:.1f}% (from {row.baseline_conversion_rate:.1f}%)",
+                "evidence": {
+                    "current_sessions": int(row.total_sessions),
+                    "expected_sessions": int(row.expected_weekly_sessions),
+                    "traffic_spike_pct": float(row.traffic_spike_pct),
+                    "current_conversion_rate": float(row.avg_conversion_rate),
+                    "baseline_conversion_rate": float(row.baseline_conversion_rate),
+                    "bounce_rate": float(row.avg_bounce_rate),
+                },
+                "metrics": {
+                    "sessions": int(row.total_sessions),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                },
+                "hypothesis": "Viral traffic, media mention, or low-quality traffic source causing spike without conversions",
+                "confidence_score": 0.85,
+                "potential_impact_score": 75,
+                "urgency_score": 70,
+                "recommended_actions": [
+                    "Identify traffic source - where is spike coming from?",
+                    "Check if viral or media mention",
+                    "Review landing page relevance for new traffic",
+                    "Add CTAs to capture interest if viral",
+                    "Consider emergency lead magnet/offer",
+                    "Monitor for continuation or fade",
+                    f"Opportunity: {int(row.total_sessions * row.baseline_conversion_rate / 100)} expected conversions vs {int(row.total_sessions * row.avg_conversion_rate / 100)} actual"
+                ],
+                "estimated_effort": "low",
+                "estimated_timeline": "1-2 days",
+            })
+        
+        logger.info(f"✅ Traffic Spike Quality Check detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Traffic Spike Quality Check detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_traffic_utm_parameter_gaps(organization_id: str) -> list:
+    """
+    Detect: High-value traffic missing UTM tracking
+    Trend Layer: Weekly check
+    """
+    logger.info("🔍 Running UTM Parameter Gaps detector...")
+    
+    opportunities = []
+    
+    # Note: This requires source_breakdown JSON parsing
+    # For now, we'll identify high-traffic entities that might need better tracking
+    query = f"""
+    WITH recent_traffic AS (
+      SELECT 
+        canonical_entity_id,
+        entity_type,
+        SUM(sessions) as total_sessions,
+        SUM(conversions) as total_conversions,
+        SUM(revenue) as total_revenue,
+        AVG(conversion_rate) as avg_conversion_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type IN ('campaign', 'page')
+      GROUP BY canonical_entity_id, entity_type
+    )
+    SELECT 
+      canonical_entity_id,
+      entity_type,
+      total_sessions,
+      total_conversions,
+      total_revenue,
+      avg_conversion_rate,
+      CASE 
+        WHEN canonical_entity_id NOT LIKE '%utm%' AND canonical_entity_id NOT LIKE '%source=%' THEN TRUE
+        ELSE FALSE
+      END as missing_utm_tracking
+    FROM recent_traffic
+    WHERE total_sessions > 100
+      AND total_revenue > 0
+      AND (canonical_entity_id NOT LIKE '%utm%' OR canonical_entity_id LIKE '%direct%' OR canonical_entity_id LIKE '%unattributed%')
+    ORDER BY total_revenue DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "tracking_optimization",
+                "type": "utm_parameter_gaps",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": row.entity_type,
+                "title": f"High-Value Traffic Missing UTM Tracking",
+                "description": f"{row.total_sessions:,.0f} sessions generating ${row.total_revenue:,.0f} with unclear attribution",
+                "evidence": {
+                    "total_sessions": int(row.total_sessions),
+                    "total_conversions": int(row.total_conversions),
+                    "total_revenue": float(row.total_revenue),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                },
+                "metrics": {
+                    "sessions": int(row.total_sessions),
+                    "revenue": float(row.total_revenue),
+                },
+                "hypothesis": "Missing UTM parameters prevent accurate attribution and optimization decisions",
+                "confidence_score": 0.7,
+                "potential_impact_score": 60,
+                "urgency_score": 50,
+                "recommended_actions": [
+                    "Add UTM parameters to all external links",
+                    "Implement UTM builder for marketing team",
+                    "Tag email campaigns with utm_medium=email",
+                    "Tag social posts with utm_medium=social",
+                    "Tag ads with campaign-specific parameters",
+                    "Document UTM naming convention",
+                    f"${row.total_revenue:,.0f} in revenue needs better attribution"
+                ],
+                "estimated_effort": "low",
+                "estimated_timeline": "2-3 days",
+            })
+        
+        logger.info(f"✅ UTM Parameter Gaps detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ UTM Parameter Gaps detector failed: {e}")
+    
+    return opportunities
+
+
+def detect_traffic_referral_opportunities(organization_id: str) -> list:
+    """
+    Detect: High-converting referral sources worth pursuing
+    Strategic Layer: Monthly check
+    """
+    logger.info("🔍 Running Referral Opportunities detector...")
+    
+    opportunities = []
+    
+    query = f"""
+    WITH referral_performance AS (
+      SELECT 
+        canonical_entity_id,
+        SUM(sessions) as total_sessions,
+        SUM(conversions) as total_conversions,
+        AVG(conversion_rate) as avg_conversion_rate,
+        SUM(revenue) as total_revenue,
+        AVG(avg_session_duration) as avg_duration
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < CURRENT_DATE()
+        AND (entity_type = 'source' OR entity_type = 'campaign')
+        AND canonical_entity_id LIKE '%referral%'
+      GROUP BY canonical_entity_id
+    ),
+    overall_avg AS (
+      SELECT 
+        AVG(conversion_rate) as avg_conversion_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
+      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
+        ON m.canonical_entity_id = e.canonical_entity_id
+        AND e.is_active = TRUE
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    )
+    SELECT 
+      r.canonical_entity_id,
+      r.total_sessions,
+      r.total_conversions,
+      r.avg_conversion_rate,
+      r.total_revenue,
+      r.avg_duration,
+      o.avg_conversion_rate as site_avg_conversion_rate,
+      SAFE_DIVIDE((r.avg_conversion_rate - o.avg_conversion_rate), o.avg_conversion_rate) * 100 as cvr_vs_avg_pct
+    FROM referral_performance r
+    CROSS JOIN overall_avg o
+    WHERE r.avg_conversion_rate > o.avg_conversion_rate * 1.2  -- 20%+ better than average
+      AND r.total_sessions > 20
+      AND r.total_sessions < 500  -- Not maxed out yet
+    ORDER BY cvr_vs_avg_pct DESC
+    LIMIT 10
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)
+        ]
+    )
+    
+    try:
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        for row in results:
+            priority = "medium"
+            
+            opportunities.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": organization_id,
+                "detected_at": datetime.utcnow().isoformat(),
+                "category": "traffic_growth",
+                "type": "referral_opportunity",
+                "priority": priority,
+                "status": "new",
+                "entity_id": row.canonical_entity_id,
+                "entity_type": "referral",
+                "title": f"High-Quality Referral Source: {row.avg_conversion_rate:.1f}% CVR",
+                "description": f"Referral converting {row.cvr_vs_avg_pct:+.0f}% better than average with only {row.total_sessions:,.0f} sessions",
+                "evidence": {
+                    "total_sessions": int(row.total_sessions),
+                    "total_conversions": int(row.total_conversions),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                    "site_avg_conversion_rate": float(row.site_avg_conversion_rate),
+                    "cvr_vs_avg_pct": float(row.cvr_vs_avg_pct),
+                    "total_revenue": float(row.total_revenue),
+                },
+                "metrics": {
+                    "sessions": int(row.total_sessions),
+                    "conversion_rate": float(row.avg_conversion_rate),
+                    "revenue": float(row.total_revenue),
+                },
+                "hypothesis": "High-converting referral source worth investing in for more exposure",
+                "confidence_score": 0.8,
+                "potential_impact_score": min(100, row.cvr_vs_avg_pct * 0.5),
+                "urgency_score": 55,
+                "recommended_actions": [
+                    "Build relationship with this referral source",
+                    "Pitch guest post or partnership",
+                    "Create dedicated landing page for this traffic",
+                    "Offer exclusive content/discount for their audience",
+                    "Request featured placement or more mentions",
+                    "Consider paid sponsorship if available",
+                    f"Scale potential: {row.cvr_vs_avg_pct:+.0f}% better CVR than average"
+                ],
+                "estimated_effort": "medium",
+                "estimated_timeline": "2-4 weeks",
+            })
+        
+        logger.info(f"✅ Referral Opportunities detector found {len(opportunities)} opportunities")
+    except Exception as e:
+        logger.error(f"❌ Referral Opportunities detector failed: {e}")
+    
+    return opportunities
+
+
+__all__ = [
+    'detect_cross_channel_gaps', 
+    'detect_declining_performers_multitimeframe', 
+    'detect_declining_performers',
+    'detect_traffic_bot_spam_spike',
+    'detect_traffic_spike_quality_check',
+    'detect_traffic_utm_parameter_gaps',
+    'detect_traffic_referral_opportunities'
+]
