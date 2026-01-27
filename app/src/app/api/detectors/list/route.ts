@@ -81,9 +81,14 @@ const workingDetectors = [
   "detect_paid_waste",
   "detect_paid_campaigns_multitimeframe",
   
-  // Content (2 working)
+  // Content (7 working - 5 added with Phase 2 data!)
   "detect_content_decay",
   "detect_content_decay_multitimeframe",
+  "detect_dwell_time_decline",  // Uses dwell_time from GA4
+  "detect_engagement_rate_decline",  // Uses engagement_rate
+  "detect_content_format_winners",  // Uses content_type
+  "detect_republishing_opportunities",  // Uses publish_date + performance history
+  "detect_publishing_volume_gap",  // Uses publish_date tracking
 ];
 
 interface DetectorInfo {

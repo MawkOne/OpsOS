@@ -26,8 +26,9 @@ PRODUCT_CONFIGS: Dict[str, List[str]] = {
         'revenue',
         'pages',
         'traffic',
-        'seo',  # Added - DataForSEO detectors now fully working
+        'seo',  # DataForSEO detectors now fully working
         'advertising',
+        'content',  # Content detectors now working with Phase 2 data
     ],
     'ecommerce': [
         'email',
