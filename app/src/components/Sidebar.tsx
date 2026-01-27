@@ -128,6 +128,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: "132" },
         { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
       ],
     },
