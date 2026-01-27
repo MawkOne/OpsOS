@@ -4,9 +4,9 @@ from datetime import datetime
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
-bq_client = bigquery.Client()
 
 def detect_quality_score_decline(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     logger.info("🔍 Running 'quality_score_decline' detector...")
     opportunities = []
     query = f"""

@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_paid_waste(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #7: Paid Waste Detection
     Detect: Campaigns spending money with 0 or very few conversions

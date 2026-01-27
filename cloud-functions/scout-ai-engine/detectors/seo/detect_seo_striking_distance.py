@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_seo_striking_distance(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #5: SEO Striking Distance Keywords
     Detect: Keywords ranking 4-15 that could reach page 1 with effort

@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_page_engagement_decay(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #4: Page Engagement Decay
     Detect: Pages with declining engagement metrics (early warning before CVR drops)

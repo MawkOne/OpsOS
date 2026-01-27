@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_scale_winners_multitimeframe(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Enhanced Scale Winners with Monthly Momentum
     Detects: High CVR entities with low traffic, prioritizing those with improving CVR trends

@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_content_decay(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #9: Content Decay
     Detect: Previously strong pages losing traffic/performance over time

@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-bq_client = bigquery.Client()
 
 def detect_transaction_refund_anomalies(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: Refund rate >5% OR refund spike >2x baseline
     Fast Layer: Daily check

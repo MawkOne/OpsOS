@@ -4,9 +4,9 @@ from datetime import datetime
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
-bq_client = bigquery.Client()
 
 def detect_conversion_funnel_dropoff(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     logger.info("🔍 Running 'conversion_funnel_dropoff' detector...")
     opportunities = []
     # Detector ready - needs specific metrics/data to be fully operational

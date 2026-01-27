@@ -1,13 +1,12 @@
 """'opportunity_resolution_tracking' Detector"""
-from google.cloud import bigquery, firestore
+from google.cloud import bigquery
 from datetime import datetime
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
-bq_client = bigquery.Client()
-db = firestore.Client()
 
 def detect_opportunity_resolution_tracking(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     logger.info("🔍 Running 'opportunity_resolution_tracking' detector...")
     opportunities = []
     # System/data quality monitoring - checks pipeline health

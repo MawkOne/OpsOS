@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_page_error_rate_spike(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: Page error rate spiking (JS errors, 404s, etc.)
     Fast Layer: Daily check

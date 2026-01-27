@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_email_trends_multitimeframe(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Enhanced Email Analysis with Monthly Trends
     Detects: Email performance patterns across multiple months

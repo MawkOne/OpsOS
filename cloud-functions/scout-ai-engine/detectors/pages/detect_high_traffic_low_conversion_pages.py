@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #3: High Traffic, Low Conversion Pages
     Detect: Pages getting significant traffic but converting poorly

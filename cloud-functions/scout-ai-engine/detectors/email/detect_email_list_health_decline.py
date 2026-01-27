@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_email_list_health_decline(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: Email list health declining (growth slowing, unsubscribes rising)
     Trend Layer: Weekly check for list health issues

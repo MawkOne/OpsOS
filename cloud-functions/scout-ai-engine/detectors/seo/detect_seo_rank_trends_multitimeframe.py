@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Enhanced SEO Rank Analysis with Monthly Trends
     Detects: Rank changes and patterns across multiple months

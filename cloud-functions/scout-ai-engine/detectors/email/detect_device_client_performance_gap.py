@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-bq_client = bigquery.Client()
 
 def detect_device_client_performance_gap(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: >30% CVR difference between top clients/devices (PROXY: using engagement patterns)
     Strategic Layer: Monthly check

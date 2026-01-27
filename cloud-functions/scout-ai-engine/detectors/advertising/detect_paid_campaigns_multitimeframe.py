@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Enhanced Paid Campaign Analysis with Monthly Spend & ROAS Trends
     Detects: Campaign efficiency trends over time

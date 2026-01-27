@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_declining_performers_multitimeframe(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Enhanced Declining Performers with Acceleration Detection
     Detects: Entities declining with analysis of whether decline is accelerating or decelerating

@@ -4,9 +4,9 @@ from datetime import datetime
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
-bq_client = bigquery.Client()
 
 def detect_social_proof_opportunities(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     logger.info("🔍 Running 'social_proof_opportunities' detector...")
     opportunities = []
     # Detector ready - needs specific metrics/data to be fully operational

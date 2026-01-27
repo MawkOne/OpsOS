@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-bq_client = bigquery.Client()
 
 def detect_email_volume_gap(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: Email send volume <50% of benchmark or declining >30% MoM
     Strategic Layer: Monthly check

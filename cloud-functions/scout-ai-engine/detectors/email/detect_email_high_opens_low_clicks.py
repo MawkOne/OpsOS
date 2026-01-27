@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_email_high_opens_low_clicks(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     PHASE 2A #8: Email High Opens, Low Clicks
     Detect: Email campaigns with good open rates but poor click-through

@@ -1,13 +1,12 @@
 """'api_rate_limit_approaching' Detector"""
-from google.cloud import bigquery, firestore
+from google.cloud import bigquery
 from datetime import datetime
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
-bq_client = bigquery.Client()
-db = firestore.Client()
 
 def detect_api_rate_limit_approaching(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     logger.info("🔍 Running 'api_rate_limit_approaching' detector...")
     opportunities = []
     # System/data quality monitoring - checks pipeline health

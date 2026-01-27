@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
-bq_client = bigquery.Client()
 
 def detect_revenue_aov_decline(organization_id: str) -> list:
+    bq_client = bigquery.Client()
     """
     Detect: Average Order Value declining
     Trend Layer: Weekly check
