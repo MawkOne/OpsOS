@@ -62,11 +62,18 @@ const workingDetectors = [
   "detect_traffic_utm_parameter_gaps",
   "detect_traffic_referral_opportunities",
   
-  // SEO (4 working)
+  // SEO (11 working - 7 added via DataForSEO integration!)
   "detect_seo_keyword_cannibalization",
   "detect_seo_striking_distance",
   "detect_seo_rank_drops",
   "detect_seo_rank_trends_multitimeframe",
+  "detect_backlink_quality_decline", // DataForSEO backlinks API
+  "detect_core_web_vitals_failing", // DataForSEO page_timing
+  "detect_internal_link_opportunities", // DataForSEO broken_links
+  "detect_rank_volatility_daily", // DataForSEO position changes
+  "detect_schema_markup_gaps", // DataForSEO checks.has_schema
+  "detect_technical_seo_health_score", // DataForSEO onpage_score
+  "detect_content_freshness_decay", // DataForSEO + sitemap last_modified
   
   // Advertising (3 working)
   "detect_cost_inefficiency",
