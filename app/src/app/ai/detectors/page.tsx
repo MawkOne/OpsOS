@@ -120,7 +120,7 @@ export default function DetectorsPage() {
 
       {/* Filters */}
       <Card className="glass mb-8">
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Search */}
           <div className="relative">
             <Search
@@ -132,7 +132,7 @@ export default function DetectorsPage() {
               placeholder="Search detectors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-lg"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
               style={{
                 background: "var(--background-tertiary)",
                 border: "1px solid var(--border)",
@@ -141,102 +141,67 @@ export default function DetectorsPage() {
             />
           </div>
 
-          {/* Category Filter */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
+          {/* Filter Dropdowns */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Category Filter */}
+            <div className="flex items-center gap-2">
               <Filter className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
-              <p className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                Category
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => {
-                const Icon = cat.icon;
-                const isSelected = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                    style={{
-                      background: isSelected ? "var(--accent)" : "var(--background-tertiary)",
-                      color: isSelected ? "var(--background)" : "var(--foreground)",
-                      border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
-                    }}
-                  >
-                    <Icon className="w-4 h-4" />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value as DetectorCategory | "all")}
+                className="px-3 py-1.5 rounded-lg text-sm"
+                style={{
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
                     {cat.label} ({cat.count})
-                  </button>
-                );
-              })}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Layer Filter */}
-          <div>
-            <p className="text-sm font-medium mb-3" style={{ color: "var(--foreground-muted)" }}>
-              Layer
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {layers.map((layer) => {
-                const isSelected = selectedLayer === layer.id;
-                return (
-                  <button
-                    key={layer.id}
-                    onClick={() => setSelectedLayer(layer.id)}
-                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                    style={{
-                      background: isSelected ? "var(--accent)" : "var(--background-tertiary)",
-                      color: isSelected ? "var(--background)" : "var(--foreground)",
-                      border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
-                    }}
-                  >
+            {/* Layer Filter */}
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+              <select
+                value={selectedLayer}
+                onChange={(e) => setSelectedLayer(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-sm"
+                style={{
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {layers.map((layer) => (
+                  <option key={layer.id} value={layer.id}>
                     {layer.label}
-                  </button>
-                );
-              })}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Status Filter */}
-          <div>
-            <p className="text-sm font-medium mb-3" style={{ color: "var(--foreground-muted)" }}>
-              Status
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setSelectedStatus("all")}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value as "all" | "active" | "planned")}
+                className="px-3 py-1.5 rounded-lg text-sm"
                 style={{
-                  background: selectedStatus === "all" ? "var(--accent)" : "var(--background-tertiary)",
-                  color: selectedStatus === "all" ? "var(--background)" : "var(--foreground)",
-                  border: `1px solid ${selectedStatus === "all" ? "var(--accent)" : "var(--border)"}`,
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
                 }}
               >
-                All
-              </button>
-              <button
-                onClick={() => setSelectedStatus("active")}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{
-                  background: selectedStatus === "active" ? "var(--success)" : "var(--background-tertiary)",
-                  color: selectedStatus === "active" ? "var(--background)" : "var(--foreground)",
-                  border: `1px solid ${selectedStatus === "active" ? "var(--success)" : "var(--border)"}`,
-                }}
-              >
-                Active ({stats.active})
-              </button>
-              <button
-                onClick={() => setSelectedStatus("planned")}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{
-                  background: selectedStatus === "planned" ? "var(--warning)" : "var(--background-tertiary)",
-                  color: selectedStatus === "planned" ? "var(--background)" : "var(--foreground)",
-                  border: `1px solid ${selectedStatus === "planned" ? "var(--warning)" : "var(--border)"}`,
-                }}
-              >
-                Planned ({stats.planned})
-              </button>
+                <option value="all">All Detectors</option>
+                <option value="active">Active ({stats.active})</option>
+                <option value="planned">Planned ({stats.planned})</option>
+              </select>
             </div>
           </div>
         </div>
@@ -324,8 +289,7 @@ function DetectorCard({ detector, onClick }: DetectorCardProps) {
         className="glass relative"
         hover
         style={{
-          borderColor: detector.status === "active" ? "var(--success)" : "var(--border)",
-          borderWidth: "2px",
+          borderColor: detector.status === "active" ? "var(--border-hover)" : "var(--border)",
         }}
       >
         {/* Status Badge */}
