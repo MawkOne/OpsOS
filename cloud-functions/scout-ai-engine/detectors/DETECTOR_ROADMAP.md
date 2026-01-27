@@ -1,14 +1,14 @@
 # Scout AI Detector Roadmap
 
 **Last Updated:** January 27, 2026  
-**Progress:** 47 of 117 detectors complete (40%)
+**Progress:** 58 of 117 detectors complete (50%)
 
 ---
 
 ## 📊 Quick Stats
 
-- ✅ **Complete:** 47 detectors
-- ⏳ **To Do:** 70 detectors
+- ✅ **Complete:** 58 detectors
+- ⏳ **To Do:** 59 detectors
 - 📈 **Total Goal:** 117 detectors
 
 ---
@@ -31,7 +31,7 @@
 - [x] A/B Test Recommendations
 - [x] List Segmentation Opportunities
 
-### 💵 Revenue & Metrics (8/19 complete)
+### 💵 Revenue & Metrics (19/19 complete) ✅
 
 - [x] Revenue Anomaly
 - [x] Metric Anomalies
@@ -41,17 +41,17 @@
 - [x] New Customer Decline
 - [x] Discount Cannibalization
 - [x] Seasonality Deviation
-- [ ] MRR/ARR Tracking
-- [ ] Transaction/Refund Anomalies
-- [ ] Forecast Deviation
-- [ ] Unit Economics Dashboard
-- [ ] Growth Velocity Trends
-- [ ] Cohort Performance Trends
-- [ ] Customer Churn Spike
-- [ ] LTV:CAC Ratio Decline
-- [ ] Revenue Concentration Risk
-- [ ] Pricing Opportunity Analysis
-- [ ] Expansion Revenue Gap
+- [x] MRR/ARR Tracking
+- [x] Transaction/Refund Anomalies
+- [x] Forecast Deviation
+- [x] Unit Economics Dashboard
+- [x] Growth Velocity Trends
+- [x] Cohort Performance Trends
+- [x] Customer Churn Spike
+- [x] LTV:CAC Ratio Decline
+- [x] Revenue Concentration Risk
+- [x] Pricing Opportunity Analysis
+- [x] Expansion Revenue Gap
 
 ### 📄 Pages & CRO (10/18 complete)
 
