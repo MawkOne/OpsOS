@@ -10,7 +10,7 @@ def detect_ad_schedule_optimization(organization_id: str) -> list:
     logger.info("🔍 Running 'ad_schedule_optimization' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, SUM(m.cost) as cost, SUM(m.conversions) as conversions,
+    SELECT e.canonical_entity_id SUM(m.cost) as cost, SUM(m.conversions) as conversions,
       SAFE_DIVIDE(SUM(m.cost), SUM(m.conversions)) as cpa
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
@@ -25,7 +25,7 @@ def detect_ad_schedule_optimization(organization_id: str) -> list:
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
                 "category": "advertising_optimization", "type": "ad_schedule_optimization", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "ad_campaign",
-                "title": f"Ad opportunity: 'ad_schedule_optimization'", "description": f"Campaign '{row.entity_name}' detected for 'ad_schedule_optimization' optimization",
+                "title": f"Ad opportunity: 'ad_schedule_optimization'", "description": f"Campaign '{row.canonical_entity_id}' detected for 'ad_schedule_optimization' optimization",
                 "evidence": {"cost": float(row.cost), "conversions": int(row.conversions), "cpa": float(row.cpa) if row.cpa else 0},
                 "metrics": {"cost": float(row.cost), "cpa": float(row.cpa) if row.cpa else 0},
                 "hypothesis": "Advertising optimization opportunity", "confidence_score": 0.75, "potential_impact_score": 70, "urgency_score": 60,

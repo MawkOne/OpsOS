@@ -10,7 +10,7 @@ def detect_core_web_vitals_failing(organization_id: str) -> list:
     logger.info("🔍 Running 'core_web_vitals_failing' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, AVG(m.position) as avg_position, SUM(m.impressions) as impressions
+    SELECT e.canonical_entity_id AVG(m.position) as avg_position, SUM(m.impressions) as impressions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -24,7 +24,7 @@ def detect_core_web_vitals_failing(organization_id: str) -> list:
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
                 "category": "seo_opportunity", "type": "core_web_vitals_failing", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "seo_keyword",
-                "title": f"SEO opportunity: 'core_web_vitals_failing'", "description": f"Keyword '{row.entity_name}' detected for 'core_web_vitals_failing' optimization",
+                "title": f"SEO opportunity: 'core_web_vitals_failing'", "description": f"Keyword '{row.canonical_entity_id}' detected for 'core_web_vitals_failing' optimization",
                 "evidence": {"avg_position": float(row.avg_position), "impressions": int(row.impressions)},
                 "metrics": {"position": float(row.avg_position), "impressions": int(row.impressions)},
                 "hypothesis": "SEO optimization opportunity", "confidence_score": 0.75, "potential_impact_score": 65, "urgency_score": 55,

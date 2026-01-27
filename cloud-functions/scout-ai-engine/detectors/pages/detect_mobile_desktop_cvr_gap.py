@@ -11,14 +11,14 @@ def detect_mobile_desktop_cvr_gap(organization_id: str) -> list:
     opportunities = []
     query = f"""
     WITH device_performance AS (
-      SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, m.device_type,
+      SELECT e.canonical_entity_id m.device_type,
         SUM(m.sessions) as sessions, SUM(m.conversions) as conversions,
         SAFE_DIVIDE(SUM(m.conversions), SUM(m.sessions)) * 100 as cvr
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
       WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND m.entity_type = 'page' AND device_type IN ('mobile', 'desktop') AND sessions > 100
-      GROUP BY e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, device_type
+      GROUP BY e.canonical_entity_id device_type
     ),
     cvr_comparison AS (
       SELECT canonical_entity_id, entity_name,
@@ -40,7 +40,7 @@ def detect_mobile_desktop_cvr_gap(organization_id: str) -> list:
                 "category": "page_optimization", "type": "mobile_cvr_gap", "priority": "high", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "page",
                 "title": f"Mobile CVR Gap: {gap_pct:.0f}% below desktop",
-                "description": f"'{row.entity_name}' mobile CVR {row.mobile_cvr:.1f}% vs desktop {row.desktop_cvr:.1f}%",
+                "description": f"'{row.canonical_entity_id}' mobile CVR {row.mobile_cvr:.1f}% vs desktop {row.desktop_cvr:.1f}%",
                 "evidence": {"mobile_cvr": float(row.mobile_cvr), "desktop_cvr": float(row.desktop_cvr), "gap_pct": float(gap_pct), "mobile_sessions": int(row.mobile_sessions)},
                 "metrics": {"mobile_cvr": float(row.mobile_cvr), "desktop_cvr": float(row.desktop_cvr)},
                 "hypothesis": "Mobile experience issues preventing conversions", "confidence_score": 0.85, "potential_impact_score": min(100, gap_pct),

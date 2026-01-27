@@ -10,12 +10,12 @@ def detect_revenue_by_channel_attribution(organization_id: str) -> list:
     logger.info("🔍 Running 'revenue_by_channel_attribution' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, m.source, SUM(m.sessions) as sessions, SUM(m.revenue) as revenue
+    SELECT e.canonical_entity_id m.source, SUM(m.sessions) as sessions, SUM(m.revenue) as revenue
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
       AND m.entity_type = 'traffic_source' AND sessions > 100
-    GROUP BY e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, source
+    GROUP BY e.canonical_entity_id source
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])
@@ -24,7 +24,7 @@ def detect_revenue_by_channel_attribution(organization_id: str) -> list:
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
                 "category": "traffic_optimization", "type": "revenue_by_channel_attribution", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "traffic_source",
-                "title": f"Traffic opportunity: 'revenue_by_channel_attribution'", "description": f"Source '{row.entity_name}' detected for 'revenue_by_channel_attribution' analysis",
+                "title": f"Traffic opportunity: 'revenue_by_channel_attribution'", "description": f"Source '{row.canonical_entity_id}' detected for 'revenue_by_channel_attribution' analysis",
                 "evidence": {"sessions": int(row.sessions), "revenue": float(row.revenue) if row.revenue else 0},
                 "metrics": {"sessions": int(row.sessions), "revenue": float(row.revenue) if row.revenue else 0},
                 "hypothesis": "Traffic optimization opportunity", "confidence_score": 0.75, "potential_impact_score": 65, "urgency_score": 55,

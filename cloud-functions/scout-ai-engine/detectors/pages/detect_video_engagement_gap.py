@@ -11,7 +11,7 @@ def detect_video_engagement_gap(organization_id: str) -> list:
     opportunities = []
     # Detector ready - needs specific metrics/data to be fully operational
     query = f"""
-    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, SUM(m.sessions) as sessions
+    SELECT e.canonical_entity_id SUM(m.sessions) as sessions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -25,7 +25,7 @@ def detect_video_engagement_gap(organization_id: str) -> list:
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
                 "category": "page_optimization", "type": "video_engagement_gap", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "page",
-                "title": f"Optimization opportunity: 'video_engagement_gap'", "description": f"Page '{row.entity_name}' ready for 'video_engagement_gap' analysis",
+                "title": f"Optimization opportunity: 'video_engagement_gap'", "description": f"Page '{row.canonical_entity_id}' ready for 'video_engagement_gap' analysis",
                 "evidence": {"sessions": int(row.sessions)}, "metrics": {"sessions": int(row.sessions)},
                 "hypothesis": "Page optimization opportunity detected", "confidence_score": 0.75, "potential_impact_score": 60, "urgency_score": 50,
                 "recommended_actions": ["Analyze page performance", "Implement optimization", "A/B test changes", "Monitor results"],
