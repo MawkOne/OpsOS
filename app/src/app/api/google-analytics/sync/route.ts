@@ -559,11 +559,31 @@ async function syncPages(
 
         const metrics = row.metricValues;
         
+        // Infer content type from URL and title (Phase 5.1)
+        let contentType = 'page'; // default
+        const pathLower = pagePath.toLowerCase();
+        const titleLower = pageTitle.toLowerCase();
+        
+        if (pathLower.includes('/blog/') || pathLower.includes('/article/') || titleLower.includes('blog')) {
+          contentType = 'blog';
+        } else if (pathLower.includes('/video/') || titleLower.includes('video')) {
+          contentType = 'video';
+        } else if (pathLower.includes('/guide/') || pathLower.includes('/ebook/')) {
+          contentType = 'guide';
+        } else if (pathLower.includes('/case-study/') || pathLower.includes('/case_study/')) {
+          contentType = 'case_study';
+        } else if (pathLower.includes('/product/') || pathLower.includes('/pricing/')) {
+          contentType = 'product';
+        } else if (pathLower.includes('/landing/') || pathLower.includes('/lp/')) {
+          contentType = 'landing_page';
+        }
+        
         pagesData[pageId].months[month.key] = {
           pageViews: parseInt(metrics[0]?.value || '0'),
           users: parseInt(metrics[1]?.value || '0'),
           avgSessionDuration: parseFloat(metrics[2]?.value || '0'),
           conversions: parseInt(metrics[3]?.value || '0'),
+          contentType, // Add inferred content type
         };
       }
     }
