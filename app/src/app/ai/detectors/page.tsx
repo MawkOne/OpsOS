@@ -296,38 +296,9 @@ function DetectorCard({ detector, onClick }: DetectorCardProps) {
         </h3>
 
         {/* Description */}
-        <p className="text-sm mb-4 line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
+        <p className="text-sm line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
           {detector.description}
         </p>
-
-        {/* Meta */}
-        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--foreground-subtle)" }}>
-          <div className="flex items-center gap-1">
-            <LayerIcon className="w-3 h-3" />
-            {detector.layer.charAt(0).toUpperCase() + detector.layer.slice(1)}
-          </div>
-          {detector.priority && (
-            <div
-              className="px-2 py-0.5 rounded"
-              style={{
-                background:
-                  detector.priority === "high"
-                    ? "var(--error-muted)"
-                    : detector.priority === "medium"
-                    ? "var(--warning-muted)"
-                    : "var(--accent-muted)",
-                color:
-                  detector.priority === "high"
-                    ? "var(--error)"
-                    : detector.priority === "medium"
-                    ? "var(--warning)"
-                    : "var(--accent)",
-              }}
-            >
-              {detector.priority.toUpperCase()}
-            </div>
-          )}
-        </div>
       </Card>
     </motion.div>
   );
