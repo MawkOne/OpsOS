@@ -48,6 +48,9 @@ from detectors.revenue_detectors import (
     detect_revenue_trends_multitimeframe
 )
 
+# Import new expansion detectors (32 additional detectors)
+from expansion_imports import get_enabled_detectors
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -723,6 +726,17 @@ def run_scout_ai(request):
             all_opportunities.extend(detect_revenue_anomaly(organization_id))
             all_opportunities.extend(detect_metric_anomalies(organization_id))
             all_opportunities.extend(detect_revenue_trends_multitimeframe(organization_id))
+        
+        # NEW EXPANSION DETECTORS (32 additional detectors)
+        logger.info("🚀 Running Expansion Detectors...")
+        expansion_detectors = get_enabled_detectors()
+        logger.info(f"📊 Running {len(expansion_detectors)} expansion detectors...")
+        for detector_func in expansion_detectors:
+            try:
+                logger.info(f"   Running {detector_func.__name__}...")
+                all_opportunities.extend(detector_func(organization_id))
+            except Exception as e:
+                logger.error(f"   ❌ Error in {detector_func.__name__}: {e}")
         
         # Write to BigQuery and Firestore
         write_opportunities_to_bigquery(all_opportunities)
