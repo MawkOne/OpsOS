@@ -33,15 +33,17 @@ export default function AIPage() {
     try {
       // Fetch opportunities and detectors in parallel
       const [oppResponse, detectorResponse] = await Promise.all([
-        fetch(`/api/opportunities?organizationId=${currentOrg?.id}&limit=1000`),
+        fetch(`/api/opportunities?organizationId=${currentOrg?.id}&status=new&limit=1000`),
         fetch('/api/detectors/list')
       ]);
       
       const oppData = await oppResponse.json();
       const detectorData = await detectorResponse.json();
       
+      console.log('Opportunities API response:', oppData);
+      
       setStats({
-        totalOpportunities: oppData.opportunities?.length || 0,
+        totalOpportunities: oppData.total || 0,
         detectorCount: detectorData.stats?.total || 0,
         activeDetectors: detectorData.stats?.active || 0,
         monthlyRecords: oppData.monthlyRecords || 0,
