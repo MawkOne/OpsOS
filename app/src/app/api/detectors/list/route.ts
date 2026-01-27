@@ -119,9 +119,12 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
           // Read the Python file to extract metadata
           const content = await fs.readFile(filePath, "utf-8");
 
-          // Extract docstring
-          const docstringMatch = content.match(/"""([^"]*(?:Detector|detector)[^"]*)"""/s);
-          const docstring = docstringMatch ? docstringMatch[1].trim() : "";
+          // Extract docstring (multiline-compatible without ES2018 flag)
+          const docstringMatch = content.match(/"""([\s\S]*?)"""/);
+          let docstring = "";
+          if (docstringMatch && (docstringMatch[1].includes("Detector") || docstringMatch[1].includes("detector"))) {
+            docstring = docstringMatch[1].trim();
+          }
 
           // Parse docstring for metadata
           const lines = docstring.split("\n").map(l => l.trim());
