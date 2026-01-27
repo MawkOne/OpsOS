@@ -122,18 +122,18 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 const moduleOrder: Module[] = ["ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
 
 // Create navigation function to make it dynamic
-const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> => ({
+const getNavigationByModule = (oppCount: number, detectorStats?: { total: number; byCategory: Record<string, number> }): Record<Module, NavSection[]> => ({
   ai: [
     {
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: "42" },
+        { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: detectorStats?.total ? String(detectorStats.total) : undefined },
         { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
       ],
     },
     {
-      title: "📧 Email (8 detectors)",
+      title: `📧 Email (${detectorStats?.byCategory?.email || 0} detectors)`,
       items: [
         { label: "Email Overview", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
         { label: "Engagement & Volume", href: "/ai/email/engagement", icon: <Activity className="w-4 h-4" /> },
@@ -141,7 +141,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "🔍 SEO (8 detectors)",
+      title: `🔍 SEO (${detectorStats?.byCategory?.seo || 0} detectors)`,
       items: [
         { label: "SEO Overview", href: "/ai/seo", icon: <Search className="w-4 h-4" /> },
         { label: "Rankings & Keywords", href: "/ai/seo/rankings", icon: <TrendingUp className="w-4 h-4" /> },
@@ -149,7 +149,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "💰 Advertising (6 detectors)",
+      title: `💰 Advertising (${detectorStats?.byCategory?.advertising || 0} detectors)`,
       items: [
         { label: "Ads Overview", href: "/ai/advertising", icon: <Megaphone className="w-4 h-4" /> },
         { label: "Campaign Performance", href: "/ai/advertising/campaigns", icon: <BarChart3 className="w-4 h-4" /> },
@@ -157,7 +157,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "📄 Pages (10 detectors)",
+      title: `📄 Pages (${detectorStats?.byCategory?.pages || 0} detectors)`,
       items: [
         { label: "Pages Overview", href: "/ai/pages", icon: <Layers className="w-4 h-4" /> },
         { label: "Conversion Optimization", href: "/ai/pages/conversion", icon: <Target className="w-4 h-4" /> },
@@ -165,14 +165,14 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "✍️ Content (4 detectors)",
+      title: `✍️ Content (${detectorStats?.byCategory?.content || 0} detectors)`,
       items: [
         { label: "Content Overview", href: "/ai/content", icon: <Lightbulb className="w-4 h-4" /> },
         { label: "Publishing & Performance", href: "/ai/content/publishing", icon: <TrendingUp className="w-4 h-4" /> },
       ],
     },
     {
-      title: "🚦 Traffic (7 detectors)",
+      title: `🚦 Traffic (${detectorStats?.byCategory?.traffic || 0} detectors)`,
       items: [
         { label: "Traffic Overview", href: "/ai/traffic", icon: <Network className="w-4 h-4" /> },
         { label: "Source Analysis", href: "/ai/traffic/sources", icon: <Link2 className="w-4 h-4" /> },
@@ -180,7 +180,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "💵 Revenue (8 detectors)",
+      title: `💵 Revenue (${detectorStats?.byCategory?.revenue || 0} detectors)`,
       items: [
         { label: "Revenue Overview", href: "/ai/revenue", icon: <DollarSign className="w-4 h-4" /> },
         { label: "Anomalies & Forecasts", href: "/ai/revenue/forecasts", icon: <LineChart className="w-4 h-4" /> },
@@ -344,6 +344,22 @@ export default function Sidebar() {
   const [moduleMenuOpen, setModuleMenuOpen] = useState(false);
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
   const [opportunityCount, setOpportunityCount] = useState<number>(0);
+  const [detectorStats, setDetectorStats] = useState<{ total: number; byCategory: Record<string, number> } | undefined>(undefined);
+
+  // Fetch detector stats
+  useEffect(() => {
+    fetch('/api/detectors/list')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.stats) {
+          setDetectorStats({
+            total: data.stats.total,
+            byCategory: data.stats.byCategory,
+          });
+        }
+      })
+      .catch(err => console.error('Error fetching detector stats:', err));
+  }, []);
 
   // Fetch opportunity count
   useEffect(() => {
@@ -391,7 +407,7 @@ export default function Sidebar() {
     router.refresh();
   };
 
-  const navigationByModule = getNavigationByModule(opportunityCount);
+  const navigationByModule = getNavigationByModule(opportunityCount, detectorStats);
   const navigation = navigationByModule[currentModule];
   const currentModuleConfig = moduleConfig[currentModule];
 

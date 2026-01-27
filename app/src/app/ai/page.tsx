@@ -16,7 +16,8 @@ export default function AIPage() {
   const { currentOrg } = useOrganization();
   const [stats, setStats] = useState({
     totalOpportunities: 0,
-    detectorCount: 42, // Static - actual deployed detector count (42 in detector files)
+    detectorCount: 0,
+    activeDetectors: 0,
     monthlyRecords: 0,
     metricPoints: 0
   });
@@ -30,14 +31,21 @@ export default function AIPage() {
 
   async function fetchStats() {
     try {
-      const response = await fetch(`/api/opportunities?organizationId=${currentOrg?.id}&limit=1000`);
-      const data = await response.json();
+      // Fetch opportunities and detectors in parallel
+      const [oppResponse, detectorResponse] = await Promise.all([
+        fetch(`/api/opportunities?organizationId=${currentOrg?.id}&limit=1000`),
+        fetch('/api/detectors/list')
+      ]);
+      
+      const oppData = await oppResponse.json();
+      const detectorData = await detectorResponse.json();
       
       setStats({
-        totalOpportunities: data.opportunities?.length || 0,
-        detectorCount: 42, // Actual deployed: 8 email, 4 SEO, 3 ads, 10 pages, 2 content, 7 traffic, 8 revenue
-        monthlyRecords: data.monthlyRecords || 0, // If available from API
-        metricPoints: data.metricPoints || 0 // If available from API
+        totalOpportunities: oppData.opportunities?.length || 0,
+        detectorCount: detectorData.stats?.total || 0,
+        activeDetectors: detectorData.stats?.active || 0,
+        monthlyRecords: oppData.monthlyRecords || 0,
+        metricPoints: oppData.metricPoints || 0
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -51,7 +59,7 @@ export default function AIPage() {
       name: "🎯 All Detectors",
       href: "/ai/detectors",
       icon: Target,
-      description: "132 total detectors (55 active, 77 planned) across 7 marketing areas + system health"
+      description: `${stats.detectorCount} total detectors (${stats.activeDetectors} active, ${stats.detectorCount - stats.activeDetectors} planned) across 8 marketing areas + system health`
     },
     {
       name: "📧 Email Marketing",

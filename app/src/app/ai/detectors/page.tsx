@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,9 +20,27 @@ import {
   Zap,
   AlertCircle,
   Database,
-  Target
+  Target,
+  Loader2
 } from "lucide-react";
-import { allDetectors, DetectorInfo, DetectorCategory } from "./detectors-data";
+
+type DetectorCategory = "email" | "revenue" | "pages" | "traffic" | "seo" | "advertising" | "content" | "system";
+
+interface DetectorInfo {
+  id: string;
+  name: string;
+  category: DetectorCategory;
+  status: "active" | "planned";
+  layer: "fast" | "trend" | "strategic";
+  description: string;
+  detects: string;
+  pythonFile: string;
+  metrics?: string[];
+  thresholds?: string;
+  actions?: string[];
+  dataSources?: string[];
+  priority?: "high" | "medium" | "low";
+}
 
 export default function DetectorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -30,17 +48,44 @@ export default function DetectorsPage() {
   const [selectedLayer, setSelectedLayer] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<"all" | "active" | "planned">("all");
   const [selectedDetector, setSelectedDetector] = useState<DetectorInfo | null>(null);
+  const [detectors, setDetectors] = useState<DetectorInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch detectors from API
+  useEffect(() => {
+    async function fetchDetectors() {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/detectors/list");
+        const data = await response.json();
+        
+        if (data.success) {
+          setDetectors(data.detectors);
+        } else {
+          setError("Failed to load detectors");
+        }
+      } catch (err) {
+        console.error("Error fetching detectors:", err);
+        setError("Failed to load detectors");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDetectors();
+  }, []);
 
   const categories: { id: DetectorCategory | "all"; label: string; icon: any; count: number }[] = [
-    { id: "all", label: "All Detectors", icon: Target, count: allDetectors.length },
-    { id: "email", label: "Email", icon: Mail, count: allDetectors.filter(d => d.category === "email").length },
-    { id: "seo", label: "SEO", icon: Search, count: allDetectors.filter(d => d.category === "seo").length },
-    { id: "advertising", label: "Advertising", icon: Hash, count: allDetectors.filter(d => d.category === "advertising").length },
-    { id: "pages", label: "Pages/CRO", icon: FileText, count: allDetectors.filter(d => d.category === "pages").length },
-    { id: "content", label: "Content", icon: FileText, count: allDetectors.filter(d => d.category === "content").length },
-    { id: "traffic", label: "Traffic", icon: Activity, count: allDetectors.filter(d => d.category === "traffic").length },
-    { id: "revenue", label: "Revenue", icon: DollarSign, count: allDetectors.filter(d => d.category === "revenue").length },
-    { id: "system", label: "System", icon: Shield, count: allDetectors.filter(d => d.category === "system").length },
+    { id: "all", label: "All Detectors", icon: Target, count: detectors.length },
+    { id: "email", label: "Email", icon: Mail, count: detectors.filter(d => d.category === "email").length },
+    { id: "seo", label: "SEO", icon: Search, count: detectors.filter(d => d.category === "seo").length },
+    { id: "advertising", label: "Advertising", icon: Hash, count: detectors.filter(d => d.category === "advertising").length },
+    { id: "pages", label: "Pages/CRO", icon: FileText, count: detectors.filter(d => d.category === "pages").length },
+    { id: "content", label: "Content", icon: FileText, count: detectors.filter(d => d.category === "content").length },
+    { id: "traffic", label: "Traffic", icon: Activity, count: detectors.filter(d => d.category === "traffic").length },
+    { id: "revenue", label: "Revenue", icon: DollarSign, count: detectors.filter(d => d.category === "revenue").length },
+    { id: "system", label: "System", icon: Shield, count: detectors.filter(d => d.category === "system").length },
   ];
 
   const layers = [
@@ -51,7 +96,7 @@ export default function DetectorsPage() {
   ];
 
   const filteredDetectors = useMemo(() => {
-    return allDetectors.filter((detector) => {
+    return detectors.filter((detector) => {
       const matchesSearch =
         detector.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         detector.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -63,13 +108,51 @@ export default function DetectorsPage() {
         selectedStatus === "all" || detector.status === selectedStatus;
       return matchesSearch && matchesCategory && matchesLayer && matchesStatus;
     });
-  }, [searchQuery, selectedCategory, selectedLayer, selectedStatus]);
+  }, [searchQuery, selectedCategory, selectedLayer, selectedStatus, detectors]);
 
   const stats = {
-    total: allDetectors.length,
-    active: allDetectors.filter(d => d.status === "active").length,
-    planned: allDetectors.filter(d => d.status === "planned").length,
+    total: detectors.length,
+    active: detectors.filter(d => d.status === "active").length,
+    planned: detectors.filter(d => d.status === "planned").length,
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <AppLayout title="Detectors" subtitle="Loading detectors...">
+        <Card className="glass text-center py-12">
+          <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin" style={{ color: "var(--accent)" }} />
+          <p className="text-lg font-medium" style={{ color: "var(--foreground)" }}>
+            Loading detectors...
+          </p>
+          <p className="text-sm mt-2" style={{ color: "var(--foreground-muted)" }}>
+            Scanning Python detector files
+          </p>
+        </Card>
+      </AppLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <AppLayout title="Detectors" subtitle="Error loading detectors">
+        <Card className="glass text-center py-12">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--error)" }} />
+          <p className="text-lg font-medium" style={{ color: "var(--foreground)" }}>
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 rounded-lg"
+            style={{ background: "var(--accent)", color: "var(--background)" }}
+          >
+            Retry
+          </button>
+        </Card>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout
@@ -168,7 +251,7 @@ export default function DetectorsPage() {
       {/* Results Count */}
       <div className="mb-4">
         <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-          Showing {filteredDetectors.length} of {allDetectors.length} detectors
+          Showing {filteredDetectors.length} of {detectors.length} detectors
         </p>
       </div>
 
