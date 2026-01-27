@@ -127,12 +127,47 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
           }
 
           // Parse docstring for metadata
-          const lines = docstring.split("\n").map(l => l.trim());
-          const name = lines[0]?.replace(" Detector", "") || detectorId.replace(/_/g, " ");
+          const lines = docstring.split("\n").map(l => l.trim()).filter(l => l.length > 0);
           
-          // Extract "Detects:" line
+          // Extract name (first line, remove "Detector" suffix)
+          let name = lines[0]?.replace(" Detector", "").replace(/^['"]|['"]$/g, "") || "";
+          if (!name) {
+            // Fallback: convert detector_id to readable name
+            name = detectorId
+              .replace(/^detect_/, "")
+              .split("_")
+              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(" ");
+          }
+          
+          // Extract "Detects:" or "Detect:" line for better description
           const detectsLine = lines.find(l => l.startsWith("Detects:") || l.startsWith("Detect:"));
-          const detects = detectsLine ? detectsLine.replace(/^Detects?:\s*/i, "") : "Optimization opportunity detection";
+          const detects = detectsLine ? detectsLine.replace(/^Detects?:\s*/i, "") : "";
+
+          // Build description from Category line or other context
+          let description = "";
+          
+          // Try to find Category line
+          const categoryLine = lines.find(l => l.startsWith("Category:"));
+          
+          // Use detects line as description if available, otherwise build from context
+          if (detects) {
+            description = detects;
+          } else if (lines.length > 1) {
+            // Use second line or combine context lines
+            const contextLines = lines.slice(1, 3).filter(l => 
+              !l.startsWith("Category:") && 
+              !l.startsWith("Detects:") &&
+              !l.startsWith("Detect:") &&
+              l.length > 10
+            );
+            description = contextLines.join(" ").trim();
+          }
+          
+          // Fallback description based on detector name
+          if (!description || description.length < 20) {
+            description = `Analyzes ${name.toLowerCase()} to identify optimization opportunities and performance issues`;
+          }
 
           // Determine layer from docstring
           let layer: "fast" | "trend" | "strategic" = "strategic";
@@ -147,17 +182,14 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
           // Determine status (active if in working list)
           const status = workingDetectors.includes(detectorId) ? "active" : "planned";
 
-          // Create description from first few lines
-          const description = lines.slice(1, 3).join(" ").trim() || detects;
-
           detectors.push({
             id: detectorId,
             name,
             category: categoryMap[category] || category,
             status,
             layer,
-            description: description.substring(0, 200),
-            detects,
+            description: description.substring(0, 250), // Increased from 200 for better descriptions
+            detects: detects || description,
             pythonFile: `${category}/${file}`,
           });
         } catch (err) {
