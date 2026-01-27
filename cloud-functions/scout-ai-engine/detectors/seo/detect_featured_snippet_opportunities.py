@@ -1,4 +1,4 @@
-"""'${detector}' Detector"""
+"""'featured_snippet_opportunities' Detector"""
 from google.cloud import bigquery
 from datetime import datetime
 import logging, uuid, os
@@ -6,8 +6,8 @@ logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
 bq_client = bigquery.Client()
 
-def detect_'${detector}'(organization_id: str) -> list:
-    logger.info("🔍 Running '${detector}' detector...")
+def detect_featured_snippet_opportunities(organization_id: str) -> list:
+    logger.info("🔍 Running 'featured_snippet_opportunities' detector...")
     opportunities = []
     query = f"""
     SELECT e.canonical_entity_id, e.entity_name, AVG(m.position) as avg_position, SUM(m.impressions) as impressions
@@ -22,9 +22,9 @@ def detect_'${detector}'(organization_id: str) -> list:
     try:
         for row in bq_client.query(query, job_config=job_config).result():
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
-                "category": "seo_opportunity", "type": "'${detector}'", "priority": "medium", "status": "new",
+                "category": "seo_opportunity", "type": "featured_snippet_opportunities", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "seo_keyword",
-                "title": f"SEO opportunity: '${detector}'", "description": f"Keyword '{row.entity_name}' detected for '${detector}' optimization",
+                "title": f"SEO opportunity: 'featured_snippet_opportunities'", "description": f"Keyword '{row.entity_name}' detected for 'featured_snippet_opportunities' optimization",
                 "evidence": {"avg_position": float(row.avg_position), "impressions": int(row.impressions)},
                 "metrics": {"position": float(row.avg_position), "impressions": int(row.impressions)},
                 "hypothesis": "SEO optimization opportunity", "confidence_score": 0.75, "potential_impact_score": 65, "urgency_score": 55,
@@ -32,6 +32,6 @@ def detect_'${detector}'(organization_id: str) -> list:
                 "estimated_effort": "medium", "estimated_timeline": "4-8 weeks",
                 "historical_performance": {"position": float(row.avg_position)}, "comparison_data": {"impressions": int(row.impressions)},
                 "created_at": datetime.utcnow().isoformat(), "updated_at": datetime.utcnow().isoformat()})
-        if opportunities: logger.info(f"✅ Found {len(opportunities)} '${detector}' opportunities")
+        if opportunities: logger.info(f"✅ Found {len(opportunities)} 'featured_snippet_opportunities' opportunities")
     except Exception as e: logger.error(f"❌ Error: {e}")
     return opportunities

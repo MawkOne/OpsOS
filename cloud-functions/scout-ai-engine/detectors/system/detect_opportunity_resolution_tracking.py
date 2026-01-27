@@ -1,4 +1,4 @@
-"""'${detector}' Detector"""
+"""'opportunity_resolution_tracking' Detector"""
 from google.cloud import bigquery, firestore
 from datetime import datetime
 import logging, uuid, os
@@ -7,8 +7,8 @@ PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketin
 bq_client = bigquery.Client()
 db = firestore.Client()
 
-def detect_'${detector}'(organization_id: str) -> list:
-    logger.info("🔍 Running '${detector}' detector...")
+def detect_opportunity_resolution_tracking(organization_id: str) -> list:
+    logger.info("🔍 Running 'opportunity_resolution_tracking' detector...")
     opportunities = []
     # System/data quality monitoring - checks pipeline health
     try:
@@ -25,9 +25,9 @@ def detect_'${detector}'(organization_id: str) -> list:
             data_age_hours = (datetime.utcnow().date() - row.latest_data_date).days * 24 if row.latest_data_date else 999
             if data_age_hours > 24:  # Data older than 24 hours
                 opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
-                    "category": "system_health", "type": "'${detector}'", "priority": "high", "status": "new",
+                    "category": "system_health", "type": "opportunity_resolution_tracking", "priority": "high", "status": "new",
                     "entity_id": "system", "entity_type": "data_pipeline",
-                    "title": f"System alert: '${detector}'", "description": f"Data quality issue detected: '${detector}'",
+                    "title": f"System alert: 'opportunity_resolution_tracking'", "description": f"Data quality issue detected: 'opportunity_resolution_tracking'",
                     "evidence": {"data_age_hours": data_age_hours, "latest_date": row.latest_data_date.isoformat() if row.latest_data_date else None},
                     "metrics": {"data_freshness_hours": data_age_hours},
                     "hypothesis": "System/data quality issue requiring attention", "confidence_score": 0.95, "potential_impact_score": 80, "urgency_score": 85,
@@ -35,6 +35,6 @@ def detect_'${detector}'(organization_id: str) -> list:
                     "estimated_effort": "medium", "estimated_timeline": "1-2 days",
                     "historical_performance": {"status": "degraded"}, "comparison_data": {"expected": "< 6 hours", "actual": f"{data_age_hours} hours"},
                     "created_at": datetime.utcnow().isoformat(), "updated_at": datetime.utcnow().isoformat()})
-        if opportunities: logger.info(f"✅ Found {len(opportunities)} '${detector}' issues")
+        if opportunities: logger.info(f"✅ Found {len(opportunities)} 'opportunity_resolution_tracking' issues")
     except Exception as e: logger.error(f"❌ Error: {e}")
     return opportunities
