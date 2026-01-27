@@ -133,7 +133,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "📧 Email (6 detectors)",
+      title: "📧 Email (11 detectors)",
       items: [
         { label: "Email Overview", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
         { label: "Engagement & Volume", href: "/ai/email/engagement", icon: <Activity className="w-4 h-4" /> },

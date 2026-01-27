@@ -16,7 +16,12 @@ import requests
 from detectors.email_detectors import (
     detect_email_engagement_drop,
     detect_email_high_opens_low_clicks,
-    detect_email_trends_multitimeframe
+    detect_email_trends_multitimeframe,
+    detect_email_bounce_rate_spike,
+    detect_email_spam_complaint_spike,
+    detect_email_list_health_decline,
+    detect_email_click_to_open_rate_decline,
+    detect_email_optimal_frequency_deviation
 )
 from detectors.seo_detectors import (
     detect_seo_striking_distance,
@@ -348,6 +353,11 @@ def run_scout_ai(request):
             all_opportunities.extend(detect_email_engagement_drop(organization_id))
             all_opportunities.extend(detect_email_high_opens_low_clicks(organization_id))
             all_opportunities.extend(detect_email_trends_multitimeframe(organization_id))
+            all_opportunities.extend(detect_email_bounce_rate_spike(organization_id))
+            all_opportunities.extend(detect_email_spam_complaint_spike(organization_id))
+            all_opportunities.extend(detect_email_list_health_decline(organization_id))
+            all_opportunities.extend(detect_email_click_to_open_rate_decline(organization_id))
+            all_opportunities.extend(detect_email_optimal_frequency_deviation(organization_id))
         
         # SEO detectors
         if enabled_areas.get('seo', True):

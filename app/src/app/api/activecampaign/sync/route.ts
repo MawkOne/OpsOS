@@ -325,6 +325,20 @@ export async function POST(request: NextRequest) {
 
           for (const campaign of campaigns) {
             const campaignRef = doc(collection(db, 'activecampaign_campaigns'), `${organizationId}_${campaign.id}`);
+            
+            // Calculate all email metrics
+            const sendAmt = parseInt(campaign.send_amt) || 0;
+            const opens = parseInt(campaign.opens) || 0;
+            const uniqueOpens = parseInt(campaign.uniqueopens) || 0;
+            const linkClicks = parseInt(campaign.linkclicks) || 0;
+            const uniqueLinkClicks = parseInt(campaign.uniquelinkclicks) || 0;
+            const unsubscribes = parseInt(campaign.unsubscribes) || 0;
+            const hardBounces = parseInt(campaign.hardbounces) || 0;
+            const softBounces = parseInt(campaign.softbounces) || 0;
+            const totalBounces = hardBounces + softBounces;
+            const spamComplaints = parseInt(campaign.abuses) || 0; // ActiveCampaign calls spam complaints "abuses"
+            const forwards = parseInt(campaign.forwards) || 0;
+            
             batchDocs.push({
               ref: campaignRef,
               data: {
@@ -333,14 +347,31 @@ export async function POST(request: NextRequest) {
                 name: campaign.name || '',
                 type: campaign.type || '',
                 status: parseInt(campaign.status) || 0,
-                sendAmt: parseInt(campaign.send_amt) || 0,
+                
+                // Raw counts
+                sendAmt,
                 totalAmt: parseInt(campaign.total_amt) || 0,
-                opens: parseInt(campaign.opens) || 0,
-                uniqueOpens: parseInt(campaign.uniqueopens) || 0,
-                linkClicks: parseInt(campaign.linkclicks) || 0,
-                uniqueLinkClicks: parseInt(campaign.uniquelinkclicks) || 0,
-                unsubscribes: parseInt(campaign.unsubscribes) || 0,
-                bounces: (parseInt(campaign.hardbounces) || 0) + (parseInt(campaign.softbounces) || 0),
+                opens,
+                uniqueOpens,
+                linkClicks,
+                uniqueLinkClicks,
+                unsubscribes,
+                bounces: totalBounces,
+                hardBounces,
+                softBounces,
+                spamComplaints, // NEW
+                forwards, // NEW
+                
+                // Calculated rates
+                openRate: sendAmt > 0 ? (uniqueOpens / sendAmt) * 100 : 0,
+                clickRate: sendAmt > 0 ? (uniqueLinkClicks / sendAmt) * 100 : 0,
+                clickToOpenRate: uniqueOpens > 0 ? (uniqueLinkClicks / uniqueOpens) * 100 : 0, // NEW
+                bounceRate: sendAmt > 0 ? (totalBounces / sendAmt) * 100 : 0, // NEW
+                hardBounceRate: sendAmt > 0 ? (hardBounces / sendAmt) * 100 : 0, // NEW
+                softBounceRate: sendAmt > 0 ? (softBounces / sendAmt) * 100 : 0, // NEW
+                unsubscribeRate: sendAmt > 0 ? (unsubscribes / sendAmt) * 100 : 0, // NEW
+                spamComplaintRate: sendAmt > 0 ? (spamComplaints / sendAmt) * 100 : 0, // NEW
+                
                 createdAt: campaign.cdate ? Timestamp.fromDate(new Date(campaign.cdate)) : null,
                 sentAt: campaign.sdate ? Timestamp.fromDate(new Date(campaign.sdate)) : null,
                 syncedAt: serverTimestamp(),

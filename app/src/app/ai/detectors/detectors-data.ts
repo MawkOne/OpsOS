@@ -930,13 +930,13 @@ export const allDetectors: DetectorInfo[] = [
 
   // ===== PLANNED DETECTORS (77) =====
 
-  // EMAIL (7 planned)
+  // EMAIL (5 NEW - now active!)
   {
     id: "email_bounce_rate_spike",
     name: "Bounce Rate Spike",
     category: "email",
     layer: "fast",
-    status: "planned",
+    status: "active",
     priority: "high",
     description: "Detects hard/soft bounce rates exceeding safe thresholds",
     detects: "Bounce rate >10% (high priority) or >5% (medium priority)",
@@ -955,7 +955,7 @@ export const allDetectors: DetectorInfo[] = [
     name: "Spam Complaint Spike",
     category: "email",
     layer: "fast",
-    status: "planned",
+    status: "active",
     priority: "high",
     description: "Detects increasing spam complaints that harm sender reputation",
     detects: "Spam complaints >2x baseline",
@@ -974,7 +974,7 @@ export const allDetectors: DetectorInfo[] = [
     name: "List Health Decline",
     category: "email",
     layer: "trend",
-    status: "planned",
+    status: "active",
     priority: "high",
     description: "Detects declining list growth or increasing unsubscribe rates",
     detects: "List growth <2%/month or unsubscribe rate >0.5%",
@@ -1012,7 +1012,7 @@ export const allDetectors: DetectorInfo[] = [
     name: "Click-to-Open Rate Decline",
     category: "email",
     layer: "trend",
-    status: "planned",
+    status: "active",
     priority: "medium",
     description: "Detects when opens are stable but clicks are declining",
     detects: "Opens stable but click-to-open rate <15% when open rate >25%",
@@ -1031,7 +1031,7 @@ export const allDetectors: DetectorInfo[] = [
     name: "Optimal Frequency Deviation",
     category: "email",
     layer: "strategic",
-    status: "planned",
+    status: "active",
     priority: "low",
     description: "Detects send frequency that is too high or too low",
     detects: "Send frequency <2/week or >7/week for most lists",
