@@ -19,9 +19,9 @@ export interface DetectorInfo {
 }
 
 export const allDetectors: DetectorInfo[] = [
-  // ===== ACTIVE DETECTORS (67) =====
+  // ===== ACTIVE DETECTORS (67 marked active below, but only 42 actually deployed in Python) =====
   
-  // EMAIL (6 active - plus 5 more in "planned" section below that are now active = 11 total)
+  // EMAIL (6 active here + 5 more below = 11 in UI, but only 8 actually deployed)
   {
     id: "email_engagement_drop",
     name: "Email Engagement Drop",
