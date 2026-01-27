@@ -89,6 +89,14 @@ const workingDetectors = [
   "detect_content_format_winners",  // Uses content_type
   "detect_republishing_opportunities",  // Uses publish_date + performance history
   "detect_publishing_volume_gap",  // Uses publish_date tracking
+  
+  // Pages/CRO (13 working - 3 new with device/funnel data!)
+  "detect_mobile_desktop_cvr_gap",  // Uses device_type dimension
+  "detect_conversion_funnel_dropoff",  // Uses funnel events (cart, checkout, purchase)
+  
+  // Traffic (9 working - 2 new with quality scoring!)
+  "detect_traffic_quality_by_source",  // Quality score algorithm
+  "detect_channel_mix_optimization",  // Efficiency ratio analysis
 ];
 
 interface DetectorInfo {
