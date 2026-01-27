@@ -117,9 +117,8 @@ async function fetchDeviceMetrics(propertyId: string, accessToken: string, start
           endDate: endDate.toISOString().split('T')[0]
         }],
         dimensions: [
-          { name: 'date' },
-          { name: 'pagePath' },
-          { name: 'deviceCategory' }
+          { name: 'deviceCategory' },
+          { name: 'pagePath' }
         ],
         metrics: [
           { name: 'sessions' },
@@ -127,6 +126,7 @@ async function fetchDeviceMetrics(propertyId: string, accessToken: string, start
           { name: 'conversions' },
           { name: 'bounceRate' }
         ],
+        limit: 10000
       }),
     }
   );
@@ -139,13 +139,15 @@ async function fetchDeviceMetrics(propertyId: string, accessToken: string, start
   const rows: any[] = [];
 
   if (data.rows) {
+    // Use endDate as the date for all rows (latest data)
+    const dateStr = endDate.toISOString().split('T')[0];
+    
     for (const row of data.rows) {
-      const date = row.dimensionValues[0].value;
+      const deviceCategory = row.dimensionValues[0].value.toLowerCase();
       const pagePath = row.dimensionValues[1].value;
-      const deviceCategory = row.dimensionValues[2].value.toLowerCase();
 
       rows.push({
-        date,
+        date: dateStr,
         pagePath,
         device_type: deviceCategory,
         sessions: parseInt(row.metricValues[0].value || '0'),
@@ -174,7 +176,6 @@ async function fetchFunnelMetrics(propertyId: string, accessToken: string, start
           endDate: endDate.toISOString().split('T')[0]
         }],
         dimensions: [
-          { name: 'date' },
           { name: 'pagePath' }
         ],
         metrics: [
@@ -185,6 +186,7 @@ async function fetchFunnelMetrics(propertyId: string, accessToken: string, start
           { name: 'checkouts' },
           { name: 'purchases' }
         ],
+        limit: 10000
       }),
     }
   );
@@ -197,15 +199,17 @@ async function fetchFunnelMetrics(propertyId: string, accessToken: string, start
   const rows: any[] = [];
 
   if (data.rows) {
+    // Use endDate as the date for all rows
+    const dateStr = endDate.toISOString().split('T')[0];
+    
     for (const row of data.rows) {
-      const date = row.dimensionValues[0].value;
-      const pagePath = row.dimensionValues[1].value;
+      const pagePath = row.dimensionValues[0].value;
 
       const pageviews = parseInt(row.metricValues[0].value || '0');
       const engagementDuration = parseFloat(row.metricValues[1].value || '0');
 
       rows.push({
-        date,
+        date: dateStr,
         pagePath,
         pageviews,
         dwell_time: pageviews > 0 ? engagementDuration / pageviews : null,
