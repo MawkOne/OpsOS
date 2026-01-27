@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
       campaigns: 0,
       events: 0,
       pages: 0,
+      deviceMetrics: 0,
+      pagePerformance: 0,
     };
 
     // Sync Traffic Sources
@@ -175,11 +177,29 @@ export async function POST(request: NextRequest) {
       syncResults.pages++;
     }
 
+    // Sync Device-level metrics (Phase 2.1)
+    console.log('Syncing device metrics...');
+    try {
+      const deviceData = await syncDeviceMetrics(propertyId, accessToken, months, organizationId);
+      syncResults.deviceMetrics = Object.keys(deviceData).length;
+    } catch (err) {
+      console.error('Error syncing device metrics:', err);
+    }
+
+    // Sync Enhanced Page Performance (Phase 2.2)
+    console.log('Syncing page performance metrics...');
+    try {
+      const perfData = await syncPagePerformance(propertyId, accessToken, months, organizationId);
+      syncResults.pagePerformance = Object.keys(perfData).length;
+    } catch (err) {
+      console.error('Error syncing page performance:', err);
+    }
+
     return NextResponse.json({
       success: true,
       monthsSynced: months.length,
       results: syncResults,
-      message: `Synced ${months.length} months of GA4 data to Firestore`,
+      message: `Synced ${months.length} months of GA4 data to Firestore (including device & performance metrics)`,
     });
 
   } catch (error) {
@@ -550,4 +570,169 @@ async function syncPages(
   }
 
   return pagesData;
+}
+
+// Sync Device-level Metrics (Phase 2.1)
+async function syncDeviceMetrics(
+  propertyId: string,
+  accessToken: string,
+  months: { key: string; startDate: string; endDate: string }[],
+  organizationId: string
+): Promise<Record<string, any>> {
+  const deviceData: Record<string, any> = {};
+
+  for (const month of months) {
+    const response = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
+          dimensions: [
+            { name: 'deviceCategory' }, // mobile, desktop, tablet
+            { name: 'pagePath' },
+          ],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'conversions' },
+            { name: 'screenPageViews' },
+            { name: 'averageSessionDuration' },
+            { name: 'bounceRate' },
+          ],
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: 1000,
+        }),
+      }
+    );
+
+    if (!response.ok) continue;
+
+    const data = await response.json();
+    
+    if (data.rows) {
+      for (const row of data.rows) {
+        const deviceType = row.dimensionValues[0].value;
+        const pagePath = row.dimensionValues[1].value;
+        const devicePageKey = `${deviceType}_${pagePath}`;
+        
+        if (!deviceData[devicePageKey]) {
+          deviceData[devicePageKey] = {
+            deviceType,
+            pagePath,
+            months: {},
+          };
+        }
+
+        const metrics = row.metricValues;
+        
+        deviceData[devicePageKey].months[month.key] = {
+          sessions: parseInt(metrics[0]?.value || '0'),
+          conversions: parseInt(metrics[1]?.value || '0'),
+          pageViews: parseInt(metrics[2]?.value || '0'),
+          avgSessionDuration: parseFloat(metrics[3]?.value || '0'),
+          bounceRate: parseFloat(metrics[4]?.value || '0') * 100,
+        };
+      }
+    }
+  }
+
+  // Write to Firestore
+  for (const [key, data] of Object.entries(deviceData)) {
+    const docRef = doc(db, 'ga_device_metrics', `${organizationId}_${key}`);
+    await setDoc(docRef, {
+      organizationId,
+      ...data,
+      syncedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
+  return deviceData;
+}
+
+// Sync Enhanced Page Performance Metrics (Phase 2.2)
+async function syncPagePerformance(
+  propertyId: string,
+  accessToken: string,
+  months: { key: string; startDate: string; endDate: string }[],
+  organizationId: string
+): Promise<Record<string, any>> {
+  const perfData: Record<string, any> = {};
+
+  for (const month of months) {
+    const response = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
+          dimensions: [{ name: 'pagePath' }],
+          metrics: [
+            { name: 'screenPageViews' },
+            { name: 'userEngagementDuration' }, // Total engagement time
+            { name: 'averageSessionDuration' },
+            { name: 'scrolledUsers' }, // Users who scrolled
+            { name: 'activeUsers' },
+            { name: 'addToCarts' }, // Ecommerce event
+            { name: 'checkouts' }, // Ecommerce event (checkout_started)
+            { name: 'purchases' }, // purchase_completed
+          ],
+          orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+          limit: 1000,
+        }),
+      }
+    );
+
+    if (!response.ok) continue;
+
+    const data = await response.json();
+    
+    if (data.rows) {
+      for (const row of data.rows) {
+        const pagePath = row.dimensionValues[0].value;
+        
+        if (!perfData[pagePath]) {
+          perfData[pagePath] = {
+            pagePath,
+            months: {},
+          };
+        }
+
+        const metrics = row.metricValues;
+        const pageViews = parseInt(metrics[0]?.value || '0');
+        const engagementDuration = parseFloat(metrics[1]?.value || '0');
+        const activeUsers = parseInt(metrics[4]?.value || '0');
+        const scrolledUsers = parseInt(metrics[3]?.value || '0');
+        
+        perfData[pagePath].months[month.key] = {
+          pageViews,
+          dwellTime: pageViews > 0 ? engagementDuration / pageViews : 0, // Avg time per page view
+          avgSessionDuration: parseFloat(metrics[2]?.value || '0'),
+          scrollDepth: activeUsers > 0 ? (scrolledUsers / activeUsers) * 100 : 0, // % who scrolled
+          addToCart: parseInt(metrics[5]?.value || '0'),
+          checkoutStarted: parseInt(metrics[6]?.value || '0'),
+          purchaseCompleted: parseInt(metrics[7]?.value || '0'),
+        };
+      }
+    }
+  }
+
+  // Write to Firestore
+  for (const [path, data] of Object.entries(perfData)) {
+    const docRef = doc(db, 'ga_page_performance', `${organizationId}_${Buffer.from(path).toString('base64').substring(0, 50)}`);
+    await setDoc(docRef, {
+      organizationId,
+      ...data,
+      syncedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
+  return perfData;
 }
