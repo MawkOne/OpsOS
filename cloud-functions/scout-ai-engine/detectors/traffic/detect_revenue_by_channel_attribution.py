@@ -10,12 +10,12 @@ def detect_revenue_by_channel_attribution(organization_id: str) -> list:
     logger.info("🔍 Running 'revenue_by_channel_attribution' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, e.entity_name, m.source, SUM(m.sessions) as sessions, SUM(m.revenue) as revenue
+    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, m.source, SUM(m.sessions) as sessions, SUM(m.revenue) as revenue
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
       AND m.entity_type = 'traffic_source' AND sessions > 100
-    GROUP BY e.canonical_entity_id, e.entity_name, source
+    GROUP BY e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, source
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

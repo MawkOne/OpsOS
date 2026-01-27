@@ -10,7 +10,7 @@ def detect_quality_score_decline(organization_id: str) -> list:
     logger.info("🔍 Running 'quality_score_decline' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, e.entity_name, SUM(m.cost) as cost, SUM(m.conversions) as conversions,
+    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, SUM(m.cost) as cost, SUM(m.conversions) as conversions,
       SAFE_DIVIDE(SUM(m.cost), SUM(m.conversions)) as cpa
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id

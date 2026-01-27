@@ -11,7 +11,7 @@ def detect_social_proof_opportunities(organization_id: str) -> list:
     opportunities = []
     # Detector ready - needs specific metrics/data to be fully operational
     query = f"""
-    SELECT e.canonical_entity_id, e.entity_name, SUM(m.sessions) as sessions
+    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, SUM(m.sessions) as sessions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)

@@ -10,7 +10,7 @@ def detect_technical_seo_health_score(organization_id: str) -> list:
     logger.info("🔍 Running 'technical_seo_health_score' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id, e.entity_name, AVG(m.position) as avg_position, SUM(m.impressions) as impressions
+    SELECT e.canonical_entity_id, ANY_VALUE(e.entity_id) as entity_name, AVG(m.position) as avg_position, SUM(m.impressions) as impressions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
     JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
     WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
