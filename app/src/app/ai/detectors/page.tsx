@@ -172,21 +172,43 @@ export default function DetectorsPage() {
         </p>
       </div>
 
-      {/* Detector Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <AnimatePresence mode="popLayout">
-          {filteredDetectors.map((detector) => (
-            <DetectorCard
-              key={detector.id}
-              detector={detector}
-              onClick={() => setSelectedDetector(detector)}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {/* Empty State */}
-      {filteredDetectors.length === 0 && (
+      {/* Detector Table */}
+      {filteredDetectors.length > 0 ? (
+        <Card className="glass overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th className="text-left py-3 px-4 text-xs font-bold" style={{ color: "var(--foreground-muted)" }}>
+                    STATUS
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-bold" style={{ color: "var(--foreground-muted)" }}>
+                    NAME
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-bold" style={{ color: "var(--foreground-muted)" }}>
+                    CATEGORY
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-bold" style={{ color: "var(--foreground-muted)" }}>
+                    LAYER
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-bold" style={{ color: "var(--foreground-muted)" }}>
+                    DESCRIPTION
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDetectors.map((detector) => (
+                  <DetectorRow
+                    key={detector.id}
+                    detector={detector}
+                    onClick={() => setSelectedDetector(detector)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
         <Card className="glass text-center py-12">
           <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--foreground-muted)" }} />
           <p className="text-lg font-medium" style={{ color: "var(--foreground)" }}>
@@ -207,12 +229,12 @@ export default function DetectorsPage() {
   );
 }
 
-interface DetectorCardProps {
+interface DetectorRowProps {
   detector: DetectorInfo;
   onClick: () => void;
 }
 
-function DetectorCard({ detector, onClick }: DetectorCardProps) {
+function DetectorRow({ detector, onClick }: DetectorRowProps) {
   const categoryIcons: Record<DetectorCategory, any> = {
     email: Mail,
     seo: Search,
@@ -224,83 +246,92 @@ function DetectorCard({ detector, onClick }: DetectorCardProps) {
     system: Shield,
   };
 
-  const layerIcons: Record<string, any> = {
-    fast: Zap,
-    trend: TrendingUp,
-    strategic: Target,
+  const layerLabels: Record<string, string> = {
+    fast: "Fast",
+    trend: "Trend",
+    strategic: "Strategic",
   };
 
   const Icon = categoryIcons[detector.category];
-  const LayerIcon = layerIcons[detector.layer];
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.2 }}
+    <tr
       onClick={onClick}
-      className="cursor-pointer"
+      className="cursor-pointer transition-colors hover:bg-opacity-50"
+      style={{
+        borderBottom: "1px solid var(--border)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--background-tertiary)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+      }}
     >
-      <Card
-        className="glass relative"
-        hover
-        style={{
-          borderColor: detector.status === "active" ? "var(--border-hover)" : "var(--border)",
-        }}
-      >
-        {/* Status Badge */}
-        <div className="absolute top-4 right-4">
+      {/* Status */}
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
           {detector.status === "active" ? (
-            <div
-              className="px-2 py-1 rounded-full text-xs font-medium"
-              style={{
-                background: "var(--success)",
-                color: "var(--background)",
-              }}
-            >
-              Active
-            </div>
+            <>
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: "var(--success)" }}
+              />
+              <span className="text-sm" style={{ color: "var(--success)" }}>
+                Active
+              </span>
+            </>
           ) : (
-            <div
-              className="px-2 py-1 rounded-full text-xs font-medium"
-              style={{
-                background: "var(--warning)",
-                color: "var(--background)",
-              }}
-            >
-              Planned
-            </div>
+            <>
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: "var(--warning)" }}
+              />
+              <span className="text-sm" style={{ color: "var(--warning)" }}>
+                Planned
+              </span>
+            </>
           )}
         </div>
+      </td>
 
-        {/* Icon */}
-        <div
-          className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
+      {/* Name */}
+      <td className="py-3 px-4">
+        <div className="font-medium" style={{ color: "var(--foreground)" }}>
+          {detector.name}
+        </div>
+      </td>
+
+      {/* Category */}
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+          <span className="text-sm capitalize" style={{ color: "var(--foreground)" }}>
+            {detector.category}
+          </span>
+        </div>
+      </td>
+
+      {/* Layer */}
+      <td className="py-3 px-4">
+        <span
+          className="px-2 py-1 rounded text-xs font-medium"
           style={{
-            background: detector.status === "active" ? "var(--success-muted)" : "var(--warning-muted)",
+            background: "var(--accent-muted)",
+            color: "var(--accent)",
           }}
         >
-          <Icon
-            className="w-6 h-6"
-            style={{
-              color: detector.status === "active" ? "var(--success)" : "var(--warning)",
-            }}
-          />
-        </div>
+          {layerLabels[detector.layer] || detector.layer}
+        </span>
+      </td>
 
-        {/* Name */}
-        <h3 className="font-bold mb-2 pr-16" style={{ color: "var(--foreground)" }}>
-          {detector.name}
-        </h3>
-
-        {/* Description */}
+      {/* Description */}
+      <td className="py-3 px-4">
         <p className="text-sm line-clamp-2" style={{ color: "var(--foreground-muted)" }}>
           {detector.description}
         </p>
-      </Card>
-    </motion.div>
+      </td>
+    </tr>
   );
 }
 
