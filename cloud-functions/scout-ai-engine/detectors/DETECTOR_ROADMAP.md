@@ -1,21 +1,21 @@
 # Scout AI Detector Roadmap
 
 **Last Updated:** January 27, 2026  
-**Progress:** 44 of 117 detectors complete (38%)
+**Progress:** 47 of 117 detectors complete (40%)
 
 ---
 
 ## 📊 Quick Stats
 
-- ✅ **Complete:** 44 detectors
-- ⏳ **To Do:** 73 detectors
+- ✅ **Complete:** 47 detectors
+- ⏳ **To Do:** 70 detectors
 - 📈 **Total Goal:** 117 detectors
 
 ---
 
 ## Detectors Checklist
 
-### 📧 Email Marketing (10/13 complete)
+### 📧 Email Marketing (13/13 complete) ✅
 
 - [x] Email Engagement Drop
 - [x] High Opens, Low Clicks
@@ -27,9 +27,9 @@
 - [x] Optimal Frequency Deviation
 - [x] Email Volume Gap
 - [x] Revenue Per Subscriber Decline
-- [ ] Device/Client Performance Gap
-- [ ] A/B Test Recommendations
-- [ ] List Segmentation Opportunities
+- [x] Device/Client Performance Gap
+- [x] A/B Test Recommendations
+- [x] List Segmentation Opportunities
 
 ### 💵 Revenue & Metrics (8/19 complete)
 
