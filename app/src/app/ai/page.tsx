@@ -16,7 +16,7 @@ export default function AIPage() {
   const { currentOrg } = useOrganization();
   const [stats, setStats] = useState({
     totalOpportunities: 0,
-    detectorCount: 23, // Static - actual detector count
+    detectorCount: 55, // Static - actual detector count (23 original + 32 expansion)
     monthlyRecords: 0,
     metricPoints: 0
   });
@@ -35,7 +35,7 @@ export default function AIPage() {
       
       setStats({
         totalOpportunities: data.opportunities?.length || 0,
-        detectorCount: 23, // 16 original + 7 multi-timeframe
+        detectorCount: 55, // 23 original + 32 expansion detectors
         monthlyRecords: data.monthlyRecords || 0, // If available from API
         metricPoints: data.metricPoints || 0 // If available from API
       });
@@ -48,99 +48,57 @@ export default function AIPage() {
 
   const analysisTypes = [
     {
-      name: "Anomaly Detection",
-      href: "/ai/anomaly-detection",
-      icon: AlertTriangle,
-      description: "Sudden changes (±20-40%) in revenue, traffic, or conversions"
-    },
-    {
-      name: "Trend Analysis",
-      href: "/ai/trend-analysis",
-      icon: TrendingUp,
-      description: "Multi-month patterns: 2-4+ consecutive months, acceleration/deceleration"
-    },
-    {
-      name: "Performance Analysis",
-      href: "/ai/performance-analysis",
-      icon: Zap,
-      description: "Scale winners, fix losers, top/bottom performers"
-    },
-    {
-      name: "Efficiency Analysis",
-      href: "/ai/efficiency-analysis",
-      icon: Gauge,
-      description: "Cost inefficiency, waste, ROAS deterioration"
-    },
-    {
-      name: "Cross-Channel Analysis",
-      href: "/ai/cross-channel-analysis",
-      icon: GitCompare,
-      description: "Channel gaps, misalignment, synergy opportunities"
-    },
-    {
-      name: "Content Analysis",
-      href: "/ai/content-analysis",
-      icon: FileText,
-      description: "Content decay, high traffic low CVR, engagement decay"
-    },
-    {
-      name: "SEO Analysis",
-      href: "/ai/seo-analysis",
-      icon: Search,
-      description: "Rank drops, striking distance, position trends"
-    },
-    {
-      name: "Email Analysis",
-      href: "/ai/email-analysis",
+      name: "📧 Email Marketing",
+      href: "/ai/email",
       icon: Mail,
-      description: "Engagement trends, open/click patterns, deliverability"
+      description: "6 detectors monitoring campaigns, engagement, and revenue attribution"
     },
     {
-      name: "Revenue Analysis",
-      href: "/ai/revenue-analysis",
-      icon: DollarSign,
-      description: "Revenue patterns, MRR trends, AOV optimization"
+      name: "🔍 SEO",
+      href: "/ai/seo",
+      icon: Search,
+      description: "8 detectors tracking rankings, keywords, and technical health"
     },
     {
-      name: "Funnel Analysis",
-      href: "/ai/funnel-analysis",
-      icon: Filter,
-      description: "Stage-to-stage conversion, drop-offs, channel efficiency"
-    },
-    {
-      name: "Historical Analysis",
-      href: "/ai/historical-analysis",
-      icon: Clock,
-      description: "All-time peaks, best/worst months, recovery potential"
-    },
-    {
-      name: "Volatility Analysis",
-      href: "/ai/volatility-analysis",
-      icon: Activity,
-      description: "Stability scoring, predictability, risk assessment"
-    },
-    {
-      name: "Lookback Analysis",
-      href: "/ai/lookback-analysis",
-      icon: Activity,
-      description: "Daily, 7d, 30d, 60d, 90d, monthly, all-time comparisons"
-    },
-    {
-      name: "Confidence Scoring",
-      href: "/ai/confidence-scoring",
-      icon: Shield,
-      description: "Reliability assessment, data volume, statistical significance"
-    },
-    {
-      name: "Pattern Classification",
-      href: "/ai/pattern-classification",
+      name: "💰 Advertising",
+      href: "/ai/advertising",
       icon: Hash,
-      description: "Categorizes 30+ pattern types across all channels"
+      description: "6 detectors analyzing campaigns, spend efficiency, and performance"
+    },
+    {
+      name: "📄 Pages",
+      href: "/ai/pages",
+      icon: FileText,
+      description: "5 detectors monitoring page performance and conversion optimization"
+    },
+    {
+      name: "✍️ Content",
+      href: "/ai/content",
+      icon: FileText,
+      description: "4 detectors tracking content publishing, freshness, and performance"
+    },
+    {
+      name: "🚦 Traffic",
+      href: "/ai/traffic",
+      icon: Activity,
+      description: "6 detectors monitoring traffic sources, quality, and channels"
+    },
+    {
+      name: "💵 Revenue",
+      href: "/ai/revenue",
+      icon: DollarSign,
+      description: "6 detectors tracking revenue anomalies, forecasts, and unit economics"
+    },
+    {
+      name: "All Opportunities",
+      href: "/ai/opportunities",
+      icon: Target,
+      description: "View all detected opportunities across all marketing areas"
     }
   ];
 
   return (
-    <AppLayout title="Scout AI" subtitle="15 intelligent analysis types powered by monthly trends">
+    <AppLayout title="Scout AI" subtitle="55 detectors across 7 marketing areas powered by multi-timeframe analysis">
       {/* Hero Section */}
       <Card className="glass mb-8">
         <div className="flex items-start justify-between">
