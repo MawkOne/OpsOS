@@ -43,7 +43,7 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        
       WHERE m.organization_id = @org_id
         AND e.entity_type IN ('page', 'campaign')
     ),

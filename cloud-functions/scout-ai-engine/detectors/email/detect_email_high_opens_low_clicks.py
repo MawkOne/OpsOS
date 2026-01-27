@@ -41,7 +41,7 @@ def detect_email_high_opens_low_clicks(organization_id: str) -> list:
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
       JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
         ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'email'
