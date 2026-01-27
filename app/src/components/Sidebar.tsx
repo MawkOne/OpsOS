@@ -128,12 +128,12 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       title: "Overview",
       items: [
         { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: "74" },
+        { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: "42" },
         { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
       ],
     },
     {
-      title: "📧 Email (11 detectors)",
+      title: "📧 Email (8 detectors)",
       items: [
         { label: "Email Overview", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
         { label: "Engagement & Volume", href: "/ai/email/engagement", icon: <Activity className="w-4 h-4" /> },
@@ -172,7 +172,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "🚦 Traffic (10 detectors)",
+      title: "🚦 Traffic (7 detectors)",
       items: [
         { label: "Traffic Overview", href: "/ai/traffic", icon: <Network className="w-4 h-4" /> },
         { label: "Source Analysis", href: "/ai/traffic/sources", icon: <Link2 className="w-4 h-4" /> },
@@ -180,7 +180,7 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "💵 Revenue (11 detectors)",
+      title: "💵 Revenue (8 detectors)",
       items: [
         { label: "Revenue Overview", href: "/ai/revenue", icon: <DollarSign className="w-4 h-4" /> },
         { label: "Anomalies & Forecasts", href: "/ai/revenue/forecasts", icon: <LineChart className="w-4 h-4" /> },
