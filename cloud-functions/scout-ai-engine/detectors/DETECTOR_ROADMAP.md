@@ -385,3 +385,501 @@ Each detector is a standalone file with:
 - ✅ **Available** = Data exists in system
 - 🔶 **Partial** = Some data available
 - ❌ **Missing** = Data doesn't exist yet
+
+---
+
+## ✅ IMPLEMENTATION TASKS TO COMPLETE ALL 117 DETECTORS
+
+**Current:** 47/117 operational (40%)  
+**Goal:** 117/117 operational (100%)  
+**Tasks Needed:** 42 tasks to unlock 70 detectors
+
+---
+
+### 🎯 Phase 1: Core Revenue Infrastructure (Unlocks 11 detectors)
+
+**Task 1.1: Add MRR/ARR Tracking Columns**
+- Add `mrr` (decimal) column to `daily_entity_metrics`
+- Add `arr` (decimal) column to `daily_entity_metrics`
+- Update Stripe sync to calculate MRR from subscriptions
+- **Unlocks:** MRR/ARR Tracking detector
+
+**Task 1.2: Add Transaction & Refund Columns**
+- Add `transactions` (integer) column to `daily_entity_metrics`
+- Add `refund_count` (integer) column to `daily_entity_metrics`
+- Add `refunds` (decimal) column to `daily_entity_metrics`
+- Update Stripe/payment sync to capture transaction counts
+- **Unlocks:** Transaction/Refund Anomalies detector
+
+**Task 1.3: Add LTV & CAC Columns**
+- Add `ltv` (decimal) column to `daily_entity_metrics`
+- Add `cac` (decimal) column to `daily_entity_metrics`
+- Add `gross_margin` (decimal) column to `daily_entity_metrics`
+- Implement LTV calculation logic (average revenue per customer lifetime)
+- Implement CAC calculation logic (marketing spend / new customers)
+- **Unlocks:** Unit Economics Dashboard, LTV:CAC Ratio Decline (3 detectors)
+
+**Task 1.4: Add Customer Cohort Tracking**
+- Add `first_purchase_date` (date) column to `daily_entity_metrics`
+- Add `customer_cohort` (string) column to `daily_entity_metrics`
+- Add `churn_date` (date) column to `daily_entity_metrics`
+- Implement cohort aggregation logic in sync
+- **Unlocks:** Cohort Performance Trends, Customer Churn Spike (2 detectors)
+
+**Task 1.5: Add Customer Revenue Details**
+- Add `customer_id` dimension support
+- Add `is_expansion_revenue` (boolean) flag
+- Add `plan_tier` (string) for pricing analysis
+- Create customer-level revenue aggregation table
+- **Unlocks:** Revenue Concentration Risk, Pricing Opportunity, Expansion Revenue Gap (3 detectors)
+
+---
+
+### 📊 Phase 2: Enhanced Page Analytics (Unlocks 8 detectors)
+
+**Task 2.1: Add Device Dimension**
+- Add `device_type` (string: mobile/desktop/tablet) column to `daily_entity_metrics`
+- Update GA4 sync to capture device dimension
+- Aggregate metrics by device type
+- **Unlocks:** Mobile vs Desktop CVR Gap (1 detector)
+
+**Task 2.2: Add Page Performance Metrics**
+- Add `page_load_time` (decimal) column to `daily_entity_metrics`
+- Add `dwell_time` (decimal) / `avg_time_on_page` column
+- Add `scroll_depth` (decimal) column
+- Integrate PageSpeed Insights API for performance data
+- Update GA4 sync to capture engagement metrics
+- **Unlocks:** Page Speed Decline, Dwell Time Decline (2 detectors)
+
+**Task 2.3: Add Funnel Step Events**
+- Add `checkout_started` (integer) column to `daily_entity_metrics`
+- Add `add_to_cart` (integer) column to `daily_entity_metrics`
+- Add `purchase_completed` (integer) column
+- Update GA4 sync to capture ecommerce events
+- **Unlocks:** Conversion Funnel Drop-Off, Cart Abandonment (enhanced) (2 detectors)
+
+**Task 2.4: Add CTA & Engagement Tracking**
+- Add `cta_clicks` table or column (by button/link)
+- Add `error_count` (integer) column for page errors
+- Add `video_plays`, `video_completion_rate` columns
+- **Unlocks:** CTA Performance, Video Engagement Gap, Error Rate (enhanced) (3 detectors)
+
+---
+
+### 🔍 Phase 3: SEO Tool Integrations (Unlocks 8 detectors)
+
+**Task 3.1: Add Content Metadata Tracking**
+- Add `content_publish_date` (date) column to `daily_entity_metrics`
+- Add `last_update_date` (date) column
+- Add `content_type` (string) column (blog, video, etc.)
+- Add `word_count` (integer) column
+- Implement content crawling/scraping for metadata
+- **Unlocks:** Content Freshness Decay, Republishing Opportunities (2 detectors)
+
+**Task 3.2: Integrate Technical SEO Crawl Data**
+- Set up Screaming Frog or similar crawler
+- Create `technical_seo_metrics` table with:
+  - `page_url`, `status_code`, `redirect_chains`
+  - `meta_tags_present`, `h1_tags`, `canonical_tags`
+  - `image_alt_missing`, `broken_links`
+- Schedule weekly crawls
+- **Unlocks:** Technical SEO Health Score (1 detector)
+
+**Task 3.3: Add Internal Link Graph**
+- Create `internal_links` table with:
+  - `from_url`, `to_url`, `anchor_text`, `link_position`
+- Build link graph from crawl data
+- Calculate PageRank-style metrics
+- **Unlocks:** Internal Link Opportunities (1 detector)
+
+**Task 3.4: Integrate Search Console Enhanced Data**
+- Add `featured_snippet_status` (boolean) column
+- Add `snippet_type` (string) column
+- Update Search Console sync to capture snippet data
+- **Unlocks:** Featured Snippet Opportunities (1 detector)
+
+**Task 3.5: Integrate Backlink Data**
+- Sign up for Ahrefs, Moz, or similar backlink API
+- Create `backlinks` table with:
+  - `from_domain`, `to_url`, `anchor_text`
+  - `domain_rating`, `url_rating`, `first_seen`, `last_seen`
+- Schedule daily/weekly backlink syncs
+- **Unlocks:** Backlink Quality Decline (1 detector)
+
+**Task 3.6: Integrate PageSpeed Insights API**
+- Sign up for PageSpeed Insights API key
+- Create `core_web_vitals` table with:
+  - `page_url`, `lcp`, `fid`, `cls`, `ttfb`
+  - `mobile_score`, `desktop_score`
+- Schedule weekly performance audits for top pages
+- **Unlocks:** Core Web Vitals Failing (1 detector)
+
+**Task 3.7: Add Schema Markup Detection**
+- Implement schema.org markup detection in crawler
+- Create `schema_markup` table with:
+  - `page_url`, `schema_types`, `validation_errors`
+- Track schema coverage and errors
+- **Unlocks:** Schema Markup Gaps (1 detector)
+
+---
+
+### 💰 Phase 4: Google Ads API Enhancement (Unlocks 10 detectors)
+
+**Task 4.1: Add Quality Score Metrics**
+- Update Google Ads sync to fetch quality scores
+- Add `quality_score` (integer 1-10) column to `daily_entity_metrics`
+- Add `quality_score_components` (JSON) for detailed breakdown
+- **Unlocks:** Quality Score Decline (1 detector)
+
+**Task 4.2: Add Impression Share Metrics**
+- Add `impression_share` (decimal) column
+- Add `lost_impression_share_rank` (decimal) column
+- Add `lost_impression_share_budget` (decimal) column
+- Update Google Ads sync to capture impression share data
+- **Unlocks:** Impression Share Loss (1 detector)
+
+**Task 4.3: Add Device & Geo Dimensions**
+- Add `device_type` dimension to ad metrics
+- Add `geo_location` (country/region) dimension
+- Aggregate ad performance by device/geo
+- **Unlocks:** Device/Geo Optimization Gaps (1 detector)
+
+**Task 4.4: Add Ad Schedule Data**
+- Add `hour_of_day` dimension to ad metrics
+- Add `day_of_week` dimension
+- Aggregate performance by time segments
+- **Unlocks:** Ad Schedule Optimization (1 detector)
+
+**Task 4.5: Add Search Term Reports**
+- Create `search_terms` table with:
+  - `search_term`, `campaign_id`, `clicks`, `conversions`, `cost`
+  - `match_type`, `is_negative_keyword`
+- Sync daily search term performance
+- **Unlocks:** Negative Keyword Opportunities (1 detector)
+
+**Task 4.6: Add Auction Insights Data**
+- Enable Auction Insights API access
+- Create `auction_insights` table with:
+  - `competitor_domain`, `impression_share`, `overlap_rate`
+  - `position_above_rate`, `top_of_page_rate`
+- **Unlocks:** Competitor Activity Alerts (1 detector)
+
+**Task 4.7: Add Creative & Landing Page Tracking**
+- Add `creative_id` dimension to ad metrics
+- Add `landing_page_url` dimension
+- Add `ad_copy_text` for tracking variations
+- Track creative performance over time
+- **Unlocks:** Creative Fatigue, Landing Page Relevance Gap, Ad Retargeting Gap (3 detectors)
+
+**Task 4.8: Add Audience Saturation Data**
+- Add `audience_id` dimension
+- Add `frequency` (average impressions per user)
+- Track audience reach and saturation
+- **Unlocks:** Audience Saturation (1 detector)
+
+---
+
+### ✍️ Phase 5: Content Intelligence (Unlocks 9 detectors)
+
+**Task 5.1: Add Content Publishing Metadata**
+- Add `content_type` (string) column: blog, video, infographic, ebook, etc.
+- Add `publish_date` (date) column
+- Add `last_update_date` (date) column
+- Add `author` (string) column
+- Add `word_count` (integer) column
+- Implement content metadata extraction/API
+- **Unlocks:** Publishing Volume Gap, Republishing Opportunities (2 detectors)
+
+**Task 5.2: Add Content Topic/Taxonomy**
+- Add `topic_tags` (array) column
+- Add `content_pillar` (string) column
+- Add `target_audience` (string) column
+- Implement topic classification (manual or AI-based)
+- **Unlocks:** Topic Gap Analysis, Content Pillar Opportunities (2 detectors)
+
+**Task 5.3: Add Content Format Tracking**
+- Add `content_format` dimension (text, video, podcast, infographic)
+- Add `content_length_bucket` (short/medium/long)
+- Track format performance separately
+- **Unlocks:** Content Format Winners (1 detector)
+
+**Task 5.4: Add Engagement Depth Metrics**
+- Add `engagement_rate` column (likes, shares, comments)
+- Add `dwell_time` column (already mentioned in Phase 2)
+- Add `scroll_depth` column
+- Add `social_shares` column
+- **Unlocks:** Engagement Rate Decline (1 detector)
+
+**Task 5.5: Add Lead Attribution to Content**
+- Link content views to lead generation events
+- Add `leads_generated` column to content metrics
+- Add `lead_source_content_id` to leads table
+- **Unlocks:** Content-to-Lead Attribution (1 detector)
+
+**Task 5.6: Add Distribution Channel Tracking**
+- Add `distribution_channels` (array) column
+- Track where content is shared/promoted
+- Add `syndication_partner` for republished content
+- Add performance by distribution channel
+- **Unlocks:** Content Distribution Gap (1 detector)
+
+---
+
+### 🚦 Phase 6: Attribution & Traffic Intelligence (Unlocks 9 detectors)
+
+**Task 6.1: Implement Multi-Touch Attribution**
+- Create `attribution_paths` table with:
+  - `user_id`, `touchpoint_sequence`, `conversion_id`
+  - `touchpoint_source`, `touchpoint_medium`, `touchpoint_timestamp`
+- Implement attribution models: first-touch, last-touch, linear, time-decay, position-based
+- Store attribution weights per touchpoint
+- **Unlocks:** Multi-Touch Path Issues, Attribution Model Comparison (2 detectors)
+
+**Task 6.2: Add CAC by Channel Calculation**
+- Calculate CAC per marketing channel
+- Add `channel_cac` aggregation logic
+- Add `new_customers_by_channel` tracking
+- Store in dedicated aggregation or column
+- **Unlocks:** CAC by Channel (1 detector)
+
+**Task 6.3: Add Cross-Device Journey Tracking**
+- Implement User-ID tracking across devices
+- Create `cross_device_journeys` table with:
+  - `user_id`, `device_sequence`, `conversion_device`
+- Track device switching patterns
+- **Unlocks:** Cross-Device Journey Issues (1 detector)
+
+**Task 6.4: Enhance Traffic Source Tracking**
+- Add `source_medium_combination` dimension
+- Add `is_returning_traffic` flag
+- Add `traffic_source_tier` (primary/secondary/tertiary)
+- **Unlocks:** Traffic Source Disappearance, Channel Dependency Risk (2 detectors)
+
+**Task 6.5: Add Traffic Quality Scoring**
+- Add `bounce_rate` column to traffic metrics
+- Add `pages_per_session` column
+- Add `avg_session_duration` column
+- Add `conversion_rate_by_source` calculation
+- Create traffic quality score algorithm
+- **Unlocks:** Traffic Quality by Source, Channel Mix Optimization (3 detectors)
+
+---
+
+### 🏗️ Phase 7: System Monitoring Infrastructure (Unlocks 15 detectors)
+
+**Task 7.1: Create Sync Status Tracking**
+- Create `sync_status` table in Firestore with:
+  - `data_source`, `last_sync_time`, `sync_status`, `error_message`
+  - `records_synced`, `sync_duration_ms`
+- Update all sync routes to log status
+- **Unlocks:** Data Source Disconnection, Data Freshness Issues (2 detectors)
+
+**Task 7.2: Create Error Logging System**
+- Create `error_logs` table with:
+  - `error_type`, `detector_id`, `timestamp`, `error_message`
+  - `affected_organization`, `stack_trace`
+- Log all detector errors centrally
+- **Unlocks:** Metric Calculation Errors (1 detector)
+
+**Task 7.3: Add BigQuery Cost Monitoring**
+- Integrate BigQuery Billing API
+- Create `bigquery_usage` table with:
+  - `query_date`, `bytes_processed`, `cost`, `query_type`
+- Track daily/weekly costs
+- **Unlocks:** BigQuery Cost Spike (1 detector)
+
+**Task 7.4: Add API Rate Limit Tracking**
+- Create `api_usage` table with:
+  - `api_name`, `requests_made`, `rate_limit`, `timestamp`
+- Track usage for all external APIs (Google Ads, ActiveCampaign, etc.)
+- **Unlocks:** API Rate Limit Approaching (1 detector)
+
+**Task 7.5: Add Schema Version Tracking**
+- Create `schema_versions` table with:
+  - `table_name`, `schema_json`, `version`, `changed_at`
+- Track schema changes over time
+- Implement automated schema diff detection
+- **Unlocks:** Schema Drift Detection (1 detector)
+
+**Task 7.6: Add Data Quality Metrics**
+- Implement data quality checks:
+  - Null rate by column
+  - Duplicate record detection
+  - Outlier detection
+  - Data type validation
+- Create `data_quality_metrics` table
+- **Unlocks:** Data Quality Score, Duplicate Data Detection, Missing Data Gaps (3 detectors)
+
+**Task 7.7: Add Entity Mapping Quality Tracking**
+- Create `entity_mapping_quality` table with:
+  - `canonical_entity_id`, `confidence_score`, `source_count`
+  - `last_validated`, `has_conflicts`
+- Track entity resolution confidence
+- **Unlocks:** Entity Mapping Quality Decline (1 detector)
+
+**Task 7.8: Create Opportunity Interaction Tracking**
+- Create `opportunity_interactions` table with:
+  - `opportunity_id`, `user_id`, `action_type`, `timestamp`
+  - Actions: viewed, dismissed, resolved, acted_on, false_positive
+- Track user engagement with opportunities
+- **Unlocks:** Alert Fatigue, False Positive Rate, Opportunity Resolution (3 detectors)
+
+**Task 7.9: Add Detector Performance Metrics**
+- Create `detector_executions` table with:
+  - `detector_id`, `execution_time_ms`, `opportunities_found`
+  - `errors_count`, `timestamp`, `organization_id`
+- Log every detector execution
+- **Unlocks:** Detector Performance Monitoring, Cross-Detector Correlation (2 detectors)
+
+---
+
+### 📈 Phase 8: SQL Query Refinement (Unlocks remaining detectors)
+
+**Task 8.1: Fix Ambiguous Column SQL Errors**
+- Fix remaining detectors with "Column name X is ambiguous" errors
+- Add proper table aliases (m., e.) throughout queries
+- Test all queries against actual schema
+- **Unlocks:** A/B Test Opportunities, several traffic/content detectors
+
+**Task 8.2: Fix Multi-Timeframe Detector Syntax**
+- Fix `paid_campaigns_multitimeframe` CTE syntax error
+- Fix `declining_performers_multitimeframe` if needed
+- Validate all CTE-based queries
+- **Unlocks:** 2-3 multi-timeframe detectors
+
+**Task 8.3: Add Missing Entity Name Support**
+- Decide on entity naming strategy:
+  - Option A: Add `entity_name` column to `entity_map` table
+  - Option B: Use `entity_id` as display name
+  - Option C: Create computed name from metadata
+- Update all queries to use consistent entity identification
+- **Unlocks:** Better UX across all detectors
+
+**Task 8.4: Test All 117 Detectors with Real Data**
+- Run each detector individually
+- Document any remaining SQL errors
+- Fix query syntax issues
+- Validate opportunity generation
+- **Unlocks:** Ensures all detectors truly operational
+
+---
+
+## 📋 ACTIONABLE TASK CHECKLIST
+
+Copy this checklist to start implementation:
+
+### Core Revenue (11 detectors) - PRIORITY 1
+- [ ] Task 1.1: Add MRR/ARR columns → Stripe sync update
+- [ ] Task 1.2: Add transaction/refund columns → Payment sync update  
+- [ ] Task 1.3: Add LTV/CAC columns → Calculation logic
+- [ ] Task 1.4: Add cohort tracking → Customer lifecycle tracking
+- [ ] Task 1.5: Add customer revenue details → Aggregation tables
+
+### Enhanced Analytics (8 detectors) - PRIORITY 2
+- [ ] Task 2.1: Add device dimension → GA4 sync update
+- [ ] Task 2.2: Add page performance metrics → PageSpeed API
+- [ ] Task 2.3: Add funnel events → Ecommerce tracking
+- [ ] Task 2.4: Add CTA/engagement tracking → Event tracking
+
+### SEO Tools (8 detectors) - PRIORITY 3
+- [ ] Task 3.1: Add content metadata → Content API/scraping
+- [ ] Task 3.2: Technical SEO crawler → Screaming Frog integration
+- [ ] Task 3.3: Internal link graph → Link structure analysis
+- [ ] Task 3.4: Featured snippets → Search Console enhancement
+- [ ] Task 3.5: Backlink data → Ahrefs/Moz API
+- [ ] Task 3.6: PageSpeed Insights → API integration
+- [ ] Task 3.7: Schema markup → Detection system
+
+### Google Ads (10 detectors) - PRIORITY 4
+- [ ] Task 4.1: Quality scores → Ads API enhancement
+- [ ] Task 4.2: Impression share → Ads API enhancement
+- [ ] Task 4.3: Device/geo dimensions → Ads API breakdown
+- [ ] Task 4.4: Ad schedule data → Time-based reporting
+- [ ] Task 4.5: Search terms → Search term reports
+- [ ] Task 4.6: Auction insights → Competitive data
+- [ ] Task 4.7: Creative tracking → Ad variation tracking
+- [ ] Task 4.8: Audience data → Audience performance
+
+### Content Intelligence (9 detectors) - PRIORITY 5
+- [ ] Task 5.1: Publishing metadata → Content management
+- [ ] Task 5.2: Topic taxonomy → Classification system
+- [ ] Task 5.3: Format tracking → Format performance
+- [ ] Task 5.4: Engagement depth → Deep engagement metrics
+- [ ] Task 5.5: Lead attribution → Content-to-lead linking
+- [ ] Task 5.6: Distribution channels → Multi-channel tracking
+
+### Attribution & Traffic (9 detectors) - PRIORITY 6
+- [ ] Task 6.1: Multi-touch attribution → Attribution engine
+- [ ] Task 6.2: CAC by channel → Channel economics
+- [ ] Task 6.3: Cross-device tracking → User-ID implementation
+- [ ] Task 6.4: Enhanced source tracking → Source intelligence
+- [ ] Task 6.5: Traffic quality scoring → Quality algorithms
+
+### System Monitoring (15 detectors) - PRIORITY 7
+- [ ] Task 7.1: Sync status tracking → Monitoring dashboard
+- [ ] Task 7.2: Error logging system → Centralized errors
+- [ ] Task 7.3: BigQuery cost monitoring → Billing API
+- [ ] Task 7.4: API rate limits → Usage tracking
+- [ ] Task 7.5: Schema versioning → Version control
+- [ ] Task 7.6: Data quality metrics → Quality scoring
+- [ ] Task 7.7: Entity mapping quality → Confidence tracking
+- [ ] Task 7.8: Opportunity interactions → User engagement
+- [ ] Task 7.9: Detector performance → Execution metrics
+
+### SQL Refinement (Ongoing)
+- [ ] Task 8.1: Fix ambiguous column errors → Query cleanup
+- [ ] Task 8.2: Fix multi-timeframe syntax → CTE validation
+- [ ] Task 8.3: Entity naming strategy → Schema decision
+- [ ] Task 8.4: Test all 117 detectors → Validation suite
+
+---
+
+## 🚀 Quick Start: Unlock 20+ Detectors Fast
+
+If you want to activate 20+ detectors quickly, do these 5 tasks:
+
+1. **Add 5 revenue columns** (Task 1.1, 1.2, 1.3) → +11 detectors
+2. **Add device dimension** (Task 2.1) → +1 detector
+3. **Add page performance** (Task 2.2) → +2 detectors
+4. **Add funnel events** (Task 2.3) → +2 detectors
+5. **Fix SQL queries** (Task 8.1) → +5-10 detectors
+
+**Total Quick Win: 21-26 detectors activated** (bringing you to ~68-73 operational, 58-62%)
+
+---
+
+## 📊 Estimated Effort by Phase
+
+| Phase | Tasks | Detectors | Effort | Timeline |
+|-------|-------|-----------|--------|----------|
+| Phase 1: Core Revenue | 5 | 11 | High | 2-4 weeks |
+| Phase 2: Enhanced Analytics | 4 | 8 | Medium | 1-2 weeks |
+| Phase 3: SEO Tools | 7 | 8 | High | 4-6 weeks |
+| Phase 4: Google Ads | 8 | 10 | High | 3-5 weeks |
+| Phase 5: Content | 6 | 9 | Medium | 2-4 weeks |
+| Phase 6: Attribution | 5 | 9 | High | 3-5 weeks |
+| Phase 7: System | 9 | 15 | Medium | 2-3 weeks |
+| Phase 8: SQL | 4 | All | Low | 1 week |
+| **TOTAL** | **48** | **70** | **Mixed** | **18-30 weeks** |
+
+Note: Many tasks can be done in parallel. Actual timeline depends on team size and priorities.
+
+---
+
+## 🎯 Recommended Approach
+
+**Incremental Activation:**
+1. Start with **Phase 1 (Revenue)** - highest business value
+2. Do **Phase 2 (Analytics)** in parallel - relatively easy
+3. Tackle **Phase 8 (SQL)** continuously as you build
+4. Add **Phase 3-7** based on business priorities
+
+**Benefits of This Approach:**
+- Unlock detectors incrementally
+- See value quickly (11-19 detectors in first month)
+- Validate infrastructure changes before moving on
+- Adjust priorities based on what works
+
+---
+
+**Ready to start? Pick a phase and begin! Each task is well-defined and actionable.** 🚀
