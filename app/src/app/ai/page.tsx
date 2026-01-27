@@ -48,6 +48,12 @@ export default function AIPage() {
 
   const analysisTypes = [
     {
+      name: "🎯 All Detectors",
+      href: "/ai/detectors",
+      icon: Target,
+      description: "132 total detectors (55 active, 77 planned) across 7 marketing areas + system health"
+    },
+    {
       name: "📧 Email Marketing",
       href: "/ai/email",
       icon: Mail,
