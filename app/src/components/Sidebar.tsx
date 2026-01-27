@@ -132,38 +132,58 @@ const getNavigationByModule = (oppCount: number): Record<Module, NavSection[]> =
       ],
     },
     {
-      title: "Detection & Patterns",
+      title: "📧 Email (6 detectors)",
       items: [
-        { label: "Anomaly Detection", href: "/ai/anomaly-detection", icon: <Activity className="w-4 h-4" /> },
-        { label: "Trend Analysis", href: "/ai/trend-analysis", icon: <TrendingUp className="w-4 h-4" /> },
-        { label: "Pattern Classification", href: "/ai/pattern-classification", icon: <Layers className="w-4 h-4" /> },
-        { label: "Lookback Analysis", href: "/ai/lookback-analysis", icon: <BarChart3 className="w-4 h-4" /> },
+        { label: "Email Overview", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
+        { label: "Engagement & Volume", href: "/ai/email/engagement", icon: <Activity className="w-4 h-4" /> },
+        { label: "Revenue Attribution", href: "/ai/email/revenue", icon: <DollarSign className="w-4 h-4" /> },
       ],
     },
     {
-      title: "Performance & Efficiency",
+      title: "🔍 SEO (8 detectors)",
       items: [
-        { label: "Performance Analysis", href: "/ai/performance-analysis", icon: <Zap className="w-4 h-4" /> },
-        { label: "Efficiency Analysis", href: "/ai/efficiency-analysis", icon: <Percent className="w-4 h-4" /> },
-        { label: "Confidence Scoring", href: "/ai/confidence-scoring", icon: <Check className="w-4 h-4" /> },
-        { label: "Volatility Analysis", href: "/ai/volatility-analysis", icon: <Activity className="w-4 h-4" /> },
+        { label: "SEO Overview", href: "/ai/seo", icon: <Search className="w-4 h-4" /> },
+        { label: "Rankings & Keywords", href: "/ai/seo/rankings", icon: <TrendingUp className="w-4 h-4" /> },
+        { label: "Technical Health", href: "/ai/seo/technical", icon: <Wrench className="w-4 h-4" /> },
       ],
     },
     {
-      title: "Channel Intelligence",
+      title: "💰 Advertising (6 detectors)",
       items: [
-        { label: "Cross-Channel", href: "/ai/cross-channel-analysis", icon: <Network className="w-4 h-4" /> },
-        { label: "Content Analysis", href: "/ai/content-analysis", icon: <Lightbulb className="w-4 h-4" /> },
-        { label: "SEO Analysis", href: "/ai/seo-analysis", icon: <Search className="w-4 h-4" /> },
-        { label: "Email Analysis", href: "/ai/email-analysis", icon: <Mail className="w-4 h-4" /> },
+        { label: "Ads Overview", href: "/ai/advertising", icon: <Megaphone className="w-4 h-4" /> },
+        { label: "Campaign Performance", href: "/ai/advertising/campaigns", icon: <BarChart3 className="w-4 h-4" /> },
+        { label: "Budget & Efficiency", href: "/ai/advertising/efficiency", icon: <DollarSign className="w-4 h-4" /> },
       ],
     },
     {
-      title: "Business Metrics",
+      title: "📄 Pages (5 detectors)",
       items: [
-        { label: "Revenue Analysis", href: "/ai/revenue-analysis", icon: <DollarSign className="w-4 h-4" /> },
-        { label: "Funnel Analysis", href: "/ai/funnel-analysis", icon: <Users className="w-4 h-4" /> },
-        { label: "Historical Analysis", href: "/ai/historical-analysis", icon: <BarChart3 className="w-4 h-4" /> },
+        { label: "Pages Overview", href: "/ai/pages", icon: <Layers className="w-4 h-4" /> },
+        { label: "Conversion Optimization", href: "/ai/pages/conversion", icon: <Target className="w-4 h-4" /> },
+        { label: "Mobile vs Desktop", href: "/ai/pages/devices", icon: <Activity className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "✍️ Content (4 detectors)",
+      items: [
+        { label: "Content Overview", href: "/ai/content", icon: <Lightbulb className="w-4 h-4" /> },
+        { label: "Publishing & Performance", href: "/ai/content/publishing", icon: <TrendingUp className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "🚦 Traffic (6 detectors)",
+      items: [
+        { label: "Traffic Overview", href: "/ai/traffic", icon: <Network className="w-4 h-4" /> },
+        { label: "Source Analysis", href: "/ai/traffic/sources", icon: <Link2 className="w-4 h-4" /> },
+        { label: "Channel Mix & CAC", href: "/ai/traffic/channels", icon: <PieChart className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: "💵 Revenue (6 detectors)",
+      items: [
+        { label: "Revenue Overview", href: "/ai/revenue", icon: <DollarSign className="w-4 h-4" /> },
+        { label: "Anomalies & Forecasts", href: "/ai/revenue/forecasts", icon: <LineChart className="w-4 h-4" /> },
+        { label: "Unit Economics", href: "/ai/revenue/economics", icon: <Percent className="w-4 h-4" /> },
       ],
     },
   ],
