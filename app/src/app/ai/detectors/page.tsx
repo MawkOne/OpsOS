@@ -76,48 +76,6 @@ export default function DetectorsPage() {
       title="Detectors"
       subtitle={`${stats.total} total detectors (${stats.active} active, ${stats.planned} planned)`}
     >
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card className="glass">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Total Detectors</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: "var(--accent)" }}>{stats.total}</p>
-            </div>
-            <Database className="w-8 h-8" style={{ color: "var(--accent)", opacity: 0.5 }} />
-          </div>
-        </Card>
-        <Card className="glass">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Active</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: "var(--success)" }}>{stats.active}</p>
-            </div>
-            <Check className="w-8 h-8" style={{ color: "var(--success)", opacity: 0.5 }} />
-          </div>
-        </Card>
-        <Card className="glass">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Planned</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: "var(--warning)" }}>{stats.planned}</p>
-            </div>
-            <Clock className="w-8 h-8" style={{ color: "var(--warning)", opacity: 0.5 }} />
-          </div>
-        </Card>
-        <Card className="glass">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Coverage</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: "var(--accent)" }}>
-                {Math.round((stats.active / stats.total) * 100)}%
-              </p>
-            </div>
-            <TrendingUp className="w-8 h-8" style={{ color: "var(--accent)", opacity: 0.5 }} />
-          </div>
-        </Card>
-      </div>
-
       {/* Filters */}
       <Card className="glass mb-8">
         <div className="space-y-4">
