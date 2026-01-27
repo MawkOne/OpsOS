@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       const backlinksData = backlinksByUrl.get(url) || { total: 0, domains: new Set() };
 
       // Get primary keyword (highest search volume)
-      const primaryKeyword = keywords.sort((a, b) => 
+      const primaryKeyword = keywords.sort((a: any, b: any) => 
         (b.searchVolume || 0) - (a.searchVolume || 0)
       )[0];
 
