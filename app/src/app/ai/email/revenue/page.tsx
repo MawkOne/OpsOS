@@ -77,7 +77,7 @@ export default function EmailRevenuePage() {
   };
 
   return (
-    <AppLayout module="ai">
+    <AppLayout title="Scout AI">
       <div className="space-y-6">
         <div>
           <Link href="/ai/email" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors">

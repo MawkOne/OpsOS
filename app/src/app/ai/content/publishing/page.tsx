@@ -73,7 +73,7 @@ export default function PublishingPerformancePage() {
   };
 
   return (
-    <AppLayout module="ai">
+    <AppLayout title="Scout AI">
       <div className="space-y-6">
         <div>
           <Link href="/ai/content" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors">
