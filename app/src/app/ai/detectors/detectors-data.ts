@@ -19,9 +19,9 @@ export interface DetectorInfo {
 }
 
 export const allDetectors: DetectorInfo[] = [
-  // ===== ACTIVE DETECTORS (55) =====
+  // ===== ACTIVE DETECTORS (67) =====
   
-  // EMAIL (6 active)
+  // EMAIL (6 active - plus 5 more in "planned" section below that are now active = 11 total)
   {
     id: "email_engagement_drop",
     name: "Email Engagement Drop",
@@ -463,7 +463,7 @@ export const allDetectors: DetectorInfo[] = [
     dataSources: ["GA4"]
   },
 
-  // PAGES (9 active)
+  // PAGES (14 active)
   {
     id: "pages_high_traffic_low_conversion",
     name: "High Traffic, Low Conversion",
@@ -629,6 +629,106 @@ export const allDetectors: DetectorInfo[] = [
     ],
     dataSources: ["GA4"]
   },
+  {
+    id: "pages_form_abandonment_spike",
+    name: "Form Abandonment Spike",
+    category: "pages",
+    layer: "fast",
+    status: "active",
+    priority: "high",
+    description: "Detects form abandonment rate spiking",
+    detects: "Form abandonment >50% or 20%+ increase vs baseline",
+    metrics: ["form_starts", "form_submits", "form_abandonment_rate"],
+    thresholds: ">50% or 20%+ increase = alert",
+    actions: [
+      "Reduce form fields",
+      "Add progress indicators",
+      "Check for technical errors",
+      "Add trust signals",
+      "Test autofill and validation"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "pages_cart_abandonment_increase",
+    name: "Cart Abandonment Increase",
+    category: "pages",
+    layer: "trend",
+    status: "active",
+    priority: "medium",
+    description: "Detects cart abandonment increasing",
+    detects: "Cart abandonment >60% or 15%+ increase",
+    metrics: ["add_to_cart", "begin_checkout", "purchase_count", "cart_abandonment_rate"],
+    thresholds: ">60% or 15%+ increase = flag",
+    actions: [
+      "Review shipping costs",
+      "Simplify checkout process",
+      "Add more payment options",
+      "Display trust badges",
+      "Send cart abandonment emails"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "pages_error_rate_spike",
+    name: "Page Error Rate Spike",
+    category: "pages",
+    layer: "fast",
+    status: "active",
+    priority: "high",
+    description: "Detects page error rate spiking",
+    detects: "Error rate >5% or 2x increase",
+    metrics: ["error_count", "sessions"],
+    thresholds: ">5% or 2x increase = urgent",
+    actions: [
+      "Check browser console",
+      "Review recent deployments",
+      "Test across browsers/devices",
+      "Check API endpoints",
+      "Monitor error tracking"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "pages_micro_conversion_drop",
+    name: "Micro-Conversion Drop",
+    category: "pages",
+    layer: "trend",
+    status: "active",
+    priority: "medium",
+    description: "Detects micro-conversions declining",
+    detects: "Scroll depth declining >15%",
+    metrics: ["scroll_depth_avg", "scroll_depth_75", "sessions"],
+    thresholds: ">15% decline = flag",
+    actions: [
+      "Review content quality",
+      "Add engagement elements",
+      "Check page load speed",
+      "Move important content higher",
+      "Add internal links"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "pages_exit_rate_increase",
+    name: "Exit Rate Increase",
+    category: "pages",
+    layer: "trend",
+    status: "active",
+    priority: "medium",
+    description: "Detects exit rate increasing on pages",
+    detects: "Exit rate 20%+ increase",
+    metrics: ["exit_rate", "sessions", "conversion_rate"],
+    thresholds: "20%+ increase = investigate",
+    actions: [
+      "Add clear next steps/CTAs",
+      "Check for broken links",
+      "Add related content links",
+      "Review page intent",
+      "Test different CTA placements"
+    ],
+    dataSources: ["GA4"]
+  },
 
   // CONTENT (4 active)
   {
@@ -668,7 +768,7 @@ export const allDetectors: DetectorInfo[] = [
     dataSources: ["GA4", "CRM"]
   },
 
-  // TRAFFIC (9 active)
+  // TRAFFIC (13 active)
   {
     id: "traffic_cross_channel_gaps",
     name: "Cross-Channel Gaps",
@@ -761,8 +861,88 @@ export const allDetectors: DetectorInfo[] = [
     ],
     dataSources: ["GA4"]
   },
+  {
+    id: "traffic_bot_spam_spike",
+    name: "Bot/Spam Traffic Spike",
+    category: "traffic",
+    layer: "fast",
+    status: "active",
+    priority: "high",
+    description: "Detects bot/spam traffic spike",
+    detects: ">80% bounce + <10s duration + traffic spike",
+    metrics: ["bounce_rate", "avg_session_duration", "sessions"],
+    thresholds: "Bounce >80% AND duration <10s AND spike >50% = bot",
+    actions: [
+      "Check GA4 for suspicious sources",
+      "Implement bot filtering/reCAPTCHA",
+      "Block suspicious referral domains",
+      "Review server logs",
+      "Filter bot traffic from analytics"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "traffic_spike_quality_check",
+    name: "Traffic Spike Quality Check",
+    category: "traffic",
+    layer: "fast",
+    status: "active",
+    priority: "high",
+    description: "Detects unexpected traffic spikes with quality concerns",
+    detects: "2x traffic spike + 30%+ CVR drop",
+    metrics: ["sessions", "conversion_rate"],
+    thresholds: "Traffic >2x baseline AND CVR drops >30% = investigate",
+    actions: [
+      "Identify traffic source",
+      "Check if viral or media mention",
+      "Review landing page relevance",
+      "Add CTAs to capture interest",
+      "Consider emergency offer"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "traffic_utm_parameter_gaps",
+    name: "UTM Parameter Gaps",
+    category: "traffic",
+    layer: "trend",
+    status: "active",
+    priority: "medium",
+    description: "Detects high-value traffic missing UTM tracking",
+    detects: "High-traffic entities without UTM parameters",
+    metrics: ["sessions", "revenue"],
+    thresholds: "Sessions >100 AND revenue >0 without UTMs = gap",
+    actions: [
+      "Add UTM parameters to external links",
+      "Implement UTM builder",
+      "Tag email campaigns",
+      "Tag social posts",
+      "Document naming convention"
+    ],
+    dataSources: ["GA4"]
+  },
+  {
+    id: "traffic_referral_opportunities",
+    name: "Referral Opportunities",
+    category: "traffic",
+    layer: "strategic",
+    status: "active",
+    priority: "medium",
+    description: "Detects high-converting referral sources worth pursuing",
+    detects: "Referral sources with 20%+ better CVR and <500 sessions",
+    metrics: ["sessions", "conversion_rate", "revenue"],
+    thresholds: "CVR >1.2x avg AND sessions <500 = opportunity",
+    actions: [
+      "Build relationship with referrer",
+      "Pitch guest post/partnership",
+      "Create dedicated landing page",
+      "Offer exclusive content",
+      "Request featured placement"
+    ],
+    dataSources: ["GA4"]
+  },
 
-  // REVENUE (9 active)
+  // REVENUE (13 active)
   {
     id: "revenue_anomaly",
     name: "Revenue Anomaly",
@@ -927,10 +1107,90 @@ export const allDetectors: DetectorInfo[] = [
     ],
     dataSources: ["Stripe"]
   },
+  {
+    id: "revenue_aov_decline",
+    name: "Average Order Value Decline",
+    category: "revenue",
+    layer: "trend",
+    status: "active",
+    priority: "medium",
+    description: "Detects AOV declining vs baseline",
+    detects: "AOV declining >10% vs 90-day baseline",
+    metrics: ["average_order_value", "transactions", "revenue"],
+    thresholds: ">10% decline vs baseline = flag",
+    actions: [
+      "Analyze product mix shifts",
+      "Check for discount overuse",
+      "Implement upsell strategies",
+      "Test free shipping thresholds",
+      "Review pricing strategy"
+    ],
+    dataSources: ["Stripe"]
+  },
+  {
+    id: "revenue_payment_failure_spike",
+    name: "Payment Failure Spike",
+    category: "revenue",
+    layer: "fast",
+    status: "active",
+    priority: "high",
+    description: "Detects payment failure rate spiking",
+    detects: "Payment failures >2% or 50%+ increase vs baseline",
+    metrics: ["payment_failure_rate", "payment_failures", "transactions"],
+    thresholds: ">2% or 50%+ increase = alert",
+    actions: [
+      "Check payment processor status",
+      "Review fraud detection settings",
+      "Send dunning emails",
+      "Check for expired cards",
+      "Consider backup processor"
+    ],
+    dataSources: ["Stripe"]
+  },
+  {
+    id: "revenue_new_customer_decline",
+    name: "New Customer Revenue Decline",
+    category: "revenue",
+    layer: "trend",
+    status: "active",
+    priority: "high",
+    description: "Detects new customer revenue declining",
+    detects: "New customer revenue down >15% vs baseline",
+    metrics: ["first_time_customers", "returning_customers", "revenue"],
+    thresholds: ">15% decline = flag",
+    actions: [
+      "Review acquisition channels",
+      "Check onboarding flow friction",
+      "Review first-purchase offers",
+      "Analyze CAC vs LTV",
+      "Test welcome campaigns"
+    ],
+    dataSources: ["Stripe"]
+  },
+  {
+    id: "revenue_seasonality_deviation",
+    name: "Revenue Seasonality Deviation",
+    category: "revenue",
+    layer: "strategic",
+    status: "active",
+    priority: "medium",
+    description: "Detects revenue deviating from seasonal patterns",
+    detects: "Revenue 2+ std deviations from seasonal baseline",
+    metrics: ["revenue"],
+    thresholds: "2+ std dev from seasonal avg = investigate",
+    actions: [
+      "Investigate deviation causes",
+      "Compare to industry patterns",
+      "Review marketing campaigns",
+      "Check for external factors",
+      "Document learnings"
+    ],
+    dataSources: ["Stripe"]
+  },
 
-  // ===== PLANNED DETECTORS (77) =====
+  // ===== ACTIVE EMAIL DETECTORS (continued from above - 5 more) =====
 
-  // EMAIL (5 NEW - now active!)
+  // EMAIL (5 additional - these bring email total to 11 active)
   {
     id: "email_bounce_rate_spike",
     name: "Bounce Rate Spike",
