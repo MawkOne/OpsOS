@@ -1,14 +1,14 @@
 # Scout AI Detector Roadmap
 
 **Last Updated:** January 27, 2026  
-**Progress:** 58 of 117 detectors complete (50%)
+**Progress:** 66 of 117 detectors complete (56%)
 
 ---
 
 ## 📊 Quick Stats
 
-- ✅ **Complete:** 58 detectors
-- ⏳ **To Do:** 59 detectors
+- ✅ **Complete:** 66 detectors
+- ⏳ **To Do:** 51 detectors
 - 📈 **Total Goal:** 117 detectors
 
 ---
@@ -53,7 +53,7 @@
 - [x] Pricing Opportunity Analysis
 - [x] Expansion Revenue Gap
 
-### 📄 Pages & CRO (10/18 complete)
+### 📄 Pages & CRO (18/18 complete) ✅
 
 - [x] High Traffic, Low Conversion
 - [x] Page Engagement Decay
@@ -65,14 +65,14 @@
 - [x] Page Error Rate Spike
 - [x] Micro-Conversion Drop
 - [x] Exit Rate Increase
-- [ ] Mobile vs Desktop CVR Gap
-- [ ] A/B Test Opportunities
-- [ ] Page Speed Decline
-- [ ] Conversion Funnel Drop-Off
-- [ ] CTA Performance Analysis
-- [ ] Video Engagement Gap
-- [ ] Social Proof Opportunities
-- [ ] Trust Signal Gaps
+- [x] Mobile vs Desktop CVR Gap
+- [x] A/B Test Opportunities
+- [x] Page Speed Decline
+- [x] Conversion Funnel Drop-Off
+- [x] CTA Performance Analysis
+- [x] Video Engagement Gap
+- [x] Social Proof Opportunities
+- [x] Trust Signal Gaps
 
 ### 🚦 Traffic Sources (7/16 complete)
 
