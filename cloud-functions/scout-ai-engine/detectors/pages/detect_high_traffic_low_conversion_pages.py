@@ -31,36 +31,37 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
     query = f"""
     WITH page_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_cvr,
         SUM(conversions) as total_conversions,
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
       HAVING total_sessions > 100  -- Meaningful traffic
     ),
     peer_avg AS (
       SELECT 
         AVG(avg_cvr) as site_avg_cvr
       FROM page_performance
+    ),
+    ranked_pages AS (
+      SELECT 
+        p.*,
+        pa.site_avg_cvr,
+        PERCENT_RANK() OVER (ORDER BY total_sessions) as traffic_percentile,
+        PERCENT_RANK() OVER (ORDER BY avg_cvr) as cvr_percentile
+      FROM page_performance p
+      CROSS JOIN peer_avg pa
     )
-    SELECT 
-      p.*,
-      pa.site_avg_cvr,
-      PERCENT_RANK() OVER (ORDER BY total_sessions) as traffic_percentile,
-      PERCENT_RANK() OVER (ORDER BY avg_cvr) as cvr_percentile
-    FROM page_performance p
-    CROSS JOIN peer_avg pa
+    SELECT *
+    FROM ranked_pages
     WHERE traffic_percentile > 0.70  -- Top 30% traffic
-      AND avg_cvr < pa.site_avg_cvr * 0.80  -- 20% below site average
+      AND avg_cvr < site_avg_cvr * 0.80  -- 20% below site average
     ORDER BY total_sessions DESC
     LIMIT 15
     """
