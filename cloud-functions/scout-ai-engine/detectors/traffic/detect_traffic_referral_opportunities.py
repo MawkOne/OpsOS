@@ -37,9 +37,7 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(revenue) as total_revenue,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -51,9 +49,7 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
     overall_avg AS (
       SELECT 
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -136,8 +132,6 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
         logger.error(f"❌ Referral Opportunities detector failed: {e}")
     
     return opportunities
-
-
 __all__ = [
     'detect_cross_channel_gaps', 
     'detect_declining_performers_multitimeframe', 

@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
-
-
 def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
     bq_client = bigquery.Client()
     """
@@ -34,9 +32,7 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
         SUM(m.revenue_attributed) as total_revenue,
         AVG(m.list_size) as avg_list_size,
         SAFE_DIVIDE(SUM(m.revenue_attributed), AVG(m.list_size)) as revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -52,9 +48,7 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
         SUM(m.revenue_attributed) as baseline_revenue,
         AVG(m.list_size) as baseline_list_size,
         SAFE_DIVIDE(SUM(m.revenue_attributed), AVG(m.list_size)) as baseline_revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
@@ -75,7 +69,6 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
       h.baseline_revenue_per_subscriber,
       SAFE_DIVIDE((r.revenue_per_subscriber - h.baseline_revenue_per_subscriber), h.baseline_revenue_per_subscriber) * 100 as rps_change_pct
     FROM recent_performance r
-    JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
     WHERE h.baseline_revenue_per_subscriber > 0
       AND SAFE_DIVIDE((r.revenue_per_subscriber - h.baseline_revenue_per_subscriber), h.baseline_revenue_per_subscriber) < -0.20  -- >20% decline
     ORDER BY rps_change_pct ASC

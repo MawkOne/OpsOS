@@ -37,9 +37,7 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
         SUM(sends) as weekly_sends,
         AVG(open_rate) as avg_open_rate,
         AVG(unsubscribe_rate) as avg_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -126,8 +124,6 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
         logger.error(f"❌ Email Optimal Frequency Deviation detector failed: {e}")
     
     return opportunities
-
-
 __all__ = [
     'detect_email_engagement_drop',
     'detect_email_high_opens_low_clicks',
@@ -138,8 +134,6 @@ __all__ = [
     'detect_email_click_to_open_rate_decline',
     'detect_email_optimal_frequency_deviation',
 ]
-
-
 # Detector metadata
 DETECTOR_INFO = {
     'detect_email_engagement_drop': {

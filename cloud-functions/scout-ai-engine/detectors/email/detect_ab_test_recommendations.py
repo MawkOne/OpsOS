@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
-
-
 def detect_ab_test_recommendations(organization_id: str) -> list:
     bq_client = bigquery.Client()
     """
@@ -38,9 +36,7 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
         COUNT(DISTINCT m.date) as send_days,
         MIN(m.date) as first_send,
         MAX(m.date) as last_send
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)

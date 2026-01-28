@@ -35,9 +35,7 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -50,9 +48,7 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
@@ -69,7 +65,6 @@ def detect_email_engagement_drop(organization_id: str) -> list:
       l.total_sends,
       SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) * 100 as open_rate_change
     FROM last_30_days l
-    INNER JOIN previous_30_days p ON l.canonical_entity_id = p.canonical_entity_id
     WHERE SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) < -0.15  -- 15%+ decline
       AND l.total_sends > 100
     ORDER BY open_rate_change ASC

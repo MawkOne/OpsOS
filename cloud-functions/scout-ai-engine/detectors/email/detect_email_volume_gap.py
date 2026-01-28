@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
-
-
 def detect_email_volume_gap(organization_id: str) -> list:
     bq_client = bigquery.Client()
     """
@@ -34,9 +32,7 @@ def detect_email_volume_gap(organization_id: str) -> list:
         SUM(m.sends) as total_sends,
         COUNT(DISTINCT m.date) as days_with_sends,
         AVG(m.sends) as avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -50,9 +46,7 @@ def detect_email_volume_gap(organization_id: str) -> list:
         e.canonical_entity_id,
         SUM(m.sends) as baseline_total_sends,
         AVG(m.sends) as baseline_avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -88,7 +82,6 @@ def detect_email_volume_gap(organization_id: str) -> list:
       SAFE_DIVIDE((r.total_sends - h.baseline_total_sends), h.baseline_total_sends) * 100 as volume_change_pct,
       SAFE_DIVIDE(r.total_sends, b.benchmark_volume) * 100 as vs_benchmark_pct
     FROM recent_volume r
-    LEFT JOIN historical_volume h ON r.canonical_entity_id = h.canonical_entity_id
     CROSS JOIN org_benchmark b
     WHERE 
       -- Either significantly below benchmark OR declining trend

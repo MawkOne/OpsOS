@@ -36,9 +36,7 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
         AVG(spam_complaint_rate) as avg_spam_rate,
         SUM(spam_complaints) as total_complaints,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -50,9 +48,7 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(spam_complaint_rate) as baseline_spam_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -68,7 +64,6 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
       r.total_sends,
       SAFE_DIVIDE((r.avg_spam_rate - b.baseline_spam_rate), b.baseline_spam_rate) * 100 as spam_rate_increase_pct
     FROM recent_campaigns r
-    LEFT JOIN baseline_campaigns b ON r.canonical_entity_id = b.canonical_entity_id
     WHERE r.avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
       OR (b.baseline_spam_rate > 0 AND r.avg_spam_rate > b.baseline_spam_rate * 2)  -- 2x spike
       AND r.total_sends > 50

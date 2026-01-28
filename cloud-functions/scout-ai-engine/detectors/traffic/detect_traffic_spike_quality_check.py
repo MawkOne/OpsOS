@@ -36,9 +36,7 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate,
         AVG(bounce_rate) as avg_bounce_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -56,9 +54,7 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
           date,
           SUM(sessions) as sessions_per_day,
           AVG(conversion_rate) as avg_conversion_rate
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-        JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-          ON m.canonical_entity_id = e.canonical_entity_id
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
           
         WHERE m.organization_id = @org_id
           AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -77,7 +73,6 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
       b.baseline_conversion_rate,
       SAFE_DIVIDE((r.total_sessions - (b.avg_daily_sessions * 7)), (b.avg_daily_sessions * 7)) * 100 as traffic_spike_pct
     FROM recent_traffic r
-    LEFT JOIN baseline_traffic b ON r.canonical_entity_id = b.canonical_entity_id
     WHERE b.avg_daily_sessions > 0
       AND r.total_sessions > b.avg_daily_sessions * 7 * 2  -- 2x normal traffic
       AND r.avg_conversion_rate < b.baseline_conversion_rate * 0.7  -- 30%+ CVR drop

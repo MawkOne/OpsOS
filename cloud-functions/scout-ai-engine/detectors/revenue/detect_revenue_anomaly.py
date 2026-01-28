@@ -35,11 +35,8 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY date
     ),
@@ -53,14 +50,14 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         AVG(total_revenue) as avg_revenue_7d,
         AVG(total_conversions) as avg_conversions_7d
       FROM daily_revenue
-      WHERE m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
+      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     ),
     baseline_28d AS (
       SELECT 
         AVG(total_revenue) as avg_revenue_28d
       FROM daily_revenue
-      WHERE m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY)
+      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     )
     SELECT 

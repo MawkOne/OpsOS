@@ -42,11 +42,8 @@ def detect_metric_anomalies(organization_id: str) -> list:
         ctr,
         bounce_rate,
         position
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
     ),
     yesterday AS (
@@ -67,7 +64,7 @@ def detect_metric_anomalies(organization_id: str) -> list:
         AVG(position) as avg_position,
         STDDEV(sessions) as stddev_sessions
       FROM recent_metrics
-      WHERE m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
+      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
       GROUP BY e.canonical_entity_id, e.entity_type
       HAVING AVG(sessions) > 10  -- Meaningful traffic
@@ -86,7 +83,6 @@ def detect_metric_anomalies(organization_id: str) -> list:
       SAFE_DIVIDE((y.cost - b.avg_cost), b.avg_cost) * 100 as cost_change_pct
     FROM yesterday y
     INNER JOIN baseline b 
-      ON y.canonical_entity_id = b.canonical_entity_id 
       AND y.entity_type = b.entity_type
     WHERE (
       ABS(SAFE_DIVIDE((y.sessions - b.avg_sessions), b.avg_sessions)) > 0.40  -- 40%+ session change

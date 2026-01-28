@@ -34,10 +34,7 @@ def detect_seo_rank_drops(organization_id: str) -> list:
         e.canonical_entity_id,
         AVG(position) as avg_position_recent,
         AVG(search_volume) as avg_volume
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND e.entity_type = 'keyword'
@@ -48,10 +45,7 @@ def detect_seo_rank_drops(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(position) as avg_position_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -67,7 +61,6 @@ def detect_seo_rank_drops(organization_id: str) -> list:
       (r.avg_position_recent - h.avg_position_historical) as position_drop
     FROM recent_ranks r
     INNER JOIN historical_ranks h 
-      ON r.canonical_entity_id = h.canonical_entity_id
     WHERE (r.avg_position_recent - h.avg_position_historical) > 5  -- Dropped 5+ positions
       AND h.avg_position_historical <= 20  -- Was ranking reasonably well
     ORDER BY position_drop DESC

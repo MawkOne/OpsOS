@@ -35,9 +35,7 @@ def detect_page_error_rate_spike(organization_id: str) -> list:
         SUM(error_count) as total_errors,
         SUM(sessions) as total_sessions,
         SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as error_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -49,9 +47,7 @@ def detect_page_error_rate_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as baseline_error_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -67,7 +63,6 @@ def detect_page_error_rate_spike(organization_id: str) -> list:
       r.total_sessions,
       SAFE_DIVIDE((r.error_rate - h.baseline_error_rate), h.baseline_error_rate) * 100 as error_rate_increase_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
     WHERE r.error_rate > 5  -- >5% error rate is concerning
       OR (h.baseline_error_rate > 0 AND r.error_rate > h.baseline_error_rate * 2)  -- 2x increase
       AND r.total_sessions > 50

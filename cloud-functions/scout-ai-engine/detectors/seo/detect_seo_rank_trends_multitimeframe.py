@@ -205,6 +205,4 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
         logger.error(f"❌ Error in seo_rank_trends_multitimeframe detector: {e}")
     
     return opportunities
-
-
 __all__ = ['detect_keyword_cannibalization', 'detect_seo_striking_distance', 'detect_seo_rank_drops', 'detect_seo_rank_trends_multitimeframe']

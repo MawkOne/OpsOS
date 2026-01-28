@@ -39,9 +39,7 @@ def detect_email_click_to_open_rate_decline(organization_id: str) -> list:
         SUM(sends) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)

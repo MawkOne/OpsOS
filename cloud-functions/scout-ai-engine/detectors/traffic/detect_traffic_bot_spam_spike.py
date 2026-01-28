@@ -37,9 +37,7 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -50,9 +48,7 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         SUM(sessions) as baseline_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -69,7 +65,6 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
       r.avg_conversion_rate,
       SAFE_DIVIDE((r.total_sessions - b.baseline_sessions), b.baseline_sessions) * 100 as traffic_increase_pct
     FROM recent_traffic r
-    LEFT JOIN baseline_traffic b ON r.canonical_entity_id = b.canonical_entity_id
     WHERE r.avg_bounce_rate > 80  -- >80% bounce
       AND r.avg_duration < 10  -- <10 seconds
       AND (b.baseline_sessions IS NULL OR r.total_sessions > b.baseline_sessions * 1.5)  -- 50%+ traffic increase

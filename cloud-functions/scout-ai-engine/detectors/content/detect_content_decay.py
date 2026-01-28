@@ -34,10 +34,7 @@ def detect_content_decay(organization_id: str) -> list:
         e.canonical_entity_id,
         SUM(sessions) as sessions_recent,
         AVG(conversion_rate) as cvr_recent
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND e.entity_type = 'page'
@@ -48,10 +45,7 @@ def detect_content_decay(organization_id: str) -> list:
         canonical_entity_id,
         SUM(sessions) as sessions_historical,
         AVG(conversion_rate) as cvr_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -68,7 +62,6 @@ def detect_content_decay(organization_id: str) -> list:
       SAFE_DIVIDE((r.cvr_recent - h.cvr_historical), h.cvr_historical) * 100 as cvr_change_pct
     FROM recent_performance r
     INNER JOIN historical_performance h 
-      ON r.canonical_entity_id = h.canonical_entity_id
     WHERE h.sessions_historical > 500  -- Was getting meaningful traffic
       AND SAFE_DIVIDE((r.sessions_recent - h.sessions_historical), h.sessions_historical) < -0.30  -- 30%+ traffic drop
     ORDER BY ABS(sessions_change_pct) DESC

@@ -175,6 +175,4 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
     
     return opportunities
 
-
-
 __all__ = ['detect_cost_inefficiency', 'detect_paid_waste', 'detect_paid_campaigns_multitimeframe']

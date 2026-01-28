@@ -38,9 +38,7 @@ def detect_email_bounce_rate_spike(organization_id: str) -> list:
         AVG(soft_bounce_rate) as avg_soft_bounce_rate,
         SUM(sends) as total_sends,
         SUM(bounces) as total_bounces
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)

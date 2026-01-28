@@ -39,9 +39,7 @@ def detect_email_list_health_decline(organization_id: str) -> list:
         AVG(unsubscribe_rate) as avg_unsubscribe_rate,
         SUM(unsubscribes) as total_unsubscribes,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -53,9 +51,7 @@ def detect_email_list_health_decline(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(unsubscribe_rate) as baseline_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -71,7 +67,6 @@ def detect_email_list_health_decline(organization_id: str) -> list:
       r.total_sends,
       SAFE_DIVIDE((r.avg_unsubscribe_rate - h.baseline_unsubscribe_rate), h.baseline_unsubscribe_rate) * 100 as unsubscribe_increase_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
     WHERE r.avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
       OR (h.baseline_unsubscribe_rate > 0 AND r.avg_unsubscribe_rate > h.baseline_unsubscribe_rate * 1.5)  -- 50% increase
       AND r.total_sends > 100

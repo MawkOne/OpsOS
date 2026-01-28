@@ -44,8 +44,6 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
         MAX(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as best_open_rate,
         MIN(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as worst_open_rate
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
         
       WHERE m.organization_id = @org_id
         AND e.entity_type = 'email'

@@ -40,9 +40,6 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
         LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago,
         MAX(m.sessions) OVER (PARTITION BY m.canonical_entity_id) as all_time_peak
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
       WHERE m.organization_id = @org_id
         AND e.entity_type = 'page'
       ORDER BY m.canonical_entity_id, m.year_month
@@ -216,6 +213,4 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
         logger.error(f"❌ Error in content_decay_multitimeframe detector: {e}")
     
     return opportunities
-
-
 __all__ = ['detect_content_decay', 'detect_content_decay_multitimeframe']

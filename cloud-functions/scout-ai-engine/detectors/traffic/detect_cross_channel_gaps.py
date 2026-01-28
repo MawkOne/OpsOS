@@ -35,9 +35,7 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
         SUM(m.sessions) as organic_sessions,
         AVG(m.conversion_rate) as avg_conversion_rate,
         SUM(m.revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -50,9 +48,7 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         SUM(cost) as total_ad_spend
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -64,7 +60,6 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
       g.*,
       COALESCE(a.total_ad_spend, 0) as ad_spend
     FROM ga_metrics g
-    LEFT JOIN ads_spend a ON g.canonical_entity_id = a.canonical_entity_id
     WHERE (a.total_ad_spend IS NULL OR a.total_ad_spend < 10)  -- Little to no ad spend
       AND g.avg_conversion_rate > 2.0  -- Good conversion rate
     ORDER BY g.total_revenue DESC

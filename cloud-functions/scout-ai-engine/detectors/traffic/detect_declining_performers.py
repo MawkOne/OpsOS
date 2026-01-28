@@ -67,7 +67,6 @@ def detect_declining_performers(organization_id: str) -> list:
       SAFE_DIVIDE((l.total_revenue - p.total_revenue), p.total_revenue) * 100 as revenue_change_pct
     FROM last_30_days l
     INNER JOIN previous_30_days p 
-      ON l.canonical_entity_id = p.canonical_entity_id 
       AND l.entity_type = p.entity_type
     WHERE p.total_sessions > 20  -- Had meaningful traffic
       AND SAFE_DIVIDE((l.total_sessions - p.total_sessions), p.total_sessions) < -0.2  -- 20%+ decline

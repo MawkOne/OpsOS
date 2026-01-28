@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
-
-
 def detect_list_segmentation_opportunities(organization_id: str) -> list:
     bq_client = bigquery.Client()
     """
@@ -36,9 +34,7 @@ def detect_list_segmentation_opportunities(organization_id: str) -> list:
         m.click_through_rate,
         m.sends,
         m.list_size
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)

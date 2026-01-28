@@ -36,9 +36,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement,
         SUM(sessions) as total_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
@@ -52,9 +50,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(avg_session_duration) as avg_duration,
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
       WHERE m.organization_id = @org_id
         AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
@@ -73,7 +69,6 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       SAFE_DIVIDE((r.avg_bounce - h.avg_bounce), h.avg_bounce) * 100 as bounce_change_pct
     FROM recent_engagement r
     INNER JOIN historical_engagement h 
-      ON r.canonical_entity_id = h.canonical_entity_id
     WHERE r.total_sessions > 50  -- Meaningful traffic
       AND (
         SAFE_DIVIDE((r.avg_duration - h.avg_duration), h.avg_duration) < -0.20  -- 20%+ drop in duration
