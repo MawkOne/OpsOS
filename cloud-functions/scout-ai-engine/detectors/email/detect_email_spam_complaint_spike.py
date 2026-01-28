@@ -36,9 +36,7 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
         AVG(spam_complaint_rate) as avg_spam_rate,
         SUM(spam_complaints) as total_complaints,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email'
@@ -48,26 +46,24 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(spam_complaint_rate) as baseline_spam_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND entity_type = 'email'
       GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.avg_spam_rate,
-      b.baseline_spam_rate,
-      r.total_complaints,
-      r.total_sends,
-      SAFE_DIVIDE((r.avg_spam_rate - b.baseline_spam_rate), b.baseline_spam_rate) * 100 as spam_rate_increase_pct
+      canonical_entity_id,
+      avg_spam_rate,
+      baseline_spam_rate,
+      total_complaints,
+      total_sends,
+      SAFE_DIVIDE((avg_spam_rate - baseline_spam_rate), baseline_spam_rate) * 100 as spam_rate_increase_pct
     FROM recent_campaigns r
-    WHERE r.avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
-      OR (b.baseline_spam_rate > 0 AND r.avg_spam_rate > b.baseline_spam_rate * 2)  -- 2x spike
-      AND r.total_sends > 50
-    ORDER BY r.avg_spam_rate DESC
+    WHERE avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
+      OR (baseline_spam_rate > 0 AND avg_spam_rate > baseline_spam_rate * 2)  -- 2x spike
+      AND total_sends > 50
+    ORDER BY avg_spam_rate DESC
     LIMIT 10
     """
     

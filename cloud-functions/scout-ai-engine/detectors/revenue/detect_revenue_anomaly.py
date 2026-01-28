@@ -35,9 +35,8 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY date
     ),
     yesterday AS (
@@ -51,26 +50,26 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         AVG(total_conversions) as avg_conversions_7d
       FROM daily_revenue
       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     ),
     baseline_28d AS (
       SELECT 
         AVG(total_revenue) as avg_revenue_28d
       FROM daily_revenue
       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     )
     SELECT 
       y.*,
       b7.avg_revenue_7d,
       b7.avg_conversions_7d,
       b28.avg_revenue_28d,
-      SAFE_DIVIDE((y.total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d) * 100 as change_7d_pct,
-      SAFE_DIVIDE((y.total_revenue - b28.avg_revenue_28d), b28.avg_revenue_28d) * 100 as change_28d_pct
+      SAFE_DIVIDE((total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d) * 100 as change_7d_pct,
+      SAFE_DIVIDE((total_revenue - b28.avg_revenue_28d), b28.avg_revenue_28d) * 100 as change_28d_pct
     FROM yesterday y
     CROSS JOIN baseline_7d b7
     CROSS JOIN baseline_28d b28
-    WHERE ABS(SAFE_DIVIDE((y.total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d)) > 0.20  -- 20%+ deviation
+    WHERE ABS(SAFE_DIVIDE((total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d)) > 0.20  -- 20%+ deviation
     """
     
     job_config = bigquery.QueryJobConfig(

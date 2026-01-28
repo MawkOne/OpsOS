@@ -27,23 +27,21 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
     query = f"""
     WITH campaign_stats AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_name,
-        SUM(m.sends) as total_sends,
-        AVG(m.open_rate) as avg_open_rate,
-        AVG(m.click_through_rate) as avg_ctr,
-        STDDEV(m.open_rate) as stddev_open_rate,
-        COUNT(DISTINCT m.date) as send_days,
-        MIN(m.date) as first_send,
-        MAX(m.date) as last_send
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        entity_name,
+        SUM(sends) as total_sends,
+        AVG(open_rate) as avg_open_rate,
+        AVG(click_through_rate) as avg_ctr,
+        STDDEV(open_rate) as stddev_open_rate,
+        COUNT(DISTINCT date) as send_days,
+        MIN(date) as first_send,
+        MAX(date) as last_send
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email_campaign'
         AND sends > 0
-      GROUP BY e.canonical_entity_id, e.entity_name
+      GROUP BY canonical_entity_id, entity_name
     )
     SELECT 
       canonical_entity_id,

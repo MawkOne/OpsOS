@@ -31,10 +31,7 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY date
@@ -64,12 +61,12 @@ def detect_revenue_anomaly(organization_id: str) -> list:
       b7.avg_revenue_7d,
       b7.avg_conversions_7d,
       b28.avg_revenue_28d,
-      SAFE_DIVIDE((y.total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d) * 100 as change_7d_pct,
-      SAFE_DIVIDE((y.total_revenue - b28.avg_revenue_28d), b28.avg_revenue_28d) * 100 as change_28d_pct
+      SAFE_DIVIDE((total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d) * 100 as change_7d_pct,
+      SAFE_DIVIDE((total_revenue - b28.avg_revenue_28d), b28.avg_revenue_28d) * 100 as change_28d_pct
     FROM yesterday y
     CROSS JOIN baseline_7d b7
     CROSS JOIN baseline_28d b28
-    WHERE ABS(SAFE_DIVIDE((y.total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d)) > 0.20  -- 20%+ deviation
+    WHERE ABS(SAFE_DIVIDE((total_revenue - b7.avg_revenue_7d), b7.avg_revenue_7d)) > 0.20  -- 20%+ deviation
     """
     
     job_config = bigquery.QueryJobConfig(

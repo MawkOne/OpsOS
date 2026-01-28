@@ -34,35 +34,29 @@ def detect_revenue_payment_failure_spike(organization_id: str) -> list:
         AVG(payment_failure_rate) as avg_failure_rate,
         SUM(payment_failures) as total_failures,
         SUM(transactions) as total_transactions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.date < CURRENT_DATE()
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
         AVG(payment_failure_rate) as baseline_failure_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
     )
     SELECT 
-      r.avg_failure_rate as current_failure_rate,
-      h.baseline_failure_rate,
-      r.total_failures,
-      r.total_transactions,
-      SAFE_DIVIDE((r.avg_failure_rate - h.baseline_failure_rate), h.baseline_failure_rate) * 100 as failure_rate_increase_pct
+      avg_failure_rate as current_failure_rate,
+      baseline_failure_rate,
+      total_failures,
+      total_transactions,
+      SAFE_DIVIDE((avg_failure_rate - baseline_failure_rate), baseline_failure_rate) * 100 as failure_rate_increase_pct
     FROM recent_performance r
     CROSS JOIN historical_performance h
-    WHERE r.avg_failure_rate > 2  -- >2% failure rate
-      OR (h.baseline_failure_rate > 0 AND r.avg_failure_rate > h.baseline_failure_rate * 1.5)  -- 50% increase
+    WHERE avg_failure_rate > 2  -- >2% failure rate
+      OR (baseline_failure_rate > 0 AND avg_failure_rate > baseline_failure_rate * 1.5)  -- 50% increase
     """
     
     job_config = bigquery.QueryJobConfig(

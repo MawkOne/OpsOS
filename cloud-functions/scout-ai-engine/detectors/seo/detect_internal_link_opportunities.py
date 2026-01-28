@@ -26,20 +26,20 @@ def detect_internal_link_opportunities(organization_id: str) -> list:
     query = f"""
     WITH latest_links AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.broken_links_count,
-        m.pageviews,
-        m.sessions,
-        m.seo_position,
-        m.seo_search_volume,
-        m.onpage_score,
-        ROW_NUMBER() OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date DESC) as rn
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.broken_links_count IS NOT NULL
+        canonical_entity_id,
+        date,
+        broken_links_count,
+        pageviews,
+        sessions,
+        seo_position,
+        seo_search_volume,
+        onpage_score,
+        ROW_NUMBER() OVER (PARTITION BY canonical_entity_id ORDER BY date DESC) as rn
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND broken_links_count IS NOT NULL
     )
     SELECT 
       canonical_entity_id,

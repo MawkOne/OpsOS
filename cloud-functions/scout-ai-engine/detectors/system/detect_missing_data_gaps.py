@@ -15,8 +15,7 @@ def detect_missing_data_gaps(organization_id: str) -> list:
         SELECT CURRENT_TIMESTAMP() as check_time, 
           COUNT(*) as record_count,
           MAX(date) as latest_data_date
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        WHERE organization_id = @org_id
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
           AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         """
         job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

@@ -37,9 +37,7 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
         SUM(sends) as weekly_sends,
         AVG(open_rate) as avg_open_rate,
         AVG(unsubscribe_rate) as avg_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email'

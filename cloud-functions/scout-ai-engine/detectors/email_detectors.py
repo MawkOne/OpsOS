@@ -31,10 +31,7 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
@@ -46,10 +43,7 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -57,17 +51,16 @@ def detect_email_engagement_drop(organization_id: str) -> list:
       GROUP BY canonical_entity_id
     )
     SELECT 
-      l.canonical_entity_id,
-      l.avg_open_rate as current_open_rate,
-      p.avg_open_rate as previous_open_rate,
-      l.avg_ctr as current_ctr,
-      p.avg_ctr as previous_ctr,
-      l.total_sends,
-      SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) * 100 as open_rate_change
+      canonical_entity_id,
+      avg_open_rate as current_open_rate,
+      avg_open_rate as previous_open_rate,
+      avg_ctr as current_ctr,
+      avg_ctr as previous_ctr,
+      total_sends,
+      SAFE_DIVIDE((avg_open_rate - avg_open_rate), avg_open_rate) * 100 as open_rate_change
     FROM last_30_days l
-    INNER JOIN previous_30_days p ON l.canonical_entity_id = p.canonical_entity_id
-    WHERE SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) < -0.15  -- 15%+ decline
-      AND l.total_sends > 100
+    INNER JOIN previous_30_days pWHERE SAFE_DIVIDE((avg_open_rate - avg_open_rate), avg_open_rate) < -0.15  -- 15%+ decline
+      AND total_sends > 100
     ORDER BY open_rate_change ASC
     LIMIT 10
     """

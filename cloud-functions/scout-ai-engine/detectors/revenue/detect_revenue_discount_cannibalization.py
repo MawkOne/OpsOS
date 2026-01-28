@@ -37,36 +37,30 @@ def detect_revenue_discount_cannibalization(organization_id: str) -> list:
         SUM(refunds) as total_refunds,
         SUM(revenue) as total_revenue,
         SUM(transactions) as total_transactions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
         AVG(refund_rate) as baseline_refund_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
     )
     SELECT 
-      r.avg_refund_rate,
-      h.baseline_refund_rate,
-      r.total_refunds,
-      r.total_revenue,
-      r.total_transactions,
-      SAFE_DIVIDE((r.avg_refund_rate - h.baseline_refund_rate), h.baseline_refund_rate) * 100 as refund_rate_increase_pct
+      avg_refund_rate,
+      baseline_refund_rate,
+      total_refunds,
+      total_revenue,
+      total_transactions,
+      SAFE_DIVIDE((avg_refund_rate - baseline_refund_rate), baseline_refund_rate) * 100 as refund_rate_increase_pct
     FROM recent_performance r
     CROSS JOIN historical_performance h
-    WHERE r.avg_refund_rate > 3  -- >3% refund rate
-      OR (h.baseline_refund_rate > 0 AND r.avg_refund_rate > h.baseline_refund_rate * 1.5)  -- 50% increase
+    WHERE avg_refund_rate > 3  -- >3% refund rate
+      OR (baseline_refund_rate > 0 AND avg_refund_rate > baseline_refund_rate * 1.5)  -- 50% increase
     """
     
     job_config = bigquery.QueryJobConfig(

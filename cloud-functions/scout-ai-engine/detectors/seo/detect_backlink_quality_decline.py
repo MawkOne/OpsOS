@@ -26,21 +26,21 @@ def detect_backlink_quality_decline(organization_id: str) -> list:
     query = f"""
     WITH backlink_trends AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.backlinks_total,
-        m.referring_domains,
-        m.domain_rank,
-        m.seo_position,
-        m.pageviews,
-        LAG(m.backlinks_total, 7) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date) as backlinks_7d_ago,
-        LAG(m.referring_domains, 7) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date) as domains_7d_ago,
-        LAG(m.domain_rank, 7) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date) as rank_7d_ago
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.backlinks_total IS NOT NULL
+        canonical_entity_id,
+        date,
+        backlinks_total,
+        referring_domains,
+        domain_rank,
+        seo_position,
+        pageviews,
+        LAG(backlinks_total, 7) OVER (PARTITION BY canonical_entity_id ORDER BY date) as backlinks_7d_ago,
+        LAG(referring_domains, 7) OVER (PARTITION BY canonical_entity_id ORDER BY date) as domains_7d_ago,
+        LAG(domain_rank, 7) OVER (PARTITION BY canonical_entity_id ORDER BY date) as rank_7d_ago
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND backlinks_total IS NOT NULL
     ),
     latest_with_change AS (
       SELECT 

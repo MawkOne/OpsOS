@@ -33,10 +33,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'

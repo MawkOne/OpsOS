@@ -31,28 +31,28 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.entity_type,
-        m.year_month,
-        m.conversion_rate,
-        m.sessions,
-        m.revenue,
-        LAG(m.conversion_rate, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_cvr,
-        LAG(m.conversion_rate, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago_cvr,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_sessions,
-        MAX(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as best_cvr_ever,
-        STDDEV(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) / AVG(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as cvr_volatility
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        conversion_rate,
+        sessions,
+        revenue,
+        LAG(conversion_rate, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_cvr,
+        LAG(conversion_rate, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago_cvr,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_sessions,
+        MAX(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as best_cvr_ever,
+        STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) / AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as cvr_volatility
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND e.entity_type IN ('page', 'campaign')
-        AND m.sessions > 10
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'campaign')
+        AND sessions > 10
     ),
     
     current_month AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_type,
+        canonical_entity_id,
+        entity_type,
         conversion_rate as current_cvr,
         sessions as current_sessions,
         revenue as current_revenue,
@@ -88,12 +88,12 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     
     SELECT 
       c.*,
-      p.cvr_p70,
-      p.sessions_p30
+      cvr_p70,
+      sessions_p30
     FROM current_month c
-    JOIN peer_benchmarks p ON c.entity_type = p.entity_type
-    WHERE c.current_cvr > p.cvr_p70  -- Top 30% CVR
-      AND c.current_sessions < p.sessions_p30  -- Bottom 30% traffic
+    JOIN peer_benchmarks p ON entity_type = entity_type
+    WHERE current_cvr > cvr_p70  -- Top 30% CVR
+      AND current_sessions < sessions_p30  -- Bottom 30% traffic
     ORDER BY 
       CASE 
         WHEN cvr_momentum = 'Improving' THEN 1

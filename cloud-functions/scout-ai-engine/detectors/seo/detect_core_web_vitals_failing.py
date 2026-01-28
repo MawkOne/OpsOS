@@ -31,21 +31,21 @@ def detect_core_web_vitals_failing(organization_id: str) -> list:
     query = f"""
     WITH latest_vitals AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.core_web_vitals_lcp,
-        m.core_web_vitals_fid,
-        m.core_web_vitals_cls,
-        m.pageviews,
-        m.sessions,
-        m.conversions,
-        m.onpage_score,
-        ROW_NUMBER() OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date DESC) as rn
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.core_web_vitals_lcp IS NOT NULL
+        canonical_entity_id,
+        date,
+        core_web_vitals_lcp,
+        core_web_vitals_fid,
+        core_web_vitals_cls,
+        pageviews,
+        sessions,
+        conversions,
+        onpage_score,
+        ROW_NUMBER() OVER (PARTITION BY canonical_entity_id ORDER BY date DESC) as rn
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND core_web_vitals_lcp IS NOT NULL
     )
     SELECT 
       canonical_entity_id,

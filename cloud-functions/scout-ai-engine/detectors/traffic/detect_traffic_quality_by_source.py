@@ -14,24 +14,24 @@ def detect_traffic_quality_by_source(organization_id: str) -> list:
     query = f"""
     WITH source_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        SUM(m.sessions) as sessions,
-        SUM(m.pageviews) as pageviews,
-        SUM(m.conversions) as conversions,
-        SUM(m.revenue) as revenue,
-        AVG(m.bounce_rate) as avg_bounce_rate,
-        AVG(m.pages_per_session) as avg_pages_per_session,
-        AVG(m.dwell_time) as avg_dwell_time,
-        AVG(m.engagement_rate) as avg_engagement_rate,
+        canonical_entity_id,
+        SUM(sessions) as sessions,
+        SUM(pageviews) as pageviews,
+        SUM(conversions) as conversions,
+        SUM(revenue) as revenue,
+        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(pages_per_session) as avg_pages_per_session,
+        AVG(dwell_time) as avg_dwell_time,
+        AVG(engagement_rate) as avg_engagement_rate,
         -- Calculate quality score
-        SAFE_DIVIDE(SUM(m.conversions), SUM(m.sessions)) * 100 as cvr,
-        SAFE_DIVIDE(SUM(m.revenue), SUM(m.sessions)) as revenue_per_session
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.entity_type = 'traffic_source'
-        AND m.sessions > 50
-      GROUP BY m.canonical_entity_id
+        SAFE_DIVIDE(SUM(conversions), SUM(sessions)) * 100 as cvr,
+        SAFE_DIVIDE(SUM(revenue), SUM(sessions)) as revenue_per_session
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND entity_type = 'traffic_source'
+        AND sessions > 50
+      GROUP BY canonical_entity_id
     ),
     overall_benchmarks AS (
       SELECT 

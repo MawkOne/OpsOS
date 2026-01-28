@@ -31,49 +31,44 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         AVG(form_abandonment_rate) as avg_abandonment_rate,
         SUM(form_starts) as total_form_starts,
         SUM(form_submits) as total_form_submits
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.date < CURRENT_DATE()
-        AND e.entity_type = 'page'
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
         AND form_starts > 0
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
         AVG(form_abandonment_rate) as baseline_abandonment_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND e.entity_type = 'page'
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND entity_type = 'page'
         AND form_starts > 0
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.avg_abandonment_rate,
-      h.baseline_abandonment_rate,
-      r.total_form_starts,
-      r.total_form_submits,
-      SAFE_DIVIDE((r.avg_abandonment_rate - h.baseline_abandonment_rate), h.baseline_abandonment_rate) * 100 as abandonment_increase_pct
+      canonical_entity_id,
+      avg_abandonment_rate,
+      baseline_abandonment_rate,
+      total_form_starts,
+      total_form_submits,
+      SAFE_DIVIDE((avg_abandonment_rate - baseline_abandonment_rate), baseline_abandonment_rate) * 100 as abandonment_increase_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
-    WHERE r.avg_abandonment_rate > 50  -- >50% abandonment is concerning
-      OR (h.baseline_abandonment_rate > 0 AND r.avg_abandonment_rate > h.baseline_abandonment_rate * 1.2)  -- 20%+ increase
-      AND r.total_form_starts > 20
-    ORDER BY r.avg_abandonment_rate DESC
+    LEFT JOIN historical_performance hWHERE avg_abandonment_rate > 50  -- >50% abandonment is concerning
+      OR (baseline_abandonment_rate > 0 AND avg_abandonment_rate > baseline_abandonment_rate * 1.2)  -- 20%+ increase
+      AND total_form_starts > 20
+    ORDER BY avg_abandonment_rate DESC
     LIMIT 10
     """
     

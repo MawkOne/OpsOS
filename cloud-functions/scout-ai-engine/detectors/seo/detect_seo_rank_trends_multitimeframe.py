@@ -31,25 +31,22 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_ranks AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.avg_position,
-        m.avg_search_volume,
-        LAG(m.avg_position, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_position,
-        LAG(m.avg_position, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_position,
-        LAG(m.avg_position, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago_position,
-        MIN(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as best_position_ever,
-        MAX(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as worst_position_ever
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND e.entity_type = 'keyword'
-        AND m.avg_position IS NOT NULL
+        canonical_entity_id,
+        year_month,
+        avg_position,
+        avg_search_volume,
+        LAG(avg_position, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_position,
+        LAG(avg_position, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_position,
+        LAG(avg_position, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago_position,
+        MIN(avg_position) OVER (PARTITION BY canonical_entity_id) as best_position_ever,
+        MAX(avg_position) OVER (PARTITION BY canonical_entity_id) as worst_position_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'keyword'
+        AND avg_position IS NOT NULL
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         year_month,

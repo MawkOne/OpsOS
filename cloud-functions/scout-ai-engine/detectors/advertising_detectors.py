@@ -33,10 +33,7 @@ def detect_cost_inefficiency(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         SAFE_DIVIDE(SUM(revenue), SUM(cost)) as roas,
         SAFE_DIVIDE(SUM(cost), SUM(conversions)) as cpa
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND cost > 0

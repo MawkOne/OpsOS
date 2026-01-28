@@ -26,19 +26,19 @@ def detect_publishing_volume_gap(organization_id: str) -> list:
     query = f"""
     WITH monthly_publishes AS (
       SELECT 
-        FORMAT_DATE('%Y-%m', m.publish_date) as publish_month,
-        DATE_TRUNC(m.publish_date, MONTH) as month_date,
-        m.content_type,
-        COUNT(DISTINCT m.canonical_entity_id) as content_published,
+        FORMAT_DATE('%Y-%m', publish_date) as publish_month,
+        DATE_TRUNC(publish_date, MONTH) as month_date,
+        content_type,
+        COUNT(DISTINCT canonical_entity_id) as content_published,
         -- Track performance of that month's content
-        AVG(CASE WHEN m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
-            THEN m.pageviews END) as avg_recent_pageviews
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
-        AND m.publish_date IS NOT NULL
-      GROUP BY publish_month, month_date, m.content_type
+        AVG(CASE WHEN date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
+            THEN pageviews END) as avg_recent_pageviews
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND publish_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+        AND publish_date IS NOT NULL
+      GROUP BY publish_month, month_date, content_type
     ),
     publishing_trends AS (
       SELECT 

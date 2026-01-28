@@ -31,27 +31,24 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_campaigns AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.cost,
-        m.revenue,
-        m.conversions,
-        m.avg_roas,
-        m.avg_cpa,
-        LAG(m.avg_roas, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_roas,
-        LAG(m.avg_roas, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_roas,
-        LAG(m.avg_cpa, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_cpa,
-        MAX(m.avg_roas) OVER (PARTITION BY m.canonical_entity_id) as best_roas_ever
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND e.entity_type = 'campaign'
+        canonical_entity_id,
+        year_month,
+        cost,
+        revenue,
+        conversions,
+        avg_roas,
+        avg_cpa,
+        LAG(avg_roas, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_roas,
+        LAG(avg_roas, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_roas,
+        LAG(avg_cpa, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_cpa,
+        MAX(avg_roas) OVER (PARTITION BY canonical_entity_id) as best_roas_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'campaign'
         AND cost > 0
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         cost,

@@ -26,20 +26,20 @@ def detect_dwell_time_decline(organization_id: str) -> list:
     query = f"""
     WITH weekly_dwell AS (
       SELECT 
-        m.canonical_entity_id,
-        m.content_type,
-        DATE_TRUNC(m.date, WEEK) as week,
-        AVG(m.dwell_time) as avg_dwell_time,
-        SUM(m.pageviews) as pageviews,
-        SUM(m.sessions) as sessions,
-        SUM(m.conversions) as conversions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 WEEK)
-        AND m.dwell_time IS NOT NULL
-        AND m.pageviews > 5
-      GROUP BY m.canonical_entity_id, m.content_type, week
+        canonical_entity_id,
+        content_type,
+        DATE_TRUNC(date, WEEK) as week,
+        AVG(dwell_time) as avg_dwell_time,
+        SUM(pageviews) as pageviews,
+        SUM(sessions) as sessions,
+        SUM(conversions) as conversions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 WEEK)
+        AND dwell_time IS NOT NULL
+        AND pageviews > 5
+      GROUP BY canonical_entity_id, content_type, week
     ),
     recent_vs_previous AS (
       SELECT 

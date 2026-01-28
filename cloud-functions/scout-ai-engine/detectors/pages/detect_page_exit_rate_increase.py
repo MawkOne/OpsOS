@@ -31,46 +31,41 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         AVG(exit_rate) as avg_exit_rate,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
         AVG(exit_rate) as baseline_exit_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.avg_exit_rate,
-      h.baseline_exit_rate,
-      r.total_sessions,
-      r.avg_conversion_rate,
-      SAFE_DIVIDE((r.avg_exit_rate - h.baseline_exit_rate), h.baseline_exit_rate) * 100 as exit_rate_increase_pct
+      canonical_entity_id,
+      avg_exit_rate,
+      baseline_exit_rate,
+      total_sessions,
+      avg_conversion_rate,
+      SAFE_DIVIDE((avg_exit_rate - baseline_exit_rate), baseline_exit_rate) * 100 as exit_rate_increase_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
-    WHERE h.baseline_exit_rate > 0
-      AND r.avg_exit_rate > h.baseline_exit_rate * 1.2  -- 20%+ increase
-      AND r.total_sessions > 100
+    LEFT JOIN historical_performance hWHERE baseline_exit_rate > 0
+      AND avg_exit_rate > baseline_exit_rate * 1.2  -- 20%+ increase
+      AND total_sessions > 100
     ORDER BY exit_rate_increase_pct DESC
     LIMIT 10
     """

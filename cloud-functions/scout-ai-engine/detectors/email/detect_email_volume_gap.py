@@ -27,33 +27,29 @@ def detect_email_volume_gap(organization_id: str) -> list:
     query = f"""
     WITH recent_volume AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_name,
-        SUM(m.sends) as total_sends,
-        COUNT(DISTINCT m.date) as days_with_sends,
-        AVG(m.sends) as avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        entity_name,
+        SUM(sends) as total_sends,
+        COUNT(DISTINCT date) as days_with_sends,
+        AVG(sends) as avg_daily_sends
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email_campaign'
         AND sends > 0
-      GROUP BY e.canonical_entity_id, e.entity_name
+      GROUP BY canonical_entity_id, entity_name
     ),
     historical_volume AS (
       SELECT 
-        e.canonical_entity_id,
-        SUM(m.sends) as baseline_total_sends,
-        AVG(m.sends) as baseline_avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        SUM(sends) as baseline_total_sends,
+        AVG(sends) as baseline_avg_daily_sends
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'email_campaign'
         AND sends > 0
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
     ),
     org_benchmark AS (
       SELECT 
@@ -62,8 +58,7 @@ def detect_email_volume_gap(organization_id: str) -> list:
         SELECT 
           canonical_entity_id,
           SUM(sends) as total_sends
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        WHERE organization_id = @org_id
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
           AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
           AND entity_type = 'email_campaign'
           AND sends > 0
@@ -71,23 +66,23 @@ def detect_email_volume_gap(organization_id: str) -> list:
       )
     )
     SELECT 
-      r.canonical_entity_id,
-      r.entity_name,
-      r.total_sends,
-      r.days_with_sends,
-      r.avg_daily_sends,
-      h.baseline_total_sends,
-      h.baseline_avg_daily_sends,
-      b.benchmark_volume,
-      SAFE_DIVIDE((r.total_sends - h.baseline_total_sends), h.baseline_total_sends) * 100 as volume_change_pct,
-      SAFE_DIVIDE(r.total_sends, b.benchmark_volume) * 100 as vs_benchmark_pct
+      canonical_entity_id,
+      entity_name,
+      total_sends,
+      days_with_sends,
+      avg_daily_sends,
+      baseline_total_sends,
+      baseline_avg_daily_sends,
+      benchmark_volume,
+      SAFE_DIVIDE((total_sends - baseline_total_sends), baseline_total_sends) * 100 as volume_change_pct,
+      SAFE_DIVIDE(total_sends, benchmark_volume) * 100 as vs_benchmark_pct
     FROM recent_volume r
     CROSS JOIN org_benchmark b
     WHERE 
       -- Either significantly below benchmark OR declining trend
-      (r.total_sends < b.benchmark_volume * 0.5)  -- <50% of benchmark
-      OR (h.baseline_total_sends > 0 AND 
-          SAFE_DIVIDE((r.total_sends - h.baseline_total_sends), h.baseline_total_sends) < -0.30)  -- >30% decline
+      (total_sends < benchmark_volume * 0.5)  -- <50% of benchmark
+      OR (baseline_total_sends > 0 AND 
+          SAFE_DIVIDE((total_sends - baseline_total_sends), baseline_total_sends) < -0.30)  -- >30% decline
     ORDER BY volume_change_pct ASC
     LIMIT 20
     """

@@ -31,45 +31,41 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
     query = f"""
     WITH recent_traffic AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_type,
+        canonical_entity_id,
+        entity_type,
         SUM(sessions) as total_sessions,
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.date < CURRENT_DATE()
-      GROUP BY e.canonical_entity_id, e.entity_type
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+      GROUP BY canonical_entity_id, entity_type
     ),
     baseline_traffic AS (
       SELECT 
         canonical_entity_id,
         SUM(sessions) as baseline_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-      GROUP BY e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.entity_type,
-      r.total_sessions,
-      b.baseline_sessions,
-      r.avg_bounce_rate,
-      r.avg_duration,
-      r.avg_conversion_rate,
-      SAFE_DIVIDE((r.total_sessions - b.baseline_sessions), b.baseline_sessions) * 100 as traffic_increase_pct
+      canonical_entity_id,
+      entity_type,
+      total_sessions,
+      baseline_sessions,
+      avg_bounce_rate,
+      avg_duration,
+      avg_conversion_rate,
+      SAFE_DIVIDE((total_sessions - baseline_sessions), baseline_sessions) * 100 as traffic_increase_pct
     FROM recent_traffic r
-    WHERE r.avg_bounce_rate > 80  -- >80% bounce
-      AND r.avg_duration < 10  -- <10 seconds
-      AND (b.baseline_sessions IS NULL OR r.total_sessions > b.baseline_sessions * 1.5)  -- 50%+ traffic increase
-      AND r.total_sessions > 50
-    ORDER BY r.total_sessions DESC
+    WHERE avg_bounce_rate > 80  -- >80% bounce
+      AND avg_duration < 10  -- <10 seconds
+      AND (baseline_sessions IS NULL OR total_sessions > baseline_sessions * 1.5)  -- 50%+ traffic increase
+      AND total_sessions > 50
+    ORDER BY total_sessions DESC
     LIMIT 10
     """
     

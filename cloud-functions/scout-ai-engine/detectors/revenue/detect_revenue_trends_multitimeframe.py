@@ -31,17 +31,14 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_revenue AS (
       SELECT 
-        m.year_month,
-        SUM(m.revenue) as total_revenue,
-        SUM(m.conversions) as total_conversions,
-        SUM(m.cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-      GROUP BY m.year_month
-      ORDER BY m.year_month
+        year_month,
+        SUM(revenue) as total_revenue,
+        SUM(conversions) as total_conversions,
+        SUM(cost) as total_cost
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+      GROUP BY year_month
+      ORDER BY year_month
     ),
     
     with_trends AS (
@@ -67,7 +64,7 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
       FROM monthly_revenue
     ),
     
-    current AS (
+    current_period AS (
       SELECT *
       FROM with_trends
       WHERE year_month = (SELECT MAX(year_month) FROM with_trends)

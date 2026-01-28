@@ -31,38 +31,34 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
     query = f"""
     WITH ga_metrics AS (
       SELECT 
-        m.canonical_entity_id,
-        SUM(m.sessions) as organic_sessions,
-        AVG(m.conversion_rate) as avg_conversion_rate,
-        SUM(m.revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-        AND JSON_EXTRACT_SCALAR(m.source_breakdown, '$.ga4') IS NOT NULL
-      GROUP BY m.canonical_entity_id
+        canonical_entity_id,
+        SUM(sessions) as organic_sessions,
+        AVG(conversion_rate) as avg_conversion_rate,
+        SUM(revenue) as total_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+        AND JSON_EXTRACT_SCALAR(source_breakdown, '$.ga4') IS NOT NULL
+      GROUP BY canonical_entity_id
       HAVING organic_sessions > 100
     ),
     ads_spend AS (
       SELECT 
         canonical_entity_id,
         SUM(cost) as total_ad_spend
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
         AND cost > 0
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
     )
     SELECT 
       g.*,
-      COALESCE(a.total_ad_spend, 0) as ad_spend
+      COALESCE(total_ad_spend, 0) as ad_spend
     FROM ga_metrics g
-    WHERE (a.total_ad_spend IS NULL OR a.total_ad_spend < 10)  -- Little to no ad spend
-      AND g.avg_conversion_rate > 2.0  -- Good conversion rate
-    ORDER BY g.total_revenue DESC
+    WHERE (total_ad_spend IS NULL OR total_ad_spend < 10)  -- Little to no ad spend
+      AND avg_conversion_rate > 2.0  -- Good conversion rate
+    ORDER BY total_revenue DESC
     LIMIT 10
     """
     

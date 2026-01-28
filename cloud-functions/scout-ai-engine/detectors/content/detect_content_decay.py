@@ -31,39 +31,37 @@ def detect_content_decay(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         SUM(sessions) as sessions_recent,
         AVG(conversion_rate) as cvr_recent
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
         SUM(sessions) as sessions_historical,
         AVG(conversion_rate) as cvr_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.sessions_recent,
-      h.sessions_historical,
-      r.cvr_recent,
-      h.cvr_historical,
-      SAFE_DIVIDE((r.sessions_recent - h.sessions_historical), h.sessions_historical) * 100 as sessions_change_pct,
-      SAFE_DIVIDE((r.cvr_recent - h.cvr_historical), h.cvr_historical) * 100 as cvr_change_pct
+      canonical_entity_id,
+      sessions_recent,
+      sessions_historical,
+      cvr_recent,
+      cvr_historical,
+      SAFE_DIVIDE((sessions_recent - sessions_historical), sessions_historical) * 100 as sessions_change_pct,
+      SAFE_DIVIDE((cvr_recent - cvr_historical), cvr_historical) * 100 as cvr_change_pct
     FROM recent_performance r
     INNER JOIN historical_performance h 
-    WHERE h.sessions_historical > 500  -- Was getting meaningful traffic
-      AND SAFE_DIVIDE((r.sessions_recent - h.sessions_historical), h.sessions_historical) < -0.30  -- 30%+ traffic drop
+    WHERE sessions_historical > 500  -- Was getting meaningful traffic
+      AND SAFE_DIVIDE((sessions_recent - sessions_historical), sessions_historical) < -0.30  -- 30%+ traffic drop
     ORDER BY ABS(sessions_change_pct) DESC
     LIMIT 15
     """

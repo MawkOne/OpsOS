@@ -34,37 +34,31 @@ def detect_revenue_aov_decline(organization_id: str) -> list:
         AVG(average_order_value) as avg_aov,
         SUM(transactions) as total_transactions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
         AND average_order_value > 0
     ),
     historical_performance AS (
       SELECT 
         AVG(average_order_value) as baseline_aov
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND average_order_value > 0
     )
     SELECT 
-      r.avg_aov as current_aov,
-      h.baseline_aov,
-      r.total_transactions,
-      r.total_revenue,
-      SAFE_DIVIDE((r.avg_aov - h.baseline_aov), h.baseline_aov) * 100 as aov_change_pct
+      avg_aov as current_aov,
+      baseline_aov,
+      total_transactions,
+      total_revenue,
+      SAFE_DIVIDE((avg_aov - baseline_aov), baseline_aov) * 100 as aov_change_pct
     FROM recent_performance r
     CROSS JOIN historical_performance h
-    WHERE h.baseline_aov > 0
-      AND r.avg_aov < h.baseline_aov * 0.9  -- 10%+ decline
+    WHERE baseline_aov > 0
+      AND avg_aov < baseline_aov * 0.9  -- 10%+ decline
     """
     
     job_config = bigquery.QueryJobConfig(

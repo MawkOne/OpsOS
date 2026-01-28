@@ -22,9 +22,8 @@ def detect_growth_velocity_trends(organization_id: str) -> list:
     query = f"""
     WITH monthly_revenue AS (
       SELECT DATE_TRUNC(date, MONTH) as month, SUM(revenue) as revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-      WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
       GROUP BY month
     ),
     growth_rates AS (

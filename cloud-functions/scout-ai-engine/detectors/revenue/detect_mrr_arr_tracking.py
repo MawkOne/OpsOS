@@ -30,15 +30,12 @@ def detect_mrr_arr_tracking(organization_id: str) -> list:
     WITH monthly_recurring_revenue AS (
       SELECT 
         DATE_TRUNC(date, MONTH) as month,
-        SUM(m.mrr) as total_mrr,
-        COUNT(DISTINCT m.canonical_entity_id) as active_subscriptions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
-        AND m.date < CURRENT_DATE()
+        SUM(mrr) as total_mrr,
+        COUNT(DISTINCT canonical_entity_id) as active_subscriptions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+        AND date < CURRENT_DATE()
         AND mrr > 0
       GROUP BY month
     ),

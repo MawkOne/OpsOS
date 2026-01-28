@@ -27,50 +27,46 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_name,
-        SUM(m.revenue_attributed) as total_revenue,
-        AVG(m.list_size) as avg_list_size,
-        SAFE_DIVIDE(SUM(m.revenue_attributed), AVG(m.list_size)) as revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        entity_name,
+        SUM(revenue_attributed) as total_revenue,
+        AVG(list_size) as avg_list_size,
+        SAFE_DIVIDE(SUM(revenue_attributed), AVG(list_size)) as revenue_per_subscriber
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email_campaign'
         AND list_size > 0
-      GROUP BY e.canonical_entity_id, e.entity_name
-      HAVING SUM(m.revenue_attributed) > 0
+      GROUP BY canonical_entity_id, entity_name
+      HAVING SUM(revenue_attributed) > 0
     ),
     historical_performance AS (
       SELECT 
-        e.canonical_entity_id,
-        SUM(m.revenue_attributed) as baseline_revenue,
-        AVG(m.list_size) as baseline_list_size,
-        SAFE_DIVIDE(SUM(m.revenue_attributed), AVG(m.list_size)) as baseline_revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        SUM(revenue_attributed) as baseline_revenue,
+        AVG(list_size) as baseline_list_size,
+        SAFE_DIVIDE(SUM(revenue_attributed), AVG(list_size)) as baseline_revenue_per_subscriber
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'email_campaign'
         AND list_size > 0
-      GROUP BY e.canonical_entity_id
-      HAVING SUM(m.revenue_attributed) > 0
+      GROUP BY canonical_entity_id
+      HAVING SUM(revenue_attributed) > 0
     )
     SELECT 
-      r.canonical_entity_id,
-      r.entity_name,
-      r.total_revenue,
-      r.avg_list_size,
-      r.revenue_per_subscriber,
-      h.baseline_revenue,
-      h.baseline_list_size,
-      h.baseline_revenue_per_subscriber,
-      SAFE_DIVIDE((r.revenue_per_subscriber - h.baseline_revenue_per_subscriber), h.baseline_revenue_per_subscriber) * 100 as rps_change_pct
+      canonical_entity_id,
+      entity_name,
+      total_revenue,
+      avg_list_size,
+      revenue_per_subscriber,
+      baseline_revenue,
+      baseline_list_size,
+      baseline_revenue_per_subscriber,
+      SAFE_DIVIDE((revenue_per_subscriber - baseline_revenue_per_subscriber), baseline_revenue_per_subscriber) * 100 as rps_change_pct
     FROM recent_performance r
-    WHERE h.baseline_revenue_per_subscriber > 0
-      AND SAFE_DIVIDE((r.revenue_per_subscriber - h.baseline_revenue_per_subscriber), h.baseline_revenue_per_subscriber) < -0.20  -- >20% decline
+    WHERE baseline_revenue_per_subscriber > 0
+      AND SAFE_DIVIDE((revenue_per_subscriber - baseline_revenue_per_subscriber), baseline_revenue_per_subscriber) < -0.20  -- >20% decline
     ORDER BY rps_change_pct ASC
     LIMIT 20
     """

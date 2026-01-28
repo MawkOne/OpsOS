@@ -39,9 +39,7 @@ def detect_email_list_health_decline(organization_id: str) -> list:
         AVG(unsubscribe_rate) as avg_unsubscribe_rate,
         SUM(unsubscribes) as total_unsubscribes,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email'
@@ -51,26 +49,24 @@ def detect_email_list_health_decline(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(unsubscribe_rate) as baseline_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'email'
       GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.avg_unsubscribe_rate,
-      h.baseline_unsubscribe_rate,
-      r.total_unsubscribes,
-      r.total_sends,
-      SAFE_DIVIDE((r.avg_unsubscribe_rate - h.baseline_unsubscribe_rate), h.baseline_unsubscribe_rate) * 100 as unsubscribe_increase_pct
+      canonical_entity_id,
+      avg_unsubscribe_rate,
+      baseline_unsubscribe_rate,
+      total_unsubscribes,
+      total_sends,
+      SAFE_DIVIDE((avg_unsubscribe_rate - baseline_unsubscribe_rate), baseline_unsubscribe_rate) * 100 as unsubscribe_increase_pct
     FROM recent_performance r
-    WHERE r.avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
-      OR (h.baseline_unsubscribe_rate > 0 AND r.avg_unsubscribe_rate > h.baseline_unsubscribe_rate * 1.5)  -- 50% increase
-      AND r.total_sends > 100
-    ORDER BY r.avg_unsubscribe_rate DESC
+    WHERE avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
+      OR (baseline_unsubscribe_rate > 0 AND avg_unsubscribe_rate > baseline_unsubscribe_rate * 1.5)  -- 50% increase
+      AND total_sends > 100
+    ORDER BY avg_unsubscribe_rate DESC
     LIMIT 10
     """
     

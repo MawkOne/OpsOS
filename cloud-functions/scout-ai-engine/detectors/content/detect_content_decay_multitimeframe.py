@@ -31,18 +31,18 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_trends AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.sessions,
-        m.mom_change_pct,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago,
-        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago,
-        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago,
-        MAX(m.sessions) OVER (PARTITION BY m.canonical_entity_id) as all_time_peak
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND e.entity_type = 'page'
-      ORDER BY m.canonical_entity_id, m.year_month
+        canonical_entity_id,
+        year_month,
+        sessions,
+        mom_change_pct,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago,
+        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago,
+        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago,
+        MAX(sessions) OVER (PARTITION BY canonical_entity_id) as all_time_peak
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+      ORDER BY canonical_entity_id, year_month
     ),
     
     current_month AS (

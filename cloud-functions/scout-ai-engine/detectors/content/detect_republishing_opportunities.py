@@ -26,35 +26,35 @@ def detect_republishing_opportunities(organization_id: str) -> list:
     query = f"""
     WITH content_age_and_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.publish_date,
-        m.last_update_date,
-        m.content_type,
-        DATE_DIFF(CURRENT_DATE(), COALESCE(m.last_update_date, m.publish_date), DAY) as days_since_update,
+        canonical_entity_id,
+        publish_date,
+        last_update_date,
+        content_type,
+        DATE_DIFF(CURRENT_DATE(), COALESCE(last_update_date, publish_date), DAY) as days_since_update,
         -- Recent 30 days performance
-        SUM(CASE WHEN m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
-            THEN m.pageviews ELSE 0 END) as recent_pageviews,
-        SUM(CASE WHEN m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
-            THEN m.conversions ELSE 0 END) as recent_conversions,
-        AVG(CASE WHEN m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
-            THEN m.engagement_rate END) as recent_engagement,
+        SUM(CASE WHEN date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
+            THEN pageviews ELSE 0 END) as recent_pageviews,
+        SUM(CASE WHEN date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
+            THEN conversions ELSE 0 END) as recent_conversions,
+        AVG(CASE WHEN date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) 
+            THEN engagement_rate END) as recent_engagement,
         -- Historical peak (90-365 days ago)
-        MAX(CASE WHEN m.date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY) 
+        MAX(CASE WHEN date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY) 
                                   AND DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-            THEN m.pageviews ELSE 0 END) as peak_daily_pageviews,
-        AVG(CASE WHEN m.date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY) 
+            THEN pageviews ELSE 0 END) as peak_daily_pageviews,
+        AVG(CASE WHEN date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY) 
                                   AND DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-            THEN m.pageviews END) as avg_historical_pageviews
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
-        AND (m.publish_date IS NOT NULL OR m.last_update_date IS NOT NULL)
+            THEN pageviews END) as avg_historical_pageviews
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
+        AND (publish_date IS NOT NULL OR last_update_date IS NOT NULL)
       GROUP BY 
-        m.canonical_entity_id,
-        m.publish_date,
-        m.last_update_date,
-        m.content_type
+        canonical_entity_id,
+        publish_date,
+        last_update_date,
+        content_type
       HAVING 
         days_since_update > 180  -- Not updated in 6+ months
         AND recent_pageviews > 50  -- Still getting decent traffic

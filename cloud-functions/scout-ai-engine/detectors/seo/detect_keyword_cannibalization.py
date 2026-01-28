@@ -31,18 +31,18 @@ def detect_keyword_cannibalization(organization_id: str) -> list:
     query = f"""
     WITH keyword_page_mapping AS (
       SELECT 
-        k.canonical_entity_id as keyword_id,
-        p.canonical_entity_id as page_id,
-        AVG(k.position) as avg_position,
-        SUM(k.sessions) as total_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` k
-      INNER JOIN `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` p
-        ON k.organization_id = p.organization_id
-        AND k.date = p.date
-      WHERE k.organization_id = @org_id
-        AND k.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND k.entity_type = 'keyword'
-        AND p.entity_type = 'page'
+        canonical_entity_id as keyword_id,
+        canonical_entity_id as page_id,
+        AVG(position) as avg_position,
+        SUM(sessions) as total_sessions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      INNER JOIN `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+        ON organization_id = organization_id
+        AND date = date
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'keyword'
+        AND entity_type = 'page'
       GROUP BY keyword_id, page_id
     ),
     cannibalization_cases AS (

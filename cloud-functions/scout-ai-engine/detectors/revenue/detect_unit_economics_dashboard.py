@@ -29,19 +29,16 @@ def detect_unit_economics_dashboard(organization_id: str) -> list:
     query = f"""
     WITH economics AS (
       SELECT 
-        AVG(m.ltv) as avg_ltv,
-        AVG(m.cac) as avg_cac,
-        SAFE_DIVIDE(AVG(m.ltv), AVG(m.cac)) as ltv_cac_ratio,
-        AVG(m.gross_margin) as avg_gross_margin,
-        SUM(m.revenue) as total_revenue,
-        SUM(m.transactions) as total_transactions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < CURRENT_DATE()
+        AVG(ltv) as avg_ltv,
+        AVG(cac) as avg_cac,
+        SAFE_DIVIDE(AVG(ltv), AVG(cac)) as ltv_cac_ratio,
+        AVG(gross_margin) as avg_gross_margin,
+        SUM(revenue) as total_revenue,
+        SUM(transactions) as total_transactions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < CURRENT_DATE()
         AND (ltv > 0 OR cac > 0 OR gross_margin > 0)
     )
     SELECT 

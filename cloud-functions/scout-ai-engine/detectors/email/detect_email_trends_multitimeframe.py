@@ -32,25 +32,25 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_email AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.sends,
-        m.opens,
-        m.open_rate,
-        m.click_through_rate,
-        LAG(m.open_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_open_rate,
-        LAG(m.open_rate, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_open_rate,
-        LAG(m.click_through_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_ctr,
-        MAX(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as best_open_rate,
-        MIN(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as worst_open_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
+        canonical_entity_id,
+        year_month,
+        sends,
+        opens,
+        open_rate,
+        click_through_rate,
+        LAG(open_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_open_rate,
+        LAG(open_rate, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_open_rate,
+        LAG(click_through_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_ctr,
+        MAX(open_rate) OVER (PARTITION BY canonical_entity_id) as best_open_rate,
+        MIN(open_rate) OVER (PARTITION BY canonical_entity_id) as worst_open_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND e.entity_type = 'email'
-        AND m.sends > 0
+      WHERE organization_id = @org_id
+        AND entity_type = 'email'
+        AND sends > 0
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         year_month,

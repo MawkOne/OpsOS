@@ -31,17 +31,15 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
     query = f"""
     WITH recent_traffic AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_type,
+        canonical_entity_id,
+        entity_type,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate,
         AVG(bounce_rate) as avg_bounce_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.date < CURRENT_DATE()
-      GROUP BY e.canonical_entity_id, e.entity_type
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND date < CURRENT_DATE()
+      GROUP BY canonical_entity_id, entity_type
     ),
     baseline_traffic AS (
       SELECT 
@@ -54,28 +52,26 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
           date,
           SUM(sessions) as sessions_per_day,
           AVG(conversion_rate) as avg_conversion_rate
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-          
-        WHERE m.organization_id = @org_id
-          AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-          AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+          AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         GROUP BY canonical_entity_id, date
       )
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.entity_type,
-      r.total_sessions,
-      r.avg_conversion_rate,
-      r.avg_bounce_rate,
-      b.avg_daily_sessions * 7 as expected_weekly_sessions,
-      b.baseline_conversion_rate,
-      SAFE_DIVIDE((r.total_sessions - (b.avg_daily_sessions * 7)), (b.avg_daily_sessions * 7)) * 100 as traffic_spike_pct
+      canonical_entity_id,
+      entity_type,
+      total_sessions,
+      avg_conversion_rate,
+      avg_bounce_rate,
+      avg_daily_sessions * 7 as expected_weekly_sessions,
+      baseline_conversion_rate,
+      SAFE_DIVIDE((total_sessions - (avg_daily_sessions * 7)), (avg_daily_sessions * 7)) * 100 as traffic_spike_pct
     FROM recent_traffic r
-    WHERE b.avg_daily_sessions > 0
-      AND r.total_sessions > b.avg_daily_sessions * 7 * 2  -- 2x normal traffic
-      AND r.avg_conversion_rate < b.baseline_conversion_rate * 0.7  -- 30%+ CVR drop
+    WHERE avg_daily_sessions > 0
+      AND total_sessions > avg_daily_sessions * 7 * 2  -- 2x normal traffic
+      AND avg_conversion_rate < baseline_conversion_rate * 0.7  -- 30%+ CVR drop
     ORDER BY traffic_spike_pct DESC
     LIMIT 10
     """

@@ -32,22 +32,20 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
     query = f"""
     WITH campaign_metrics AS (
       SELECT 
-        e.canonical_entity_id,
-        e.entity_name,
-        SUM(m.opens) as total_opens,
-        SUM(m.clicks) as total_clicks,
-        SUM(m.sends) as total_sends,
-        SAFE_DIVIDE(SUM(m.opens), SUM(m.sends)) * 100 as open_rate,
-        SAFE_DIVIDE(SUM(m.clicks), SUM(m.opens)) * 100 as click_to_open_rate,
-        SAFE_DIVIDE(SUM(m.clicks), SUM(m.sends)) * 100 as click_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        
-      WHERE organization_id = @org_id
+        canonical_entity_id,
+        entity_name,
+        SUM(opens) as total_opens,
+        SUM(clicks) as total_clicks,
+        SUM(sends) as total_sends,
+        SAFE_DIVIDE(SUM(opens), SUM(sends)) * 100 as open_rate,
+        SAFE_DIVIDE(SUM(clicks), SUM(opens)) * 100 as click_to_open_rate,
+        SAFE_DIVIDE(SUM(clicks), SUM(sends)) * 100 as click_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
         AND entity_type = 'email_campaign'
         AND sends > 100  -- Minimum volume for statistical significance
-      GROUP BY e.canonical_entity_id, e.entity_name
+      GROUP BY canonical_entity_id, entity_name
     ),
     org_benchmarks AS (
       SELECT 
@@ -57,20 +55,20 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
       FROM campaign_metrics
     )
     SELECT 
-      c.canonical_entity_id,
-      c.entity_name,
-      c.open_rate,
-      c.click_to_open_rate,
-      c.click_rate,
-      c.total_sends,
-      b.avg_ctor,
-      b.stddev_ctor,
-      ABS(c.click_to_open_rate - b.avg_ctor) / NULLIF(b.stddev_ctor, 0) as z_score
+      canonical_entity_id,
+      entity_name,
+      open_rate,
+      click_to_open_rate,
+      click_rate,
+      total_sends,
+      avg_ctor,
+      stddev_ctor,
+      ABS(click_to_open_rate - avg_ctor) / NULLIF(stddev_ctor, 0) as z_score
     FROM campaign_metrics c
     CROSS JOIN org_benchmarks b
-    WHERE c.open_rate > 15  -- Good opens
-      AND c.click_to_open_rate < b.avg_ctor * 0.7  -- But poor CTOR (30%+ below avg)
-      AND c.total_sends > 500  -- Sufficient volume
+    WHERE open_rate > 15  -- Good opens
+      AND click_to_open_rate < avg_ctor * 0.7  -- But poor CTOR (30%+ below avg)
+      AND total_sends > 500  -- Sufficient volume
     ORDER BY z_score DESC
     LIMIT 15
     """

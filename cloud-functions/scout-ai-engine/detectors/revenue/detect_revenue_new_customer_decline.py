@@ -36,41 +36,35 @@ def detect_revenue_new_customer_decline(organization_id: str) -> list:
         SUM(first_time_customers) as total_new_customers,
         SUM(returning_customers) as total_returning_customers,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
         SUM(CASE WHEN first_time_customers > 0 THEN revenue ELSE 0 END) as baseline_new_customer_revenue,
         SUM(CASE WHEN returning_customers > 0 THEN revenue ELSE 0 END) as baseline_returning_customer_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
     )
     SELECT 
-      r.new_customer_revenue,
-      r.returning_customer_revenue,
-      h.baseline_new_customer_revenue,
-      h.baseline_returning_customer_revenue,
-      r.total_new_customers,
-      r.total_returning_customers,
-      r.total_revenue,
-      SAFE_DIVIDE(r.new_customer_revenue, r.total_revenue) * 100 as new_customer_pct,
-      SAFE_DIVIDE(h.baseline_new_customer_revenue, (h.baseline_new_customer_revenue + h.baseline_returning_customer_revenue)) * 100 as baseline_new_customer_pct,
-      SAFE_DIVIDE((r.new_customer_revenue - h.baseline_new_customer_revenue), h.baseline_new_customer_revenue) * 100 as new_customer_revenue_change_pct
+      new_customer_revenue,
+      returning_customer_revenue,
+      baseline_new_customer_revenue,
+      baseline_returning_customer_revenue,
+      total_new_customers,
+      total_returning_customers,
+      total_revenue,
+      SAFE_DIVIDE(new_customer_revenue, total_revenue) * 100 as new_customer_pct,
+      SAFE_DIVIDE(baseline_new_customer_revenue, (baseline_new_customer_revenue + baseline_returning_customer_revenue)) * 100 as baseline_new_customer_pct,
+      SAFE_DIVIDE((new_customer_revenue - baseline_new_customer_revenue), baseline_new_customer_revenue) * 100 as new_customer_revenue_change_pct
     FROM recent_performance r
     CROSS JOIN historical_performance h
-    WHERE h.baseline_new_customer_revenue > 0
-      AND r.new_customer_revenue < h.baseline_new_customer_revenue * 0.85  -- 15%+ decline
+    WHERE baseline_new_customer_revenue > 0
+      AND new_customer_revenue < baseline_new_customer_revenue * 0.85  -- 15%+ decline
     """
     
     job_config = bigquery.QueryJobConfig(

@@ -34,12 +34,9 @@ def detect_revenue_seasonality_deviation(organization_id: str) -> list:
         DATE_TRUNC(date, MONTH) as month,
         EXTRACT(MONTH FROM date) as month_number,
         SUM(revenue) as monthly_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH)  -- 2 years of data
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH)  -- 2 years of data
       GROUP BY month, month_number
     ),
     current_month AS (

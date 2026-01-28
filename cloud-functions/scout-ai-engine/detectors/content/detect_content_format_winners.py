@@ -26,24 +26,24 @@ def detect_content_format_winners(organization_id: str) -> list:
     query = f"""
     WITH format_performance AS (
       SELECT 
-        m.content_type,
-        COUNT(DISTINCT m.canonical_entity_id) as content_count,
-        SUM(m.pageviews) as total_pageviews,
-        SUM(m.sessions) as total_sessions,
-        SUM(m.conversions) as total_conversions,
-        AVG(m.dwell_time) as avg_dwell_time,
-        AVG(m.engagement_rate) as avg_engagement_rate,
-        AVG(m.bounce_rate) as avg_bounce_rate,
+        content_type,
+        COUNT(DISTINCT canonical_entity_id) as content_count,
+        SUM(pageviews) as total_pageviews,
+        SUM(sessions) as total_sessions,
+        SUM(conversions) as total_conversions,
+        AVG(dwell_time) as avg_dwell_time,
+        AVG(engagement_rate) as avg_engagement_rate,
+        AVG(bounce_rate) as avg_bounce_rate,
         -- Calculate per-piece averages
-        SUM(m.pageviews) / NULLIF(COUNT(DISTINCT m.canonical_entity_id), 0) as avg_pageviews_per_piece,
-        SUM(m.conversions) / NULLIF(COUNT(DISTINCT m.canonical_entity_id), 0) as avg_conversions_per_piece
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.content_type IS NOT NULL
-        AND m.content_type != ''
-      GROUP BY m.content_type
+        SUM(pageviews) / NULLIF(COUNT(DISTINCT canonical_entity_id), 0) as avg_pageviews_per_piece,
+        SUM(conversions) / NULLIF(COUNT(DISTINCT canonical_entity_id), 0) as avg_conversions_per_piece
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND content_type IS NOT NULL
+        AND content_type != ''
+      GROUP BY content_type
       HAVING content_count >= 3  -- At least 3 pieces of content
     ),
     overall_avg AS (

@@ -31,20 +31,17 @@ def detect_paid_waste(organization_id: str) -> list:
     query = f"""
     WITH campaign_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         SUM(cost) as total_cost,
         SUM(clicks) as total_clicks,
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'campaign'
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'campaign'
         AND cost > 0
-      GROUP BY e.canonical_entity_id
+      GROUP BY canonical_entity_id
       HAVING total_cost > 50  -- Spent at least $50
     )
     SELECT *

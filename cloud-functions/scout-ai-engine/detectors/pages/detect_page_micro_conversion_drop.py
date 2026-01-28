@@ -31,49 +31,44 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        e.canonical_entity_id,
+        canonical_entity_id,
         AVG(scroll_depth_avg) as avg_scroll_depth,
         SUM(scroll_depth_75) as total_scroll_75,
         SUM(sessions) as total_sessions,
         SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
         AVG(scroll_depth_avg) as baseline_scroll_depth,
         SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as baseline_scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND e.entity_type = 'page'
-      GROUP BY e.canonical_entity_id
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND entity_type = 'page'
+      GROUP BY canonical_entity_id
     )
     SELECT 
-      r.canonical_entity_id,
-      r.avg_scroll_depth,
-      h.baseline_scroll_depth,
-      r.scroll_75_rate,
-      h.baseline_scroll_75_rate,
-      r.total_sessions,
-      SAFE_DIVIDE((r.avg_scroll_depth - h.baseline_scroll_depth), h.baseline_scroll_depth) * 100 as scroll_depth_change_pct
+      canonical_entity_id,
+      avg_scroll_depth,
+      baseline_scroll_depth,
+      scroll_75_rate,
+      baseline_scroll_75_rate,
+      total_sessions,
+      SAFE_DIVIDE((avg_scroll_depth - baseline_scroll_depth), baseline_scroll_depth) * 100 as scroll_depth_change_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
-    WHERE h.baseline_scroll_depth > 0
-      AND r.avg_scroll_depth < h.baseline_scroll_depth * 0.85  -- 15%+ drop
-      AND r.total_sessions > 100
+    LEFT JOIN historical_performance hWHERE baseline_scroll_depth > 0
+      AND avg_scroll_depth < baseline_scroll_depth * 0.85  -- 15%+ drop
+      AND total_sessions > 100
     ORDER BY scroll_depth_change_pct ASC
     LIMIT 10
     """

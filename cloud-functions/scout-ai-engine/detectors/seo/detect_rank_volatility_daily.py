@@ -26,20 +26,20 @@ def detect_rank_volatility_daily(organization_id: str) -> list:
     query = f"""
     WITH daily_positions AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.seo_position,
-        m.seo_position_change,
-        m.seo_search_volume,
-        m.sessions,
-        LAG(m.seo_position) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date) as prev_position,
-        ABS(m.seo_position_change) as abs_change
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        AND m.seo_position IS NOT NULL
-        AND m.seo_search_volume > 100  -- Focus on keywords with meaningful volume
+        canonical_entity_id,
+        date,
+        seo_position,
+        seo_position_change,
+        seo_search_volume,
+        sessions,
+        LAG(seo_position) OVER (PARTITION BY canonical_entity_id ORDER BY date) as prev_position,
+        ABS(seo_position_change) as abs_change
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+        AND seo_position IS NOT NULL
+        AND seo_search_volume > 100  -- Focus on keywords with meaningful volume
     ),
     volatility_stats AS (
       SELECT 

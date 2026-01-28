@@ -14,19 +14,19 @@ def detect_channel_mix_optimization(organization_id: str) -> list:
     query = f"""
     WITH channel_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        SUM(m.sessions) as sessions,
-        SUM(m.conversions) as conversions,
-        SUM(m.revenue) as revenue,
-        SAFE_DIVIDE(SUM(m.conversions), SUM(m.sessions)) * 100 as cvr,
-        SAFE_DIVIDE(SUM(m.revenue), SUM(m.sessions)) as rps,
-        SAFE_DIVIDE(SUM(m.revenue), NULLIF(SUM(m.conversions), 0)) as aov
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id 
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.entity_type = 'traffic_source'
-        AND m.sessions > 100
-      GROUP BY m.canonical_entity_id
+        canonical_entity_id,
+        SUM(sessions) as sessions,
+        SUM(conversions) as conversions,
+        SUM(revenue) as revenue,
+        SAFE_DIVIDE(SUM(conversions), SUM(sessions)) * 100 as cvr,
+        SAFE_DIVIDE(SUM(revenue), SUM(sessions)) as rps,
+        SAFE_DIVIDE(SUM(revenue), NULLIF(SUM(conversions), 0)) as aov
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id 
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND entity_type = 'traffic_source'
+        AND sessions > 100
+      GROUP BY canonical_entity_id
     ),
     total_traffic AS (
       SELECT 

@@ -35,38 +35,34 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
         SUM(add_to_cart) as total_add_to_cart,
         SUM(begin_checkout) as total_begin_checkout,
         SUM(purchase_count) as total_purchases
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND m.date < CURRENT_DATE()
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date < CURRENT_DATE()
         AND add_to_cart > 0
     ),
     historical_performance AS (
       SELECT 
         AVG(cart_abandonment_rate) as baseline_cart_abandonment
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND add_to_cart > 0
     )
     SELECT 
-      r.avg_cart_abandonment as current_cart_abandonment,
-      h.baseline_cart_abandonment,
-      r.total_add_to_cart,
-      r.total_begin_checkout,
-      r.total_purchases,
-      SAFE_DIVIDE((r.avg_cart_abandonment - h.baseline_cart_abandonment), h.baseline_cart_abandonment) * 100 as cart_abandonment_increase_pct
+      avg_cart_abandonment as current_cart_abandonment,
+      baseline_cart_abandonment,
+      total_add_to_cart,
+      total_begin_checkout,
+      total_purchases,
+      SAFE_DIVIDE((avg_cart_abandonment - baseline_cart_abandonment), baseline_cart_abandonment) * 100 as cart_abandonment_increase_pct
     FROM recent_performance r
     CROSS JOIN historical_performance h
-    WHERE r.avg_cart_abandonment > 60  -- >60% is concerning
-      OR (h.baseline_cart_abandonment > 0 AND r.avg_cart_abandonment > h.baseline_cart_abandonment * 1.15)  -- 15%+ increase
+    WHERE avg_cart_abandonment > 60  -- >60% is concerning
+      OR (baseline_cart_abandonment > 0 AND avg_cart_abandonment > baseline_cart_abandonment * 1.15)  -- 15%+ increase
     """
     
     job_config = bigquery.QueryJobConfig(

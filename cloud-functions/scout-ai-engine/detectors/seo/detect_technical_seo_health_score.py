@@ -26,23 +26,23 @@ def detect_technical_seo_health_score(organization_id: str) -> list:
     query = f"""
     WITH latest_health AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.onpage_score,
-        m.broken_links_count,
-        m.missing_meta_description,
-        m.missing_h1_tag,
-        m.duplicate_content_detected,
-        m.page_size_bytes,
-        m.pageviews,
-        m.sessions,
-        m.seo_position,
-        ROW_NUMBER() OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date DESC) as rn
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.onpage_score IS NOT NULL
+        canonical_entity_id,
+        date,
+        onpage_score,
+        broken_links_count,
+        missing_meta_description,
+        missing_h1_tag,
+        duplicate_content_detected,
+        page_size_bytes,
+        pageviews,
+        sessions,
+        seo_position,
+        ROW_NUMBER() OVER (PARTITION BY canonical_entity_id ORDER BY date DESC) as rn
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND onpage_score IS NOT NULL
     )
     SELECT 
       canonical_entity_id,

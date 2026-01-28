@@ -31,24 +31,22 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.entity_type,
-        m.year_month,
-        m.sessions,
-        m.revenue,
-        m.conversions,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago,
-        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago,
-        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_3_ago
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        sessions,
+        revenue,
+        conversions,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago,
+        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago,
+        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_3_ago
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
-      WHERE m.organization_id = @org_id
-        AND e.entity_type IN ('page', 'campaign')
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'campaign')
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         entity_type,

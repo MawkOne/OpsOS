@@ -10,12 +10,11 @@ def detect_attribution_model_comparison(organization_id: str) -> list:
     logger.info("🔍 Running 'attribution_model_comparison' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id m.source, SUM(m.sessions) as sessions, SUM(m.revenue) as revenue
-    FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-    JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-    WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      AND e.entity_type = 'traffic_source' AND sessions > 100
-    GROUP BY e.canonical_entity_id source
+    SELECT canonical_entity_id source, SUM(sessions) as sessions, SUM(revenue) as revenue
+    FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+    WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      AND entity_type = 'traffic_source' AND sessions > 100
+    GROUP BY canonical_entity_id source
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

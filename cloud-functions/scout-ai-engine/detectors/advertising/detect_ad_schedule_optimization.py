@@ -10,13 +10,12 @@ def detect_ad_schedule_optimization(organization_id: str) -> list:
     logger.info("🔍 Running 'ad_schedule_optimization' detector...")
     opportunities = []
     query = f"""
-    SELECT e.canonical_entity_id SUM(m.cost) as cost, SUM(m.conversions) as conversions,
-      SAFE_DIVIDE(SUM(m.cost), SUM(m.conversions)) as cpa
-    FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-    JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e ON m.canonical_entity_id = e.canonical_entity_id
-    WHERE m.organization_id = @org_id AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      AND e.entity_type = 'ad_campaign' AND cost > 100
-    GROUP BY e.canonical_entity_id, e.entity_name
+    SELECT canonical_entity_id SUM(cost) as cost, SUM(conversions) as conversions,
+      SAFE_DIVIDE(SUM(cost), SUM(conversions)) as cpa
+    FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+    WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      AND entity_type = 'ad_campaign' AND cost > 100
+    GROUP BY canonical_entity_id, entity_name
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

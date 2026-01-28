@@ -26,26 +26,26 @@ def detect_content_freshness_decay(organization_id: str) -> list:
     query = f"""
     WITH latest_content AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.publish_date,
-        m.last_update_date,
-        m.content_type,
-        m.pageviews,
-        m.sessions,
-        m.seo_position,
-        m.seo_search_volume,
-        m.conversions,
+        canonical_entity_id,
+        date,
+        publish_date,
+        last_update_date,
+        content_type,
+        pageviews,
+        sessions,
+        seo_position,
+        seo_search_volume,
+        conversions,
         -- Calculate days since last update
-        DATE_DIFF(CURRENT_DATE(), COALESCE(m.last_update_date, m.publish_date), DAY) as days_since_update,
+        DATE_DIFF(CURRENT_DATE(), COALESCE(last_update_date, publish_date), DAY) as days_since_update,
         -- Calculate days since publish
-        DATE_DIFF(CURRENT_DATE(), m.publish_date, DAY) as days_since_publish,
-        ROW_NUMBER() OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date DESC) as rn
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND (m.publish_date IS NOT NULL OR m.last_update_date IS NOT NULL)
+        DATE_DIFF(CURRENT_DATE(), publish_date, DAY) as days_since_publish,
+        ROW_NUMBER() OVER (PARTITION BY canonical_entity_id ORDER BY date DESC) as rn
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND (publish_date IS NOT NULL OR last_update_date IS NOT NULL)
     )
     SELECT 
       canonical_entity_id,

@@ -26,22 +26,22 @@ def detect_schema_markup_gaps(organization_id: str) -> list:
     query = f"""
     WITH latest_pages AS (
       SELECT 
-        m.canonical_entity_id,
-        m.date,
-        m.has_schema_markup,
-        m.pageviews,
-        m.sessions,
-        m.conversions,
-        m.seo_position,
-        m.seo_search_volume,
-        m.onpage_score,
-        m.content_type,
-        ROW_NUMBER() OVER (PARTITION BY m.canonical_entity_id ORDER BY m.date DESC) as rn
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND m.has_schema_markup IS NOT NULL
+        canonical_entity_id,
+        date,
+        has_schema_markup,
+        pageviews,
+        sessions,
+        conversions,
+        seo_position,
+        seo_search_volume,
+        onpage_score,
+        content_type,
+        ROW_NUMBER() OVER (PARTITION BY canonical_entity_id ORDER BY date DESC) as rn
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND has_schema_markup IS NOT NULL
     )
     SELECT 
       canonical_entity_id,

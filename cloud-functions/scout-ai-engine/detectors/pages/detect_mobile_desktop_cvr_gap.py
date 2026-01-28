@@ -14,20 +14,20 @@ def detect_mobile_desktop_cvr_gap(organization_id: str) -> list:
     query = f"""
     WITH device_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.device_type,
-        SUM(m.sessions) as sessions,
-        SUM(m.conversions) as conversions,
-        SUM(m.pageviews) as pageviews,
-        AVG(m.bounce_rate) as bounce_rate,
-        SAFE_DIVIDE(SUM(m.conversions), SUM(m.sessions)) * 100 as cvr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id 
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.entity_type = 'page'
-        AND m.device_type IN ('mobile', 'desktop')
-        AND m.sessions > 10
-      GROUP BY m.canonical_entity_id, m.device_type
+        canonical_entity_id,
+        device_type,
+        SUM(sessions) as sessions,
+        SUM(conversions) as conversions,
+        SUM(pageviews) as pageviews,
+        AVG(bounce_rate) as bounce_rate,
+        SAFE_DIVIDE(SUM(conversions), SUM(sessions)) * 100 as cvr
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id 
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND entity_type = 'page'
+        AND device_type IN ('mobile', 'desktop')
+        AND sessions > 10
+      GROUP BY canonical_entity_id, device_type
     ),
     cvr_comparison AS (
       SELECT 

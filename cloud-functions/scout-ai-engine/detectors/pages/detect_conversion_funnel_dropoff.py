@@ -14,25 +14,25 @@ def detect_conversion_funnel_dropoff(organization_id: str) -> list:
     query = f"""
     WITH funnel_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        SUM(m.pageviews) as pageviews,
-        SUM(m.sessions) as sessions,
-        SUM(m.add_to_cart) as add_to_carts,
-        SUM(m.checkout_started) as checkouts,
-        SUM(m.purchase_completed) as purchases,
-        SUM(m.conversions) as conversions,
-        AVG(m.bounce_rate) as bounce_rate,
+        canonical_entity_id,
+        SUM(pageviews) as pageviews,
+        SUM(sessions) as sessions,
+        SUM(add_to_cart) as add_to_carts,
+        SUM(checkout_started) as checkouts,
+        SUM(purchase_completed) as purchases,
+        SUM(conversions) as conversions,
+        AVG(bounce_rate) as bounce_rate,
         -- Calculate step-by-step conversion rates
-        SAFE_DIVIDE(SUM(m.add_to_cart), SUM(m.pageviews)) * 100 as view_to_cart_rate,
-        SAFE_DIVIDE(SUM(m.checkout_started), SUM(m.add_to_cart)) * 100 as cart_to_checkout_rate,
-        SAFE_DIVIDE(SUM(m.purchase_completed), SUM(m.checkout_started)) * 100 as checkout_to_purchase_rate,
-        SAFE_DIVIDE(SUM(m.purchase_completed), SUM(m.pageviews)) * 100 as overall_cvr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      WHERE m.organization_id = @org_id
-        AND m.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND m.entity_type = 'page'
-        AND m.pageviews > 100
-      GROUP BY m.canonical_entity_id
+        SAFE_DIVIDE(SUM(add_to_cart), SUM(pageviews)) * 100 as view_to_cart_rate,
+        SAFE_DIVIDE(SUM(checkout_started), SUM(add_to_cart)) * 100 as cart_to_checkout_rate,
+        SAFE_DIVIDE(SUM(purchase_completed), SUM(checkout_started)) * 100 as checkout_to_purchase_rate,
+        SAFE_DIVIDE(SUM(purchase_completed), SUM(pageviews)) * 100 as overall_cvr
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        AND entity_type = 'page'
+        AND pageviews > 100
+      GROUP BY canonical_entity_id
     )
     SELECT * FROM funnel_performance
     WHERE (
