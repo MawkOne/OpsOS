@@ -108,7 +108,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
                 },
                 'hypothesis': f"If this page converted at site average, it would generate {sessions * (site_avg / 100):.0f} conversions vs current {row['total_conversions']}. Massive leverage opportunity.",
                 'confidence_score': 0.88,
-                'potential_impact_score': min(100, ((site_avg - cvr) / cvr) * sessions / 10),
+                'potential_impact_score': min(100, ((site_avg - cvr) / max(cvr, 0.01)) * sessions / 10),
                 'urgency_score': 75,
                 'recommended_actions': [
                     'A/B test new headline and value proposition',
