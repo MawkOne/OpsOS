@@ -11,17 +11,34 @@ from datetime import datetime
 import logging
 import uuid
 import os
+import sys
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_core_web_vitals_failing(organization_id: str) -> list:
-    """Detect pages with failing Core Web Vitals that need performance optimization"""
+def detect_core_web_vitals_failing(organization_id: str, priority_pages_only: bool = False) -> list:
+    """
+    Detect pages with failing Core Web Vitals that need performance optimization
+    
+    Args:
+        organization_id: Organization ID to analyze
+        priority_pages_only: If True, only analyze priority pages
+    """
     bq_client = bigquery.Client()
-    logger.info("🔍 Running Core Web Vitals Failing detector...")
+    logger.info(f"🔍 Running Core Web Vitals Failing detector (priority_pages_only={priority_pages_only})...")
     
     opportunities = []
+    
+    # Build priority pages filter
+    priority_filter = ""
+    if priority_pages_only:
+        priority_filter = f"AND {get_priority_pages_only_clause()}"
+        logger.info("Focusing analysis on priority pages only")
     
     # Core Web Vitals thresholds (Google's standards):
     # LCP: < 2.5s (good), 2.5-4s (needs improvement), > 4s (poor)
@@ -46,6 +63,7 @@ def detect_core_web_vitals_failing(organization_id: str) -> list:
         AND entity_type = 'page'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND core_web_vitals_lcp IS NOT NULL
+        {priority_filter}
     )
     SELECT 
       canonical_entity_id,
