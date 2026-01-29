@@ -157,9 +157,10 @@ def run_scout_ai(request):
     send_slack = request_json.get('sendSlackNotification', False)
     product_type = request_json.get('productType', None)
     
-    logger.info(f"🤖 Starting Scout AI for {organization_id}")
+    logger.info(f"🤖 Starting Scout AI v2 (Priority Pages) for {organization_id}")
     if product_type:
         logger.info(f"   Product type: {product_type}")
+    logger.info(f"   SEO detectors will ONLY analyze priority pages")
     
     try:
         all_opportunities = []
@@ -198,8 +199,11 @@ def run_scout_ai(request):
                     
                     # For SEO detectors, ONLY analyze priority pages
                     if category == 'seo' and supports_priority_filter:
-                        logger.info(f"   🎯 Filtering to priority pages only")
+                        logger.info(f"   🎯 PRIORITY PAGES FILTER ACTIVE for {detector_func.__name__}")
                         opportunities = detector_func(organization_id, priority_pages_only=True)
+                    elif category == 'seo':
+                        logger.info(f"   ⚠️  No priority filter support in {detector_func.__name__}")
+                        opportunities = detector_func(organization_id)
                     else:
                         opportunities = detector_func(organization_id)
                     
@@ -224,6 +228,9 @@ def run_scout_ai(request):
         category_counts = {}
         for category in enabled_categories:
             category_counts[category] = len([o for o in all_opportunities if o.get('category', '').startswith(category)])
+        
+        logger.info(f"📊 Breakdown by category: {category_counts}")
+        logger.info(f"   SEO opportunities: {category_counts.get('seo', 0)} (priority pages only)")
         
         return {
             'success': True,
