@@ -98,6 +98,17 @@ export default function PriorityPagesPage() {
           blogPagesInResponse: data._meta?.blogPages
         });
         
+        // Search for all possible blog-related paths
+        const allPages = data.pages || [];
+        const blogRelated = allPages.filter((p: any) => 
+          p.name.toLowerCase().includes('blog') || 
+          p.name.toLowerCase().includes('article') ||
+          p.name.toLowerCase().includes('post')
+        );
+        console.log(`[Priority Pages] Found ${blogRelated.length} pages with 'blog', 'article', or 'post' in URL:`, 
+          blogRelated.slice(0, 20).map((p: any) => p.name)
+        );
+        
         if (data.error) {
           throw new Error(data.error);
         }
