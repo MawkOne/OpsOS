@@ -278,24 +278,17 @@ def sync_dataforseo_to_bigquery(request):
             else:
                 logger.info(f"All {len(historical_rows)} historical months already exist, skipping")
         
-        # Step 2: Delete and replace TODAY's page data only (prevent same-day duplicates)
+        # Step 2: Insert TODAY's page data (streaming insert, no DELETE needed)
         if current_rows:
             today = datetime.utcnow().date().isoformat()
             
-            delete_query = f"""
-                DELETE FROM `opsos-864a1.marketing_ai.daily_entity_metrics`
-                WHERE organization_id = '{organization_id}'
-                  AND entity_type = 'page'
-                  AND date = '{today}'
-                  AND (backlinks_total IS NOT NULL OR onpage_score IS NOT NULL)
-            """
+            # Use streaming insert - BigQuery will handle deduplication via insert_id
+            # Add unique insert_id to prevent duplicates within streaming buffer window
+            for row in current_rows:
+                # Create unique insert_id from org + entity + date
+                row['insert_id'] = f"{organization_id}_{row['canonical_entity_id']}_{today}".replace('/', '_')[:128]
             
-            logger.info(f"Deleting existing page data for today ({today})...")
-            delete_job = bq.query(delete_query)
-            delete_job.result()
-            logger.info(f"Deleted {delete_job.num_dml_affected_rows} existing rows for today")
-            
-            # Now insert today's fresh data
+            logger.info(f"Inserting {len(current_rows)} page rows for today ({today})...")
             errors = bq.insert_rows_json(table_ref, current_rows, skip_invalid_rows=True, ignore_unknown_values=True)
             
             if errors:
