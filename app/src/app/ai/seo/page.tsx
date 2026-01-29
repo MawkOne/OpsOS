@@ -54,6 +54,10 @@ export default function SEOPage() {
         opp.title?.toLowerCase().includes('search')
       );
       
+      console.log('[SEO Page] Total SEO opportunities:', seoOpps.length);
+      console.log('[SEO Page] Entity IDs (first 10):', seoOpps.slice(0, 10).map(o => o.entity_id || 'no entity_id'));
+      console.log('[SEO Page] Categories:', [...new Set(seoOpps.map(o => o.category))]);
+      
       setOpportunities(seoOpps);
     } catch (error) {
       console.error("Error fetching opportunities:", error);
