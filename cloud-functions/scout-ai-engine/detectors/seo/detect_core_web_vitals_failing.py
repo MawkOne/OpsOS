@@ -24,7 +24,6 @@ def detect_core_web_vitals_failing(organization_id: str) -> list:
     logger.info(f"🔍 Running Core Web Vitals Failing detector...")
     
     opportunities = []
-        logger.info("Focusing analysis on priority pages only")
     
     # Core Web Vitals thresholds (Google's standards):
     # LCP: < 2.5s (good), 2.5-4s (needs improvement), > 4s (poor)
