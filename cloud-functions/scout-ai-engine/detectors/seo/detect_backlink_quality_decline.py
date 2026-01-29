@@ -11,17 +11,34 @@ from datetime import datetime
 import logging
 import uuid
 import os
+import sys
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_backlink_quality_decline(organization_id: str) -> list:
-    """Detect pages experiencing backlink loss or declining domain authority"""
+def detect_backlink_quality_decline(organization_id: str, priority_pages_only: bool = False) -> list:
+    """
+    Detect pages experiencing backlink loss or declining domain authority
+    
+    Args:
+        organization_id: Organization ID to analyze
+        priority_pages_only: If True, only analyze priority pages
+    """
     bq_client = bigquery.Client()
-    logger.info("🔍 Running Backlink Quality Decline detector...")
+    logger.info(f"🔍 Running Backlink Quality Decline detector (priority_pages_only={priority_pages_only})...")
     
     opportunities = []
+    
+    # Build priority pages filter
+    priority_filter = ""
+    if priority_pages_only:
+        priority_filter = f"AND {get_priority_pages_only_clause()}"
+        logger.info("Focusing analysis on priority pages only")
     
     query = f"""
     WITH backlink_trends AS (
@@ -41,6 +58,7 @@ def detect_backlink_quality_decline(organization_id: str) -> list:
         AND entity_type = 'page'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND backlinks_total IS NOT NULL
+        {priority_filter}
     ),
     latest_with_change AS (
       SELECT 

@@ -12,21 +12,37 @@ import json
 import uuid
 from datetime import datetime
 import logging
+import sys
+import os
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 
-def detect_seo_rank_drops(organization_id: str) -> list:
+def detect_seo_rank_drops(organization_id: str, priority_pages_only: bool = False) -> list:
     bq_client = bigquery.Client()
     """
     PHASE 2A #6: SEO Rank Drops
     Detect: Keywords with significant rank declines
+    
+    Args:
+        organization_id: Organization ID to analyze
+        priority_pages_only: If True, only analyze priority pages
     """
-    logger.info("🔍 Running SEO Rank Drops detector...")
+    logger.info(f"🔍 Running SEO Rank Drops detector (priority_pages_only={priority_pages_only})...")
     
     opportunities = []
+    
+    # Build priority pages filter
+    priority_filter = ""
+    if priority_pages_only:
+        priority_filter = f"AND {get_priority_pages_only_clause()}"
+        logger.info("Focusing analysis on priority pages only")
     
     query = f"""
     WITH recent_ranks AS (
