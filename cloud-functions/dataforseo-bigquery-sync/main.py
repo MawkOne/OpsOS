@@ -11,6 +11,7 @@ from google.cloud import firestore, bigquery
 from datetime import datetime, timedelta
 import logging
 import calendar
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -81,25 +82,25 @@ def sync_dataforseo_to_bigquery(request):
                     'canonical_entity_id': data.get('domain', 'domain'),
                     'entity_type': 'domain',
                     
-                    # Aggregate metrics from historical data
-                    'sessions': metrics.get('organicEtv', 0),  # Estimated traffic value as proxy
-                    'impressions': metrics.get('organicCount', 0),  # Keyword count
+                    # Aggregate metrics from historical data (convert to integer)
+                    'sessions': int(metrics.get('organicEtv', 0)),  # Estimated traffic value as proxy
+                    'impressions': int(metrics.get('organicCount', 0)),  # Keyword count
                     
                     # Position distribution (for trend analysis)
                     'seo_position': 15.0,  # Average position (rough estimate)
-                    'seo_search_volume': metrics.get('organicCount', 0),
+                    'seo_search_volume': int(metrics.get('organicCount', 0)),
                     
-                    # Store rank distribution in JSON for analysis
-                    'source_breakdown': {
-                        'pos1': rank_dist.get('pos1', 0),
-                        'pos2_3': rank_dist.get('pos2_3', 0),
-                        'pos4_10': rank_dist.get('pos4_10', 0),
-                        'pos11_20': rank_dist.get('pos11_20', 0),
-                        'pos21_30': rank_dist.get('pos21_30', 0),
-                        'top3_keywords': data.get('top3Keywords', 0),
-                        'top10_keywords': data.get('top10Keywords', 0),
-                        'total_keywords': data.get('totalKeywords', 0),
-                    },
+                    # Store rank distribution in JSON for analysis (as JSON string)
+                    'source_breakdown': json.dumps({
+                        'pos1': int(rank_dist.get('pos1', 0)),
+                        'pos2_3': int(rank_dist.get('pos2_3', 0)),
+                        'pos4_10': int(rank_dist.get('pos4_10', 0)),
+                        'pos11_20': int(rank_dist.get('pos11_20', 0)),
+                        'pos21_30': int(rank_dist.get('pos21_30', 0)),
+                        'top3_keywords': int(data.get('top3Keywords', 0)),
+                        'top10_keywords': int(data.get('top10Keywords', 0)),
+                        'total_keywords': int(data.get('totalKeywords', 0)),
+                    }),
                     
                     # Timestamps
                     'created_at': datetime.utcnow().isoformat(),
