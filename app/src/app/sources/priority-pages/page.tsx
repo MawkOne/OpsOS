@@ -113,6 +113,7 @@ export default function PriorityPagesPage() {
         pagesWithStats.sort((a, b) => b.totalPageviews - a.totalPageviews);
 
         console.log(`Loaded ${pagesWithStats.length} pages from Google Analytics`);
+        console.log('Sample page paths:', pagesWithStats.slice(0, 10).map(p => p.name));
         setPages(pagesWithStats);
       } catch (err: any) {
         console.error("Error fetching pages:", err);
@@ -303,9 +304,25 @@ export default function PriorityPagesPage() {
                 <Folder className="w-5 h-5" />
                 URL Prefix Patterns
               </h2>
-              <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Add URL prefixes to include all matching pages. Counts shown are from loaded pages only - the crawl will fetch all matching pages from your site.
-              </p>
+              <div>
+                <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+                  Add URL prefixes to include all matching pages. Counts shown are from loaded pages only - the crawl will fetch all matching pages from your site.
+                </p>
+                {pages.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="text-xs cursor-pointer" style={{ color: "var(--foreground-muted)" }}>
+                      View sample page paths to help identify prefixes
+                    </summary>
+                    <div className="mt-2 p-3 rounded-lg font-mono text-xs space-y-1" style={{ background: "var(--background-tertiary)", maxHeight: "200px", overflowY: "auto" }}>
+                      {pages.slice(0, 30).map((page, idx) => (
+                        <div key={idx} style={{ color: "var(--foreground-muted)" }}>
+                          {page.name}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
             </div>
           </div>
 
