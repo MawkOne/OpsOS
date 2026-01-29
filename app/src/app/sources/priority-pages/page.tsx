@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, setDoc, Timestamp } from "firebase/firestore";
+import AppLayout from "@/components/AppLayout";
 import { 
   Loader2, 
   Plus, 
@@ -192,7 +193,7 @@ export default function PriorityPagesPage() {
   };
 
   return (
-    <div className="min-h-screen p-8" style={{ background: "var(--background)" }}>
+    <AppLayout>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -402,6 +403,6 @@ export default function PriorityPagesPage() {
           )}
         </motion.div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
