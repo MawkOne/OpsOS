@@ -248,6 +248,7 @@ const getNavigationByModule = (oppCount: number, detectorStats?: { total: number
         { label: "Dashboard", href: "/sources", icon: <LayoutDashboard className="w-4 h-4" /> },
         { label: "Master Table", href: "/sources/master-table", icon: <Table className="w-4 h-4" /> },
         { label: "Entity Mapping", href: "/sources/entity-map", icon: <Link2 className="w-4 h-4" /> },
+        { label: "Priority Pages", href: "/sources/priority-pages", icon: <Target className="w-4 h-4" /> },
       ],
     },
     {
