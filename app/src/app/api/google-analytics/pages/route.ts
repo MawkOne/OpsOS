@@ -164,7 +164,21 @@ export async function GET(request: NextRequest) {
 
       if (allPagesResponse.ok) {
         const allPagesData = await allPagesResponse.json();
-        allPagePaths = (allPagesData.rows || []).map((row: any) => row.dimensionValues[0].value);
+        allPagePaths = (allPagesData.rows || []).map((row: any) => {
+          let pagePath = row.dimensionValues[0].value;
+          
+          // If it's a full URL, extract just the path
+          if (pagePath.startsWith('http://') || pagePath.startsWith('https://')) {
+            try {
+              const url = new URL(pagePath);
+              pagePath = url.pathname;
+            } catch (e) {
+              console.warn('Failed to parse URL:', pagePath);
+            }
+          }
+          
+          return pagePath;
+        });
         console.log(`Fetched ${allPagePaths.length} unique pages for the entire period`);
       }
     } catch (error) {
@@ -208,7 +222,18 @@ export async function GET(request: NextRequest) {
         // Process rows
         if (data.rows) {
           for (const row of data.rows) {
-            const pagePath = row.dimensionValues[0].value;
+            let pagePath = row.dimensionValues[0].value;
+            
+            // If it's a full URL, extract just the path
+            if (pagePath.startsWith('http://') || pagePath.startsWith('https://')) {
+              try {
+                const url = new URL(pagePath);
+                pagePath = url.pathname;
+              } catch (e) {
+                console.warn('Failed to parse URL:', pagePath);
+              }
+            }
+            
             const pageId = pagePath.toLowerCase().replace(/\//g, '_').replace(/[^a-z0-9_]/g, '') || 'homepage';
             
             if (!pageData[pageId]) {
