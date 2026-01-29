@@ -135,12 +135,13 @@ export async function GET(request: NextRequest) {
 
     // First, get all unique pages across the entire period (for prefix matching)
     // This single query gets the top N pages by total traffic
+    // Note: GA4 might return full URLs in pageLocation or paths in pagePath
     const allPagesRequestBody = {
       dateRanges: [{ 
         startDate: months[0].startDate, 
         endDate: months[months.length - 1].endDate 
       }],
-      dimensions: [{ name: 'pagePath' }],
+      dimensions: [{ name: 'pageLocation' }], // Use pageLocation which includes full URL
       metrics: [
         { name: 'screenPageViews' },
       ],
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
     for (const month of months) {
       const requestBody: any = {
         dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
-        dimensions: [{ name: 'pagePath' }],
+        dimensions: [{ name: 'pageLocation' }], // Use pageLocation to match the initial query
         metrics: [
           { name: 'screenPageViews' },
           { name: 'sessions' },
