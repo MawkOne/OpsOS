@@ -191,7 +191,18 @@ def run_scout_ai(request):
             for detector_func in detectors:
                 try:
                     logger.info(f"   Running {detector_func.__name__}...")
-                    opportunities = detector_func(organization_id)
+                    
+                    # Check if detector supports priority_pages_only parameter
+                    sig = inspect.signature(detector_func)
+                    supports_priority_filter = 'priority_pages_only' in sig.parameters
+                    
+                    # For SEO detectors, ONLY analyze priority pages
+                    if category == 'seo' and supports_priority_filter:
+                        logger.info(f"   🎯 Filtering to priority pages only")
+                        opportunities = detector_func(organization_id, priority_pages_only=True)
+                    else:
+                        opportunities = detector_func(organization_id)
+                    
                     all_opportunities.extend(opportunities)
                     if opportunities:
                         logger.info(f"   ✓ Found {len(opportunities)} opportunities")
