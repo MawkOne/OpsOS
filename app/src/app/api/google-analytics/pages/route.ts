@@ -187,6 +187,8 @@ export async function GET(request: NextRequest) {
         });
         console.log(`[GA Pages API] Fetched ${allPagePaths.length} unique pages for the entire period`);
         console.log(`[GA Pages API] First 5 parsed paths:`, allPagePaths.slice(0, 5));
+        console.log(`[GA Pages API] Pages starting with /blog:`, allPagePaths.filter(p => p.startsWith('/blog')).length);
+        console.log(`[GA Pages API] Sample /blog pages:`, allPagePaths.filter(p => p.startsWith('/blog')).slice(0, 10));
       } else {
         console.error(`[GA Pages API] Failed to fetch all pages:`, await allPagesResponse.text());
       }
@@ -209,6 +211,9 @@ export async function GET(request: NextRequest) {
     console.log(`[GA Pages API] Initialized ${Object.keys(pageData).length} pages`);
     
     // Now fetch month-by-month data for these specific pages
+    // Note: We can't filter by specific pages (too many), so we fetch top N per month
+    // But we already initialized pageData with all pages from the initial query
+    // This fills in monthly metrics for pages that appeared in top N each month
     for (const month of months) {
       const requestBody: any = {
         dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
@@ -221,6 +226,8 @@ export async function GET(request: NextRequest) {
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
         limit: Math.min(limit, 10000), // GA has a max of 10k per query
       };
+      
+      console.log(`[GA Pages API] Fetching monthly data for ${month.key} (limit: ${Math.min(limit, 10000)})`);
 
       try {
         const response = await fetch(

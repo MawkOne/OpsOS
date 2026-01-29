@@ -109,37 +109,51 @@ export async function POST(request: NextRequest) {
       // If we have prefixes, expand them into actual URLs by fetching from Google Analytics
       if (priorityPrefixes.length > 0) {
         try {
-          console.log(`Expanding ${priorityPrefixes.length} URL prefixes to actual pages...`);
+          console.log(`[DataForSEO Sync] Expanding ${priorityPrefixes.length} URL prefixes:`, priorityPrefixes);
           
           // Fetch all pages from Google Analytics (up to 1000)
-          const gaResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/google-analytics/pages?organizationId=${organizationId}&viewMode=ttm&limit=1000`,
-            { headers: { 'Content-Type': 'application/json' } }
-          );
+          const gaUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/google-analytics/pages?organizationId=${organizationId}&viewMode=ttm&limit=1000`;
+          console.log(`[DataForSEO Sync] Fetching GA pages from: ${gaUrl}`);
+          
+          const gaResponse = await fetch(gaUrl, { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
           
           if (gaResponse.ok) {
             const gaData = await gaResponse.json();
             const allPages = gaData.pages || [];
+            
+            console.log(`[DataForSEO Sync] GA API returned ${allPages.length} total pages`);
+            console.log(`[DataForSEO Sync] GA API version:`, gaData._meta?.version);
+            console.log(`[DataForSEO Sync] First 5 page names:`, allPages.slice(0, 5).map((p: any) => p.name));
             
             // Filter pages that match any prefix
             const matchingPages = allPages.filter((page: any) => 
               priorityPrefixes.some((prefix: string) => page.name.startsWith(prefix))
             );
             
+            console.log(`[DataForSEO Sync] Pages matching prefixes:`, matchingPages.length);
+            console.log(`[DataForSEO Sync] Matching page samples:`, matchingPages.slice(0, 10).map((p: any) => p.name));
+            
             // Convert to full URLs
             const prefixUrls = matchingPages.map((page: any) => 
               targetUrl + page.name
             );
             
-            console.log(`Expanded prefixes to ${prefixUrls.length} URLs`);
+            console.log(`[DataForSEO Sync] Expanded prefixes to ${prefixUrls.length} URLs`);
+            console.log(`[DataForSEO Sync] First 5 full URLs:`, prefixUrls.slice(0, 5));
             
             // Merge with existing priority URLs (deduplicate)
             priorityUrls = [...new Set([...priorityUrls, ...prefixUrls])];
+            
+            console.log(`[DataForSEO Sync] Total priority URLs after merge: ${priorityUrls.length}`);
           } else {
+            const errorText = await gaResponse.text();
+            console.error(`[DataForSEO Sync] GA API failed with status ${gaResponse.status}:`, errorText);
             console.warn('Failed to fetch GA pages for prefix expansion, using prefixes as-is');
           }
         } catch (err) {
-          console.error('Error expanding URL prefixes:', err);
+          console.error('[DataForSEO Sync] Error expanding URL prefixes:', err);
         }
       }
       

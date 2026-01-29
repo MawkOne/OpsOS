@@ -368,7 +368,14 @@ export default function PriorityPagesPage() {
 
           {/* Prefix List */}
           {priorityPrefixes.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="text-xs px-3 py-2 rounded" style={{ 
+                background: "rgba(59, 130, 246, 0.05)", 
+                color: "var(--foreground-secondary)",
+                border: "1px solid rgba(59, 130, 246, 0.1)"
+              }}>
+                💡 <strong>Note:</strong> Counts below show pages currently loaded in this view. The actual crawl will include <strong>all matching pages</strong> from your site (up to 1,000 pages per prefix).
+              </div>
               {priorityPrefixes.map((prefix, index) => (
                 <motion.div
                   key={prefix}
@@ -388,10 +395,13 @@ export default function PriorityPagesPage() {
                       color: "#3b82f6" 
                     }}>
                       {(() => {
-                        const matchingCount = pages.filter(p => p.name.startsWith(prefix)).length;
-                        console.log(`Prefix "${prefix}" matches ${matchingCount} pages out of ${pages.length} total`);
+                        const matchingPages = pages.filter(p => p.name.startsWith(prefix));
+                        const matchingCount = matchingPages.length;
+                        console.log(`[Priority Pages] Prefix "${prefix}" matches ${matchingCount} pages out of ${pages.length} total`);
+                        console.log(`[Priority Pages] Matching pages:`, matchingPages.slice(0, 5).map(p => p.name));
+                        console.log(`[Priority Pages] All pages sample:`, pages.slice(0, 10).map(p => p.name));
                         return matchingCount;
-                      })()} pages
+                      })()} pages loaded
                     </span>
                   </div>
                   <button
