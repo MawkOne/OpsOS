@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
         try {
           console.log(`[DataForSEO Sync] Expanding ${priorityPrefixes.length} URL prefixes:`, priorityPrefixes);
           
-          // Fetch all pages from Google Analytics (up to 1000)
-          const gaUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/google-analytics/pages?organizationId=${organizationId}&viewMode=ttm&limit=1000`;
+          // Fetch all pages from Google Analytics (up to 10000 - GA's max)
+          const gaUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/google-analytics/pages?organizationId=${organizationId}&viewMode=ttm&limit=10000`;
           console.log(`[DataForSEO Sync] Fetching GA pages from: ${gaUrl}`);
           
           const gaResponse = await fetch(gaUrl, { 

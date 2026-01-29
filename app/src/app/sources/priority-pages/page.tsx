@@ -81,7 +81,7 @@ export default function PriorityPagesPage() {
 
       try {
         const response = await fetch(
-          `/api/google-analytics/pages?organizationId=${currentOrg.id}&viewMode=ttm&limit=1000`
+          `/api/google-analytics/pages?organizationId=${currentOrg.id}&viewMode=ttm&limit=10000`
         );
 
         if (!response.ok) {
@@ -507,7 +507,10 @@ export default function PriorityPagesPage() {
                     <option value={100}>100</option>
                     <option value={200}>200</option>
                     <option value={500}>500</option>
-                    <option value={1000}>1000</option>
+                    <option value={1000}>1,000</option>
+                    <option value={2500}>2,500</option>
+                    <option value={5000}>5,000</option>
+                    <option value={10000}>10,000 (max)</option>
                   </select>
                 </div>
               </div>
