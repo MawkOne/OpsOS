@@ -133,6 +133,45 @@ export async function GET(request: NextRequest) {
     const propertyId = connection.selectedPropertyId.replace('properties/', '');
     const pageData: Record<string, Record<string, any>> = {};
 
+    // First, get all unique pages across the entire period (for prefix matching)
+    // This single query gets the top N pages by total traffic
+    const allPagesRequestBody = {
+      dateRanges: [{ 
+        startDate: months[0].startDate, 
+        endDate: months[months.length - 1].endDate 
+      }],
+      dimensions: [{ name: 'pagePath' }],
+      metrics: [
+        { name: 'screenPageViews' },
+      ],
+      orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+      limit: limit, // This gets top N pages across entire period
+    };
+
+    let allPagePaths: string[] = [];
+    try {
+      const allPagesResponse = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(allPagesRequestBody),
+        }
+      );
+
+      if (allPagesResponse.ok) {
+        const allPagesData = await allPagesResponse.json();
+        allPagePaths = (allPagesData.rows || []).map((row: any) => row.dimensionValues[0].value);
+        console.log(`Fetched ${allPagePaths.length} unique pages for the entire period`);
+      }
+    } catch (error) {
+      console.error('Error fetching all pages:', error);
+    }
+
+    // Now fetch month-by-month data for these specific pages
     for (const month of months) {
       const requestBody: any = {
         dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
@@ -143,7 +182,7 @@ export async function GET(request: NextRequest) {
           { name: 'averageSessionDuration' },
         ],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: limit,
+        limit: Math.min(limit, 10000), // GA has a max of 10k per query
       };
 
       try {

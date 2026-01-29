@@ -112,6 +112,7 @@ export default function PriorityPagesPage() {
         // Sort by total pageviews descending
         pagesWithStats.sort((a, b) => b.totalPageviews - a.totalPageviews);
 
+        console.log(`Loaded ${pagesWithStats.length} pages from Google Analytics`);
         setPages(pagesWithStats);
       } catch (err: any) {
         console.error("Error fetching pages:", err);
@@ -303,7 +304,7 @@ export default function PriorityPagesPage() {
                 URL Prefix Patterns
               </h2>
               <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Add URL prefixes to include all matching pages (e.g., /blog, /forum, /products)
+                Add URL prefixes to include all matching pages. Counts shown are from loaded pages only - the crawl will fetch all matching pages from your site.
               </p>
             </div>
           </div>
@@ -361,7 +362,11 @@ export default function PriorityPagesPage() {
                       background: "rgba(59, 130, 246, 0.1)", 
                       color: "#3b82f6" 
                     }}>
-                      {pages.filter(p => p.name.startsWith(prefix)).length} pages
+                      {(() => {
+                        const matchingCount = pages.filter(p => p.name.startsWith(prefix)).length;
+                        console.log(`Prefix "${prefix}" matches ${matchingCount} pages out of ${pages.length} total`);
+                        return matchingCount;
+                      })()} pages
                     </span>
                   </div>
                   <button
@@ -409,10 +414,10 @@ export default function PriorityPagesPage() {
                 <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
                   {searchTerm ? (
                     <>
-                      {pages.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length} matching pages
+                      {pages.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length} matching pages (of {pages.length} loaded)
                     </>
                   ) : (
-                    <>Sorted by total traffic</>
+                    <>Sorted by total traffic • {pages.length} pages loaded</>
                   )}
                 </p>
               </div>
