@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Target,
   Search,
+  Folder,
+  XCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -39,10 +41,12 @@ export default function PriorityPagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<PageWithStats[]>([]);
   const [priorityUrls, setPriorityUrls] = useState<string[]>([]);
+  const [priorityPrefixes, setPriorityPrefixes] = useState<string[]>([]);
   const [domain, setDomain] = useState<string>("");
   const [pageLimit, setPageLimit] = useState(200);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [newPrefix, setNewPrefix] = useState("");
 
   // Load priority URLs and domain from Firestore
   useEffect(() => {
@@ -54,6 +58,9 @@ export default function PriorityPagesPage() {
         const data = docSnap.data();
         if (data.priorityUrls) {
           setPriorityUrls(data.priorityUrls);
+        }
+        if (data.priorityPrefixes) {
+          setPriorityPrefixes(data.priorityPrefixes);
         }
         if (data.domain) {
           setDomain(data.domain);
@@ -191,7 +198,72 @@ export default function PriorityPagesPage() {
     const fullUrl = domain.startsWith("http") 
       ? `${domain}${pagePath}`
       : `https://${domain}${pagePath}`;
-    return priorityUrls.includes(fullUrl);
+    
+    // Check if exact URL is in priority list
+    if (priorityUrls.includes(fullUrl)) return true;
+    
+    // Check if page path matches any prefix
+    return priorityPrefixes.some(prefix => pagePath.startsWith(prefix));
+  };
+
+  const handleAddPrefix = async () => {
+    if (!currentOrg?.id || !newPrefix.trim()) return;
+    
+    // Validate prefix starts with /
+    let prefix = newPrefix.trim();
+    if (!prefix.startsWith('/')) {
+      prefix = '/' + prefix;
+    }
+    
+    // Check if prefix already exists
+    if (priorityPrefixes.includes(prefix)) {
+      setError("This prefix is already in the list");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    
+    const updatedPrefixes = [...priorityPrefixes, prefix];
+    setPriorityPrefixes(updatedPrefixes);
+    setNewPrefix("");
+    
+    // Save to Firestore
+    setSaving(true);
+    try {
+      const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
+      await setDoc(connectionRef, {
+        priorityPrefixes: updatedPrefixes,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error saving priority prefix:", err);
+      setError("Failed to save priority prefix");
+      setPriorityPrefixes(priorityPrefixes);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemovePrefix = async (prefixToRemove: string) => {
+    if (!currentOrg?.id) return;
+    
+    const updatedPrefixes = priorityPrefixes.filter(prefix => prefix !== prefixToRemove);
+    setPriorityPrefixes(updatedPrefixes);
+    
+    // Save to Firestore
+    setSaving(true);
+    try {
+      const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
+      await setDoc(connectionRef, {
+        priorityPrefixes: updatedPrefixes,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error saving priority prefixes:", err);
+      setError("Failed to remove priority prefix");
+      setPriorityPrefixes([...priorityPrefixes, prefixToRemove]);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -216,6 +288,96 @@ export default function PriorityPagesPage() {
           </motion.div>
         )}
 
+        {/* URL Prefix Patterns */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-2xl p-6 mb-6"
+          style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <Folder className="w-5 h-5" />
+                URL Prefix Patterns
+              </h2>
+              <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Add URL prefixes to include all matching pages (e.g., /blog, /forum, /products)
+              </p>
+            </div>
+          </div>
+
+          {/* Add Prefix Input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newPrefix}
+              onChange={(e) => setNewPrefix(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAddPrefix();
+                }
+              }}
+              placeholder="/blog"
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50"
+              style={{
+                background: "var(--background-tertiary)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground)",
+              }}
+            />
+            <button
+              onClick={handleAddPrefix}
+              disabled={!newPrefix.trim() || saving}
+              className="px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ 
+                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                color: "white"
+              }}
+            >
+              Add Prefix
+            </button>
+          </div>
+
+          {/* Prefix List */}
+          {priorityPrefixes.length > 0 && (
+            <div className="space-y-2">
+              {priorityPrefixes.map((prefix, index) => (
+                <motion.div
+                  key={prefix}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="flex items-center justify-between p-3 rounded-lg"
+                  style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Folder className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                    <code className="text-sm font-mono" style={{ color: "var(--foreground)" }}>
+                      {prefix}
+                    </code>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ 
+                      background: "rgba(59, 130, 246, 0.1)", 
+                      color: "#3b82f6" 
+                    }}>
+                      {pages.filter(p => p.name.startsWith(prefix)).length} pages
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleRemovePrefix(prefix)}
+                    disabled={saving}
+                    className="p-1.5 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    title="Remove"
+                  >
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
         {/* All Pages Table */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -232,7 +394,7 @@ export default function PriorityPagesPage() {
                   <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
                     All Pages (Trailing 12 Months)
                   </h2>
-                  {priorityUrls.length > 0 && (
+                  {(priorityUrls.length > 0 || priorityPrefixes.length > 0) && (
                     <span 
                       className="text-sm font-medium px-3 py-1 rounded-full" 
                       style={{ 
@@ -240,7 +402,7 @@ export default function PriorityPagesPage() {
                         color: "#22c55e"
                       }}
                     >
-                      {priorityUrls.length} priority {priorityUrls.length === 1 ? 'page' : 'pages'}
+                      {pages.filter(p => isPriorityPage(p.name)).length} priority {pages.filter(p => isPriorityPage(p.name)).length === 1 ? 'page' : 'pages'}
                     </span>
                   )}
                 </div>
