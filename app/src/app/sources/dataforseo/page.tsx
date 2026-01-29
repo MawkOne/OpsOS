@@ -337,7 +337,7 @@ export default function DataForSEOPage() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // Sync to BigQuery
+      // Sync to BigQuery via Cloud Function
       setSyncAllProgress({
         current: "Syncing to BigQuery",
         completed: actions.map(a => a.name),
@@ -345,7 +345,7 @@ export default function DataForSEOPage() {
       });
 
       try {
-        const response = await fetch("/api/dataforseo/sync-to-bigquery", {
+        const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/dataforseo-bigquery-sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -354,8 +354,12 @@ export default function DataForSEOPage() {
           }),
         });
 
+        const data = await response.json();
+        
         if (!response.ok) {
-          console.error("BigQuery sync failed");
+          console.error("BigQuery sync failed:", data);
+        } else {
+          console.log("BigQuery sync success:", data);
         }
       } catch (err) {
         console.error("BigQuery sync error:", err);
