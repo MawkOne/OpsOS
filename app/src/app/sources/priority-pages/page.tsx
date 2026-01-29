@@ -429,11 +429,48 @@ export default function PriorityPagesPage() {
           )}
         </motion.div>
 
+        {/* Priority Summary Info Box */}
+        {(priorityUrls.length > 0 || priorityPrefixes.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-xl p-4"
+            style={{ 
+              background: "rgba(34, 197, 94, 0.05)",
+              border: "1px solid rgba(34, 197, 94, 0.2)"
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">✓</div>
+              <div className="flex-1">
+                <h3 className="font-semibold mb-1" style={{ color: "#22c55e" }}>
+                  Priority Crawl Configuration
+                </h3>
+                <p className="text-sm mb-2" style={{ color: "var(--foreground-secondary)" }}>
+                  The next DataForSEO crawl will prioritize:
+                </p>
+                <ul className="text-sm space-y-1" style={{ color: "var(--foreground-secondary)" }}>
+                  {priorityUrls.length > 0 && (
+                    <li>• <strong>{priorityUrls.length}</strong> individually selected page{priorityUrls.length !== 1 ? 's' : ''}</li>
+                  )}
+                  {priorityPrefixes.length > 0 && (
+                    <li>• <strong>All pages</strong> matching {priorityPrefixes.length} prefix{priorityPrefixes.length !== 1 ? 'es' : ''}: {priorityPrefixes.map(p => `"${p}"`).join(', ')}</li>
+                  )}
+                  <li className="mt-2 opacity-75">
+                    = Total of <strong>up to {priorityUrls.length + (priorityPrefixes.length > 0 ? 10000 : 0)}</strong> priority URLs will be sent to DataForSEO
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* All Pages Table */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.15 }}
           className="rounded-2xl overflow-hidden"
           style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
         >
@@ -446,15 +483,23 @@ export default function PriorityPagesPage() {
                     All Pages (Trailing 12 Months)
                   </h2>
                   {(priorityUrls.length > 0 || priorityPrefixes.length > 0) && (
-                    <span 
-                      className="text-sm font-medium px-3 py-1 rounded-full" 
-                      style={{ 
-                        background: "rgba(34, 197, 94, 0.1)",
-                        color: "#22c55e"
-                      }}
-                    >
-                      {pages.filter(p => isPriorityPage(p.name)).length} priority {pages.filter(p => isPriorityPage(p.name)).length === 1 ? 'page' : 'pages'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="text-sm font-medium px-3 py-1 rounded-full" 
+                        style={{ 
+                          background: "rgba(34, 197, 94, 0.1)",
+                          color: "#22c55e"
+                        }}
+                        title={`${priorityUrls.length} individually selected + ${pages.filter(p => priorityPrefixes.some(prefix => p.name.startsWith(prefix))).length} from prefixes (in loaded pages)`}
+                      >
+                        {pages.filter(p => isPriorityPage(p.name)).length} priority {pages.filter(p => isPriorityPage(p.name)).length === 1 ? 'page' : 'pages'}
+                      </span>
+                      {priorityUrls.length > 0 && priorityPrefixes.length > 0 && (
+                        <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                          ({priorityUrls.length} individual + prefixes)
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>

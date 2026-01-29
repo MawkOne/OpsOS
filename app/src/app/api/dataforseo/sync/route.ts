@@ -106,6 +106,11 @@ export async function POST(request: NextRequest) {
       let priorityUrls = connection.priorityUrls || [];
       const priorityPrefixes = connection.priorityPrefixes || [];
       
+      console.log(`[DataForSEO Sync] Starting with ${priorityUrls.length} individually selected pages`);
+      if (priorityUrls.length > 0) {
+        console.log(`[DataForSEO Sync] First 5 individually selected URLs:`, priorityUrls.slice(0, 5));
+      }
+      
       // If we have prefixes, expand them into actual URLs by fetching from Google Analytics
       if (priorityPrefixes.length > 0) {
         try {
@@ -144,9 +149,14 @@ export async function POST(request: NextRequest) {
             console.log(`[DataForSEO Sync] First 5 full URLs:`, prefixUrls.slice(0, 5));
             
             // Merge with existing priority URLs (deduplicate)
+            const individualCount = priorityUrls.length;
+            const prefixCount = prefixUrls.length;
             priorityUrls = [...new Set([...priorityUrls, ...prefixUrls])];
             
-            console.log(`[DataForSEO Sync] Total priority URLs after merge: ${priorityUrls.length}`);
+            console.log(`[DataForSEO Sync] Merged priority URLs:`);
+            console.log(`  - Individual pages: ${individualCount}`);
+            console.log(`  - Prefix-matched pages: ${prefixCount}`);
+            console.log(`  - Total after dedup: ${priorityUrls.length}`);
           } else {
             const errorText = await gaResponse.text();
             console.error(`[DataForSEO Sync] GA API failed with status ${gaResponse.status}:`, errorText);
@@ -155,9 +165,17 @@ export async function POST(request: NextRequest) {
         } catch (err) {
           console.error('[DataForSEO Sync] Error expanding URL prefixes:', err);
         }
+      } else if (priorityUrls.length > 0) {
+        console.log(`[DataForSEO Sync] No prefixes to expand, using ${priorityUrls.length} individually selected pages only`);
       }
       
       const hasPriorityUrls = priorityUrls.length > 0;
+      
+      if (hasPriorityUrls) {
+        console.log(`[DataForSEO Sync] Sending ${priorityUrls.length} priority URLs to DataForSEO`);
+      } else {
+        console.log(`[DataForSEO Sync] No priority URLs configured, DataForSEO will crawl entire site`);
+      }
       
       // Adjust crawl strategy based on priority URLs
       // If we have priority URLs, focus on quality over quantity
