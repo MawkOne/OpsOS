@@ -193,20 +193,11 @@ export default function PriorityPagesPage() {
   };
 
   return (
-    <AppLayout>
+    <AppLayout 
+      title="Priority Pages"
+      subtitle="Select your most important pages for deeper SEO analysis. Click the + icon to add, or the target icon to remove."
+    >
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Target className="w-8 h-8" style={{ color: "var(--primary)" }} />
-            <h1 className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>
-              Priority Pages
-            </h1>
-          </div>
-          <p className="text-lg" style={{ color: "var(--foreground-muted)" }}>
-            Select your most important pages for deeper SEO analysis. Click the + icon to add, or the target icon to remove.
-          </p>
-        </div>
 
         {/* Error Alert */}
         {error && (
