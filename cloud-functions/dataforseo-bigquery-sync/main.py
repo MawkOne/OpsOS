@@ -38,33 +38,34 @@ def sync_dataforseo_to_bigquery(request):
     organization_id = request_json['organizationId']
     backfill_history = request_json.get('backfillHistory', True)  # Default to True
     
-    # Get priority pages configuration from Firestore
-    priority_urls = []
-    priority_prefixes = []
-    try:
-        connection_doc = db.collection('dataforseo_connections').document(organization_id).get()
-        if connection_doc.exists:
-            connection_data = connection_doc.to_dict()
-            priority_urls = connection_data.get('priorityUrls', [])
-            priority_prefixes = connection_data.get('priorityPrefixes', [])
-            logger.info(f"Loaded {len(priority_urls)} priority URLs and {len(priority_prefixes)} priority prefixes")
-    except Exception as e:
-        logger.warning(f"Could not load priority pages config: {e}")
-    
-    def is_priority_page(url):
-        """Check if a URL matches priority criteria"""
-        if url in priority_urls:
-            return True
-        for prefix in priority_prefixes:
-            if prefix in url:  # Check if prefix is in URL
-                return True
-        return False
-    
     logger.info(f"Starting DataForSEO sync for org: {organization_id} (backfill: {backfill_history})")
     
     try:
+        # Initialize clients first
         db = firestore.Client()
         bq = bigquery.Client()
+        
+        # Get priority pages configuration from Firestore
+        priority_urls = []
+        priority_prefixes = []
+        try:
+            connection_doc = db.collection('dataforseo_connections').document(organization_id).get()
+            if connection_doc.exists:
+                connection_data = connection_doc.to_dict()
+                priority_urls = connection_data.get('priorityUrls', [])
+                priority_prefixes = connection_data.get('priorityPrefixes', [])
+                logger.info(f"✓ Loaded {len(priority_urls)} priority URLs and {len(priority_prefixes)} priority prefixes")
+        except Exception as e:
+            logger.warning(f"Could not load priority pages config: {e}")
+        
+        def is_priority_page(url):
+            """Check if a URL matches priority criteria"""
+            if url in priority_urls:
+                return True
+            for prefix in priority_prefixes:
+                if prefix in url:  # Check if prefix is in URL
+                    return True
+            return False
         
         results = {
             'pagesProcessed': 0,
