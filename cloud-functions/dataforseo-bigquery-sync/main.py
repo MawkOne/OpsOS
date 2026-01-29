@@ -218,6 +218,29 @@ def sync_dataforseo_to_bigquery(request):
             dataset = bq.dataset('marketing_ai')
             table = dataset.table('daily_entity_metrics')
             
+            # Delete existing rows for the dates we're about to insert (prevent duplicates)
+            unique_dates = set(row['date'] for row in all_rows)
+            dates_list = ','.join(f"'{date}'" for date in unique_dates)
+            
+            delete_query = f"""
+                DELETE FROM `opsos-864a1.marketing_ai.daily_entity_metrics`
+                WHERE organization_id = '{organization_id}'
+                  AND date IN ({dates_list})
+                  AND (
+                    entity_type = 'domain'
+                    OR (entity_type = 'page' AND (
+                      backlinks_total IS NOT NULL 
+                      OR onpage_score IS NOT NULL
+                    ))
+                  )
+            """
+            
+            logger.info(f"Deleting existing rows for {len(unique_dates)} dates before insert...")
+            delete_job = bq.query(delete_query)
+            delete_job.result()  # Wait for completion
+            logger.info(f"Deleted {delete_job.num_dml_affected_rows} existing rows")
+            
+            # Now insert the new data
             errors = bq.insert_rows_json(table, all_rows, skip_invalid_rows=True, ignore_unknown_values=True)
             
             if errors:
