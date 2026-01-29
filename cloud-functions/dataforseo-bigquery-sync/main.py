@@ -3,17 +3,20 @@ DataForSEO to BigQuery Sync Cloud Function
 
 Syncs DataForSEO data from Firestore to BigQuery daily_entity_metrics table
 This bridges the gap between DataForSEO API data and detector queries
+
+NEW: Backfills historical rank data from dataforseo_rank_history collection
 """
 import functions_framework
 from google.cloud import firestore, bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import calendar
 
 logger = logging.getLogger(__name__)
 
 @functions_framework.http
 def sync_dataforseo_to_bigquery(request):
-    """Sync DataForSEO data from Firestore to BigQuery"""
+    """Sync DataForSEO data from Firestore to BigQuery with historical backfill"""
     
     # Parse request
     request_json = request.get_json(silent=True)
@@ -21,8 +24,9 @@ def sync_dataforseo_to_bigquery(request):
         return {'error': 'Missing organizationId'}, 400
     
     organization_id = request_json['organizationId']
+    backfill_history = request_json.get('backfillHistory', True)  # Default to True
     
-    logger.info(f"Starting DataForSEO sync for org: {organization_id}")
+    logger.info(f"Starting DataForSEO sync for org: {organization_id} (backfill: {backfill_history})")
     
     try:
         db = firestore.Client()
@@ -32,18 +36,79 @@ def sync_dataforseo_to_bigquery(request):
             'pagesProcessed': 0,
             'keywordsProcessed': 0,
             'backlinksProcessed': 0,
+            'historicalMonthsProcessed': 0,
             'rowsInserted': 0,
         }
         
-        # 1. Fetch DataForSEO pages from Firestore
+        # 1. Fetch historical rank data for backfill
+        historical_rows = []
+        if backfill_history:
+            logger.info("Fetching historical rank data...")
+            history_ref = db.collection('dataforseo_rank_history').where('organizationId', '==', organization_id)
+            history_docs = history_ref.stream()
+            
+            for doc in history_docs:
+                data = doc.to_dict()
+                
+                # Get date from year-month
+                year = data.get('year')
+                month = data.get('month')
+                if not year or not month:
+                    continue
+                
+                # Use the last day of the month for consistency
+                last_day = calendar.monthrange(year, month)[1]
+                date_str = f"{year}-{str(month).zfill(2)}-{str(last_day).zfill(2)}"
+                
+                metrics = data.get('metrics', {})
+                rank_dist = data.get('rankDistribution', {})
+                
+                # Create a synthetic "domain" entity with monthly aggregated metrics
+                row = {
+                    'organization_id': organization_id,
+                    'date': date_str,
+                    'canonical_entity_id': data.get('domain', 'domain'),
+                    'entity_type': 'domain',
+                    
+                    # Aggregate metrics from historical data
+                    'sessions': metrics.get('organicEtv', 0),  # Estimated traffic value as proxy
+                    'impressions': metrics.get('organicCount', 0),  # Keyword count
+                    
+                    # Position distribution (for trend analysis)
+                    'seo_position': 15.0,  # Average position (rough estimate)
+                    'seo_search_volume': metrics.get('organicCount', 0),
+                    
+                    # Store rank distribution in JSON for analysis
+                    'source_breakdown': {
+                        'pos1': rank_dist.get('pos1', 0),
+                        'pos2_3': rank_dist.get('pos2_3', 0),
+                        'pos4_10': rank_dist.get('pos4_10', 0),
+                        'pos11_20': rank_dist.get('pos11_20', 0),
+                        'pos21_30': rank_dist.get('pos21_30', 0),
+                        'top3_keywords': data.get('top3Keywords', 0),
+                        'top10_keywords': data.get('top10Keywords', 0),
+                        'total_keywords': data.get('totalKeywords', 0),
+                    },
+                    
+                    # Timestamps
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat(),
+                }
+                
+                historical_rows.append(row)
+                results['historicalMonthsProcessed'] += 1
+            
+            logger.info(f"Prepared {len(historical_rows)} historical rows")
+        
+        # 2. Fetch DataForSEO pages from Firestore (current snapshot)
         pages_ref = db.collection('dataforseo_pages').where('organizationId', '==', organization_id)
         pages_docs = pages_ref.stream()
         
-        # 2. Fetch keywords
+        # 3. Fetch keywords (current snapshot)
         keywords_ref = db.collection('dataforseo_keywords').where('organizationId', '==', organization_id)
         keywords_docs = keywords_ref.stream()
         
-        # 3. Fetch backlinks
+        # 4. Fetch backlinks (current snapshot)
         backlinks_ref = db.collection('dataforseo_backlinks').where('organizationId', '==', organization_id)
         backlinks_docs = backlinks_ref.stream()
         
@@ -75,8 +140,8 @@ def sync_dataforseo_to_bigquery(request):
         
         logger.info(f"Loaded {results['pagesProcessed']} pages, {results['keywordsProcessed']} keywords, {results['backlinksProcessed']} backlinks")
         
-        # Prepare rows for BigQuery
-        rows = []
+        # Prepare current snapshot rows for BigQuery
+        current_rows = []
         today = datetime.utcnow().date().isoformat()
         
         for url, page_data in pages_by_url.items():
@@ -131,14 +196,17 @@ def sync_dataforseo_to_bigquery(request):
                 'updated_at': datetime.utcnow().isoformat(),
             }
             
-            rows.append(row)
+            current_rows.append(row)
+        
+        # Combine historical + current rows
+        all_rows = historical_rows + current_rows
         
         # Insert into BigQuery
-        if rows:
+        if all_rows:
             dataset = bq.dataset('marketing_ai')
             table = dataset.table('daily_entity_metrics')
             
-            errors = bq.insert_rows_json(table, rows, skip_invalid_rows=True, ignore_unknown_values=True)
+            errors = bq.insert_rows_json(table, all_rows, skip_invalid_rows=True, ignore_unknown_values=True)
             
             if errors:
                 logger.error(f"BigQuery insert errors: {errors}")
@@ -149,18 +217,20 @@ def sync_dataforseo_to_bigquery(request):
                     **results
                 }, 500
             
-            results['rowsInserted'] = len(rows)
+            results['rowsInserted'] = len(all_rows)
         
-        logger.info(f"✅ Sync complete: {results['rowsInserted']} rows inserted")
+        logger.info(f"✅ Sync complete: {results['rowsInserted']} rows inserted ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)")
         
         return {
             'success': True,
             **results,
-            'message': f"Synced {results['rowsInserted']} rows to BigQuery"
+            'message': f"Synced {results['rowsInserted']} rows to BigQuery ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)"
         }, 200
         
     except Exception as e:
         logger.error(f"❌ Sync failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             'success': False,
             'error': str(e)

@@ -89,6 +89,11 @@ export default function DataForSEOPage() {
     pagesInQueue: number;
     maxPages: number;
   } | null>(null);
+  const [syncAllProgress, setSyncAllProgress] = useState<{
+    current: string;
+    completed: string[];
+    total: number;
+  } | null>(null);
 
   // Listen for connection status changes
   useEffect(() => {
@@ -273,6 +278,107 @@ export default function DataForSEOPage() {
   }, [currentOrg?.id]);
 
   const handleStartCrawl = useCallback(() => handleSync("start_crawl"), [handleSync]);
+
+  const handleSyncAll = useCallback(async () => {
+    if (!currentOrg?.id) {
+      setError("No organization selected");
+      return;
+    }
+
+    setIsSyncing(true);
+    setError(null);
+    
+    const actions = [
+      { name: "Keywords", action: "sync_keywords" },
+      { name: "Backlinks", action: "sync_backlinks" },
+      { name: "Historical Rankings", action: "sync_historical_serps" },
+      { name: "Page Health Crawl", action: "start_crawl" },
+    ];
+
+    setSyncAllProgress({
+      current: actions[0].name,
+      completed: [],
+      total: actions.length + 1, // +1 for BigQuery sync
+    });
+
+    try {
+      // Run all DataForSEO syncs sequentially
+      for (let i = 0; i < actions.length; i++) {
+        const { name, action } = actions[i];
+        
+        setSyncAllProgress({
+          current: name,
+          completed: actions.slice(0, i).map(a => a.name),
+          total: actions.length + 1,
+        });
+
+        try {
+          const response = await fetch("/api/dataforseo/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              organizationId: currentOrg.id,
+              action,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            console.error(`${name} sync failed:`, data.error);
+            // Continue with other syncs even if one fails
+          }
+        } catch (err) {
+          console.error(`${name} sync error:`, err);
+          // Continue with other syncs
+        }
+
+        // Small delay between syncs
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Sync to BigQuery
+      setSyncAllProgress({
+        current: "Syncing to BigQuery",
+        completed: actions.map(a => a.name),
+        total: actions.length + 1,
+      });
+
+      try {
+        const response = await fetch("/api/dataforseo/sync-to-bigquery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId: currentOrg.id,
+            backfillHistory: true,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error("BigQuery sync failed");
+        }
+      } catch (err) {
+        console.error("BigQuery sync error:", err);
+      }
+
+      // Complete
+      setSyncAllProgress({
+        current: "Complete",
+        completed: [...actions.map(a => a.name), "BigQuery Sync"],
+        total: actions.length + 1,
+      });
+
+      // Clear progress after 3 seconds
+      setTimeout(() => {
+        setSyncAllProgress(null);
+      }, 3000);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [currentOrg?.id]);
 
   const checkCrawlStatus = useCallback(async () => {
     if (!currentOrg?.id) return;
@@ -493,6 +599,76 @@ export default function DataForSEOPage() {
             <p className="text-sm mb-4" style={{ color: "var(--foreground-muted)" }}>
               SEO data updates weekly. Sync manually when you need fresh data.
             </p>
+            
+            {/* Unified Sync All Button */}
+            <div className="mb-6">
+              <button
+                onClick={handleSyncAll}
+                disabled={isSyncing}
+                className="w-full px-6 py-4 rounded-xl font-semibold text-white transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
+                style={{ 
+                  background: isSyncing 
+                    ? "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)" 
+                    : "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+                  boxShadow: "0 4px 20px rgba(37, 99, 235, 0.3)"
+                }}
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Syncing All Data...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" />
+                    Sync All Data Now
+                  </>
+                )}
+              </button>
+
+              {/* Sync All Progress */}
+              {syncAllProgress && (
+                <div className="mt-4 p-4 rounded-xl" style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      {syncAllProgress.current}
+                    </span>
+                    <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      {syncAllProgress.completed.length} / {syncAllProgress.total}
+                    </span>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full h-2 rounded-full mb-3" style={{ background: "var(--background-secondary)" }}>
+                    <div
+                      className="h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${(syncAllProgress.completed.length / syncAllProgress.total) * 100}%`,
+                        background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 100%)",
+                      }}
+                    />
+                  </div>
+
+                  {/* Completed steps */}
+                  {syncAllProgress.completed.length > 0 && (
+                    <div className="space-y-1">
+                      {syncAllProgress.completed.map((step, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <p className="text-xs text-center" style={{ color: "var(--foreground-muted)" }}>
+                Or sync individual data sources below
+              </p>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Keywords Sync */}

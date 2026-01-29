@@ -83,7 +83,7 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE (
       ABS(mom_position_change) > 5  -- 5+ position change
       OR rank_trend IN ('Accelerating Decline', 'Declining', 'Accelerating Improvement')

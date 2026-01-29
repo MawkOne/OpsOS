@@ -29,36 +29,31 @@ def detect_keyword_cannibalization(organization_id: str) -> list:
     opportunities = []
     
     query = f"""
-    WITH keyword_page_mapping AS (
+    WITH keyword_data AS (
       SELECT 
-        canonical_entity_id as keyword_id,
-        canonical_entity_id as page_id,
+        canonical_entity_id,
         AVG(position) as avg_position,
-        SUM(sessions) as total_sessions
+        COUNT(DISTINCT canonical_entity_id) as page_count,
+        SUM(sessions) as total_sessions,
+        AVG(search_volume) as search_volume
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      INNER JOIN `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        ON organization_id = organization_id
-        AND date = date
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'keyword'
-        AND entity_type = 'page'
-      GROUP BY keyword_id, page_id
-    ),
-    cannibalization_cases AS (
-      SELECT 
-        keyword_id,
-        COUNT(DISTINCT page_id) as competing_pages,
-        AVG(avg_position) as avg_position,
-        SUM(total_sessions) as total_sessions
-      FROM keyword_page_mapping
-      GROUP BY keyword_id
-      HAVING COUNT(DISTINCT page_id) > 1  -- Multiple pages
-        AND AVG(avg_position) > 10  -- Not ranking great
+        AND position IS NOT NULL
+      GROUP BY canonical_entity_id
     )
-    SELECT *
-    FROM cannibalization_cases
-    ORDER BY competing_pages DESC, avg_position DESC
+    SELECT 
+      canonical_entity_id as keyword_id,
+      page_count as competing_pages,
+      avg_position,
+      total_sessions,
+      search_volume
+    FROM keyword_data
+    WHERE page_count > 1  -- Multiple pages competing
+      AND avg_position > 10  -- Not ranking well
+      AND search_volume > 100  -- Has meaningful volume
+    ORDER BY competing_pages DESC, search_volume DESC
     LIMIT 10
     """
     

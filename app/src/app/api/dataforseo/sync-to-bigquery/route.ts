@@ -14,22 +14,82 @@ const bq = new BigQuery({ projectId: 'opsos-864a1' });
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId } = await request.json();
+    const { organizationId, backfillHistory = true } = await request.json();
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
     }
 
-    console.log('Syncing DataForSEO data to BigQuery for org:', organizationId);
+    console.log('Syncing DataForSEO data to BigQuery for org:', organizationId, '(backfill:', backfillHistory, ')');
 
     const results = {
       pagesProcessed: 0,
       keywordsProcessed: 0,
       backlinksProcessed: 0,
+      historicalMonthsProcessed: 0,
       rowsInserted: 0,
     };
 
-    // 1. Fetch DataForSEO pages data from Firestore
+    // 1. Fetch historical rank data for backfill (if enabled)
+    const historicalRows: any[] = [];
+    
+    if (backfillHistory) {
+      console.log('Fetching historical rank data...');
+      const historyQuery = query(
+        collection(db, 'dataforseo_rank_history'),
+        where('organizationId', '==', organizationId)
+      );
+      const historySnap = await getDocs(historyQuery);
+      
+      historySnap.forEach(doc => {
+        const data = doc.data();
+        const year = data.year;
+        const month = data.month;
+        
+        if (!year || !month) return;
+        
+        // Use last day of month
+        const lastDay = new Date(year, month, 0).getDate();
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        
+        const metrics = data.metrics || {};
+        const rankDist = data.rankDistribution || {};
+        
+        historicalRows.push({
+          organization_id: organizationId,
+          date: dateStr,
+          canonical_entity_id: data.domain || 'domain',
+          entity_type: 'domain',
+          
+          // Aggregate metrics
+          sessions: metrics.organicEtv || 0,
+          impressions: metrics.organicCount || 0,
+          seo_position: 15.0, // Rough average
+          seo_search_volume: metrics.organicCount || 0,
+          
+          // Store distribution in JSON
+          source_breakdown: {
+            pos1: rankDist.pos1 || 0,
+            pos2_3: rankDist.pos2_3 || 0,
+            pos4_10: rankDist.pos4_10 || 0,
+            pos11_20: rankDist.pos11_20 || 0,
+            pos21_30: rankDist.pos21_30 || 0,
+            top3_keywords: data.top3Keywords || 0,
+            top10_keywords: data.top10Keywords || 0,
+            total_keywords: data.totalKeywords || 0,
+          },
+          
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        
+        results.historicalMonthsProcessed++;
+      });
+      
+      console.log(`Prepared ${historicalRows.length} historical rows`);
+    }
+
+    // 2. Fetch DataForSEO pages data from Firestore (current snapshot)
     const pagesQuery = query(
       collection(db, 'dataforseo_pages'),
       where('organizationId', '==', organizationId)
@@ -144,23 +204,28 @@ export async function POST(request: NextRequest) {
       rows.push(row);
     }
 
+    // Combine historical + current rows
+    const allRows = [...historicalRows, ...rows];
+
     // Insert into BigQuery
-    if (rows.length > 0) {
+    if (allRows.length > 0) {
       const dataset = bq.dataset('marketing_ai');
       const table = dataset.table('daily_entity_metrics');
       
-      await table.insert(rows, {
+      await table.insert(allRows, {
         skipInvalidRows: true,
         ignoreUnknownValues: true,
       });
 
-      results.rowsInserted = rows.length;
+      results.rowsInserted = allRows.length;
     }
+
+    console.log(`✅ Sync complete: ${results.rowsInserted} rows (${results.historicalMonthsProcessed} historical + ${rows.length} current)`);
 
     return NextResponse.json({
       success: true,
       ...results,
-      message: `Synced ${results.rowsInserted} rows to BigQuery`,
+      message: `Synced ${results.rowsInserted} rows to BigQuery (${results.historicalMonthsProcessed} historical + ${rows.length} current)`,
     });
 
   } catch (error) {

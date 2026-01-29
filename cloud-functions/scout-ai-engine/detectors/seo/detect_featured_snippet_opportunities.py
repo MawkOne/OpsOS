@@ -10,11 +10,11 @@ def detect_featured_snippet_opportunities(organization_id: str) -> list:
     logger.info("🔍 Running 'featured_snippet_opportunities' detector...")
     opportunities = []
     query = f"""
-    SELECT canonical_entity_id AVG(position) as avg_position, SUM(impressions) as impressions
+    SELECT canonical_entity_id, AVG(position) as avg_position, SUM(impressions) as impressions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
     WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
       AND entity_type = 'seo_keyword' AND impressions > 100
-    GROUP BY canonical_entity_id, entity_name
+    GROUP BY canonical_entity_id
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])
