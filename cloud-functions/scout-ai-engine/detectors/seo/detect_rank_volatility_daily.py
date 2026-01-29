@@ -11,21 +11,17 @@ from datetime import datetime
 import logging
 import uuid
 import os
-from ..utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_rank_volatility_daily(organization_id: str, priority_pages_only: bool = False) -> list:
+def detect_rank_volatility_daily(organization_id: str) -> list:
     """Detect keywords with high ranking volatility that need stability investigation"""
     bq_client = bigquery.Client()
     logger.info("🔍 Running Rank Volatility Daily detector...")
     
     opportunities = []
-    
-    # Get priority filter if needed
-    priority_filter = get_priority_pages_only_clause(priority_pages_only)
     
     query = f"""
     WITH daily_positions AS (
@@ -44,7 +40,6 @@ def detect_rank_volatility_daily(organization_id: str, priority_pages_only: bool
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
         AND seo_position IS NOT NULL
         AND seo_search_volume > 100  -- Focus on keywords with meaningful volume
-        {priority_filter}
     ),
     volatility_stats AS (
       SELECT 

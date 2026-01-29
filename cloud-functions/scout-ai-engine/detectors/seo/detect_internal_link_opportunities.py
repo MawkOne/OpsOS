@@ -11,34 +11,19 @@ from datetime import datetime
 import logging
 import uuid
 import os
-import sys
-
-# Add parent directory to path to import utils
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_internal_link_opportunities(organization_id: str, priority_pages_only: bool = False) -> list:
+def detect_internal_link_opportunities(organization_id: str) -> list:
     """
     Detect pages with broken links or internal linking opportunities
-    
-    Args:
-        organization_id: Organization ID to analyze
-        priority_pages_only: If True, only analyze priority pages
     """
     bq_client = bigquery.Client()
-    logger.info(f"🔍 Running Internal Link Opportunities detector (priority_pages_only={priority_pages_only})...")
+    logger.info(f"🔍 Running Internal Link Opportunities detector...")
     
     opportunities = []
-    
-    # Build priority pages filter
-    priority_filter = ""
-    if priority_pages_only:
-        priority_filter = f"AND {get_priority_pages_only_clause()}"
-        logger.info("Focusing analysis on priority pages only")
     
     query = f"""
     WITH latest_links AS (
@@ -57,7 +42,6 @@ def detect_internal_link_opportunities(organization_id: str, priority_pages_only
         AND entity_type = 'page'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND broken_links_count IS NOT NULL
-        {priority_filter}
     )
     SELECT 
       canonical_entity_id,
