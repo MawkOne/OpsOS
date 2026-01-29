@@ -210,56 +210,78 @@ def sync_dataforseo_to_bigquery(request):
             
             current_rows.append(row)
         
-        # Combine historical + current rows
-        all_rows = historical_rows + current_rows
+        # Prepare for BigQuery insert
+        dataset = bq.dataset('marketing_ai')
+        table_ref = dataset.table('daily_entity_metrics')
         
-        # Insert into BigQuery
-        if all_rows:
-            dataset = bq.dataset('marketing_ai')
-            table = dataset.table('daily_entity_metrics')
+        # Step 1: Insert historical rows (skip if already exist to preserve history)
+        if historical_rows:
+            logger.info(f"Checking for existing historical data...")
             
-            # Delete existing rows for the dates we're about to insert (prevent duplicates)
-            unique_dates = set(row['date'] for row in all_rows)
-            dates_list = ','.join(f"'{date}'" for date in unique_dates)
+            # Get dates that already exist to avoid duplicates
+            historical_dates = set(row['date'] for row in historical_rows)
+            dates_list = ','.join(f"'{date}'" for date in historical_dates)
+            
+            check_query = f"""
+                SELECT DISTINCT date
+                FROM `opsos-864a1.marketing_ai.daily_entity_metrics`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type = 'domain'
+                  AND date IN ({dates_list})
+            """
+            
+            existing_dates = set()
+            query_job = bq.query(check_query)
+            for row in query_job.result():
+                existing_dates.add(row.date.isoformat())
+            
+            # Only insert historical rows that don't already exist
+            new_historical_rows = [row for row in historical_rows if row['date'] not in existing_dates]
+            
+            if new_historical_rows:
+                logger.info(f"Inserting {len(new_historical_rows)} new historical rows (skipping {len(historical_rows) - len(new_historical_rows)} existing)")
+                errors = bq.insert_rows_json(table_ref, new_historical_rows, skip_invalid_rows=True, ignore_unknown_values=True)
+                if errors:
+                    logger.warning(f"Some historical rows failed: {errors[:3]}")
+                else:
+                    results['rowsInserted'] += len(new_historical_rows)
+            else:
+                logger.info(f"All {len(historical_rows)} historical months already exist, skipping")
+        
+        # Step 2: Delete and replace TODAY's page data only (prevent same-day duplicates)
+        if current_rows:
+            today = datetime.utcnow().date().isoformat()
             
             delete_query = f"""
                 DELETE FROM `opsos-864a1.marketing_ai.daily_entity_metrics`
                 WHERE organization_id = '{organization_id}'
-                  AND date IN ({dates_list})
-                  AND (
-                    entity_type = 'domain'
-                    OR (entity_type = 'page' AND (
-                      backlinks_total IS NOT NULL 
-                      OR onpage_score IS NOT NULL
-                    ))
-                  )
+                  AND entity_type = 'page'
+                  AND date = '{today}'
+                  AND (backlinks_total IS NOT NULL OR onpage_score IS NOT NULL)
             """
             
-            logger.info(f"Deleting existing rows for {len(unique_dates)} dates before insert...")
+            logger.info(f"Deleting existing page data for today ({today})...")
             delete_job = bq.query(delete_query)
-            delete_job.result()  # Wait for completion
-            logger.info(f"Deleted {delete_job.num_dml_affected_rows} existing rows")
+            delete_job.result()
+            logger.info(f"Deleted {delete_job.num_dml_affected_rows} existing rows for today")
             
-            # Now insert the new data
-            errors = bq.insert_rows_json(table, all_rows, skip_invalid_rows=True, ignore_unknown_values=True)
+            # Now insert today's fresh data
+            errors = bq.insert_rows_json(table_ref, current_rows, skip_invalid_rows=True, ignore_unknown_values=True)
             
             if errors:
-                logger.error(f"BigQuery insert errors: {errors}")
-                return ({
-                    'success': False,
-                    'error': 'Some rows failed to insert',
-                    'errors': errors[:5],  # First 5 errors
-                    **results
-                }, 500, headers)
+                logger.warning(f"Some current page rows failed: {errors[:3]}")
+                # Continue even if some rows fail
             
-            results['rowsInserted'] = len(all_rows)
+            results['rowsInserted'] += len(current_rows)
         
-        logger.info(f"✅ Sync complete: {results['rowsInserted']} rows inserted ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)")
+        historical_inserted = results['rowsInserted'] - len(current_rows) if current_rows else results['rowsInserted']
+        
+        logger.info(f"✅ Sync complete: {results['rowsInserted']} rows inserted ({historical_inserted} new historical + {len(current_rows) if current_rows else 0} current)")
         
         return ({
             'success': True,
             **results,
-            'message': f"Synced {results['rowsInserted']} rows to BigQuery ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)"
+            'message': f"Synced {results['rowsInserted']} rows to BigQuery ({historical_inserted} new historical + {len(current_rows) if current_rows else 0} current)"
         }, 200, headers)
         
     except Exception as e:
