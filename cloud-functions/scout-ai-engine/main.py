@@ -202,8 +202,14 @@ def run_scout_ai(request):
                         logger.info(f"   🎯 PRIORITY PAGES FILTER ACTIVE for {detector_func.__name__}")
                         opportunities = detector_func(organization_id, priority_pages_only=True)
                     elif category == 'seo':
-                        logger.info(f"   ⚠️  No priority filter support in {detector_func.__name__}")
-                        opportunities = detector_func(organization_id)
+                        # Skip keyword-based detectors (they don't support page filtering)
+                        detector_name = detector_func.__name__
+                        if any(keyword_indicator in detector_name.lower() for keyword_indicator in ['keyword', 'striking', 'rank_trends', 'rank_drops', 'featured_snippet']):
+                            logger.info(f"   ⏭️  Skipping keyword detector {detector_name} (not applicable to priority pages)")
+                            opportunities = []
+                        else:
+                            logger.info(f"   ⚠️  No priority filter support in {detector_name} - running on all pages")
+                            opportunities = detector_func(organization_id)
                     else:
                         opportunities = detector_func(organization_id)
                     

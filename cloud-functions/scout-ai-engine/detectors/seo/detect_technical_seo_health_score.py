@@ -11,17 +11,21 @@ from datetime import datetime
 import logging
 import uuid
 import os
+from ..utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_technical_seo_health_score(organization_id: str) -> list:
+def detect_technical_seo_health_score(organization_id: str, priority_pages_only: bool = False) -> list:
     """Detect pages with low technical SEO health scores needing fixes"""
     bq_client = bigquery.Client()
     logger.info("🔍 Running Technical SEO Health Score detector...")
     
     opportunities = []
+    
+    # Get priority filter if needed
+    priority_filter = get_priority_pages_only_clause(priority_pages_only)
     
     query = f"""
     WITH latest_health AS (
@@ -43,6 +47,7 @@ def detect_technical_seo_health_score(organization_id: str) -> list:
         AND entity_type = 'page'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND onpage_score IS NOT NULL
+        {priority_filter}
     )
     SELECT 
       canonical_entity_id,

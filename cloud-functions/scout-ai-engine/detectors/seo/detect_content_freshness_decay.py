@@ -11,17 +11,21 @@ from datetime import datetime
 import logging
 import uuid
 import os
+from ..utils.priority_pages import get_priority_pages_only_clause
 
 logger = logging.getLogger(__name__)
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1')
 DATASET_ID = 'marketing_ai'
 
-def detect_content_freshness_decay(organization_id: str) -> list:
+def detect_content_freshness_decay(organization_id: str, priority_pages_only: bool = False) -> list:
     """Detect pages with old content that may benefit from updates"""
     bq_client = bigquery.Client()
     logger.info("🔍 Running Content Freshness Decay detector...")
     
     opportunities = []
+    
+    # Get priority filter if needed
+    priority_filter = get_priority_pages_only_clause(priority_pages_only)
     
     query = f"""
     WITH page_trends AS (
@@ -44,6 +48,7 @@ def detect_content_freshness_decay(organization_id: str) -> list:
       WHERE organization_id = @org_id
         AND entity_type = 'page'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
+        {priority_filter}
       GROUP BY canonical_entity_id
     )
     SELECT 
