@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
   const viewMode = searchParams.get('viewMode') || 'ttm';
   const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
   const limit = parseInt(searchParams.get('limit') || '50');
+  
+  console.log('[GA Pages API v2] Request params:', { organizationId, viewMode, year, limit });
 
   if (!organizationId) {
     return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
@@ -286,10 +288,22 @@ export async function GET(request: NextRequest) {
     console.log(`[GA Pages API] Returning ${result.length} pages to client`);
     console.log(`[GA Pages API] Pages with /blog prefix:`, result.filter((p: any) => p.name.startsWith('/blog')).length);
 
-    return NextResponse.json({
-      pages: result,
-      months: months.map(m => m.key),
-    });
+    return NextResponse.json(
+      {
+        pages: result,
+        months: months.map(m => m.key),
+        _meta: {
+          version: 'v2-pageLocation',
+          totalPages: result.length,
+          blogPages: result.filter((p: any) => p.name.startsWith('/blog')).length,
+        }
+      },
+      {
+        headers: {
+          'X-API-Version': 'v2-pageLocation',
+        }
+      }
+    );
 
   } catch (error) {
     console.error('Error fetching pages:', error);

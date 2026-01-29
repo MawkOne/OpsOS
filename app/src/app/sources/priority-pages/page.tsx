@@ -93,7 +93,9 @@ export default function PriorityPagesPage() {
         console.log('[Priority Pages] API response:', { 
           pageCount: data.pages?.length, 
           error: data.error,
-          samplePaths: data.pages?.slice(0, 5).map((p: any) => p.name)
+          samplePaths: data.pages?.slice(0, 5).map((p: any) => p.name),
+          apiVersion: data._meta?.version,
+          blogPagesInResponse: data._meta?.blogPages
         });
         
         if (data.error) {
