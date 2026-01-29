@@ -173,13 +173,24 @@ def sync_dataforseo_to_bigquery(request):
             backlinks_by_url[url_to]['domains'].add(data.get('domainFrom', ''))
             results['backlinksProcessed'] += 1
         
-        logger.info(f"Loaded {results['pagesProcessed']} pages, {results['keywordsProcessed']} keywords, {results['backlinksProcessed']} backlinks")
+        has_priority_config = bool(priority_urls or priority_prefixes)
+        logger.info(f"Loaded {results['pagesProcessed']} pages from DataForSEO, {results['keywordsProcessed']} keywords, {results['backlinksProcessed']} backlinks")
+        if has_priority_config:
+            logger.info(f"🎯 Priority filtering ACTIVE: Will only sync pages matching {len(priority_urls)} URLs + {len(priority_prefixes)} prefixes")
         
         # Prepare current snapshot rows for BigQuery
         current_rows = []
         today = datetime.utcnow().date().isoformat()
         
         for url, page_data in pages_by_url.items():
+            # Check if this is a priority page - SKIP if not
+            is_priority = is_priority_page(url)
+            
+            # If priority pages are configured, ONLY sync priority pages
+            if (priority_urls or priority_prefixes) and not is_priority:
+                logger.debug(f"Skipping non-priority page: {url}")
+                continue
+            
             keywords = keywords_by_url.get(url, [])
             backlinks_data = backlinks_by_url.get(url, {'total': 0, 'domains': set()})
             
@@ -196,9 +207,6 @@ def sync_dataforseo_to_bigquery(request):
             # Get page timings
             page_timings = page_data.get('pageTimings', {})
             checks = page_data.get('checks', {})
-            
-            # Check if this is a priority page
-            is_priority = is_priority_page(url)
             
             row = {
                 'organization_id': organization_id,
@@ -288,7 +296,11 @@ def sync_dataforseo_to_bigquery(request):
                 # Create unique insert_id from org + entity + date
                 row['insert_id'] = f"{organization_id}_{row['canonical_entity_id']}_{today}".replace('/', '_')[:128]
             
-            logger.info(f"Inserting {len(current_rows)} page rows for today ({today})...")
+            pages_synced = len(current_rows)
+            pages_skipped = results['pagesProcessed'] - pages_synced
+            logger.info(f"Inserting {pages_synced} priority page rows for today ({today})...")
+            if pages_skipped > 0:
+                logger.info(f"  ↳ Skipped {pages_skipped} non-priority pages")
             errors = bq.insert_rows_json(table_ref, current_rows, skip_invalid_rows=True, ignore_unknown_values=True)
             
             if errors:
