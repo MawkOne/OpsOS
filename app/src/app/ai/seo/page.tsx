@@ -20,6 +20,7 @@ interface Opportunity {
   urgency_score: number;
   recommended_actions: string[];
   entity_type: string;
+  entity_id?: string;
   category: string;
   detector_name?: string;
 }
@@ -55,8 +56,8 @@ export default function SEOPage() {
       );
       
       console.log('[SEO Page] Total SEO opportunities:', seoOpps.length);
-      console.log('[SEO Page] Entity IDs (first 10):', seoOpps.slice(0, 10).map(o => o.entity_id || 'no entity_id'));
-      console.log('[SEO Page] Categories:', [...new Set(seoOpps.map(o => o.category))]);
+      console.log('[SEO Page] Entity IDs (first 10):', seoOpps.slice(0, 10).map((o: Opportunity) => o.entity_id || 'no entity_id'));
+      console.log('[SEO Page] Categories:', [...new Set(seoOpps.map((o: Opportunity) => o.category))]);
       
       setOpportunities(seoOpps);
     } catch (error) {
