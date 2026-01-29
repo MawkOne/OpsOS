@@ -94,8 +94,6 @@ export default function DataForSEOPage() {
     completed: string[];
     total: number;
   } | null>(null);
-  const [priorityUrls, setPriorityUrls] = useState<string[]>([]);
-  const [newPriorityUrl, setNewPriorityUrl] = useState("");
 
   // Listen for connection status changes
   useEffect(() => {
@@ -126,9 +124,6 @@ export default function DataForSEOPage() {
         });
         if (data.domain) {
           setDomain(data.domain);
-        }
-        if (data.priorityUrls) {
-          setPriorityUrls(data.priorityUrls);
         }
       } else {
         setConnectionStatus({ status: "disconnected" });
@@ -424,50 +419,6 @@ export default function DataForSEOPage() {
     }
   }, [currentOrg?.id]);
 
-  const handleAddPriorityUrl = async () => {
-    if (!currentOrg?.id || !newPriorityUrl.trim()) return;
-    
-    // Validate URL
-    try {
-      const url = new URL(newPriorityUrl);
-      
-      // Check if URL already exists
-      if (priorityUrls.includes(newPriorityUrl)) {
-        setError("This URL is already in the priority list");
-        return;
-      }
-      
-      const updatedUrls = [...priorityUrls, newPriorityUrl];
-      setPriorityUrls(updatedUrls);
-      setNewPriorityUrl("");
-      setError(null);
-      
-      // Save to Firestore
-      const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
-      await setDoc(connectionRef, {
-        priorityUrls: updatedUrls,
-        updatedAt: Timestamp.now(),
-      }, { merge: true });
-      
-    } catch (err) {
-      setError("Please enter a valid absolute URL (e.g., https://example.com/page)");
-    }
-  };
-
-  const handleRemovePriorityUrl = async (urlToRemove: string) => {
-    if (!currentOrg?.id) return;
-    
-    const updatedUrls = priorityUrls.filter(url => url !== urlToRemove);
-    setPriorityUrls(updatedUrls);
-    
-    // Save to Firestore
-    const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
-    await setDoc(connectionRef, {
-      priorityUrls: updatedUrls,
-      updatedAt: Timestamp.now(),
-    }, { merge: true });
-  };
-
   const isConnected = connectionStatus.status === "connected" || connectionStatus.status === "crawling" || connectionStatus.status === "syncing";
 
   return (
@@ -637,101 +588,6 @@ export default function DataForSEOPage() {
           )}
         </motion.div>
 
-        {/* Priority Pages Section */}
-        {isConnected && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="rounded-2xl p-6 mb-6"
-            style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                  Priority Pages
-                </h2>
-                <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                  These pages will be crawled first with deeper analysis.
-                </p>
-              </div>
-              {priorityUrls.length > 0 && (
-                <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ 
-                  background: "rgba(37, 99, 235, 0.1)",
-                  color: "#2563eb"
-                }}>
-                  {priorityUrls.length} {priorityUrls.length === 1 ? 'page' : 'pages'}
-                </span>
-              )}
-            </div>
-
-            {/* Add Priority URL */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="url"
-                value={newPriorityUrl}
-                onChange={(e) => setNewPriorityUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleAddPriorityUrl();
-                  }
-                }}
-                placeholder="https://example.com/important-page"
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50"
-                style={{
-                  background: "var(--background-tertiary)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
-              <button
-                onClick={handleAddPriorityUrl}
-                disabled={!newPriorityUrl.trim()}
-                className="px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ 
-                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                  color: "white"
-                }}
-              >
-                Add
-              </button>
-            </div>
-
-            {/* Priority URLs List */}
-            {priorityUrls.length > 0 ? (
-              <div className="space-y-2">
-                {priorityUrls.map((url, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg"
-                    style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: "var(--foreground-muted)" }} />
-                      <span className="text-sm truncate" style={{ color: "var(--foreground)" }}>
-                        {url}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleRemovePriorityUrl(url)}
-                      className="ml-3 p-1.5 rounded hover:bg-red-500/10 transition-colors"
-                      title="Remove"
-                    >
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
-                <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No priority pages added yet</p>
-                <p className="text-xs mt-1">Add your most important pages for detailed analysis</p>
-              </div>
-            )}
-          </motion.div>
-        )}
-
         {/* Manual Sync Section */}
         {isConnected && (
           <motion.div
@@ -748,15 +604,6 @@ export default function DataForSEOPage() {
               <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
                 SEO data updates weekly. Sync manually when you need fresh data.
               </p>
-              {priorityUrls.length > 0 && (
-                <div className="mt-2 p-2 rounded-lg flex items-start gap-2" style={{ background: "rgba(37, 99, 235, 0.1)", border: "1px solid rgba(37, 99, 235, 0.2)" }}>
-                  <Zap className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs" style={{ color: "var(--foreground)" }}>
-                    <strong>{priorityUrls.length} priority pages</strong> will be crawled first with deeper analysis. 
-                    Crawl limit adjusted to 100 pages for better quality.
-                  </p>
-                </div>
-              )}
             </div>
             
             {/* Unified Sync All Button */}
