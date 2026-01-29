@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
   const organizationId = searchParams.get('organizationId');
   const viewMode = searchParams.get('viewMode') || 'ttm';
   const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
+  const limit = parseInt(searchParams.get('limit') || '50');
 
   if (!organizationId) {
     return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
@@ -142,7 +143,7 @@ export async function GET(request: NextRequest) {
           { name: 'averageSessionDuration' },
         ],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: 50, // Top 50 pages
+        limit: limit,
       };
 
       try {

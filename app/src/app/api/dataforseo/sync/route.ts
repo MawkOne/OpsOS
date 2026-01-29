@@ -102,8 +102,47 @@ export async function POST(request: NextRequest) {
       // Start a new On-Page task with improved settings
       const targetUrl = domain.startsWith("http") ? domain : `https://${domain}`;
       
-      // Get priority URLs if configured
-      const priorityUrls = connection.priorityUrls || [];
+      // Get priority URLs and prefixes
+      let priorityUrls = connection.priorityUrls || [];
+      const priorityPrefixes = connection.priorityPrefixes || [];
+      
+      // If we have prefixes, expand them into actual URLs by fetching from Google Analytics
+      if (priorityPrefixes.length > 0) {
+        try {
+          console.log(`Expanding ${priorityPrefixes.length} URL prefixes to actual pages...`);
+          
+          // Fetch all pages from Google Analytics (up to 1000)
+          const gaResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/google-analytics/pages?organizationId=${organizationId}&viewMode=ttm&limit=1000`,
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+          
+          if (gaResponse.ok) {
+            const gaData = await gaResponse.json();
+            const allPages = gaData.pages || [];
+            
+            // Filter pages that match any prefix
+            const matchingPages = allPages.filter((page: any) => 
+              priorityPrefixes.some((prefix: string) => page.name.startsWith(prefix))
+            );
+            
+            // Convert to full URLs
+            const prefixUrls = matchingPages.map((page: any) => 
+              targetUrl + page.name
+            );
+            
+            console.log(`Expanded prefixes to ${prefixUrls.length} URLs`);
+            
+            // Merge with existing priority URLs (deduplicate)
+            priorityUrls = [...new Set([...priorityUrls, ...prefixUrls])];
+          } else {
+            console.warn('Failed to fetch GA pages for prefix expansion, using prefixes as-is');
+          }
+        } catch (err) {
+          console.error('Error expanding URL prefixes:', err);
+        }
+      }
+      
       const hasPriorityUrls = priorityUrls.length > 0;
       
       // Adjust crawl strategy based on priority URLs
