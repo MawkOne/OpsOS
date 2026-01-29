@@ -90,6 +90,12 @@ export default function PriorityPagesPage() {
 
         const data = await response.json();
         
+        console.log('[Priority Pages] API response:', { 
+          pageCount: data.pages?.length, 
+          error: data.error,
+          samplePaths: data.pages?.slice(0, 5).map((p: any) => p.name)
+        });
+        
         if (data.error) {
           throw new Error(data.error);
         }

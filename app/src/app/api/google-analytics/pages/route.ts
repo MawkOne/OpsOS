@@ -165,6 +165,9 @@ export async function GET(request: NextRequest) {
 
       if (allPagesResponse.ok) {
         const allPagesData = await allPagesResponse.json();
+        console.log(`[GA Pages API] Raw response has ${(allPagesData.rows || []).length} rows`);
+        console.log(`[GA Pages API] First 3 raw values:`, (allPagesData.rows || []).slice(0, 3).map((r: any) => r.dimensionValues[0].value));
+        
         allPagePaths = (allPagesData.rows || []).map((row: any) => {
           let pagePath = row.dimensionValues[0].value;
           
@@ -180,12 +183,29 @@ export async function GET(request: NextRequest) {
           
           return pagePath;
         });
-        console.log(`Fetched ${allPagePaths.length} unique pages for the entire period`);
+        console.log(`[GA Pages API] Fetched ${allPagePaths.length} unique pages for the entire period`);
+        console.log(`[GA Pages API] First 5 parsed paths:`, allPagePaths.slice(0, 5));
+      } else {
+        console.error(`[GA Pages API] Failed to fetch all pages:`, await allPagesResponse.text());
       }
     } catch (error) {
       console.error('Error fetching all pages:', error);
     }
 
+    // Initialize pageData with all pages from the initial query
+    for (const path of allPagePaths) {
+      const pageId = path.toLowerCase().replace(/\//g, '_').replace(/[^a-z0-9_]/g, '') || 'homepage';
+      if (!pageData[pageId]) {
+        pageData[pageId] = {
+          id: pageId,
+          name: path === '/' ? 'Homepage' : path,
+          months: {},
+        };
+      }
+    }
+    
+    console.log(`[GA Pages API] Initialized ${Object.keys(pageData).length} pages`);
+    
     // Now fetch month-by-month data for these specific pages
     for (const month of months) {
       const requestBody: any = {
@@ -262,6 +282,9 @@ export async function GET(request: NextRequest) {
 
     // Convert to array
     const result = Object.values(pageData);
+    
+    console.log(`[GA Pages API] Returning ${result.length} pages to client`);
+    console.log(`[GA Pages API] Pages with /blog prefix:`, result.filter((p: any) => p.name.startsWith('/blog')).length);
 
     return NextResponse.json({
       pages: result,
