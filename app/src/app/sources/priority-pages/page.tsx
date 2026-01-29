@@ -235,8 +235,8 @@ export default function PriorityPagesPage() {
                     <span 
                       className="text-sm font-medium px-3 py-1 rounded-full" 
                       style={{ 
-                        background: "rgba(37, 99, 235, 0.1)",
-                        color: "#2563eb"
+                        background: "rgba(34, 197, 94, 0.1)",
+                        color: "#22c55e"
                       }}
                     >
                       {priorityUrls.length} priority {priorityUrls.length === 1 ? 'page' : 'pages'}
@@ -340,14 +340,14 @@ export default function PriorityPagesPage() {
                                   handleRemovePriorityUrl(fullUrl);
                                 }}
                                 disabled={saving}
-                                className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500/10"
+                                className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-green-500/10"
                                 style={{ 
-                                  background: "rgba(37, 99, 235, 0.1)",
-                                  border: "1px solid rgba(37, 99, 235, 0.3)"
+                                  background: "rgba(34, 197, 94, 0.1)",
+                                  border: "1px solid rgba(34, 197, 94, 0.3)"
                                 }}
                                 title="Remove from priority pages"
                               >
-                                <Target className="w-4 h-4 text-blue-500" />
+                                <Target className="w-4 h-4 text-green-500" />
                               </button>
                             ) : (
                               <button
