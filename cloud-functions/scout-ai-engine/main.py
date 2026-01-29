@@ -79,7 +79,7 @@ def write_opportunities_to_bigquery(opportunities: list):
         return
     
     try:
-        table_id = f"{bq_client.project}.scout_ai.opportunities"
+        table_id = f"{bq_client.project}.marketing_ai.opportunities"
         errors = bq_client.insert_rows_json(table_id, opportunities)
         if errors:
             logger.error(f"BigQuery insert errors: {errors}")
