@@ -7,13 +7,10 @@ import { doc, onSnapshot, setDoc, Timestamp } from "firebase/firestore";
 import { 
   Loader2, 
   Plus, 
-  XCircle, 
   TrendingUp, 
   Eye, 
   Clock,
   AlertCircle,
-  ExternalLink,
-  Settings,
   Target,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -206,7 +203,7 @@ export default function PriorityPagesPage() {
             </h1>
           </div>
           <p className="text-lg" style={{ color: "var(--foreground-muted)" }}>
-            Select your most important pages for deeper SEO analysis
+            Select your most important pages for deeper SEO analysis. Click the + icon to add, or the target icon to remove.
           </p>
         </div>
 
@@ -226,66 +223,6 @@ export default function PriorityPagesPage() {
           </motion.div>
         )}
 
-        {/* Selected Priority Pages */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl p-6 mb-6"
-          style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                Selected Priority Pages
-              </h2>
-              <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                These pages will be crawled first with deeper analysis.
-              </p>
-            </div>
-            {priorityUrls.length > 0 && (
-              <span 
-                className="text-sm font-medium px-3 py-1 rounded-full" 
-                style={{ 
-                  background: "rgba(37, 99, 235, 0.1)",
-                  color: "#2563eb"
-                }}
-              >
-                {priorityUrls.length} {priorityUrls.length === 1 ? 'page' : 'pages'}
-              </span>
-            )}
-          </div>
-
-          {priorityUrls.length > 0 && (
-            <div className="space-y-2">
-              {priorityUrls.map((url, index) => (
-                <motion.div
-                  key={url}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="flex items-center justify-between p-3 rounded-lg"
-                  style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: "var(--foreground-muted)" }} />
-                    <span className="text-sm truncate" style={{ color: "var(--foreground)" }}>
-                      {url}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleRemovePriorityUrl(url)}
-                    disabled={saving}
-                    className="ml-3 p-1.5 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                    title="Remove"
-                  >
-                    <XCircle className="w-4 h-4 text-red-500" />
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-
         {/* All Pages Table */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -298,9 +235,22 @@ export default function PriorityPagesPage() {
           <div className="p-6 border-b" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                  All Pages (Trailing 12 Months)
-                </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                    All Pages (Trailing 12 Months)
+                  </h2>
+                  {priorityUrls.length > 0 && (
+                    <span 
+                      className="text-sm font-medium px-3 py-1 rounded-full" 
+                      style={{ 
+                        background: "rgba(37, 99, 235, 0.1)",
+                        color: "#2563eb"
+                      }}
+                    >
+                      {priorityUrls.length} priority {priorityUrls.length === 1 ? 'page' : 'pages'}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
                   Sorted by total traffic
                 </p>
@@ -389,11 +339,29 @@ export default function PriorityPagesPage() {
                           }}
                         >
                           <td className="px-6 py-4">
-                            {!isSelected && (
+                            {isSelected ? (
+                              <button
+                                onClick={() => {
+                                  const fullUrl = domain.startsWith("http") 
+                                    ? `${domain}${page.name}`
+                                    : `https://${domain}${page.name}`;
+                                  handleRemovePriorityUrl(fullUrl);
+                                }}
+                                disabled={saving}
+                                className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500/10"
+                                style={{ 
+                                  background: "rgba(37, 99, 235, 0.1)",
+                                  border: "1px solid rgba(37, 99, 235, 0.3)"
+                                }}
+                                title="Remove from priority pages"
+                              >
+                                <Target className="w-4 h-4 text-blue-500" />
+                              </button>
+                            ) : (
                               <button
                                 onClick={() => handleAddPriorityPage(page.name)}
                                 disabled={saving}
-                                className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500/10"
                                 style={{ 
                                   background: "var(--background-tertiary)",
                                   border: "1px solid var(--border)"
