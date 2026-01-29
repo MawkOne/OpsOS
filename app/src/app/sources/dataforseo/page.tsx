@@ -431,12 +431,6 @@ export default function DataForSEOPage() {
     try {
       const url = new URL(newPriorityUrl);
       
-      // Check if we already have 20 URLs (DataForSEO limit)
-      if (priorityUrls.length >= 20) {
-        setError("Maximum 20 priority URLs allowed");
-        return;
-      }
-      
       // Check if URL already exists
       if (priorityUrls.includes(newPriorityUrl)) {
         setError("This URL is already in the priority list");
@@ -658,15 +652,17 @@ export default function DataForSEOPage() {
                   Priority Pages
                 </h2>
                 <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                  These pages will be crawled first with deeper analysis. Max 20 URLs.
+                  These pages will be crawled first with deeper analysis.
                 </p>
               </div>
-              <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ 
-                background: priorityUrls.length >= 20 ? "rgba(239, 68, 68, 0.1)" : "rgba(37, 99, 235, 0.1)",
-                color: priorityUrls.length >= 20 ? "#ef4444" : "#2563eb"
-              }}>
-                {priorityUrls.length} / 20
-              </span>
+              {priorityUrls.length > 0 && (
+                <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ 
+                  background: "rgba(37, 99, 235, 0.1)",
+                  color: "#2563eb"
+                }}>
+                  {priorityUrls.length} {priorityUrls.length === 1 ? 'page' : 'pages'}
+                </span>
+              )}
             </div>
 
             {/* Add Priority URL */}
@@ -687,11 +683,10 @@ export default function DataForSEOPage() {
                   border: "1px solid var(--border)",
                   color: "var(--foreground)",
                 }}
-                disabled={priorityUrls.length >= 20}
               />
               <button
                 onClick={handleAddPriorityUrl}
-                disabled={!newPriorityUrl.trim() || priorityUrls.length >= 20}
+                disabled={!newPriorityUrl.trim()}
                 className="px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ 
                   background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",

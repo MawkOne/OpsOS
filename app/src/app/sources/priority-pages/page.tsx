@@ -125,13 +125,6 @@ export default function PriorityPagesPage() {
       ? `${domain}${pagePath}`
       : `https://${domain}${pagePath}`;
 
-    // Check if we already have 20 URLs (DataForSEO limit)
-    if (priorityUrls.length >= 20) {
-      setError("Maximum 20 priority URLs allowed");
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
     // Check if URL already exists
     if (priorityUrls.includes(fullUrl)) {
       setError("This page is already in the priority list");
@@ -246,21 +239,23 @@ export default function PriorityPagesPage() {
                 Selected Priority Pages
               </h2>
               <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                These pages will be crawled first with deeper analysis. Max 20 URLs.
+                These pages will be crawled first with deeper analysis.
               </p>
             </div>
-            <span 
-              className="text-sm font-medium px-3 py-1 rounded-full" 
-              style={{ 
-                background: priorityUrls.length >= 20 ? "rgba(239, 68, 68, 0.1)" : "rgba(37, 99, 235, 0.1)",
-                color: priorityUrls.length >= 20 ? "#ef4444" : "#2563eb"
-              }}
-            >
-              {priorityUrls.length} / 20
-            </span>
+            {priorityUrls.length > 0 && (
+              <span 
+                className="text-sm font-medium px-3 py-1 rounded-full" 
+                style={{ 
+                  background: "rgba(37, 99, 235, 0.1)",
+                  color: "#2563eb"
+                }}
+              >
+                {priorityUrls.length} {priorityUrls.length === 1 ? 'page' : 'pages'}
+              </span>
+            )}
           </div>
 
-          {priorityUrls.length > 0 ? (
+          {priorityUrls.length > 0 && (
             <div className="space-y-2">
               {priorityUrls.map((url, index) => (
                 <motion.div
@@ -287,12 +282,6 @@ export default function PriorityPagesPage() {
                   </button>
                 </motion.div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
-              <Target className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No priority pages selected yet</p>
-              <p className="text-xs mt-1">Click the + icon next to any page below to add it</p>
             </div>
           )}
         </motion.div>
@@ -396,18 +385,14 @@ export default function PriorityPagesPage() {
                           className="border-t transition-colors"
                           style={{ 
                             borderColor: "var(--border)",
-                            background: isSelected ? "rgba(37, 99, 235, 0.05)" : "transparent"
+                            background: "transparent"
                           }}
                         >
                           <td className="px-6 py-4">
-                            {isSelected ? (
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full" style={{ background: "rgba(34, 197, 94, 0.1)" }}>
-                                <Target className="w-4 h-4 text-green-500" />
-                              </div>
-                            ) : (
+                            {!isSelected && (
                               <button
                                 onClick={() => handleAddPriorityPage(page.name)}
-                                disabled={saving || priorityUrls.length >= 20}
+                                disabled={saving}
                                 className="flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 style={{ 
                                   background: "var(--background-tertiary)",
