@@ -102,6 +102,16 @@ export async function POST(request: NextRequest) {
       // Start a new On-Page task with improved settings
       const targetUrl = domain.startsWith("http") ? domain : `https://${domain}`;
       
+      // Get priority URLs if configured
+      const priorityUrls = connection.priorityUrls || [];
+      const hasPriorityUrls = priorityUrls.length > 0;
+      
+      // Adjust crawl strategy based on priority URLs
+      // If we have priority URLs, focus on quality over quantity
+      const maxCrawlPages = hasPriorityUrls ? 100 : 500;
+      
+      console.log(`Starting crawl with ${priorityUrls.length} priority URLs, max pages: ${maxCrawlPages}`);
+      
       const taskResponse = await fetch("https://api.dataforseo.com/v3/on_page/task_post", {
         method: "POST",
         headers: {
@@ -111,12 +121,13 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify([
           {
             target: targetUrl,
-            max_crawl_pages: 500, // Increased crawl limit
+            max_crawl_pages: maxCrawlPages,
+            priority_urls: hasPriorityUrls ? priorityUrls : undefined, // Crawl these first
             load_resources: true,
             enable_javascript: true,
             enable_browser_rendering: true,
             respect_sitemap: true, // Use sitemap.xml to find pages
-            crawl_delay: 100, // 100ms delay between requests
+            crawl_delay: hasPriorityUrls ? 50 : 100, // Faster crawl for priority pages
             store_raw_html: false, // Don't store raw HTML to save costs
             calculate_keyword_density: true,
             check_spell: false, // Disable spell check to speed up
