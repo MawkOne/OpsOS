@@ -39,7 +39,7 @@ export default function PriorityPagesPage() {
   const [pages, setPages] = useState<PageWithStats[]>([]);
   const [priorityUrls, setPriorityUrls] = useState<string[]>([]);
   const [domain, setDomain] = useState<string>("");
-  const [pageLimit, setPageLimit] = useState(50);
+  const [pageLimit, setPageLimit] = useState(200);
   const [saving, setSaving] = useState(false);
 
   // Load priority URLs and domain from Firestore
