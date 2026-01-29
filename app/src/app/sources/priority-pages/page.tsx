@@ -195,7 +195,6 @@ export default function PriorityPagesPage() {
   return (
     <AppLayout 
       title="Priority Pages"
-      subtitle="Select your most important pages for deeper SEO analysis. Click the + icon to add, or the target icon to remove."
     >
       <div className="max-w-7xl mx-auto">
 
