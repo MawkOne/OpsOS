@@ -18,10 +18,21 @@ logger = logging.getLogger(__name__)
 def sync_dataforseo_to_bigquery(request):
     """Sync DataForSEO data from Firestore to BigQuery with historical backfill"""
     
+    # Set CORS headers for all requests
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    }
+    
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        return ('', 204, headers)
+    
     # Parse request
     request_json = request.get_json(silent=True)
     if not request_json or 'organizationId' not in request_json:
-        return {'error': 'Missing organizationId'}, 400
+        return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
     backfill_history = request_json.get('backfillHistory', True)  # Default to True
@@ -210,28 +221,28 @@ def sync_dataforseo_to_bigquery(request):
             
             if errors:
                 logger.error(f"BigQuery insert errors: {errors}")
-                return {
+                return ({
                     'success': False,
                     'error': 'Some rows failed to insert',
                     'errors': errors[:5],  # First 5 errors
                     **results
-                }, 500
+                }, 500, headers)
             
             results['rowsInserted'] = len(all_rows)
         
         logger.info(f"✅ Sync complete: {results['rowsInserted']} rows inserted ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)")
         
-        return {
+        return ({
             'success': True,
             **results,
             'message': f"Synced {results['rowsInserted']} rows to BigQuery ({results['historicalMonthsProcessed']} historical + {len(current_rows)} current)"
-        }, 200
+        }, 200, headers)
         
     except Exception as e:
         logger.error(f"❌ Sync failed: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return {
+        return ({
             'success': False,
             'error': str(e)
-        }, 500
+        }, 500, headers)
