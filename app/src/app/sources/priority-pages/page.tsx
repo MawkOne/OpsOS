@@ -13,6 +13,7 @@ import {
   Clock,
   AlertCircle,
   Target,
+  Search,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -41,6 +42,7 @@ export default function PriorityPagesPage() {
   const [domain, setDomain] = useState<string>("");
   const [pageLimit, setPageLimit] = useState(200);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Load priority URLs and domain from Firestore
   useEffect(() => {
@@ -243,30 +245,57 @@ export default function PriorityPagesPage() {
                   )}
                 </div>
                 <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
-                  Sorted by total traffic
+                  {searchTerm ? (
+                    <>
+                      {pages.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length} matching pages
+                    </>
+                  ) : (
+                    <>Sorted by total traffic</>
+                  )}
                 </p>
               </div>
               
-              {/* Page Limit Selector */}
+              {/* Search and Limit Controls */}
               <div className="flex items-center gap-3">
-                <label className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                  Show:
-                </label>
-                <select
-                  value={pageLimit}
-                  onChange={(e) => setPageLimit(Number(e.target.value))}
-                  className="px-3 py-1.5 rounded-lg text-sm outline-none"
-                  style={{
-                    background: "var(--background-tertiary)",
-                    border: "1px solid var(--border)",
-                    color: "var(--foreground)",
-                  }}
-                >
-                  <option value={25}>25 pages</option>
-                  <option value={50}>50 pages</option>
-                  <option value={100}>100 pages</option>
-                  <option value={200}>200 pages</option>
-                </select>
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search pages..."
+                    className="pl-9 pr-4 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                      width: "200px"
+                    }}
+                  />
+                </div>
+                
+                {/* Page Limit Selector */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    Show:
+                  </label>
+                  <select
+                    value={pageLimit}
+                    onChange={(e) => setPageLimit(Number(e.target.value))}
+                    className="px-3 py-1.5 rounded-lg text-sm outline-none"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -315,7 +344,13 @@ export default function PriorityPagesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pages.slice(0, pageLimit).map((page, index) => {
+                    {pages
+                      .filter(page => 
+                        searchTerm === "" || 
+                        page.name.toLowerCase().includes(searchTerm.toLowerCase())
+                      )
+                      .slice(0, pageLimit)
+                      .map((page, index) => {
                       const isSelected = isPriorityPage(page.name);
                       return (
                         <motion.tr
