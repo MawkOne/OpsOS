@@ -412,56 +412,37 @@ export default function StripePage() {
               <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
                 Last Sync Results
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.payments}
+                    {connection.lastSyncResults.charges || connection.lastSyncResults.payments || 0}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Charges</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.paymentIntents || 0}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>PaymentIntents</p>
-                </div>
-                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.subscriptions}
+                    {connection.lastSyncResults.subscriptions || 0}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Subscriptions</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.customers}
+                    {connection.lastSyncResults.customers || 0}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Customers</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.products}
+                  <p className="text-2xl font-bold" style={{ color: "#635BFF" }}>
+                    {connection.lastSyncResults.bigqueryRows || 0}
                   </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Products</p>
-                </div>
-                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.prices}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Prices</p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>BigQuery Rows</p>
                 </div>
               </div>
-              {connection.lastSyncResults.cleanedRecords && connection.lastSyncResults.cleanedRecords > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                    Cleaned {connection.lastSyncResults.cleanedRecords} existing records before sync (Full Sync)
-                  </p>
-                </div>
-              )}
-              {connection.lastSyncResults.errors.length > 0 && (
+              {connection.lastSyncResults?.errors?.length > 0 && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-red-400 mb-2">Sync Errors:</p>
                   <ul className="text-sm text-red-400 space-y-1">
-                    {connection.lastSyncResults.errors.map((err, idx) => (
+                    {connection.lastSyncResults.errors.map((err: string, idx: number) => (
                       <li key={idx}>• {err}</li>
                     ))}
                   </ul>
