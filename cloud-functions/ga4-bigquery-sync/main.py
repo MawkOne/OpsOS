@@ -95,6 +95,38 @@ def ga4_run_report(access_token: str, property_id: str, report_request: dict) ->
     return response.json()
 
 
+def ga4_run_report_paginated(access_token: str, property_id: str, report_request: dict) -> list:
+    """Execute GA4 Data API runReport with pagination to fetch ALL rows"""
+    all_rows = []
+    offset = 0
+    limit = 10000  # GA4 max per request
+    
+    # Set initial limit
+    report_request['limit'] = limit
+    
+    while True:
+        report_request['offset'] = offset
+        
+        data = ga4_run_report(access_token, property_id, report_request)
+        rows = data.get('rows', [])
+        
+        if not rows:
+            break
+        
+        all_rows.extend(rows)
+        logger.info(f"Fetched {len(all_rows)} rows so far...")
+        
+        # Check if there are more rows
+        row_count = int(data.get('rowCount', 0))
+        if len(all_rows) >= row_count or len(rows) < limit:
+            break
+        
+        offset += limit
+    
+    logger.info(f"Total rows fetched: {len(all_rows)}")
+    return all_rows
+
+
 @functions_framework.http
 def sync_ga4_to_bigquery(request):
     """Sync GA4 data directly to BigQuery"""
@@ -208,12 +240,12 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching daily metrics: {e}")
         
         # ============================================
-        # 2. FETCH TRAFFIC SOURCES
+        # 2. FETCH TRAFFIC SOURCES (ALL - with pagination)
         # ============================================
-        logger.info("Fetching traffic sources from GA4 API...")
+        logger.info("Fetching ALL traffic sources from GA4 API...")
         
         try:
-            source_report = ga4_run_report(access_token, property_id, {
+            source_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
                     {'name': 'sessionDefaultChannelGroup'},
@@ -225,12 +257,11 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'conversions'},
                     {'name': 'totalRevenue'},
                 ],
-                'limit': 100
             })
             
             today_str = end_date.isoformat()
             
-            for row in source_report.get('rows', []):
+            for row in source_rows:
                 results['traffic_sources'] += 1
                 
                 channel = row['dimensionValues'][0]['value']
@@ -264,12 +295,12 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching traffic sources: {e}")
         
         # ============================================
-        # 3. FETCH TOP PAGES
+        # 3. FETCH ALL PAGES (with pagination)
         # ============================================
-        logger.info("Fetching top pages from GA4 API...")
+        logger.info("Fetching ALL pages from GA4 API...")
         
         try:
-            pages_report = ga4_run_report(access_token, property_id, {
+            pages_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
                     {'name': 'pagePath'},
@@ -282,12 +313,11 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'bounceRate'},
                 ],
                 'orderBys': [{'metric': {'metricName': 'screenPageViews'}, 'desc': True}],
-                'limit': 100
             })
             
             today_str = end_date.isoformat()
             
-            for row in pages_report.get('rows', []):
+            for row in pages_rows:
                 results['pages_processed'] += 1
                 
                 page_path = row['dimensionValues'][0]['value']
