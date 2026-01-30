@@ -179,7 +179,9 @@ export default function ActiveCampaignPage() {
     setError(null);
 
     try {
-      const syncResponse = await fetch("/api/activecampaign/sync", {
+      // Call Cloud Function directly - syncs from ActiveCampaign API to BigQuery (bypasses Firestore)
+      console.log("Syncing ActiveCampaign data directly to BigQuery...");
+      const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/activecampaign-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ organizationId }),
@@ -187,13 +189,13 @@ export default function ActiveCampaignPage() {
 
       const syncData = await syncResponse.json();
 
-      if (!syncResponse.ok) {
+      if (!syncResponse.ok || !syncData.success) {
         throw new Error(syncData.error || "Failed to sync ActiveCampaign data");
       }
 
       await fetchMetrics();
-      setSuccess("Sync completed successfully!");
-      setTimeout(() => setSuccess(null), 3000);
+      setSuccess(`Synced to BigQuery: ${syncData.contacts || 0} contacts, ${syncData.deals || 0} deals, ${syncData.campaigns || 0} campaigns.`);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -335,15 +337,15 @@ export default function ActiveCampaignPage() {
                   <button
                     onClick={handleSync}
                     disabled={isSyncing}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
-                      background: "var(--background-tertiary)",
-                      color: "var(--foreground-muted)",
-                      border: "1px solid var(--border)",
+                      background: "#356AE6",
+                      color: "white",
                     }}
+                    title="Sync ActiveCampaign data directly to BigQuery"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync Now"}
+                    {isSyncing ? "Syncing to BigQuery..." : "Sync to BigQuery"}
                   </button>
                   <button
                     onClick={handleDisconnect}
