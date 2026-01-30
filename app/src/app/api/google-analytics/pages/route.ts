@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BigQuery } from '@google-cloud/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
 const TABLE_ID = 'daily_entity_metrics';
-
-// Initialize BigQuery client
-function getBigQueryClient() {
-  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  if (credentials) {
-    return new BigQuery({
-      projectId: PROJECT_ID,
-      credentials: JSON.parse(credentials),
-    });
-  }
-  return new BigQuery({ projectId: PROJECT_ID });
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -31,7 +18,41 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const bq = getBigQueryClient();
+    // Dynamically import BigQuery to avoid build issues
+    const { BigQuery } = await import('@google-cloud/bigquery');
+    
+    // Check for credentials
+    const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    if (!credentials) {
+      console.error('[GA Pages API] Missing GOOGLE_APPLICATION_CREDENTIALS_JSON env var');
+      return NextResponse.json(
+        { 
+          error: 'BigQuery credentials not configured',
+          hint: 'Set GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable in Vercel',
+          pages: [],
+          months: [],
+        },
+        { status: 200 }
+      );
+    }
+
+    let bq;
+    try {
+      bq = new BigQuery({
+        projectId: PROJECT_ID,
+        credentials: JSON.parse(credentials),
+      });
+    } catch (parseError) {
+      console.error('[GA Pages API] Failed to parse credentials:', parseError);
+      return NextResponse.json(
+        { 
+          error: 'Invalid BigQuery credentials format',
+          pages: [],
+          months: [],
+        },
+        { status: 200 }
+      );
+    }
     
     // Calculate date range
     const now = new Date();
@@ -173,11 +194,18 @@ export async function GET(request: NextRequest) {
       }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching pages from BigQuery:', error);
+    
+    // Return helpful error with empty pages array so UI doesn't break
     return NextResponse.json(
-      { error: 'Failed to fetch page data from BigQuery' }, 
-      { status: 500 }
+      { 
+        error: `BigQuery error: ${error.message || 'Unknown error'}`,
+        hint: 'Make sure GA4 data has been synced to BigQuery first',
+        pages: [],
+        months: [],
+      }, 
+      { status: 200 }
     );
   }
 }
