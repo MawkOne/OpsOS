@@ -1,36 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { BigQuery } from '@google-cloud/bigquery';
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
+const PROJECT_ID = 'opsos-864a1';
+const DATASET_ID = 'marketing_ai';
+const TABLE_ID = 'daily_entity_metrics';
 
-interface GAConnection {
-  accessToken: string;
-  refreshToken: string;
-  tokenExpiresAt: { toDate: () => Date };
-  selectedPropertyId: string;
-}
-
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
-  try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
+// Initialize BigQuery client
+function getBigQueryClient() {
+  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (credentials) {
+    return new BigQuery({
+      projectId: PROJECT_ID,
+      credentials: JSON.parse(credentials),
     });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.access_token;
-  } catch {
-    return null;
   }
+  return new BigQuery({ projectId: PROJECT_ID });
 }
 
 export async function GET(request: NextRequest) {
@@ -38,282 +22,162 @@ export async function GET(request: NextRequest) {
   const organizationId = searchParams.get('organizationId');
   const viewMode = searchParams.get('viewMode') || 'ttm';
   const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
-  const limit = parseInt(searchParams.get('limit') || '50');
+  const limit = parseInt(searchParams.get('limit') || '10000');
   
-  console.log('[GA Pages API v2] Request params:', { organizationId, viewMode, year, limit });
+  console.log('[GA Pages API - BigQuery] Request params:', { organizationId, viewMode, year, limit });
 
   if (!organizationId) {
     return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
   }
 
   try {
-    // Get connection from Firestore
-    const connectionRef = doc(db, 'ga_connections', organizationId);
-    const connectionSnap = await getDoc(connectionRef);
-
-    if (!connectionSnap.exists()) {
-      return NextResponse.json({ error: 'Google Analytics not connected' }, { status: 404 });
-    }
-
-    const connection = connectionSnap.data() as GAConnection;
-
-    if (!connection.selectedPropertyId) {
-      return NextResponse.json({ error: 'No property selected' }, { status: 400 });
-    }
-
-    // Check if token is expired and refresh if needed
-    let accessToken = connection.accessToken;
-    const expiresAt = connection.tokenExpiresAt?.toDate?.() || new Date(0);
-
-    if (expiresAt < new Date()) {
-      if (!connection.refreshToken) {
-        return NextResponse.json({ error: 'Token expired' }, { status: 401 });
-      }
-
-      const newToken = await refreshAccessToken(connection.refreshToken);
-      if (!newToken) {
-        await setDoc(connectionRef, {
-          status: 'error',
-          errorMessage: 'Token refresh failed. Please reconnect.',
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-        return NextResponse.json({ error: 'Failed to refresh token' }, { status: 401 });
-      }
-
-      accessToken = newToken;
-      await setDoc(connectionRef, {
-        accessToken: newToken,
-        tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-    }
-
-    // Calculate date ranges for each month
+    const bq = getBigQueryClient();
+    
+    // Calculate date range
     const now = new Date();
-    const months: { key: string; startDate: string; endDate: string }[] = [];
-
+    let startDate: string;
+    let endDate: string;
+    
     if (viewMode === 'ttm') {
       // Trailing 12 months
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-        
-        const startDate = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-01`;
-        let endDate: string;
-        if (i === 0) {
-          // Current month - use today
-          endDate = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
-        } else {
-          // Past month - use last day of month
-          const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-          endDate = `${lastDay.getFullYear()}-${(lastDay.getMonth() + 1).toString().padStart(2, '0')}-${lastDay.getDate().toString().padStart(2, '0')}`;
-        }
-        
-        months.push({ key: monthKey, startDate, endDate });
-      }
+      const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      startDate = start.toISOString().split('T')[0];
+      endDate = now.toISOString().split('T')[0];
     } else {
-      // Year view
-      for (let m = 0; m < 12; m++) {
-        const monthKey = `${year}-${(m + 1).toString().padStart(2, '0')}`;
-        const startDate = `${year}-${(m + 1).toString().padStart(2, '0')}-01`;
-        
-        let endDate: string;
-        if (year === now.getFullYear() && m === now.getMonth()) {
-          // Current month - use today
-          endDate = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
-        } else {
-          // Past month - use last day of month
-          const lastDay = new Date(year, m + 1, 0);
-          endDate = `${lastDay.getFullYear()}-${(lastDay.getMonth() + 1).toString().padStart(2, '0')}-${lastDay.getDate().toString().padStart(2, '0')}`;
-        }
-        
-        months.push({ key: monthKey, startDate, endDate });
-      }
+      // Specific year
+      startDate = `${year}-01-01`;
+      endDate = year === now.getFullYear() 
+        ? now.toISOString().split('T')[0]
+        : `${year}-12-31`;
     }
 
-    // Fetch page data from Google Analytics for each month
-    const propertyId = connection.selectedPropertyId.replace('properties/', '');
-    const pageData: Record<string, Record<string, any>> = {};
+    // Query BigQuery for page data
+    // Pages are stored with entity_type = 'page' from the GA4 sync
+    const query = `
+      SELECT 
+        seo_url as page_path,
+        entity_name as page_title,
+        COALESCE(page_views, 0) as pageviews,
+        COALESCE(active_users, 0) as users,
+        COALESCE(avg_session_duration, 0) as avg_time_on_page,
+        COALESCE(bounce_rate, 0) as bounce_rate,
+        date,
+        FORMAT_DATE('%Y-%m', DATE(date)) as month_key
+      FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'ga4'
+        AND entity_type = 'page'
+        AND date >= @startDate
+        AND date <= @endDate
+      ORDER BY pageviews DESC
+    `;
 
-    // First, get all unique pages across the entire period (for prefix matching)
-    // This single query gets the top N pages by total traffic
-    // Note: GA4 might return full URLs in pageLocation or paths in pagePath
-    const allPagesRequestBody = {
-      dateRanges: [{ 
-        startDate: months[0].startDate, 
-        endDate: months[months.length - 1].endDate 
-      }],
-      dimensions: [{ name: 'pageLocation' }], // Use pageLocation which includes full URL
-      metrics: [
-        { name: 'screenPageViews' },
-      ],
-      orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-      limit: limit, // This gets top N pages across entire period
+    const options = {
+      query,
+      params: {
+        organizationId,
+        startDate,
+        endDate,
+      },
     };
 
-    let allPagePaths: string[] = [];
-    try {
-      const allPagesResponse = await fetch(
-        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(allPagesRequestBody),
-        }
-      );
+    const [rows] = await bq.query(options);
 
-      if (allPagesResponse.ok) {
-        const allPagesData = await allPagesResponse.json();
-        console.log(`[GA Pages API] Raw response has ${(allPagesData.rows || []).length} rows`);
-        console.log(`[GA Pages API] First 3 raw values:`, (allPagesData.rows || []).slice(0, 3).map((r: any) => r.dimensionValues[0].value));
-        
-        allPagePaths = (allPagesData.rows || []).map((row: any) => {
-          let pagePath = row.dimensionValues[0].value;
-          
-          // If it's a full URL, extract just the path
-          if (pagePath.startsWith('http://') || pagePath.startsWith('https://')) {
-            try {
-              const url = new URL(pagePath);
-              pagePath = url.pathname;
-            } catch (e) {
-              console.warn('Failed to parse URL:', pagePath);
-            }
-          }
-          
-          return pagePath;
-        });
-        console.log(`[GA Pages API] Fetched ${allPagePaths.length} unique pages for the entire period`);
-        console.log(`[GA Pages API] First 5 parsed paths:`, allPagePaths.slice(0, 5));
-        console.log(`[GA Pages API] Pages starting with /blog:`, allPagePaths.filter(p => p.startsWith('/blog')).length);
-        console.log(`[GA Pages API] Sample /blog pages:`, allPagePaths.filter(p => p.startsWith('/blog')).slice(0, 10));
-      } else {
-        console.error(`[GA Pages API] Failed to fetch all pages:`, await allPagesResponse.text());
-      }
-    } catch (error) {
-      console.error('Error fetching all pages:', error);
+    if (!rows || rows.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'No page data found in BigQuery. Please sync GA4 data first.',
+          hint: 'Go to Sources > Google Analytics and click "Sync to BigQuery"',
+          pages: [],
+          months: [],
+        },
+        { status: 200 }
+      );
     }
 
-    // Initialize pageData with all pages from the initial query
-    for (const path of allPagePaths) {
-      const pageId = path.toLowerCase().replace(/\//g, '_').replace(/[^a-z0-9_]/g, '') || 'homepage';
+    // Group by page path and aggregate by month
+    const pageData: Record<string, {
+      id: string;
+      name: string;
+      months: Record<string, {
+        pageviews: number;
+        sessions: number;
+        avgTimeOnPage: number;
+      }>;
+    }> = {};
+
+    // Collect unique months
+    const monthSet = new Set<string>();
+
+    for (const row of rows) {
+      const pagePath = row.page_path || '/';
+      const pageId = pagePath.toLowerCase().replace(/\//g, '_').replace(/[^a-z0-9_]/g, '') || 'homepage';
+      const monthKey = row.month_key;
+      
+      monthSet.add(monthKey);
+
       if (!pageData[pageId]) {
         pageData[pageId] = {
           id: pageId,
-          name: path === '/' ? 'Homepage' : path,
+          name: pagePath === '/' ? 'Homepage' : pagePath,
           months: {},
         };
       }
-    }
-    
-    console.log(`[GA Pages API] Initialized ${Object.keys(pageData).length} pages`);
-    
-    // Now fetch month-by-month data for these specific pages
-    // Note: We can't filter by specific pages (too many), so we fetch top N per month
-    // But we already initialized pageData with all pages from the initial query
-    // This fills in monthly metrics for pages that appeared in top N each month
-    for (const month of months) {
-      const requestBody: any = {
-        dateRanges: [{ startDate: month.startDate, endDate: month.endDate }],
-        dimensions: [{ name: 'pageLocation' }], // Use pageLocation to match the initial query
-        metrics: [
-          { name: 'screenPageViews' },
-          { name: 'sessions' },
-          { name: 'averageSessionDuration' },
-        ],
-        orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: Math.min(limit, 10000), // GA has a max of 10k per query
-      };
-      
-      console.log(`[GA Pages API] Fetching monthly data for ${month.key} (limit: ${Math.min(limit, 10000)})`);
 
-      try {
-        const response = await fetch(
-          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-          }
-        );
-
-        if (!response.ok) {
-          console.error(`Failed to fetch page data for ${month.key}:`, await response.text());
-          continue;
-        }
-
-        const data = await response.json();
-        
-        // Process rows
-        if (data.rows) {
-          for (const row of data.rows) {
-            let pagePath = row.dimensionValues[0].value;
-            
-            // If it's a full URL, extract just the path
-            if (pagePath.startsWith('http://') || pagePath.startsWith('https://')) {
-              try {
-                const url = new URL(pagePath);
-                pagePath = url.pathname;
-              } catch (e) {
-                console.warn('Failed to parse URL:', pagePath);
-              }
-            }
-            
-            const pageId = pagePath.toLowerCase().replace(/\//g, '_').replace(/[^a-z0-9_]/g, '') || 'homepage';
-            
-            if (!pageData[pageId]) {
-              pageData[pageId] = {
-                id: pageId,
-                name: pagePath === '/' ? 'Homepage' : pagePath,
-                months: {},
-              };
-            }
-
-            const metrics = row.metricValues;
-            
-            pageData[pageId].months[month.key] = {
-              pageviews: parseInt(metrics[0]?.value || '0'),
-              sessions: parseInt(metrics[1]?.value || '0'),
-              avgTimeOnPage: parseFloat(metrics[2]?.value || '0'),
-            };
-          }
-        }
-      } catch (error) {
-        console.error(`Error fetching page data for ${month.key}:`, error);
-        continue;
+      // Aggregate data for this month (in case there are multiple rows per page per month)
+      if (!pageData[pageId].months[monthKey]) {
+        pageData[pageId].months[monthKey] = {
+          pageviews: 0,
+          sessions: 0,
+          avgTimeOnPage: 0,
+        };
       }
+
+      pageData[pageId].months[monthKey].pageviews += parseInt(row.pageviews || 0);
+      pageData[pageId].months[monthKey].sessions += parseInt(row.users || 0); // Using users as proxy for sessions
+      pageData[pageId].months[monthKey].avgTimeOnPage = parseFloat(row.avg_time_on_page || 0);
     }
 
-    // Convert to array
-    const result = Object.values(pageData);
+    // Convert to array and sort by total pageviews
+    const result = Object.values(pageData)
+      .map(page => {
+        const totalPageviews = Object.values(page.months).reduce((sum, m) => sum + m.pageviews, 0);
+        return { ...page, totalPageviews };
+      })
+      .sort((a, b) => b.totalPageviews - a.totalPageviews)
+      .slice(0, limit)
+      .map(({ totalPageviews, ...page }) => page); // Remove totalPageviews helper field
+
+    const months = Array.from(monthSet).sort();
     
-    console.log(`[GA Pages API] Returning ${result.length} pages to client`);
-    console.log(`[GA Pages API] Pages with /blog prefix:`, result.filter((p: any) => p.name.startsWith('/blog')).length);
+    console.log(`[GA Pages API - BigQuery] Returning ${result.length} pages from BigQuery`);
+    console.log(`[GA Pages API - BigQuery] Pages with /blog prefix:`, result.filter((p: any) => p.name.startsWith('/blog')).length);
 
     return NextResponse.json(
       {
         pages: result,
-        months: months.map(m => m.key),
+        months,
+        source: 'bigquery',
         _meta: {
-          version: 'v2-pageLocation',
+          version: 'v3-bigquery',
           totalPages: result.length,
           blogPages: result.filter((p: any) => p.name.startsWith('/blog')).length,
+          dateRange: { startDate, endDate },
         }
       },
       {
         headers: {
-          'X-API-Version': 'v2-pageLocation',
+          'X-API-Version': 'v3-bigquery',
+          'X-Data-Source': 'bigquery',
         }
       }
     );
 
   } catch (error) {
-    console.error('Error fetching pages:', error);
-    return NextResponse.json({ error: 'Failed to fetch page data' }, { status: 500 });
+    console.error('Error fetching pages from BigQuery:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch page data from BigQuery' }, 
+      { status: 500 }
+    );
   }
 }
