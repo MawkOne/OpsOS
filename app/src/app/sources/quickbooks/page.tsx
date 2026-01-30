@@ -29,12 +29,15 @@ interface QuickBooksConnection {
   companyName?: string;
   lastSyncAt?: { toDate: () => Date };
   lastSyncResults?: {
-    invoices: number;
-    payments: number;
-    customers: number;
-    accounts: number;
-    items: number;
-    expenses: number;
+    // New format from Cloud Function
+    invoices?: number;
+    expenses?: number;
+    bigqueryRows?: number;
+    // Old format (for backwards compatibility)
+    payments?: number;
+    customers?: number;
+    accounts?: number;
+    items?: number;
     errors?: string[];
   };
   errorMessage?: string;
@@ -444,42 +447,24 @@ export default function QuickBooksPage() {
               <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--foreground)" }}>
                 Last Sync Results
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.invoices}
+                    {connection.lastSyncResults?.invoices ?? connection.lastSyncResults?.payments ?? 0}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Invoices</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
                   <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.payments}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Payments</p>
-                </div>
-                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.customers}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Customers</p>
-                </div>
-                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.items}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Items</p>
-                </div>
-                <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.expenses}
+                    {connection.lastSyncResults?.expenses ?? 0}
                   </p>
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Expenses</p>
                 </div>
                 <div className="text-center p-3 rounded-lg" style={{ background: "var(--background-tertiary)" }}>
-                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                    {connection.lastSyncResults.accounts}
+                  <p className="text-2xl font-bold" style={{ color: "#2CA01C" }}>
+                    {connection.lastSyncResults?.bigqueryRows ?? 0}
                   </p>
-                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>Accounts</p>
+                  <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>BigQuery Rows</p>
                 </div>
               </div>
               {(connection.lastSyncResults?.errors?.length ?? 0) > 0 && (
