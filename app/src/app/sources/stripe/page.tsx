@@ -28,14 +28,18 @@ interface StripeConnection {
   stripeAccountName?: string;
   lastSyncAt?: { toDate: () => Date };
   lastSyncResults?: {
-    payments: number;
+    // Old format (from Vercel route)
+    payments?: number;
     paymentIntents?: number;
-    subscriptions: number;
-    customers: number;
-    products: number;
-    prices: number;
+    subscriptions?: number;
+    customers?: number;
+    products?: number;
+    prices?: number;
     cleanedRecords?: number;
-    errors: string[];
+    errors?: string[];
+    // New format (from Cloud Function)
+    charges?: number;
+    bigqueryRows?: number;
   };
   isTestMode?: boolean;
   apiKeyLast4?: string;
@@ -385,7 +389,7 @@ export default function StripePage() {
                   <Repeat className="w-4 h-4" style={{ color: "#8b5cf6" }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: "#8b5cf6" }}>
-                  {metrics.activeSubscriptions.toLocaleString()}
+                  {(metrics.activeSubscriptions || 0).toLocaleString()}
                 </p>
               </Card>
               <Card>
@@ -394,7 +398,7 @@ export default function StripePage() {
                   <Users className="w-4 h-4" style={{ color: "#f59e0b" }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                  {metrics.totalCustomers.toLocaleString()}
+                  {(metrics.totalCustomers || 0).toLocaleString()}
                 </p>
               </Card>
             </div>
@@ -438,11 +442,11 @@ export default function StripePage() {
                   <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>BigQuery Rows</p>
                 </div>
               </div>
-              {connection.lastSyncResults?.errors?.length > 0 && (
+              {(connection.lastSyncResults?.errors?.length ?? 0) > 0 && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-red-400 mb-2">Sync Errors:</p>
                   <ul className="text-sm text-red-400 space-y-1">
-                    {connection.lastSyncResults.errors.map((err: string, idx: number) => (
+                    {connection.lastSyncResults?.errors?.map((err: string, idx: number) => (
                       <li key={idx}>• {err}</li>
                     ))}
                   </ul>
