@@ -25,9 +25,14 @@ export async function GET(request: NextRequest) {
 
   try {
     // Read from Firestore instead of BigQuery (works better in serverless)
+    // Only get opportunities from the last 7 days (filters out old data from before priority pages)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
     let q = query(
       collection(db, 'opportunities'),
-      where('organization_id', '==', organizationId)
+      where('organization_id', '==', organizationId),
+      where('detected_at', '>=', sevenDaysAgo.toISOString())
     );
 
     if (status && status !== 'all') {
