@@ -38,6 +38,37 @@ def ac_api_request(api_url: str, api_key: str, endpoint: str, params: dict = Non
     return response.json()
 
 
+def ac_api_paginate(api_url: str, api_key: str, endpoint: str, key: str, extra_params: dict = None) -> list:
+    """Fetch all items from a paginated ActiveCampaign API endpoint"""
+    all_items = []
+    offset = 0
+    limit = 100  # ActiveCampaign max per page
+    
+    while True:
+        params = {'limit': limit, 'offset': offset}
+        if extra_params:
+            params.update(extra_params)
+        
+        data = ac_api_request(api_url, api_key, endpoint, params)
+        items = data.get(key, [])
+        
+        if not items:
+            break
+        
+        all_items.extend(items)
+        logger.info(f"Fetched {len(all_items)} {key} so far...")
+        
+        # Check if there are more
+        total = int(data.get('meta', {}).get('total', 0))
+        if len(all_items) >= total or len(items) < limit:
+            break
+        
+        offset += limit
+    
+    logger.info(f"Total {key} fetched: {len(all_items)}")
+    return all_items
+
+
 @functions_framework.http
 def sync_activecampaign_to_bigquery(request):
     """Sync ActiveCampaign data directly to BigQuery"""
@@ -129,14 +160,13 @@ def sync_activecampaign_to_bigquery(request):
             logger.error(f"Error fetching contacts: {e}")
         
         # ============================================
-        # 2. FETCH DEALS
+        # 2. FETCH DEALS (with pagination)
         # ============================================
         logger.info("Fetching deals from ActiveCampaign API...")
         
         try:
-            # Get all deals
-            deals_data = ac_api_request(api_url, api_key, 'deals', {'limit': 100})
-            deals = deals_data.get('deals', [])
+            # Get ALL deals with pagination
+            deals = ac_api_paginate(api_url, api_key, 'deals', 'deals')
             results['deals'] = len(deals)
             
             # Aggregate deals by status
@@ -189,13 +219,13 @@ def sync_activecampaign_to_bigquery(request):
             logger.error(f"Error fetching deals: {e}")
         
         # ============================================
-        # 3. FETCH EMAIL CAMPAIGNS
+        # 3. FETCH EMAIL CAMPAIGNS (with pagination)
         # ============================================
         logger.info("Fetching campaigns from ActiveCampaign API...")
         
         try:
-            campaigns_data = ac_api_request(api_url, api_key, 'campaigns', {'limit': 100})
-            campaigns = campaigns_data.get('campaigns', [])
+            # Get ALL campaigns with pagination
+            campaigns = ac_api_paginate(api_url, api_key, 'campaigns', 'campaigns')
             results['campaigns'] = len(campaigns)
             
             total_sent = 0
@@ -258,13 +288,13 @@ def sync_activecampaign_to_bigquery(request):
             logger.error(f"Error fetching campaigns: {e}")
         
         # ============================================
-        # 4. FETCH LISTS
+        # 4. FETCH LISTS (with pagination)
         # ============================================
         logger.info("Fetching lists from ActiveCampaign API...")
         
         try:
-            lists_data = ac_api_request(api_url, api_key, 'lists', {'limit': 100})
-            lists = lists_data.get('lists', [])
+            # Get ALL lists with pagination
+            lists = ac_api_paginate(api_url, api_key, 'lists', 'lists')
             results['lists'] = len(lists)
             
             total_subscribers = 0
