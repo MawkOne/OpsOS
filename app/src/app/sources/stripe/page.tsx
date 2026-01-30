@@ -144,7 +144,7 @@ export default function StripePage() {
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async (syncType: 'full' | 'incremental' | 'historical' = 'incremental') => {
+  const handleSync = async () => {
     setIsSyncing(true);
     setError(null);
 
@@ -154,10 +154,7 @@ export default function StripePage() {
       const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/stripe-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          organizationId,
-          daysBack: syncType === 'historical' ? 365 : 90,
-        }),
+        body: JSON.stringify({ organizationId }),
       });
 
       const syncData = await syncResponse.json();
@@ -167,7 +164,7 @@ export default function StripePage() {
       }
 
       await fetchMetrics();
-      const message = `Sync completed! ${syncData.charges_processed || 0} charges, ${syncData.subscriptions_processed || 0} subscriptions synced to BigQuery.`;
+      const message = `Synced to BigQuery: ${syncData.charges_processed || 0} charges, ${syncData.subscriptions_processed || 0} subscriptions, ${syncData.customers_processed || 0} customers.`;
       
       setSuccess(message);
       setTimeout(() => setSuccess(null), 5000);
@@ -304,46 +301,17 @@ export default function StripePage() {
               {isConnected || isSyncingStatus ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleSync('incremental')}
+                    onClick={() => handleSync()}
                     disabled={isSyncing}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
-                      background: "var(--background-tertiary)",
-                      color: isSyncingStatus && !isSyncing ? "#f59e0b" : "var(--foreground-muted)",
-                      border: "1px solid var(--border)",
+                      background: "#635BFF",
+                      color: "white",
                     }}
-                    title="Sync new data since last sync"
+                    title="Sync Stripe data directly to BigQuery"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing..." : isSyncingStatus ? "Retry Sync" : "Sync New"}
-                  </button>
-                  <button
-                    onClick={() => handleSync('full')}
-                    disabled={isSyncing}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      color: "#3b82f6",
-                      border: "1px solid var(--border)",
-                    }}
-                    title="Delete all data and sync 2,000 newest records"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    Full Sync
-                  </button>
-                  <button
-                    onClick={() => handleSync('historical')}
-                    disabled={isSyncing}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      color: "#8b5cf6",
-                      border: "1px solid var(--border)",
-                    }}
-                    title="Sync next batch of older data (2,000 records)"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    Sync Historical
+                    {isSyncing ? "Syncing to BigQuery..." : "Sync to BigQuery"}
                   </button>
                   <button
                     onClick={handleDisconnect}

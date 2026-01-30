@@ -576,7 +576,7 @@ export default function DataForSEOPage() {
                 ) : (
                   <>
                     <Zap className="w-5 h-5" />
-                    Sync All Data Now
+                    Sync to BigQuery
                   </>
                 )}
               </button>

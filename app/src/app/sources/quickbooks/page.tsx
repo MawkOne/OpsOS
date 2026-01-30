@@ -317,15 +317,15 @@ export default function QuickBooksPage() {
                   <button
                     onClick={handleSync}
                     disabled={isSyncing || isSyncingStatus}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
-                      background: "var(--background-tertiary)",
-                      color: "var(--foreground-muted)",
-                      border: "1px solid var(--border)",
+                      background: "#2CA01C",
+                      color: "white",
                     }}
+                    title="Sync QuickBooks data directly to BigQuery"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing || isSyncingStatus ? "animate-spin" : ""}`} />
-                    {isSyncing || isSyncingStatus ? "Syncing..." : "Sync Now"}
+                    {isSyncing || isSyncingStatus ? "Syncing to BigQuery..." : "Sync to BigQuery"}
                   </button>
                   <button
                     onClick={handleDisconnect}

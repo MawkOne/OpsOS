@@ -343,10 +343,11 @@ function GoogleAdsContent() {
                     onClick={handleSync}
                     disabled={isSyncing}
                     className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium"
-                    style={{ background: "var(--accent)", color: "var(--background)" }}
+                    style={{ background: "#4285F4", color: "white" }}
+                    title="Sync Google Ads data directly to BigQuery"
                   >
                     {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    {isSyncing ? 'Syncing...' : 'Sync Data'}
+                    {isSyncing ? 'Syncing to BigQuery...' : 'Sync to BigQuery'}
                   </button>
                   <button
                     onClick={handleDisconnect}
