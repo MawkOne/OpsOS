@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { BigQuery } from '@google-cloud/bigquery';
+
+const PROJECT_ID = 'opsos-864a1';
+const DATASET_ID = 'marketing_ai';
+const TABLE_ID = 'daily_entity_metrics';
+
+// Initialize BigQuery client
+const bigquery = new BigQuery({
+  projectId: PROJECT_ID,
+  credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
+    ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+    : undefined,
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,75 +22,111 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
     }
 
-    console.log(`📊 Fetching QuickBooks metrics for org: ${organizationId}`);
+    console.log(`📊 Fetching QuickBooks metrics from BigQuery for org: ${organizationId}`);
 
-    // Get all invoices for this organization
-    const invoicesQuery = query(
-      collection(db, 'quickbooks_invoices'),
-      where('organizationId', '==', organizationId)
-    );
-    const invoicesSnapshot = await getDocs(invoicesQuery);
-    
-    console.log(`   Invoices found: ${invoicesSnapshot.size}`);
-    
-    let totalRevenue = 0;
-    let accountsReceivable = 0;
-    
-    invoicesSnapshot.forEach((doc) => {
-      const invoice = doc.data();
-      totalRevenue += invoice.totalAmount || 0;
-      accountsReceivable += invoice.balance || 0;
-    });
+    const tableRef = `${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}`;
 
-    // Get all expenses for this organization
-    const expensesQuery = query(
-      collection(db, 'quickbooks_expenses'),
-      where('organizationId', '==', organizationId)
-    );
-    const expensesSnapshot = await getDocs(expensesQuery);
-    
-    console.log(`   Expenses found: ${expensesSnapshot.size}`);
-    
-    let totalExpenses = 0;
-    let accountsPayable = 0;
-    
-    expensesSnapshot.forEach((doc) => {
-      const expense = doc.data();
-      totalExpenses += expense.totalAmount || 0;
-      accountsPayable += expense.balance || 0;
-    });
+    // Query for account balances (most recent)
+    const accountQuery = `
+      SELECT 
+        accounts_receivable,
+        accounts_payable,
+        bank_balance,
+        total_income,
+        total_expenses,
+        net_income,
+        date
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'quickbooks'
+        AND entity_type = 'account'
+      ORDER BY date DESC
+      LIMIT 1
+    `;
 
-    // Get customer count
-    const customersQuery = query(
-      collection(db, 'quickbooks_customers'),
-      where('organizationId', '==', organizationId),
-      where('active', '==', true)
-    );
-    const customersSnapshot = await getDocs(customersQuery);
-    const customerCount = customersSnapshot.size;
+    // Query for invoice totals (last 90 days)
+    const invoiceQuery = `
+      SELECT 
+        SUM(revenue) as total_revenue,
+        SUM(invoiced_amount) as total_invoiced,
+        SUM(invoice_count) as total_invoices
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'quickbooks'
+        AND entity_type = 'invoice'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    `;
 
-    console.log(`   Customers found: ${customerCount}`);
+    // Query for expense totals (last 90 days)
+    const expenseQuery = `
+      SELECT 
+        SUM(expense_amount) as total_expenses,
+        SUM(expense_count) as total_expense_count
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'quickbooks'
+        AND entity_type = 'expense'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    `;
 
-    const netIncome = totalRevenue - totalExpenses;
+    const options = {
+      query: '',
+      params: { organizationId },
+    };
+
+    // Run queries in parallel
+    const [accountResults, invoiceResults, expenseResults] = await Promise.all([
+      bigquery.query({ ...options, query: accountQuery }),
+      bigquery.query({ ...options, query: invoiceQuery }),
+      bigquery.query({ ...options, query: expenseQuery }),
+    ]);
+
+    const accountData = accountResults[0][0] || {};
+    const invoiceData = invoiceResults[0][0] || {};
+    const expenseData = expenseResults[0][0] || {};
+
+    const totalRevenue = invoiceData.total_revenue || accountData.total_income || 0;
+    const totalExpenses = expenseData.total_expenses || accountData.total_expenses || 0;
 
     const metrics = {
       totalRevenue,
       totalExpenses,
-      netIncome,
-      accountsReceivable,
-      accountsPayable,
-      customerCount,
+      netIncome: totalRevenue - totalExpenses,
+      accountsReceivable: accountData.accounts_receivable || 0,
+      accountsPayable: accountData.accounts_payable || 0,
+      bankBalance: accountData.bank_balance || 0,
+      invoiceCount: invoiceData.total_invoices || 0,
+      expenseCount: expenseData.total_expense_count || 0,
+      customerCount: 0, // Not tracked in current BigQuery schema
+      source: 'bigquery',
     };
 
     console.log(`   Metrics calculated:`, metrics);
 
     return NextResponse.json(metrics);
-  } catch (error) {
+  } catch (error: any) {
     console.error('QuickBooks metrics error:', error);
+    
+    // Return empty metrics if no data found
+    if (error.message?.includes('Not found')) {
+      return NextResponse.json({
+        totalRevenue: 0,
+        totalExpenses: 0,
+        netIncome: 0,
+        accountsReceivable: 0,
+        accountsPayable: 0,
+        bankBalance: 0,
+        invoiceCount: 0,
+        expenseCount: 0,
+        customerCount: 0,
+        source: 'bigquery',
+        message: 'No data synced yet. Click "Sync to BigQuery" to fetch data.',
+      });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch metrics' },
       { status: 500 }
     );
   }
 }
-

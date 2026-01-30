@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { BigQuery } from '@google-cloud/bigquery';
+
+const PROJECT_ID = 'opsos-864a1';
+const DATASET_ID = 'marketing_ai';
+const TABLE_ID = 'daily_entity_metrics';
+
+// Initialize BigQuery client
+const bigquery = new BigQuery({
+  projectId: PROJECT_ID,
+  credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
+    ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+    : undefined,
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,111 +25,110 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if connection exists
-    const connectionRef = doc(db, 'stripe_connections', organizationId);
-    const connectionSnapshot = await getDoc(connectionRef);
+    const tableRef = `${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}`;
 
-    if (!connectionSnapshot.exists() || connectionSnapshot.data()?.status !== 'connected') {
-      return NextResponse.json(
-        { error: 'Stripe not connected' },
-        { status: 404 }
-      );
-    }
+    // Query for subscription metrics (most recent)
+    const subscriptionQuery = `
+      SELECT 
+        mrr,
+        arr,
+        active_subscriptions,
+        churned_subscriptions,
+        churn_rate,
+        date
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'stripe'
+        AND entity_type = 'subscription'
+      ORDER BY date DESC
+      LIMIT 1
+    `;
 
-    // Get all active subscriptions to calculate MRR
-    const subsQuery = query(
-      collection(db, 'stripe_subscriptions'),
-      where('organizationId', '==', organizationId),
-      where('status', '==', 'active')
-    );
-    const subsSnapshot = await getDocs(subsQuery);
+    // Query for customer metrics (most recent)
+    const customerQuery = `
+      SELECT 
+        total_customers,
+        new_customers_today,
+        date
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'stripe'
+        AND entity_type = 'customer'
+      ORDER BY date DESC
+      LIMIT 1
+    `;
 
-    let mrr = 0;
-    let activeSubscriptions = 0;
+    // Query for revenue totals (last 30 days)
+    const revenueQuery = `
+      SELECT 
+        SUM(revenue) as total_revenue,
+        SUM(payment_count) as total_payments,
+        SUM(net_revenue) as net_revenue
+      FROM \`${tableRef}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'stripe'
+        AND entity_type = 'revenue'
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    `;
 
-    subsSnapshot.forEach((doc) => {
-      const sub = doc.data();
-      mrr += sub.mrr || 0;
-      activeSubscriptions++;
-    });
+    const options = {
+      query: '',
+      params: { organizationId },
+    };
 
-    // Get total customers
-    const customersQuery = query(
-      collection(db, 'stripe_customers'),
-      where('organizationId', '==', organizationId)
-    );
-    const customersSnapshot = await getDocs(customersQuery);
-    const totalCustomers = customersSnapshot.size;
+    // Run queries in parallel
+    const [subscriptionResults, customerResults, revenueResults] = await Promise.all([
+      bigquery.query({ ...options, query: subscriptionQuery }),
+      bigquery.query({ ...options, query: customerQuery }),
+      bigquery.query({ ...options, query: revenueQuery }),
+    ]);
 
-    // Get total revenue from payments
-    const paymentsQuery = query(
-      collection(db, 'stripe_payments'),
-      where('organizationId', '==', organizationId),
-      where('status', '==', 'succeeded')
-    );
-    const paymentsSnapshot = await getDocs(paymentsQuery);
-    
-    let totalRevenue = 0;
-    let paymentCount = 0;
-    paymentsSnapshot.forEach((doc) => {
-      const payment = doc.data();
-      totalRevenue += payment.amount || 0;
-      paymentCount++;
-    });
+    const subscriptionData = subscriptionResults[0][0] || {};
+    const customerData = customerResults[0][0] || {};
+    const revenueData = revenueResults[0][0] || {};
 
-    // Calculate metrics
-    const arr = mrr * 12;
-    const averageRevenuePerUser = totalCustomers > 0 ? mrr / totalCustomers : 0;
-
-    // Get canceled subscriptions for churn calculation (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const canceledQuery = query(
-      collection(db, 'stripe_subscriptions'),
-      where('organizationId', '==', organizationId),
-      where('status', '==', 'canceled')
-    );
-    const canceledSnapshot = await getDocs(canceledQuery);
-    
-    let recentlyCanceled = 0;
-    canceledSnapshot.forEach((doc) => {
-      const sub = doc.data();
-      if (sub.canceledAt?.toDate() >= thirtyDaysAgo) {
-        recentlyCanceled++;
-      }
-    });
-
-    // Simple churn rate calculation
-    const totalSubsEver = subsSnapshot.size + canceledSnapshot.size;
-    const churnRate = totalSubsEver > 0 ? (recentlyCanceled / totalSubsEver) * 100 : 0;
+    const mrr = subscriptionData.mrr || 0;
+    const totalCustomers = customerData.total_customers || 0;
 
     const metrics = {
       mrr,
-      arr,
-      activeSubscriptions,
+      arr: subscriptionData.arr || mrr * 12,
+      activeSubscriptions: subscriptionData.active_subscriptions || 0,
       totalCustomers,
-      totalRevenue: totalRevenue / 100, // Convert from cents
-      paymentCount,
-      churnRate: parseFloat(churnRate.toFixed(2)),
-      averageRevenuePerUser: parseFloat(averageRevenuePerUser.toFixed(2)),
+      totalRevenue: revenueData.total_revenue || 0,
+      paymentCount: revenueData.total_payments || 0,
+      churnRate: subscriptionData.churn_rate || 0,
+      averageRevenuePerUser: totalCustomers > 0 ? mrr / totalCustomers : 0,
+      netRevenue: revenueData.net_revenue || 0,
       lastCalculatedAt: new Date().toISOString(),
+      source: 'bigquery',
     };
-
-    // Cache the metrics
-    const metricsRef = doc(db, 'stripe_metrics', organizationId);
-    await setDoc(metricsRef, {
-      ...metrics,
-      updatedAt: serverTimestamp(),
-    });
 
     return NextResponse.json(metrics);
   } catch (error: any) {
     console.error('Stripe metrics error:', error);
+    
+    // Return empty metrics if no data found
+    if (error.message?.includes('Not found')) {
+      return NextResponse.json({
+        mrr: 0,
+        arr: 0,
+        activeSubscriptions: 0,
+        totalCustomers: 0,
+        totalRevenue: 0,
+        paymentCount: 0,
+        churnRate: 0,
+        averageRevenuePerUser: 0,
+        netRevenue: 0,
+        lastCalculatedAt: new Date().toISOString(),
+        source: 'bigquery',
+        message: 'No data synced yet. Click "Sync to BigQuery" to fetch data.',
+      });
+    }
+
     return NextResponse.json(
       { error: error.message || 'Failed to calculate metrics' },
       { status: 500 }
     );
   }
 }
-

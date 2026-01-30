@@ -130,7 +130,8 @@ function GoogleAdsContent() {
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch(`/api/google-ads/sync?organizationId=${organizationId}`);
+      // Fetch metrics from BigQuery via new metrics endpoint
+      const response = await fetch(`/api/google-ads/metrics?organizationId=${organizationId}`);
       const data = await response.json();
       
       if (data.hasData && data.accountMetrics) {
