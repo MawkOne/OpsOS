@@ -193,15 +193,15 @@ export async function POST(request: NextRequest) {
           {
             target: targetUrl,
             max_crawl_pages: maxCrawlPages,
-            priority_urls: hasPriorityUrls ? priorityUrls : undefined, // Crawl these first
+            priority_urls: hasPriorityUrls ? priorityUrls : undefined, // Crawl these URLs
             load_resources: true,
             enable_javascript: true,
             enable_browser_rendering: true,
-            respect_sitemap: true, // Use sitemap.xml to find pages
-            crawl_delay: hasPriorityUrls ? 50 : 100, // Faster crawl for priority pages
-            store_raw_html: false, // Don't store raw HTML to save costs
+            respect_sitemap: false, // ONLY crawl priority URLs, don't discover more pages
+            crawl_delay: hasPriorityUrls ? 50 : 100,
+            store_raw_html: false,
             calculate_keyword_density: true,
-            check_spell: false, // Disable spell check to speed up
+            check_spell: false,
           },
         ]),
       });
