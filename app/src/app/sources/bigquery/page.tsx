@@ -38,7 +38,7 @@ interface BigQueryConnection {
     eventsIngested: number;
     usersIngested: number;
     tablesProcessed: number;
-    errors: string[];
+    errors?: string[];
   };
   errorMessage?: string;
 }
@@ -827,13 +827,13 @@ export default function BigQueryPage() {
                   </p>
                 </div>
               </div>
-              {connection.lastSyncResults.errors?.length > 0 && (
+              {(connection.lastSyncResults?.errors?.length ?? 0) > 0 && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-red-400 mb-2">
                     Import Errors:
                   </p>
                   <ul className="text-sm text-red-400 space-y-1">
-                    {connection.lastSyncResults.errors.map((err, idx) => (
+                    {connection.lastSyncResults?.errors?.map((err: string, idx: number) => (
                       <li key={idx}>• {err}</li>
                     ))}
                   </ul>
