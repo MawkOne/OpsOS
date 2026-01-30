@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BigQuery } from '@google-cloud/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
 const TABLE_ID = 'daily_entity_metrics';
 
-// Initialize BigQuery client
-const bigquery = new BigQuery({
-  projectId: PROJECT_ID,
-  credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
-    ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
-    : undefined,
-});
+// Return empty metrics with a message
+function emptyMetrics(message: string) {
+  return {
+    hasData: false,
+    accountMetrics: {
+      totalSpend: 0,
+      totalImpressions: 0,
+      totalClicks: 0,
+      totalConversions: 0,
+      totalConversionValue: 0,
+      ctr: 0,
+      cpc: 0,
+      cpa: 0,
+      roas: 0,
+      spendTrend: 0,
+      conversionsTrend: 0,
+    },
+    campaigns: [],
+    source: 'bigquery',
+    message,
+  };
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +37,28 @@ export async function GET(request: NextRequest) {
 
   try {
     console.log(`📊 Fetching Google Ads metrics from BigQuery for org: ${organizationId}`);
+
+    // Check if BigQuery credentials are available
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      console.warn('GOOGLE_APPLICATION_CREDENTIALS_JSON not set, returning empty metrics');
+      return NextResponse.json(emptyMetrics('BigQuery not configured. Sync data to populate metrics.'));
+    }
+
+    // Lazy import BigQuery
+    const { BigQuery } = await import('@google-cloud/bigquery');
+    
+    let credentials;
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    } catch (parseError) {
+      console.error('Failed to parse BigQuery credentials:', parseError);
+      return NextResponse.json(emptyMetrics('BigQuery credentials invalid.'));
+    }
+
+    const bigquery = new BigQuery({
+      projectId: PROJECT_ID,
+      credentials,
+    });
 
     const tableRef = `${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}`;
 
@@ -68,55 +104,22 @@ export async function GET(request: NextRequest) {
       LIMIT 20
     `;
 
-    // Query for trends (this week vs last week)
-    const trendQuery = `
-      WITH weekly AS (
-        SELECT 
-          CASE 
-            WHEN date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN 'this_week'
-            ELSE 'last_week'
-          END as period,
-          SUM(ad_spend) as spend,
-          SUM(conversions) as conversions
-        FROM \`${tableRef}\`
-        WHERE organization_id = @organizationId
-          AND data_source = 'google_ads'
-          AND entity_type = 'ad_account'
-          AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        GROUP BY 1
-      )
-      SELECT * FROM weekly
-    `;
-
     const options = {
       query: '',
       params: { organizationId },
     };
 
     // Run queries in parallel
-    const [accountResults, campaignResults, trendResults] = await Promise.all([
+    const [accountResults, campaignResults] = await Promise.all([
       bigquery.query({ ...options, query: accountQuery }),
       bigquery.query({ ...options, query: campaignQuery }),
-      bigquery.query({ ...options, query: trendQuery }),
     ]);
 
     const accountData = accountResults[0][0] || {};
     const campaigns = campaignResults[0] || [];
-    const trends = trendResults[0] || [];
-
-    // Calculate trends
-    const thisWeek = trends.find((t: any) => t.period === 'this_week') || {};
-    const lastWeek = trends.find((t: any) => t.period === 'last_week') || {};
-    
-    const spendTrend = lastWeek.spend > 0 
-      ? ((thisWeek.spend - lastWeek.spend) / lastWeek.spend) * 100 
-      : 0;
-    const conversionsTrend = lastWeek.conversions > 0 
-      ? ((thisWeek.conversions - lastWeek.conversions) / lastWeek.conversions) * 100 
-      : 0;
 
     const metrics = {
-      hasData: accountData.total_spend > 0 || campaigns.length > 0,
+      hasData: (accountData.total_spend || 0) > 0 || campaigns.length > 0,
       accountMetrics: {
         totalSpend: accountData.total_spend || 0,
         totalImpressions: accountData.total_impressions || 0,
@@ -127,22 +130,30 @@ export async function GET(request: NextRequest) {
         cpc: accountData.avg_cpc || 0,
         cpa: accountData.avg_cpa || 0,
         roas: accountData.avg_roas || 0,
-        spendTrend,
-        conversionsTrend,
+        spendTrend: 0,
+        conversionsTrend: 0,
       },
-      campaigns: campaigns.map((c: any) => ({
-        id: c.canonical_entity_id,
-        name: c.entity_name || c.canonical_entity_id,
-        spend: c.ad_spend || 0,
-        impressions: c.impressions || 0,
-        clicks: c.clicks || 0,
-        conversions: c.conversions || 0,
-        conversionValue: c.conversion_value || 0,
-        ctr: c.ctr || 0,
-        cpc: c.cpc || 0,
-        roas: c.roas || 0,
-        status: c.source_breakdown ? JSON.parse(c.source_breakdown).status : 'UNKNOWN',
-      })),
+      campaigns: campaigns.map((c: any) => {
+        let sourceData = {};
+        try {
+          sourceData = c.source_breakdown ? JSON.parse(c.source_breakdown) : {};
+        } catch (e) {
+          // Ignore parse errors
+        }
+        return {
+          id: c.canonical_entity_id,
+          name: c.entity_name || c.canonical_entity_id,
+          spend: c.ad_spend || 0,
+          impressions: c.impressions || 0,
+          clicks: c.clicks || 0,
+          conversions: c.conversions || 0,
+          conversionValue: c.conversion_value || 0,
+          ctr: c.ctr || 0,
+          cpc: c.cpc || 0,
+          roas: c.roas || 0,
+          status: (sourceData as any).status || 'UNKNOWN',
+        };
+      }),
       source: 'bigquery',
     };
 
@@ -150,31 +161,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error fetching Google Ads metrics:', error);
-    
-    // Return empty metrics if no data found
-    if (error.message?.includes('Not found')) {
-      return NextResponse.json({
-        hasData: false,
-        accountMetrics: {
-          totalSpend: 0,
-          totalImpressions: 0,
-          totalClicks: 0,
-          totalConversions: 0,
-          totalConversionValue: 0,
-          ctr: 0,
-          cpc: 0,
-          cpa: 0,
-          roas: 0,
-        },
-        campaigns: [],
-        source: 'bigquery',
-        message: 'No data synced yet. Click "Sync to BigQuery" to fetch data.',
-      });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch data' },
-      { status: 500 }
-    );
+    return NextResponse.json(emptyMetrics('Unable to fetch metrics. Click "Sync to BigQuery" to populate data.'));
   }
 }

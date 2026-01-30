@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BigQuery } from '@google-cloud/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
 const TABLE_ID = 'daily_entity_metrics';
 
-// Initialize BigQuery client
-const bigquery = new BigQuery({
-  projectId: PROJECT_ID,
-  credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
-    ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
-    : undefined,
-});
+// Return empty metrics with a message
+function emptyMetrics(message: string) {
+  return {
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    accountsReceivable: 0,
+    accountsPayable: 0,
+    bankBalance: 0,
+    invoiceCount: 0,
+    expenseCount: 0,
+    customerCount: 0,
+    source: 'bigquery',
+    message,
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,6 +31,28 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`📊 Fetching QuickBooks metrics from BigQuery for org: ${organizationId}`);
+
+    // Check if BigQuery credentials are available
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      console.warn('GOOGLE_APPLICATION_CREDENTIALS_JSON not set, returning empty metrics');
+      return NextResponse.json(emptyMetrics('BigQuery not configured. Sync data to populate metrics.'));
+    }
+
+    // Lazy import BigQuery
+    const { BigQuery } = await import('@google-cloud/bigquery');
+    
+    let credentials;
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    } catch (parseError) {
+      console.error('Failed to parse BigQuery credentials:', parseError);
+      return NextResponse.json(emptyMetrics('BigQuery credentials invalid.'));
+    }
+
+    const bigquery = new BigQuery({
+      projectId: PROJECT_ID,
+      credentials,
+    });
 
     const tableRef = `${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}`;
 
@@ -97,7 +127,7 @@ export async function GET(request: NextRequest) {
       bankBalance: accountData.bank_balance || 0,
       invoiceCount: invoiceData.total_invoices || 0,
       expenseCount: expenseData.total_expense_count || 0,
-      customerCount: 0, // Not tracked in current BigQuery schema
+      customerCount: 0,
       source: 'bigquery',
     };
 
@@ -106,27 +136,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(metrics);
   } catch (error: any) {
     console.error('QuickBooks metrics error:', error);
-    
-    // Return empty metrics if no data found
-    if (error.message?.includes('Not found')) {
-      return NextResponse.json({
-        totalRevenue: 0,
-        totalExpenses: 0,
-        netIncome: 0,
-        accountsReceivable: 0,
-        accountsPayable: 0,
-        bankBalance: 0,
-        invoiceCount: 0,
-        expenseCount: 0,
-        customerCount: 0,
-        source: 'bigquery',
-        message: 'No data synced yet. Click "Sync to BigQuery" to fetch data.',
-      });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch metrics' },
-      { status: 500 }
-    );
+    return NextResponse.json(emptyMetrics('Unable to fetch metrics. Click "Sync to BigQuery" to populate data.'));
   }
 }

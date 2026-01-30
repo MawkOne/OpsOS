@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BigQuery } from '@google-cloud/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
 const TABLE_ID = 'daily_entity_metrics';
 
-// Initialize BigQuery client
-const bigquery = new BigQuery({
-  projectId: PROJECT_ID,
-  credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
-    ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
-    : undefined,
-});
+// Return empty metrics with a message
+function emptyMetrics(message: string) {
+  return {
+    mrr: 0,
+    arr: 0,
+    activeSubscriptions: 0,
+    totalCustomers: 0,
+    totalRevenue: 0,
+    paymentCount: 0,
+    churnRate: 0,
+    averageRevenuePerUser: 0,
+    netRevenue: 0,
+    lastCalculatedAt: new Date().toISOString(),
+    source: 'bigquery',
+    message,
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +33,28 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Check if BigQuery credentials are available
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      console.warn('GOOGLE_APPLICATION_CREDENTIALS_JSON not set, returning empty metrics');
+      return NextResponse.json(emptyMetrics('BigQuery not configured. Sync data to populate metrics.'));
+    }
+
+    // Lazy import BigQuery to avoid initialization errors
+    const { BigQuery } = await import('@google-cloud/bigquery');
+    
+    let credentials;
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    } catch (parseError) {
+      console.error('Failed to parse BigQuery credentials:', parseError);
+      return NextResponse.json(emptyMetrics('BigQuery credentials invalid.'));
+    }
+
+    const bigquery = new BigQuery({
+      projectId: PROJECT_ID,
+      credentials,
+    });
 
     const tableRef = `${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}`;
 
@@ -108,27 +139,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Stripe metrics error:', error);
     
-    // Return empty metrics if no data found
-    if (error.message?.includes('Not found')) {
-      return NextResponse.json({
-        mrr: 0,
-        arr: 0,
-        activeSubscriptions: 0,
-        totalCustomers: 0,
-        totalRevenue: 0,
-        paymentCount: 0,
-        churnRate: 0,
-        averageRevenuePerUser: 0,
-        netRevenue: 0,
-        lastCalculatedAt: new Date().toISOString(),
-        source: 'bigquery',
-        message: 'No data synced yet. Click "Sync to BigQuery" to fetch data.',
-      });
-    }
-
-    return NextResponse.json(
-      { error: error.message || 'Failed to calculate metrics' },
-      { status: 500 }
-    );
+    // Return empty metrics for any error - don't break the UI
+    return NextResponse.json(emptyMetrics('Unable to fetch metrics. Click "Sync to BigQuery" to populate data.'));
   }
 }
