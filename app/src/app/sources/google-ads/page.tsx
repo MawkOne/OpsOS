@@ -235,7 +235,9 @@ function GoogleAdsContent() {
     setError(null);
 
     try {
-      const response = await fetch('/api/google-ads/sync', {
+      // Call Cloud Function directly - syncs from Google Ads API to BigQuery (bypasses Firestore)
+      console.log("Syncing Google Ads data directly to BigQuery...");
+      const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/google-ads-bigquery-sync", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organizationId }),
@@ -243,12 +245,11 @@ function GoogleAdsContent() {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || 'Sync failed');
       }
 
-      setMetrics(data.data.accountMetrics);
-      setSuccess(`Synced ${data.data.campaignCount} campaigns, ${data.data.dailyRecords} daily records.`);
+      setSuccess(`Synced ${data.campaigns_processed || 0} campaigns, ${data.daily_records || 0} daily records to BigQuery.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed');
     } finally {

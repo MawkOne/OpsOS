@@ -74,19 +74,54 @@ def get_enabled_areas(organization_id: str):
         return {'email': True, 'revenue': True, 'pages': True, 'traffic': True, 'seo': True, 'advertising': True, 'content': True}
 
 def write_opportunities_to_bigquery(opportunities: list):
-    """Write opportunities to BigQuery"""
+    """Write opportunities to BigQuery with proper JSON field handling"""
     if not opportunities:
         return
     
     try:
         table_id = f"{bq_client.project}.marketing_ai.opportunities"
-        errors = bq_client.insert_rows_json(table_id, opportunities)
+        
+        # Prepare opportunities for BigQuery by converting nested objects to JSON strings
+        # BigQuery doesn't accept nested dicts unless the schema has RECORD types
+        prepared_opportunities = []
+        for opp in opportunities:
+            prepared_opp = opp.copy()
+            
+            # Convert nested objects to JSON strings
+            # These fields often contain variable structures that don't fit a fixed schema
+            json_fields = ['evidence', 'metrics', 'historical_performance', 'comparison_data', 'recommended_actions']
+            
+            for field in json_fields:
+                if field in prepared_opp and prepared_opp[field] is not None:
+                    if isinstance(prepared_opp[field], (dict, list)):
+                        prepared_opp[field] = json.dumps(prepared_opp[field])
+            
+            # Ensure all required fields have values (BigQuery doesn't like None for some types)
+            prepared_opp['evidence'] = prepared_opp.get('evidence') or '{}'
+            prepared_opp['metrics'] = prepared_opp.get('metrics') or '{}'
+            prepared_opp['historical_performance'] = prepared_opp.get('historical_performance') or '{}'
+            prepared_opp['comparison_data'] = prepared_opp.get('comparison_data') or '{}'
+            prepared_opp['recommended_actions'] = prepared_opp.get('recommended_actions') or '[]'
+            
+            # Ensure numeric fields are proper numbers
+            prepared_opp['confidence_score'] = float(prepared_opp.get('confidence_score') or 0)
+            prepared_opp['potential_impact_score'] = float(prepared_opp.get('potential_impact_score') or 0)
+            prepared_opp['urgency_score'] = float(prepared_opp.get('urgency_score') or 0)
+            
+            prepared_opportunities.append(prepared_opp)
+        
+        errors = bq_client.insert_rows_json(table_id, prepared_opportunities)
         if errors:
-            logger.error(f"BigQuery insert errors: {errors}")
+            logger.error(f"BigQuery insert errors (first 3): {errors[:3]}")
+            # Log the structure of a failed row for debugging
+            if prepared_opportunities:
+                logger.error(f"Sample row structure: {list(prepared_opportunities[0].keys())}")
         else:
-            logger.info(f"✅ Wrote {len(opportunities)} opportunities to BigQuery")
+            logger.info(f"✅ Wrote {len(prepared_opportunities)} opportunities to BigQuery")
     except Exception as e:
         logger.error(f"❌ Error writing to BigQuery: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 def write_opportunities_to_firestore(opportunities: list):
     """Mirror opportunities to Firestore for real-time access"""

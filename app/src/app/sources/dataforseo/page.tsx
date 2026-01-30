@@ -288,88 +288,37 @@ export default function DataForSEOPage() {
     setIsSyncing(true);
     setError(null);
     
-    const actions = [
-      { name: "Keywords", action: "sync_keywords" },
-      { name: "Backlinks", action: "sync_backlinks" },
-      { name: "Historical Rankings", action: "sync_historical_serps" },
-      { name: "Page Health Crawl", action: "start_crawl" },
-    ];
-
     setSyncAllProgress({
-      current: actions[0].name,
+      current: "Syncing to BigQuery",
       completed: [],
-      total: actions.length + 1, // +1 for BigQuery sync
+      total: 1,
     });
 
     try {
-      // Run all DataForSEO syncs sequentially
-      for (let i = 0; i < actions.length; i++) {
-        const { name, action } = actions[i];
-        
-        setSyncAllProgress({
-          current: name,
-          completed: actions.slice(0, i).map(a => a.name),
-          total: actions.length + 1,
-        });
-
-        try {
-          const response = await fetch("/api/dataforseo/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              organizationId: currentOrg.id,
-              action,
-            }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            console.error(`${name} sync failed:`, data.error);
-            // Continue with other syncs even if one fails
-          }
-        } catch (err) {
-          console.error(`${name} sync error:`, err);
-          // Continue with other syncs
-        }
-
-        // Small delay between syncs
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      // Sync to BigQuery via Cloud Function
-      setSyncAllProgress({
-        current: "Syncing to BigQuery",
-        completed: actions.map(a => a.name),
-        total: actions.length + 1,
+      // Call Cloud Function directly - syncs from DataForSEO API to BigQuery (bypasses Firestore)
+      console.log("Syncing DataForSEO data directly to BigQuery...");
+      const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/dataforseo-bigquery-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: currentOrg.id,
+          backfillHistory: true,
+        }),
       });
 
-      try {
-        const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/dataforseo-bigquery-sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            organizationId: currentOrg.id,
-            backfillHistory: true,
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          console.error("BigQuery sync failed:", data);
-        } else {
-          console.log("BigQuery sync success:", data);
-        }
-      } catch (err) {
-        console.error("BigQuery sync error:", err);
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Sync failed");
       }
+      
+      console.log("BigQuery sync success:", data);
 
       // Complete
       setSyncAllProgress({
         current: "Complete",
-        completed: [...actions.map(a => a.name), "BigQuery Sync"],
-        total: actions.length + 1,
+        completed: ["BigQuery Sync"],
+        total: 1,
       });
 
       // Clear progress after 3 seconds

@@ -2,13 +2,5 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
-  },
-  "extensions": {
-    "firestore-bigquery-export": "firebase/firestore-bigquery-export@0.2.6",
-    "firestore-bigquery-export-y0fm": "firebase/firestore-bigquery-export@0.2.6",
-    "firestore-bigquery-export-dfs-keywords": "firebase/firestore-bigquery-export@0.2.6",
-    "firestore-bigquery-export-dfs-rank-history": "firebase/firestore-bigquery-export@0.2.6",
-    "firestore-bigquery-export-dfs-backlinks": "firebase/firestore-bigquery-export@0.2.6",
-    "firestore-bigquery-export-dfs-refdoms": "firebase/firestore-bigquery-export@0.2.6"
   }
 }

@@ -159,10 +159,11 @@ export default function QuickBooksPage() {
     setIsSyncing(true);
     setError(null);
 
-    console.log("🔄 Starting QuickBooks sync...");
+    console.log("🔄 Starting QuickBooks sync directly to BigQuery...");
 
     try {
-      const syncResponse = await fetch("/api/quickbooks/sync", {
+      // Call Cloud Function directly - syncs from QuickBooks API to BigQuery (bypasses Firestore)
+      const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/quickbooks-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ organizationId }),
@@ -172,14 +173,14 @@ export default function QuickBooksPage() {
       
       console.log("📊 Sync response:", syncData);
 
-      if (!syncResponse.ok) {
+      if (!syncResponse.ok || !syncData.success) {
         throw new Error(syncData.error || "Failed to sync QuickBooks data");
       }
 
-      console.log("✅ Sync completed:", syncData.results);
+      console.log("✅ Sync completed:", syncData);
 
       await fetchMetrics();
-      setSuccess("Sync completed successfully!");
+      setSuccess(`Sync completed! ${syncData.invoices_processed || 0} invoices, ${syncData.expenses_processed || 0} expenses synced to BigQuery.`);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error("❌ Sync error:", err);

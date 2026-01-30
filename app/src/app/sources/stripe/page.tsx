@@ -149,35 +149,28 @@ export default function StripePage() {
     setError(null);
 
     try {
-      const syncResponse = await fetch("/api/stripe/sync", {
+      // Call Cloud Function directly - syncs from Stripe API to BigQuery (bypasses Firestore)
+      console.log("Syncing Stripe data directly to BigQuery...");
+      const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/stripe-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           organizationId,
-          syncType,
+          daysBack: syncType === 'historical' ? 365 : 90,
         }),
       });
 
       const syncData = await syncResponse.json();
 
-      if (!syncResponse.ok) {
+      if (!syncResponse.ok || !syncData.success) {
         throw new Error(syncData.error || "Failed to sync Stripe data");
       }
 
       await fetchMetrics();
-      const messages = {
-        full: `Full sync completed! ${syncData.payments || 0} payments synced.`,
-        incremental: `Sync completed! ${syncData.payments || 0} new payments.`,
-        historical: `Historical sync completed! ${syncData.payments || 0} older payments synced.`,
-      };
-      
-      let message = messages[syncType];
-      if (syncData.hasMoreData) {
-        message += ` ⚠️ More data available - click "${syncType === 'historical' ? 'Sync Historical' : 'Sync New'}" again to continue.`;
-      }
+      const message = `Sync completed! ${syncData.charges_processed || 0} charges, ${syncData.subscriptions_processed || 0} subscriptions synced to BigQuery.`;
       
       setSuccess(message);
-      setTimeout(() => setSuccess(null), syncData.hasMoreData ? 10000 : 5000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {

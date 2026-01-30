@@ -401,21 +401,32 @@ def upsert_to_bigquery(rows, org_id, start_date, end_date):
     
     table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
     
+    # Add data_source to all rows for tracking
+    for row in rows:
+        if 'data_source' not in row:
+            row['data_source'] = 'ga4_etl'
+    
     # Delete existing rows for this org + date range to avoid duplicates
+    # Use data_source = 'ga4_etl' to only delete rows we manage
     delete_query = f"""
     DELETE FROM `{table_ref}`
     WHERE organization_id = '{org_id}'
       AND date BETWEEN '{start_date}' AND '{end_date}'
       AND (
-        device_type IS NOT NULL
-        OR entity_type IN ('email', 'traffic_source')
-        OR add_to_cart IS NOT NULL
+        data_source = 'ga4_etl'
+        OR (data_source IS NULL AND (
+          device_type IS NOT NULL
+          OR entity_type IN ('email', 'traffic_source')
+          OR add_to_cart IS NOT NULL
+        ))
       )
     """
     
     try:
-        bq_client.query(delete_query).result()
-        logger.info(f"🗑️  Deleted existing ETL rows for {start_date} to {end_date}")
+        delete_job = bq_client.query(delete_query)
+        delete_job.result()
+        deleted_count = delete_job.num_dml_affected_rows or 0
+        logger.info(f"🗑️  Deleted {deleted_count} existing ETL rows for {start_date} to {end_date}")
     except Exception as e:
         logger.warning(f"Delete query warning: {e}")
     
@@ -423,7 +434,7 @@ def upsert_to_bigquery(rows, org_id, start_date, end_date):
     errors = bq_client.insert_rows_json(table_ref, rows)
     
     if errors:
-        logger.error(f"❌ Errors inserting to BigQuery: {errors}")
+        logger.error(f"❌ Errors inserting to BigQuery: {errors[:3]}")
         raise Exception(f"BigQuery insert failed: {errors}")
     else:
         logger.info(f"✅ Successfully inserted {len(rows)} rows")

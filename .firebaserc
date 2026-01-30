@@ -6,7 +6,7 @@
   "etags": {
     "opsos-864a1": {
       "extensionInstances": {
-        "firestore-bigquery-export": "583bbc4fd20d228c4eaf32902dff227d37abcc0b4b2663441e1ce7fcacc522ee"
+        "firestore-bigquery-export-dfs-keywords": "6ba3f48e080ea852ad9d5601d4baa494a894de42bc1393084a100fb704410527"
       }
     }
   }
