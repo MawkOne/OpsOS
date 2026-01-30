@@ -169,20 +169,25 @@ function GoogleAnalyticsContent() {
     setSyncResult(null);
 
     try {
-      // Sync 12 months of data to Firestore
+      // Call Cloud Function directly - syncs from GA4 API to BigQuery (bypasses Firestore)
+      console.log("Syncing GA4 data directly to BigQuery...");
       const response = await fetch(
-        `/api/google-analytics/sync?organizationId=${organizationId}&months=12`,
-        { method: "POST" }
+        "https://us-central1-opsos-864a1.cloudfunctions.net/ga4-bigquery-sync",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ organizationId, daysBack: 90 }),
+        }
       );
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to sync");
       }
 
       setSyncResult(data);
-      setSuccess(`Synced 12 months of GA4 data: ${data.results?.trafficSources || 0} sources, ${data.results?.campaigns || 0} campaigns, ${data.results?.events || 0} events, ${data.results?.pages || 0} pages`);
+      setSuccess(`Synced to BigQuery: ${data.daily_records || 0} daily records, ${data.traffic_sources || 0} traffic sources, ${data.pages_processed || 0} pages`);
       
       // Also refresh the displayed metrics
       await fetchMetrics();
@@ -388,15 +393,16 @@ function GoogleAnalyticsContent() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSync}
-                    disabled={isSyncing || metricsLoading || syncingToFirestore}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    disabled={isSyncing || metricsLoading}
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
                       background: "#F9AB00",
                       color: "#1a1a1a",
                     }}
+                    title="Sync GA4 data directly to BigQuery"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing 12 months..." : "Sync Data"}
+                    {isSyncing ? "Syncing to BigQuery..." : "Sync to BigQuery"}
                   </button>
                   <button
                     onClick={handleDisconnect}
