@@ -1,55 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { BigQuery } from '@google-cloud/bigquery';
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
+const PROJECT_ID = 'opsos-864a1';
+const DATASET_ID = 'marketing_ai';
+const TABLE_ID = 'daily_entity_metrics';
 
-interface GAConnection {
-  accessToken: string;
-  refreshToken: string;
-  tokenExpiresAt: { toDate: () => Date };
-  selectedPropertyId: string;
-}
-
-interface RefreshTokenResponse {
-  access_token: string;
-  expires_in: number;
-}
-
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
-  try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
+// Initialize BigQuery client
+function getBigQueryClient() {
+  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (credentials) {
+    return new BigQuery({
+      projectId: PROJECT_ID,
+      credentials: JSON.parse(credentials),
     });
-
-    if (!response.ok) {
-      console.error('Failed to refresh token');
-      return null;
-    }
-
-    const data: RefreshTokenResponse = await response.json();
-    return data.access_token;
-  } catch (error) {
-    console.error('Error refreshing token:', error);
-    return null;
   }
+  return new BigQuery({ projectId: PROJECT_ID });
 }
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const organizationId = searchParams.get('organizationId');
-  const startDate = searchParams.get('startDate') || '30daysAgo';
-  const endDate = searchParams.get('endDate') || 'today';
+  const daysBack = parseInt(searchParams.get('daysBack') || '30');
 
   if (!organizationId) {
     return NextResponse.json(
@@ -59,131 +30,74 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get connection from Firestore
-    const connectionRef = doc(db, 'ga_connections', organizationId);
-    const connectionSnap = await getDoc(connectionRef);
+    const bq = getBigQueryClient();
+    
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
 
-    if (!connectionSnap.exists()) {
+    // Query BigQuery for aggregated GA4 metrics
+    const query = `
+      SELECT 
+        SUM(active_users) as activeUsers,
+        SUM(new_users) as newUsers,
+        SUM(sessions) as sessions,
+        SUM(page_views) as pageViews,
+        AVG(avg_session_duration) as avgSessionDuration,
+        AVG(bounce_rate) as bounceRate,
+        SUM(engaged_sessions) as engagedSessions
+      FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\`
+      WHERE organization_id = @organizationId
+        AND data_source = 'ga4'
+        AND entity_type = 'website_traffic'
+        AND date >= @startDate
+        AND date <= @endDate
+    `;
+
+    const options = {
+      query,
+      params: {
+        organizationId,
+        startDate: startDateStr,
+        endDate: endDateStr,
+      },
+    };
+
+    const [rows] = await bq.query(options);
+
+    if (!rows || rows.length === 0 || !rows[0].activeUsers) {
       return NextResponse.json(
-        { error: 'Google Analytics not connected' },
+        { 
+          error: 'No GA4 data found in BigQuery. Please sync data first.',
+          hint: 'Click "Sync to BigQuery" to pull data from Google Analytics.'
+        },
         { status: 404 }
       );
     }
 
-    const connection = connectionSnap.data() as GAConnection;
-
-    if (!connection.selectedPropertyId) {
-      return NextResponse.json(
-        { error: 'No property selected' },
-        { status: 400 }
-      );
-    }
-
-    // Check if token is expired and refresh if needed
-    let accessToken = connection.accessToken;
-    const expiresAt = connection.tokenExpiresAt?.toDate?.() || new Date(0);
-
-    if (expiresAt < new Date()) {
-      if (!connection.refreshToken) {
-        return NextResponse.json(
-          { error: 'Token expired and no refresh token available' },
-          { status: 401 }
-        );
-      }
-
-      const newToken = await refreshAccessToken(connection.refreshToken);
-      if (!newToken) {
-        // Update status to indicate re-auth needed
-        await setDoc(connectionRef, {
-          status: 'error',
-          errorMessage: 'Token refresh failed. Please reconnect.',
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-
-        return NextResponse.json(
-          { error: 'Failed to refresh token. Please reconnect.' },
-          { status: 401 }
-        );
-      }
-
-      accessToken = newToken;
-
-      // Update token in Firestore
-      await setDoc(connectionRef, {
-        accessToken: newToken,
-        tokenExpiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-    }
-
-    // Fetch data from Google Analytics Data API (GA4)
-    const propertyId = connection.selectedPropertyId.replace('properties/', '');
-    
-    const response = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dateRanges: [
-            {
-              startDate,
-              endDate,
-            },
-          ],
-          metrics: [
-            { name: 'activeUsers' },
-            { name: 'newUsers' },
-            { name: 'sessions' },
-            { name: 'screenPageViews' },
-            { name: 'averageSessionDuration' },
-            { name: 'bounceRate' },
-            { name: 'engagedSessions' },
-          ],
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('GA API error:', errorData);
-      return NextResponse.json(
-        { error: 'Failed to fetch analytics data' },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    // Parse the response
-    const metrics = data.rows?.[0]?.metricValues || [];
+    const row = rows[0];
     const result = {
-      activeUsers: parseInt(metrics[0]?.value || '0'),
-      newUsers: parseInt(metrics[1]?.value || '0'),
-      sessions: parseInt(metrics[2]?.value || '0'),
-      pageViews: parseInt(metrics[3]?.value || '0'),
-      avgSessionDuration: parseFloat(metrics[4]?.value || '0'),
-      bounceRate: parseFloat(metrics[5]?.value || '0') * 100,
-      engagedSessions: parseInt(metrics[6]?.value || '0'),
-      dateRange: { startDate, endDate },
+      activeUsers: parseInt(row.activeUsers || '0'),
+      newUsers: parseInt(row.newUsers || '0'),
+      sessions: parseInt(row.sessions || '0'),
+      pageViews: parseInt(row.pageViews || '0'),
+      avgSessionDuration: parseFloat(row.avgSessionDuration || '0'),
+      bounceRate: parseFloat(row.bounceRate || '0') * 100,
+      engagedSessions: parseInt(row.engagedSessions || '0'),
+      dateRange: { startDate: startDateStr, endDate: endDateStr },
+      source: 'bigquery', // Indicate data is from BigQuery
     };
-
-    // Update last sync time
-    await setDoc(connectionRef, {
-      lastSyncAt: serverTimestamp(),
-      lastSyncResults: result,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
 
     return NextResponse.json(result);
 
   } catch (error) {
-    console.error('Error fetching GA data:', error);
+    console.error('Error fetching GA data from BigQuery:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch analytics data' },
+      { error: 'Failed to fetch analytics data from BigQuery' },
       { status: 500 }
     );
   }
