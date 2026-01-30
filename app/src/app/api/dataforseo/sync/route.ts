@@ -178,8 +178,8 @@ export async function POST(request: NextRequest) {
       }
       
       // Adjust crawl strategy based on priority URLs
-      // If we have priority URLs, focus on quality over quantity
-      const maxCrawlPages = hasPriorityUrls ? 100 : 500;
+      // Set max_crawl_pages to at least match the number of priority URLs (with some buffer)
+      const maxCrawlPages = hasPriorityUrls ? Math.max(priorityUrls.length + 50, 200) : 500;
       
       console.log(`Starting crawl with ${priorityUrls.length} priority URLs, max pages: ${maxCrawlPages}`);
       
