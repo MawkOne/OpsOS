@@ -25,14 +25,9 @@ export async function GET(request: NextRequest) {
 
   try {
     // Read from Firestore instead of BigQuery (works better in serverless)
-    // Only get opportunities from the last 7 days (filters out old data from before priority pages)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
     let q = query(
       collection(db, 'opportunities'),
-      where('organization_id', '==', organizationId),
-      where('detected_at', '>=', sevenDaysAgo.toISOString())
+      where('organization_id', '==', organizationId)
     );
 
     if (status && status !== 'all') {
@@ -52,33 +47,44 @@ export async function GET(request: NextRequest) {
 
     const snapshot = await getDocs(q);
     
-    const opportunities = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        organization_id: data.organization_id,
-        detected_at: data.detected_at,
-        category: data.category,
-        type: data.type,
-        priority: data.priority,
-        status: data.status || 'new',
-        entity_id: data.entity_id,
-        entity_type: data.entity_type,
-        title: data.title,
-        description: data.description,
-        evidence: data.evidence || {},
-        metrics: data.metrics || {},
-        hypothesis: data.hypothesis,
-        confidence_score: data.confidence_score || 0,
-        potential_impact_score: data.potential_impact_score || 0,
-        urgency_score: data.urgency_score || 0,
-        recommended_actions: data.recommended_actions || [],
-        estimated_effort: data.estimated_effort,
-        estimated_timeline: data.estimated_timeline,
-        historical_performance: data.historical_performance || {},
-        comparison_data: data.comparison_data || {},
-      };
-    });
+    // Filter to only show opportunities from last 7 days (removes old pre-priority-pages data)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const opportunities = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          organization_id: data.organization_id,
+          detected_at: data.detected_at,
+          category: data.category,
+          type: data.type,
+          priority: data.priority,
+          status: data.status || 'new',
+          entity_id: data.entity_id,
+          entity_type: data.entity_type,
+          title: data.title,
+          description: data.description,
+          evidence: data.evidence || {},
+          metrics: data.metrics || {},
+          hypothesis: data.hypothesis,
+          confidence_score: data.confidence_score || 0,
+          potential_impact_score: data.potential_impact_score || 0,
+          urgency_score: data.urgency_score || 0,
+          recommended_actions: data.recommended_actions || [],
+          estimated_effort: data.estimated_effort,
+          estimated_timeline: data.estimated_timeline,
+          historical_performance: data.historical_performance || {},
+          comparison_data: data.comparison_data || {},
+        };
+      })
+      .filter(opp => {
+        // Only show opportunities from last 7 days
+        if (!opp.detected_at) return false;
+        const detectedDate = new Date(opp.detected_at);
+        return detectedDate >= sevenDaysAgo;
+      });
 
     // Sort by impact score (client-side since Firestore has limited ordering with filters)
     opportunities.sort((a, b) => {
