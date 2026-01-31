@@ -10,7 +10,6 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Settings,
   Trash2,
   Users,
   Eye,
@@ -694,61 +693,6 @@ function GoogleAnalyticsContent() {
           </motion.div>
         )}
 
-        {/* Settings */}
-        {isConnected && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Settings className="w-5 h-5" style={{ color: "var(--foreground-muted)" }} />
-                <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                  Settings
-                </h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--foreground)" }}>Auto-sync frequency</p>
-                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>How often to pull new data</p>
-                  </div>
-                  <select
-                    className="px-3 py-1.5 rounded-lg text-sm"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <option value="1h">Every hour</option>
-                    <option value="6h">Every 6 hours</option>
-                    <option value="24h">Daily</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--foreground)" }}>Default date range</p>
-                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>Reporting period for dashboard</p>
-                  </div>
-                  <select
-                    className="px-3 py-1.5 rounded-lg text-sm"
-                    style={{
-                      background: "var(--background-tertiary)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <option value="7d">Last 7 days</option>
-                    <option value="30d">Last 30 days</option>
-                    <option value="90d">Last 90 days</option>
-                  </select>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        )}
       </div>
     </AppLayout>
   );
