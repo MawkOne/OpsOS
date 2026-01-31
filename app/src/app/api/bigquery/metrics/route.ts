@@ -79,8 +79,7 @@ export async function GET(request: NextRequest) {
         SUM(COALESCE(sessions, 0)) as sessions,
         SUM(COALESCE(users, 0)) as users,
         SUM(COALESCE(pageviews, 0)) as pageviews,
-        SUM(COALESCE(conversions, 0)) as conversions,
-        MAX(source_breakdown) as source_breakdown
+        SUM(COALESCE(conversions, 0)) as conversions
       FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\`
       WHERE organization_id = @organizationId
     `;
@@ -104,6 +103,8 @@ export async function GET(request: NextRequest) {
     
     const [rows] = await bq.query({ query, params });
     
+    console.log(`[BigQuery Metrics API] Query returned ${rows?.length || 0} rows`);
+    
     // Transform into entity-centric structure with monthly data
     const entities: Record<string, {
       entityId: string;
@@ -122,7 +123,6 @@ export async function GET(request: NextRequest) {
         pageviews: number;
         conversions: number;
       };
-      sourceBreakdown?: any;
     }> = {};
     
     for (const row of rows) {
@@ -134,7 +134,6 @@ export async function GET(request: NextRequest) {
           entityType: row.entity_type,
           months: {},
           totals: { revenue: 0, sessions: 0, users: 0, pageviews: 0, conversions: 0 },
-          sourceBreakdown: row.source_breakdown ? JSON.parse(row.source_breakdown) : null,
         };
       }
       

@@ -93,7 +93,7 @@ export default function LeadershipDashboard() {
         // Transform BigQuery format to match existing format
         const revenueEntities = (data.entities || []).map((entity: any) => ({
           entityId: entity.entityId,
-          entityName: entity.sourceBreakdown?.name || entity.entityId,
+          entityName: entity.entityId.replace(/_/g, ' ').replace(/stripe revenue /i, '').trim() || 'Revenue',
           source: 'bigquery',
           metricType: 'revenue',
           total: entity.totals?.revenue || 0,
