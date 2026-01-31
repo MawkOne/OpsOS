@@ -65,19 +65,45 @@ export default function LeadershipDashboard() {
     };
   }, [currentOrg?.id]);
 
-  // Load Revenue data from Master Table
+  // Load Revenue data from BigQuery
   useEffect(() => {
     if (!currentOrg?.id) return;
 
     const loadRevenueData = async () => {
       try {
-        console.log("📊 Loading revenue data for leadership dashboard...");
-        const allEntities = await fetchMasterTableEntities(currentOrg.id);
-        console.log(`  → Loaded ${allEntities.length} total entities`);
+        console.log("📊 Loading revenue data from BigQuery for leadership dashboard...");
         
-        // Filter for revenue entities
-        const revenueEntities = allEntities.filter(e => e.metricType === "revenue");
-        console.log(`  → Filtered to ${revenueEntities.length} revenue entities`);
+        // Fetch revenue data directly from BigQuery
+        const response = await fetch(
+          `/api/bigquery/metrics?organizationId=${currentOrg.id}&entityTypes=revenue&viewMode=ttm`
+        );
+        
+        if (!response.ok) {
+          console.warn("BigQuery API error, falling back to Master Table");
+          // Fallback to old method if BigQuery fails
+          const allEntities = await fetchMasterTableEntities(currentOrg.id);
+          const revenueEntities = allEntities.filter(e => e.metricType === "revenue");
+          setRevenueData(revenueEntities);
+          return;
+        }
+        
+        const data = await response.json();
+        console.log(`  → Loaded ${data.entities?.length || 0} revenue entities from BigQuery`);
+        
+        // Transform BigQuery format to match existing format
+        const revenueEntities = (data.entities || []).map((entity: any) => ({
+          entityId: entity.entityId,
+          entityName: entity.sourceBreakdown?.name || entity.entityId,
+          source: 'bigquery',
+          metricType: 'revenue',
+          total: entity.totals?.revenue || 0,
+          months: Object.fromEntries(
+            Object.entries(entity.months || {}).map(([month, metrics]: [string, any]) => [
+              month,
+              metrics.revenue || 0
+            ])
+          ),
+        }));
         
         if (revenueEntities.length > 0) {
           console.log(`  → Sample revenue entity:`, {
