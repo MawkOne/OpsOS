@@ -146,7 +146,6 @@ def sync_activecampaign_to_bigquery(request):
                 'date': today_str,
                 'canonical_entity_id': 'activecampaign_contacts',
                 'entity_type': 'contact_summary',
-                'data_source': 'activecampaign',
                 
                 'entity_name': 'All Contacts',
                 'total_contacts': total_contacts,
@@ -196,7 +195,6 @@ def sync_activecampaign_to_bigquery(request):
                 'date': today_str,
                 'canonical_entity_id': 'activecampaign_deals',
                 'entity_type': 'deal_summary',
-                'data_source': 'activecampaign',
                 
                 'entity_name': 'CRM Deals',
                 'pipeline_value': open_value,
@@ -251,7 +249,6 @@ def sync_activecampaign_to_bigquery(request):
                         'date': today_str,
                         'canonical_entity_id': f"ac_campaign_{campaign_id}",
                         'entity_type': 'email_campaign',
-                        'data_source': 'activecampaign',
                         
                         'entity_name': campaign_name,
                         'emails_sent': send_amt,
@@ -270,7 +267,6 @@ def sync_activecampaign_to_bigquery(request):
                 'date': today_str,
                 'canonical_entity_id': 'activecampaign_email_summary',
                 'entity_type': 'email_summary',
-                'data_source': 'activecampaign',
                 
                 'entity_name': 'Email Performance',
                 'total_campaigns': len(campaigns),
@@ -310,7 +306,6 @@ def sync_activecampaign_to_bigquery(request):
                     'date': today_str,
                     'canonical_entity_id': f"ac_list_{list_id}",
                     'entity_type': 'email_list',
-                    'data_source': 'activecampaign',
                     
                     'entity_name': list_name,
                     'subscribers': subscriber_count,
@@ -334,7 +329,7 @@ def sync_activecampaign_to_bigquery(request):
             delete_query = f"""
             DELETE FROM `{table_ref}`
             WHERE organization_id = '{organization_id}'
-              AND data_source = 'activecampaign'
+              AND entity_type IN ('contact_summary', 'deal_summary', 'email_campaign', 'email_summary', 'email_list')
               AND date = '{today_str}'
             """
             

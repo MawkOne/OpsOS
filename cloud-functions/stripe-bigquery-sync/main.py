@@ -167,20 +167,26 @@ def sync_stripe_to_bigquery(request):
                 if sub.status == 'active':
                     active_subscriptions += 1
                     # Calculate MRR from subscription items
-                    for item in sub.items.data:
-                        unit_amount = item.price.unit_amount or 0
-                        quantity = item.quantity or 1
-                        interval = item.price.recurring.interval if item.price.recurring else 'month'
-                        
-                        # Convert to monthly
-                        if interval == 'year':
-                            monthly_amount = (unit_amount * quantity) / 12
-                        elif interval == 'week':
-                            monthly_amount = (unit_amount * quantity) * 4
-                        else:
-                            monthly_amount = unit_amount * quantity
-                        
-                        total_mrr += monthly_amount / 100  # Convert from cents
+                    try:
+                        items_data = sub.get('items', {}).get('data', []) if isinstance(sub, dict) else getattr(sub.items, 'data', [])
+                        for item in items_data:
+                            price = item.get('price', {}) if isinstance(item, dict) else item.price
+                            unit_amount = (price.get('unit_amount') if isinstance(price, dict) else price.unit_amount) or 0
+                            quantity = (item.get('quantity') if isinstance(item, dict) else item.quantity) or 1
+                            recurring = price.get('recurring', {}) if isinstance(price, dict) else price.recurring
+                            interval = (recurring.get('interval') if isinstance(recurring, dict) else getattr(recurring, 'interval', None)) if recurring else 'month'
+                            
+                            # Convert to monthly
+                            if interval == 'year':
+                                monthly_amount = (unit_amount * quantity) / 12
+                            elif interval == 'week':
+                                monthly_amount = (unit_amount * quantity) * 4
+                            else:
+                                monthly_amount = unit_amount * quantity
+                            
+                            total_mrr += monthly_amount / 100  # Convert from cents
+                    except Exception as item_err:
+                        logger.warning(f"Error processing subscription items: {item_err}")
                         
                 elif sub.status in ['canceled', 'unpaid']:
                     churned_subscriptions += 1
@@ -228,7 +234,6 @@ def sync_stripe_to_bigquery(request):
                 'date': date_str,
                 'canonical_entity_id': f"stripe_revenue_{date_str}",
                 'entity_type': 'revenue',
-                'data_source': 'stripe',
                 
                 'revenue': metrics['total_revenue'],
                 'payment_count': metrics['payment_count'],
@@ -250,7 +255,6 @@ def sync_stripe_to_bigquery(request):
             'date': today_str,
             'canonical_entity_id': 'stripe_subscription_metrics',
             'entity_type': 'subscription',
-            'data_source': 'stripe',
             
             'mrr': total_mrr,
             'arr': total_mrr * 12,
@@ -269,7 +273,6 @@ def sync_stripe_to_bigquery(request):
             'date': today_str,
             'canonical_entity_id': 'stripe_customer_metrics',
             'entity_type': 'customer',
-            'data_source': 'stripe',
             
             'total_customers': total_customers,
             'new_customers_today': new_customers_by_day.get(today_str, 0),
@@ -295,7 +298,7 @@ def sync_stripe_to_bigquery(request):
             delete_query = f"""
             DELETE FROM `{table_ref}`
             WHERE organization_id = '{organization_id}'
-              AND data_source = 'stripe'
+              AND entity_type IN ('revenue', 'subscription', 'customer')
               AND date >= '{start_date.isoformat()}'
             """
             

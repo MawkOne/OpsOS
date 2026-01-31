@@ -155,7 +155,6 @@ def sync_dataforseo_to_bigquery(request):
                             'date': date_str,
                             'canonical_entity_id': target_domain,
                             'entity_type': 'domain',
-                            'data_source': 'dataforseo',
                             
                             'seo_keywords_total': metrics.get('count', 0),
                             'seo_traffic_value': metrics.get('etv', 0),
@@ -220,7 +219,6 @@ def sync_dataforseo_to_bigquery(request):
                         'date': today_str,
                         'canonical_entity_id': keyword,
                         'entity_type': 'keyword',
-                        'data_source': 'dataforseo',
                         
                         'entity_name': keyword,
                         'seo_position': position,
@@ -270,7 +268,6 @@ def sync_dataforseo_to_bigquery(request):
                     'date': today_str,
                     'canonical_entity_id': f"{target_domain}_backlinks",
                     'entity_type': 'backlinks',
-                    'data_source': 'dataforseo',
                     
                     'backlinks_total': result.get('backlinks', 0),
                     'referring_domains': result.get('referring_domains', 0),
@@ -304,7 +301,7 @@ def sync_dataforseo_to_bigquery(request):
             delete_query = f"""
             DELETE FROM `{table_ref}`
             WHERE organization_id = '{organization_id}'
-              AND data_source = 'dataforseo'
+              AND entity_type IN ('domain', 'keyword', 'backlinks')
               AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
             """
             
