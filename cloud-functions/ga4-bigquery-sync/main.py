@@ -361,10 +361,10 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching pages: {e}")
         
         # ============================================
-        # 4. WRITE DIRECTLY TO BIGQUERY
+        # 4. WRITE DIRECTLY TO BIGQUERY (in batches)
         # ============================================
         if rows:
-            logger.info(f"Inserting {len(rows)} rows directly to BigQuery...")
+            logger.info(f"Inserting {len(rows)} rows directly to BigQuery in batches...")
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
@@ -383,13 +383,33 @@ def sync_ga4_to_bigquery(request):
             except Exception as e:
                 logger.warning(f"Delete query warning: {e}")
             
-            # Insert new rows
-            errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
+            # Insert rows in batches of 500 to avoid timeouts
+            BATCH_SIZE = 500
+            total_inserted = 0
+            total_errors = 0
             
-            if errors:
-                logger.warning(f"Some rows failed: {errors[:3]}")
-            else:
-                results['rows_inserted'] = len(rows)
+            for i in range(0, len(rows), BATCH_SIZE):
+                batch = rows[i:i + BATCH_SIZE]
+                batch_num = (i // BATCH_SIZE) + 1
+                total_batches = (len(rows) + BATCH_SIZE - 1) // BATCH_SIZE
+                
+                logger.info(f"Inserting batch {batch_num}/{total_batches} ({len(batch)} rows)...")
+                
+                try:
+                    errors = bq.insert_rows_json(table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                    
+                    if errors:
+                        total_errors += len(errors)
+                        logger.warning(f"Batch {batch_num} had {len(errors)} errors")
+                    else:
+                        total_inserted += len(batch)
+                except Exception as e:
+                    logger.error(f"Batch {batch_num} failed: {e}")
+                    total_errors += len(batch)
+            
+            results['rows_inserted'] = total_inserted
+            if total_errors > 0:
+                logger.warning(f"Total errors across all batches: {total_errors}")
         
         # Update connection status
         connection_ref.update({
