@@ -223,7 +223,7 @@ function GoogleAdsContent() {
       setSuccess('Google Ads connected successfully!');
       
       // Trigger initial sync
-      handleSync();
+      handleSync('update');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
