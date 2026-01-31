@@ -153,7 +153,7 @@ def sync_ga4_to_bigquery(request):
         return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
-    days_back = request_json.get('daysBack', 90)
+    days_back = request_json.get('daysBack', 1825)  # Default to 5 years (all-time historical)
     
     logger.info(f"Starting GA4 → BigQuery DIRECT sync for org: {organization_id}")
     
