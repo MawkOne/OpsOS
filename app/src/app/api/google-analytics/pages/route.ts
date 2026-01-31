@@ -74,19 +74,18 @@ export async function GET(request: NextRequest) {
 
     // Query BigQuery for page data
     // Pages are stored with entity_type = 'page' from the GA4 sync
+    // canonical_entity_id contains the page path
     const query = `
       SELECT 
-        seo_url as page_path,
-        entity_name as page_title,
-        COALESCE(page_views, 0) as pageviews,
-        COALESCE(active_users, 0) as users,
+        canonical_entity_id as page_path,
+        COALESCE(pageviews, 0) as pageviews,
+        COALESCE(users, 0) as users,
         COALESCE(avg_session_duration, 0) as avg_time_on_page,
         COALESCE(bounce_rate, 0) as bounce_rate,
         date,
         FORMAT_DATE('%Y-%m', DATE(date)) as month_key
       FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\`
       WHERE organization_id = @organizationId
-        AND data_source = 'ga4'
         AND entity_type = 'page'
         AND date >= @startDate
         AND date <= @endDate

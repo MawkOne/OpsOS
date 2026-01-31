@@ -220,15 +220,13 @@ def sync_ga4_to_bigquery(request):
                     'date': date_str,
                     'canonical_entity_id': f"ga4_daily_{date_str}",
                     'entity_type': 'website_traffic',
-                    'data_source': 'ga4',
                     
-                    'active_users': int(metrics[0]['value']),
-                    'new_users': int(metrics[1]['value']),
+                    # Using correct column names from table schema
+                    'users': int(metrics[0]['value']),  # activeUsers
                     'sessions': int(metrics[2]['value']),
-                    'page_views': int(metrics[3]['value']),
+                    'pageviews': int(metrics[3]['value']),  # screenPageViews
                     'avg_session_duration': float(metrics[4]['value']),
                     'bounce_rate': float(metrics[5]['value']),
-                    'engaged_sessions': int(metrics[6]['value']),
                     'revenue': float(metrics[7]['value']),
                     
                     'created_at': now_iso,
@@ -273,17 +271,17 @@ def sync_ga4_to_bigquery(request):
                     'date': today_str,
                     'canonical_entity_id': f"ga4_source_{channel}_{source_medium}".replace(' ', '_').replace('/', '_'),
                     'entity_type': 'traffic_source',
-                    'data_source': 'ga4',
                     
-                    'entity_name': f"{channel} - {source_medium}",
+                    # Using correct column names from table schema
                     'sessions': int(metrics[0]['value']),
-                    'active_users': int(metrics[1]['value']),
-                    'conversions': float(metrics[2]['value']),
+                    'users': int(metrics[1]['value']),  # activeUsers
+                    'conversions': int(metrics[2]['value']),
                     'revenue': float(metrics[3]['value']),
                     
                     'source_breakdown': json.dumps({
                         'channel': channel,
                         'source_medium': source_medium,
+                        'name': f"{channel} - {source_medium}",  # Store name in JSON
                     }),
                     
                     'created_at': now_iso,
@@ -327,17 +325,20 @@ def sync_ga4_to_bigquery(request):
                 bq_row = {
                     'organization_id': organization_id,
                     'date': today_str,
-                    'canonical_entity_id': page_path[:200],  # Truncate long paths
+                    'canonical_entity_id': page_path[:200],  # Page path as entity ID
                     'entity_type': 'page',
-                    'data_source': 'ga4',
                     
-                    'entity_name': page_title[:200] if page_title else page_path[:200],
-                    'page_views': int(metrics[0]['value']),
-                    'active_users': int(metrics[1]['value']),
+                    # Using correct column names from table schema
+                    'pageviews': int(metrics[0]['value']),  # screenPageViews
+                    'users': int(metrics[1]['value']),  # activeUsers
                     'avg_session_duration': float(metrics[2]['value']),
                     'bounce_rate': float(metrics[3]['value']),
                     
-                    'seo_url': page_path,
+                    # Store page title in source_breakdown JSON
+                    'source_breakdown': json.dumps({
+                        'page_path': page_path,
+                        'page_title': page_title[:200] if page_title else page_path[:200],
+                    }),
                     
                     'created_at': now_iso,
                     'updated_at': now_iso,
@@ -356,10 +357,11 @@ def sync_ga4_to_bigquery(request):
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
             # Delete existing GA4 data for this org and date range
+            # Using entity_type to identify GA4 data (website_traffic, traffic_source, page)
             delete_query = f"""
             DELETE FROM `{table_ref}`
             WHERE organization_id = '{organization_id}'
-              AND data_source = 'ga4'
+              AND entity_type IN ('website_traffic', 'traffic_source', 'page')
               AND date >= '{start_date.isoformat()}'
             """
             
