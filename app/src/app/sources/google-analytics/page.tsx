@@ -236,7 +236,8 @@ function GoogleAnalyticsContent() {
     }
   };
 
-  const isConnected = connection?.status === "connected";
+  // Consider "syncing" as also connected (sync is in progress)
+  const isConnected = connection?.status === "connected" || connection?.status === "syncing";
   const hasError = connection?.status === "error";
 
   const formatNumber = (num: number) => {
