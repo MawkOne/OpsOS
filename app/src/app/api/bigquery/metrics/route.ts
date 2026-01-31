@@ -1,27 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BigQuery } from '@google-cloud/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
 const TABLE_ID = 'daily_entity_metrics';
-
-function getBigQueryClient() {
-  const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  
-  if (!credentialsJson) {
-    throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON not configured');
-  }
-  
-  try {
-    const credentials = JSON.parse(credentialsJson);
-    return new BigQuery({
-      projectId: PROJECT_ID,
-      credentials,
-    });
-  } catch (e) {
-    throw new Error('Invalid GOOGLE_APPLICATION_CREDENTIALS_JSON format');
-  }
-}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -30,36 +11,66 @@ export async function GET(request: NextRequest) {
   const metricType = searchParams.get('metricType'); // revenue, expenses, etc.
   const viewMode = searchParams.get('viewMode') || 'ttm'; // ttm, ytd, all
   
+  console.log('[BigQuery Metrics API] Request:', { organizationId, entityTypes, viewMode });
+  
   if (!organizationId) {
     return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
   }
 
   try {
-    const bq = getBigQueryClient();
+    // Dynamically import BigQuery to avoid build issues
+    const { BigQuery } = await import('@google-cloud/bigquery');
     
-    // Build date filter based on viewMode
-    let dateFilter = '';
+    // Check for credentials
+    const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    if (!credentials) {
+      console.error('[BigQuery Metrics API] Missing GOOGLE_APPLICATION_CREDENTIALS_JSON env var');
+      return NextResponse.json(
+        { 
+          error: 'BigQuery credentials not configured',
+          entities: [],
+        },
+        { status: 200 }
+      );
+    }
+
+    let bq;
+    try {
+      bq = new BigQuery({
+        projectId: PROJECT_ID,
+        credentials: JSON.parse(credentials),
+      });
+    } catch (parseError) {
+      console.error('[BigQuery Metrics API] Failed to parse credentials:', parseError);
+      return NextResponse.json(
+        { 
+          error: 'Invalid BigQuery credentials format',
+          entities: [],
+        },
+        { status: 200 }
+      );
+    }
+    
+    // Calculate date range based on viewMode
     const now = new Date();
+    let startDate: string | null = null;
     
     if (viewMode === 'ttm') {
       // Trailing twelve months
       const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-      dateFilter = `AND date >= '${twelveMonthsAgo.toISOString().split('T')[0]}'`;
+      startDate = twelveMonthsAgo.toISOString().split('T')[0];
     } else if (viewMode === 'ytd') {
       // Year to date
-      dateFilter = `AND date >= '${now.getFullYear()}-01-01'`;
+      startDate = `${now.getFullYear()}-01-01`;
     }
-    // 'all' = no date filter
+    // 'all' = no date filter (startDate stays null)
     
     // Build entity type filter
-    let entityTypeFilter = '';
-    if (entityTypes) {
-      const types = entityTypes.split(',').map(t => `'${t.trim()}'`).join(',');
-      entityTypeFilter = `AND entity_type IN (${types})`;
-    }
+    const entityTypesList = entityTypes ? entityTypes.split(',').map(t => t.trim()) : null;
     
     // Query BigQuery for aggregated monthly data
-    const query = `
+    // Use parameterized query for safety
+    let query = `
       SELECT 
         entity_type,
         canonical_entity_id,
@@ -71,14 +82,27 @@ export async function GET(request: NextRequest) {
         SUM(COALESCE(conversions, 0)) as conversions,
         MAX(source_breakdown) as source_breakdown
       FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\`
-      WHERE organization_id = '${organizationId}'
-        ${dateFilter}
-        ${entityTypeFilter}
-      GROUP BY entity_type, canonical_entity_id, month
-      ORDER BY entity_type, canonical_entity_id, month
+      WHERE organization_id = @organizationId
     `;
     
-    const [rows] = await bq.query({ query });
+    const params: Record<string, any> = { organizationId };
+    
+    if (startDate) {
+      query += ` AND date >= @startDate`;
+      params.startDate = startDate;
+    }
+    
+    if (entityTypesList && entityTypesList.length > 0) {
+      query += ` AND entity_type IN UNNEST(@entityTypes)`;
+      params.entityTypes = entityTypesList;
+    }
+    
+    query += ` GROUP BY entity_type, canonical_entity_id, month ORDER BY entity_type, canonical_entity_id, month`;
+    
+    console.log('[BigQuery Metrics API] Query:', query);
+    console.log('[BigQuery Metrics API] Params:', params);
+    
+    const [rows] = await bq.query({ query, params });
     
     // Transform into entity-centric structure with monthly data
     const entities: Record<string, {
@@ -147,10 +171,13 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error: any) {
-    console.error('BigQuery metrics error:', error);
+    console.error('[BigQuery Metrics API] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch metrics' },
-      { status: 500 }
+      { 
+        error: error.message || 'Failed to fetch metrics',
+        entities: [],
+      },
+      { status: 200 }
     );
   }
 }
