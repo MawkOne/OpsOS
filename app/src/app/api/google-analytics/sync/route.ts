@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
     }
 
-    console.log(`[GA Sync Proxy] Starting sync for org: ${organizationId}`);
+    console.log(`[GA Sync Proxy] Starting ${mode} sync for org: ${organizationId}, daysBack: ${daysBack || 'default'}`);
 
     // Call the Cloud Function with a longer timeout
     const controller = new AbortController();

@@ -155,6 +155,8 @@ def sync_ga4_to_bigquery(request):
     organization_id = request_json['organizationId']
     sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
+    logger.info(f"🔍 RECEIVED: mode={sync_mode}, raw request={request_json}")
+    
     # Update sync: last 30 days, uses MERGE to avoid duplicates
     # Full sync: all historical data (5 years), deletes and rewrites
     if sync_mode == 'full':
@@ -162,7 +164,7 @@ def sync_ga4_to_bigquery(request):
     else:
         days_back = request_json.get('daysBack', 30)  # 30 days for incremental update
     
-    logger.info(f"Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({days_back} days)")
+    logger.info(f"🚀 Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({days_back} days)")
     
     try:
         db = firestore.Client()
