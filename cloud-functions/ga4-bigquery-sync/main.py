@@ -222,6 +222,8 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'bounceRate'},
                     {'name': 'engagedSessions'},
                     {'name': 'totalRevenue'},
+                    {'name': 'conversions'},
+                    {'name': 'engagementRate'},
                 ]
             })
             
@@ -234,19 +236,36 @@ def sync_ga4_to_bigquery(request):
                 
                 metrics = row['metricValues']
                 
+                users = int(metrics[0]['value'])
+                new_users = int(metrics[1]['value'])
+                sessions = int(metrics[2]['value'])
+                pageviews = int(metrics[3]['value'])
+                avg_session_duration = float(metrics[4]['value'])
+                bounce_rate = float(metrics[5]['value'])
+                engaged_sessions = int(metrics[6]['value'])
+                revenue = float(metrics[7]['value'])
+                conversions = int(metrics[8]['value'])
+                engagement_rate = float(metrics[9]['value'])
+                
+                # Calculate conversion_rate
+                conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': date_str,
                     'canonical_entity_id': f"ga4_daily_{date_str}",
                     'entity_type': 'website_traffic',
                     
-                    # Using correct column names from table schema
-                    'users': int(metrics[0]['value']),  # activeUsers
-                    'sessions': int(metrics[2]['value']),
-                    'pageviews': int(metrics[3]['value']),  # screenPageViews
-                    'avg_session_duration': float(metrics[4]['value']),
-                    'bounce_rate': float(metrics[5]['value']),
-                    'revenue': float(metrics[7]['value']),
+                    # Core metrics needed by detectors
+                    'users': users,
+                    'sessions': sessions,
+                    'pageviews': pageviews,
+                    'conversions': conversions,
+                    'conversion_rate': conversion_rate,
+                    'revenue': revenue,
+                    'avg_session_duration': avg_session_duration,
+                    'bounce_rate': bounce_rate,
+                    'engagement_rate': engagement_rate,
                     
                     'created_at': now_iso,
                     'updated_at': now_iso,
@@ -286,22 +305,31 @@ def sync_ga4_to_bigquery(request):
                 source_medium = row['dimensionValues'][1]['value']
                 metrics = row['metricValues']
                 
+                sessions = int(metrics[0]['value'])
+                users = int(metrics[1]['value'])
+                conversions = int(metrics[2]['value'])
+                revenue = float(metrics[3]['value'])
+                
+                # Calculate conversion_rate
+                conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': today_str,
                     'canonical_entity_id': f"ga4_source_{channel}_{source_medium}".replace(' ', '_').replace('/', '_'),
                     'entity_type': 'traffic_source',
                     
-                    # Using correct column names from table schema
-                    'sessions': int(metrics[0]['value']),
-                    'users': int(metrics[1]['value']),  # activeUsers
-                    'conversions': int(metrics[2]['value']),
-                    'revenue': float(metrics[3]['value']),
+                    # Core metrics needed by detectors
+                    'sessions': sessions,
+                    'users': users,
+                    'conversions': conversions,
+                    'conversion_rate': conversion_rate,
+                    'revenue': revenue,
                     
                     'source_breakdown': json.dumps({
                         'channel': channel,
                         'source_medium': source_medium,
-                        'name': f"{channel} - {source_medium}",  # Store name in JSON
+                        'name': f"{channel} - {source_medium}",
                     }),
                     
                     'created_at': now_iso,
@@ -313,12 +341,12 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching traffic sources: {e}")
         
         # ============================================
-        # 3. FETCH TOP PAGES (limited to manage memory)
+        # 3. FETCH TOP PAGES (with sessions, conversions for detectors)
         # ============================================
         logger.info("Fetching top pages from GA4 API...")
         
         try:
-            # Fetch ALL pages (no limit)
+            # Fetch ALL pages with full metrics needed for detectors
             pages_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
@@ -328,8 +356,12 @@ def sync_ga4_to_bigquery(request):
                 'metrics': [
                     {'name': 'screenPageViews'},
                     {'name': 'activeUsers'},
+                    {'name': 'sessions'},
                     {'name': 'averageSessionDuration'},
                     {'name': 'bounceRate'},
+                    {'name': 'conversions'},
+                    {'name': 'totalRevenue'},
+                    {'name': 'engagementRate'},
                 ],
                 'orderBys': [{'metric': {'metricName': 'screenPageViews'}, 'desc': True}],
             })
@@ -343,17 +375,34 @@ def sync_ga4_to_bigquery(request):
                 page_title = row['dimensionValues'][1]['value']
                 metrics = row['metricValues']
                 
+                pageviews = int(metrics[0]['value'])
+                users = int(metrics[1]['value'])
+                sessions = int(metrics[2]['value'])
+                avg_session_duration = float(metrics[3]['value'])
+                bounce_rate = float(metrics[4]['value'])
+                conversions = int(metrics[5]['value'])
+                revenue = float(metrics[6]['value'])
+                engagement_rate = float(metrics[7]['value'])
+                
+                # Calculate conversion_rate
+                conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': today_str,
                     'canonical_entity_id': page_path[:200],  # Page path as entity ID
                     'entity_type': 'page',
                     
-                    # Using correct column names from table schema
-                    'pageviews': int(metrics[0]['value']),  # screenPageViews
-                    'users': int(metrics[1]['value']),  # activeUsers
-                    'avg_session_duration': float(metrics[2]['value']),
-                    'bounce_rate': float(metrics[3]['value']),
+                    # Core metrics needed by detectors
+                    'pageviews': pageviews,
+                    'users': users,
+                    'sessions': sessions,
+                    'conversions': conversions,
+                    'conversion_rate': conversion_rate,
+                    'revenue': revenue,
+                    'avg_session_duration': avg_session_duration,
+                    'bounce_rate': bounce_rate,
+                    'engagement_rate': engagement_rate,
                     
                     # Store page title in source_breakdown JSON
                     'source_breakdown': json.dumps({
@@ -471,9 +520,11 @@ def sync_ga4_to_bigquery(request):
                         sessions = source.sessions,
                         pageviews = source.pageviews,
                         conversions = source.conversions,
+                        conversion_rate = source.conversion_rate,
                         revenue = source.revenue,
                         bounce_rate = source.bounce_rate,
                         avg_session_duration = source.avg_session_duration,
+                        engagement_rate = source.engagement_rate,
                         source_breakdown = source.source_breakdown,
                         updated_at = source.updated_at
                 WHEN NOT MATCHED THEN

@@ -213,9 +213,35 @@ def sync_dataforseo_to_bigquery(request):
                     ranked_element = item.get('ranked_serp_element', {}).get('serp_item', {})
                     
                     keyword = keyword_data.get('keyword', '')
-                    search_volume = keyword_info.get('search_volume', 0)
-                    position = ranked_element.get('rank_absolute', 0)
+                    search_volume = keyword_info.get('search_volume', 0) or 0
+                    position = ranked_element.get('rank_absolute', 0) or 0
                     url = ranked_element.get('url', '')
+                    cpc = keyword_info.get('cpc', 0) or 0
+                    competition = keyword_info.get('competition', 0) or 0
+                    
+                    # Get monthly searches for impressions estimate
+                    monthly_searches = keyword_info.get('monthly_searches', [])
+                    
+                    # Estimate CTR based on position (industry averages)
+                    ctr = 0
+                    if position == 1:
+                        ctr = 31.7
+                    elif position == 2:
+                        ctr = 24.7
+                    elif position == 3:
+                        ctr = 18.7
+                    elif position <= 5:
+                        ctr = 9.5
+                    elif position <= 10:
+                        ctr = 3.0
+                    elif position <= 20:
+                        ctr = 1.0
+                    elif position > 0:
+                        ctr = 0.5
+                    
+                    # Estimate impressions and clicks
+                    impressions = search_volume  # Monthly impressions ≈ search volume
+                    clicks = int(impressions * ctr / 100) if impressions > 0 else 0
                     
                     row = {
                         'organization_id': organization_id,
@@ -224,13 +250,25 @@ def sync_dataforseo_to_bigquery(request):
                         'entity_type': 'keyword',
                         
                         'entity_name': keyword,
+                        
+                        # Core SEO metrics (used by detectors)
+                        'position': position,  # Alias for detectors
+                        'search_volume': search_volume,  # Alias for detectors
                         'seo_position': position,
                         'seo_search_volume': search_volume,
                         'seo_url': url,
                         
+                        # Calculated/estimated metrics
+                        'impressions': impressions,
+                        'clicks': clicks,
+                        'ctr': ctr,
+                        'cpc': cpc,
+                        'competition': competition,
+                        
                         'source_breakdown': json.dumps({
-                            'cpc': keyword_info.get('cpc', 0),
-                            'competition': keyword_info.get('competition', 0),
+                            'cpc': cpc,
+                            'competition': competition,
+                            'monthly_searches': monthly_searches[-3:] if monthly_searches else [],
                         }),
                         
                         'created_at': now_iso,

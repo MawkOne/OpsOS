@@ -230,20 +230,39 @@ def sync_activecampaign_to_bigquery(request):
             total_sent = 0
             total_opens = 0
             total_clicks = 0
+            total_bounces = 0
+            total_unsubscribes = 0
+            total_complaints = 0
             
             for campaign in campaigns:
                 send_amt = int(campaign.get('send_amt', 0) or 0)
-                opens = int(campaign.get('opens', 0) or 0)
+                opens = int(campaign.get('uniqueopens', 0) or campaign.get('opens', 0) or 0)
                 clicks = int(campaign.get('uniquelinkclicks', 0) or 0)
+                bounces = int(campaign.get('bouncescnt', 0) or 0)
+                hard_bounces = int(campaign.get('hardbounces', 0) or 0)
+                soft_bounces = int(campaign.get('softbounces', 0) or 0)
+                unsubscribes = int(campaign.get('unsubscribes', 0) or 0)
+                complaints = int(campaign.get('complaints', 0) or 0)
                 
                 total_sent += send_amt
                 total_opens += opens
                 total_clicks += clicks
+                total_bounces += bounces
+                total_unsubscribes += unsubscribes
+                total_complaints += complaints
                 
                 # Add individual campaign as entity
                 if send_amt > 0:
                     campaign_name = campaign.get('name', 'Unnamed Campaign')
                     campaign_id = campaign.get('id', 'unknown')
+                    
+                    # Calculate rates
+                    open_rate = (opens / send_amt * 100) if send_amt > 0 else 0
+                    click_rate = (clicks / send_amt * 100) if send_amt > 0 else 0
+                    click_to_open_rate = (clicks / opens * 100) if opens > 0 else 0
+                    bounce_rate = (bounces / send_amt * 100) if send_amt > 0 else 0
+                    unsubscribe_rate = (unsubscribes / send_amt * 100) if send_amt > 0 else 0
+                    spam_complaint_rate = (complaints / send_amt * 100) if send_amt > 0 else 0
                     
                     rows.append({
                         'organization_id': organization_id,
@@ -252,15 +271,38 @@ def sync_activecampaign_to_bigquery(request):
                         'entity_type': 'email_campaign',
                         
                         'entity_name': campaign_name,
+                        
+                        # Core metrics
                         'emails_sent': send_amt,
                         'opens': opens,
                         'clicks': clicks,
-                        'open_rate': (opens / send_amt * 100) if send_amt > 0 else 0,
-                        'click_rate': (clicks / send_amt * 100) if send_amt > 0 else 0,
+                        'bounces': bounces,
+                        'hard_bounces': hard_bounces,
+                        'soft_bounces': soft_bounces,
+                        'unsubscribes': unsubscribes,
+                        'complaints': complaints,
+                        
+                        # Calculated rates (needed by detectors)
+                        'open_rate': open_rate,
+                        'click_rate': click_rate,
+                        'click_through_rate': click_rate,  # Alias
+                        'click_to_open_rate': click_to_open_rate,
+                        'bounce_rate': bounce_rate,
+                        'hard_bounce_rate': (hard_bounces / send_amt * 100) if send_amt > 0 else 0,
+                        'soft_bounce_rate': (soft_bounces / send_amt * 100) if send_amt > 0 else 0,
+                        'unsubscribe_rate': unsubscribe_rate,
+                        'spam_complaint_rate': spam_complaint_rate,
                         
                         'created_at': now_iso,
                         'updated_at': now_iso,
                     })
+            
+            # Calculate summary rates
+            avg_open_rate = (total_opens / total_sent * 100) if total_sent > 0 else 0
+            avg_click_rate = (total_clicks / total_sent * 100) if total_sent > 0 else 0
+            avg_bounce_rate = (total_bounces / total_sent * 100) if total_sent > 0 else 0
+            avg_unsubscribe_rate = (total_unsubscribes / total_sent * 100) if total_sent > 0 else 0
+            avg_complaint_rate = (total_complaints / total_sent * 100) if total_sent > 0 else 0
             
             # Add campaign summary
             rows.append({
@@ -274,8 +316,17 @@ def sync_activecampaign_to_bigquery(request):
                 'emails_sent': total_sent,
                 'total_opens': total_opens,
                 'total_clicks': total_clicks,
-                'avg_open_rate': (total_opens / total_sent * 100) if total_sent > 0 else 0,
-                'avg_click_rate': (total_clicks / total_sent * 100) if total_sent > 0 else 0,
+                'total_bounces': total_bounces,
+                'total_unsubscribes': total_unsubscribes,
+                'total_complaints': total_complaints,
+                
+                # Calculated rates (needed by detectors)
+                'open_rate': avg_open_rate,
+                'click_rate': avg_click_rate,
+                'click_through_rate': avg_click_rate,
+                'bounce_rate': avg_bounce_rate,
+                'unsubscribe_rate': avg_unsubscribe_rate,
+                'spam_complaint_rate': avg_complaint_rate,
                 
                 'created_at': now_iso,
                 'updated_at': now_iso,

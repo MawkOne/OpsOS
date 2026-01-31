@@ -185,22 +185,34 @@ def sync_google_ads_to_bigquery(request):
                 conversions = float(metrics.get('conversions', 0))
                 conversion_value = float(metrics.get('conversionsValue', 0))
                 
+                # Calculate derived metrics
+                ctr = (clicks / impressions * 100) if impressions > 0 else 0
+                conversion_rate = (conversions / clicks * 100) if clicks > 0 else 0
+                cpc = (spend / clicks) if clicks > 0 else 0
+                cpa = (spend / conversions) if conversions > 0 else 0
+                roas = (conversion_value / spend) if spend > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': date_str,
                     'canonical_entity_id': f"google_ads_{date_str}",
                     'entity_type': 'ad_account',
                     
+                    # Core metrics
+                    'cost': spend,  # Alias used by detectors
                     'ad_spend': spend,
                     'impressions': impressions,
                     'clicks': clicks,
                     'conversions': conversions,
                     'conversion_value': conversion_value,
+                    'revenue': conversion_value,  # Alias used by detectors
                     
-                    'ctr': (clicks / impressions * 100) if impressions > 0 else 0,
-                    'cpc': (spend / clicks) if clicks > 0 else 0,
-                    'cpa': (spend / conversions) if conversions > 0 else 0,
-                    'roas': (conversion_value / spend) if spend > 0 else 0,
+                    # Calculated metrics
+                    'ctr': ctr,
+                    'conversion_rate': conversion_rate,
+                    'cpc': cpc,
+                    'cpa': cpa,
+                    'roas': roas,
                     
                     'created_at': now_iso,
                     'updated_at': now_iso,
@@ -250,6 +262,13 @@ def sync_google_ads_to_bigquery(request):
                 conversions = float(metrics.get('conversions', 0))
                 conversion_value = float(metrics.get('conversionsValue', 0))
                 
+                # Calculate derived metrics
+                ctr = (clicks / impressions * 100) if impressions > 0 else 0
+                conversion_rate = (conversions / clicks * 100) if clicks > 0 else 0
+                cpc = (spend / clicks) if clicks > 0 else 0
+                cpa = (spend / conversions) if conversions > 0 else 0
+                roas = (conversion_value / spend) if spend > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': today_str,
@@ -257,15 +276,22 @@ def sync_google_ads_to_bigquery(request):
                     'entity_type': 'campaign',
                     
                     'entity_name': campaign_name,
+                    
+                    # Core metrics
+                    'cost': spend,  # Alias used by detectors
                     'ad_spend': spend,
                     'impressions': impressions,
                     'clicks': clicks,
                     'conversions': conversions,
                     'conversion_value': conversion_value,
+                    'revenue': conversion_value,  # Alias used by detectors
                     
-                    'ctr': (clicks / impressions * 100) if impressions > 0 else 0,
-                    'cpc': (spend / clicks) if clicks > 0 else 0,
-                    'roas': (conversion_value / spend) if spend > 0 else 0,
+                    # Calculated metrics
+                    'ctr': ctr,
+                    'conversion_rate': conversion_rate,
+                    'cpc': cpc,
+                    'cpa': cpa,
+                    'roas': roas,
                     
                     'source_breakdown': json.dumps({
                         'status': campaign.get('status', 'UNKNOWN'),
