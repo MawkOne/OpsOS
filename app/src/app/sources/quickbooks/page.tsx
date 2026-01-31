@@ -227,8 +227,9 @@ export default function QuickBooksPage() {
     }
   };
 
-  const isConnected = connection?.status === "connected" || (connection?.lastSyncAt && connection?.status !== "disconnected");
+  const isConnected = connection?.status === "connected" || (connection?.lastSyncAt && connection?.status !== "disconnected" && connection?.status !== "error");
   const isSyncingStatus = connection?.status === "syncing";
+  const hasError = connection?.status === "error" && connection?.errorMessage;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
@@ -294,7 +295,12 @@ export default function QuickBooksPage() {
                   <h2 className="text-xl font-semibold" style={{ color: "var(--foreground)" }}>
                     QuickBooks
                   </h2>
-                  {isConnected ? (
+                  {hasError ? (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                      <AlertCircle className="w-3 h-3" />
+                      Error
+                    </span>
+                  ) : isConnected ? (
                     <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
                       <CheckCircle className="w-3 h-3" />
                       Connected
@@ -324,7 +330,7 @@ export default function QuickBooksPage() {
                   </p>
                 )}
               </div>
-              {isConnected ? (
+              {isConnected || hasError ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleSync('update')}
