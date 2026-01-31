@@ -603,43 +603,42 @@ export default function DataForSEOPage() {
               </button>
             </div>
 
-              {/* Sync All Progress */}
-              {syncAllProgress && (
-                <div className="mt-4 p-4 rounded-xl" style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      {syncAllProgress.current}
-                    </span>
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                      {syncAllProgress.completed.length} / {syncAllProgress.total}
-                    </span>
-                  </div>
-                  
-                  {/* Progress bar */}
-                  <div className="w-full h-2 rounded-full mb-3" style={{ background: "var(--background-secondary)" }}>
-                    <div
-                      className="h-2 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${(syncAllProgress.completed.length / syncAllProgress.total) * 100}%`,
-                        background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 100%)",
-                      }}
-                    />
-                  </div>
-
-                  {/* Completed steps */}
-                  {syncAllProgress.completed.length > 0 && (
-                    <div className="space-y-1">
-                      {syncAllProgress.completed.map((step, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                          <CheckCircle className="w-3 h-3 text-green-500" />
-                          {step}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            {/* Sync All Progress */}
+            {syncAllProgress && (
+              <div className="mb-6 p-4 rounded-xl" style={{ background: "var(--background-tertiary)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    {syncAllProgress.current}
+                  </span>
+                  <span className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
+                    {syncAllProgress.completed.length} / {syncAllProgress.total}
+                  </span>
                 </div>
-              )}
-            </div>
+                
+                {/* Progress bar */}
+                <div className="w-full h-2 rounded-full mb-3" style={{ background: "var(--background-secondary)" }}>
+                  <div
+                    className="h-2 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${(syncAllProgress.completed.length / syncAllProgress.total) * 100}%`,
+                      background: "linear-gradient(90deg, #2563eb 0%, #7c3aed 100%)",
+                    }}
+                  />
+                </div>
+
+                {/* Completed steps */}
+                {syncAllProgress.completed.length > 0 && (
+                  <div className="space-y-1">
+                    {syncAllProgress.completed.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                        <CheckCircle className="w-3 h-3 text-green-500" />
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mb-4">
               <p className="text-xs text-center" style={{ color: "var(--foreground-muted)" }}>
