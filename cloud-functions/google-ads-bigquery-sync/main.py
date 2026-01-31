@@ -93,9 +93,15 @@ def sync_google_ads_to_bigquery(request):
         return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
-    date_range = request_json.get('dateRange', 'LAST_90_DAYS')
+    sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    logger.info(f"Starting Google Ads → BigQuery DIRECT sync for org: {organization_id}")
+    # Set date range based on mode
+    if sync_mode == 'full':
+        date_range = request_json.get('dateRange', 'LAST_365_DAYS')  # 1 year for full resync
+    else:
+        date_range = request_json.get('dateRange', 'LAST_30_DAYS')  # 30 days for incremental
+    
+    logger.info(f"Starting Google Ads → BigQuery sync for org: {organization_id} (mode={sync_mode}, range={date_range})")
     
     try:
         db = firestore.Client()
@@ -184,7 +190,6 @@ def sync_google_ads_to_bigquery(request):
                     'date': date_str,
                     'canonical_entity_id': f"google_ads_{date_str}",
                     'entity_type': 'ad_account',
-                    'data_source': 'google_ads',
                     
                     'ad_spend': spend,
                     'impressions': impressions,
@@ -250,7 +255,6 @@ def sync_google_ads_to_bigquery(request):
                     'date': today_str,
                     'canonical_entity_id': f"campaign_{campaign_id}",
                     'entity_type': 'campaign',
-                    'data_source': 'google_ads',
                     
                     'entity_name': campaign_name,
                     'ad_spend': spend,
@@ -280,7 +284,7 @@ def sync_google_ads_to_bigquery(request):
         # 3. WRITE DIRECTLY TO BIGQUERY
         # ============================================
         if rows:
-            logger.info(f"Inserting {len(rows)} rows directly to BigQuery...")
+            logger.info(f"Writing {len(rows)} rows to BigQuery (mode={sync_mode})...")
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
@@ -288,18 +292,33 @@ def sync_google_ads_to_bigquery(request):
             dates = [r['date'] for r in rows]
             min_date = min(dates) if dates else today_str
             
-            # Delete existing Google Ads data
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
-            WHERE organization_id = '{organization_id}'
-              AND data_source = 'google_ads'
-              AND date >= '{min_date}'
-            """
-            
-            try:
-                bq.query(delete_query).result()
-            except Exception as e:
-                logger.warning(f"Delete query warning: {e}")
+            if sync_mode == 'full':
+                # FULL RESYNC: Delete ALL existing Google Ads data for this org
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('ad_account', 'campaign')
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info("Deleted all existing Google Ads data for full resync")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
+            else:
+                # UPDATE SYNC: Only delete data in the date range being synced
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('ad_account', 'campaign')
+                  AND date >= '{min_date}'
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info(f"Deleted Google Ads data since {min_date} for update")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
             
             # Insert new rows
             errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
@@ -321,12 +340,14 @@ def sync_google_ads_to_bigquery(request):
             'updatedAt': firestore.SERVER_TIMESTAMP,
         })
         
-        logger.info(f"✅ Google Ads DIRECT sync complete: {results}")
+        mode_label = "Full re-sync" if sync_mode == 'full' else "Incremental sync"
+        logger.info(f"✅ Google Ads sync complete ({mode_label}): {results}")
         
         return ({
             'success': True,
+            'mode': sync_mode,
             **results,
-            'message': f"Synced {results['rows_inserted']} rows directly to BigQuery (bypassed Firestore)"
+            'message': f"{mode_label}: {results['rows_inserted']} rows to BigQuery"
         }, 200, headers)
         
     except Exception as e:

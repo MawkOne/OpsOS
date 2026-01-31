@@ -66,9 +66,12 @@ def sync_dataforseo_to_bigquery(request):
         return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
-    backfill_history = request_json.get('backfillHistory', True)
+    sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    logger.info(f"Starting DataForSEO → BigQuery DIRECT sync for org: {organization_id}")
+    # Full resync fetches historical data, update only fetches current
+    backfill_history = sync_mode == 'full' or request_json.get('backfillHistory', False)
+    
+    logger.info(f"Starting DataForSEO → BigQuery sync for org: {organization_id} (mode={sync_mode}, history={backfill_history})")
     
     try:
         db = firestore.Client()
@@ -293,22 +296,37 @@ def sync_dataforseo_to_bigquery(request):
         # 4. WRITE DIRECTLY TO BIGQUERY
         # ============================================
         if rows:
-            logger.info(f"Inserting {len(rows)} rows directly to BigQuery...")
+            logger.info(f"Writing {len(rows)} rows to BigQuery (mode={sync_mode})...")
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
-            # Delete existing DataForSEO data for this org
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
-            WHERE organization_id = '{organization_id}'
-              AND entity_type IN ('domain', 'keyword', 'backlinks')
-              AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
-            """
-            
-            try:
-                bq.query(delete_query).result()
-            except Exception as e:
-                logger.warning(f"Delete query warning: {e}")
+            if sync_mode == 'full':
+                # FULL RESYNC: Delete ALL existing DataForSEO data for this org
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('domain', 'keyword', 'backlinks')
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info("Deleted all existing DataForSEO data for full resync")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
+            else:
+                # UPDATE SYNC: Only delete today's keyword/backlinks data (domain history is preserved)
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('keyword', 'backlinks')
+                  AND date = '{today_str}'
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info(f"Deleted today's DataForSEO keyword/backlinks data for update")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
             
             # Insert new rows
             errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
@@ -331,12 +349,14 @@ def sync_dataforseo_to_bigquery(request):
             'updatedAt': firestore.SERVER_TIMESTAMP,
         })
         
-        logger.info(f"✅ DataForSEO DIRECT sync complete: {results}")
+        mode_label = "Full re-sync" if sync_mode == 'full' else "Incremental sync"
+        logger.info(f"✅ DataForSEO sync complete ({mode_label}): {results}")
         
         return ({
             'success': True,
+            'mode': sync_mode,
             **results,
-            'message': f"Synced {results['rows_inserted']} rows directly to BigQuery (bypassed Firestore)"
+            'message': f"{mode_label}: {results['rows_inserted']} rows to BigQuery"
         }, 200, headers)
         
     except Exception as e:

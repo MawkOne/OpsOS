@@ -158,18 +158,26 @@ export default function QuickBooksPage() {
     window.location.href = `/api/quickbooks/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async () => {
+  const handleSync = async (mode: 'update' | 'full') => {
+    // Confirm for full re-sync
+    if (mode === 'full') {
+      const confirmed = confirm(
+        "Re-sync will fetch ALL QuickBooks data (up to 3 years) and replace existing data. This may take several minutes. Continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setIsSyncing(true);
     setError(null);
 
-    console.log("🔄 Starting QuickBooks sync directly to BigQuery...");
+    console.log(`🔄 Starting QuickBooks sync to BigQuery (mode=${mode})...`);
 
     try {
       // Call Cloud Function directly - syncs from QuickBooks API to BigQuery (bypasses Firestore)
       const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/quickbooks-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ organizationId, mode }),
       });
 
       const syncData = await syncResponse.json();
@@ -183,8 +191,9 @@ export default function QuickBooksPage() {
       console.log("✅ Sync completed:", syncData);
 
       await fetchMetrics();
-      setSuccess(`Sync completed! ${syncData.invoices_processed || 0} invoices, ${syncData.expenses_processed || 0} expenses synced to BigQuery.`);
-      setTimeout(() => setSuccess(null), 3000);
+      const modeLabel = mode === 'full' ? 'Full re-sync' : 'Incremental sync';
+      setSuccess(`${modeLabel} complete! ${syncData.invoices_processed || 0} invoices, ${syncData.expenses_processed || 0} expenses, ${syncData.rows_inserted || 0} rows to BigQuery.`);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       console.error("❌ Sync error:", err);
       setError(err instanceof Error ? err.message : "Sync failed");
@@ -318,17 +327,30 @@ export default function QuickBooksPage() {
               {isConnected ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleSync}
+                    onClick={() => handleSync('update')}
                     disabled={isSyncing || isSyncingStatus}
                     className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
                       background: "#2CA01C",
                       color: "white",
                     }}
-                    title="Sync QuickBooks data directly to BigQuery"
+                    title="Sync recent QuickBooks data (last 90 days)"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing || isSyncingStatus ? "animate-spin" : ""}`} />
-                    {isSyncing || isSyncingStatus ? "Syncing to BigQuery..." : "Sync to BigQuery"}
+                    {isSyncing || isSyncingStatus ? "Syncing..." : "Sync New Data"}
+                  </button>
+                  <button
+                    onClick={() => handleSync('full')}
+                    disabled={isSyncing || isSyncingStatus}
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)",
+                    }}
+                    title="Re-sync all historical data (up to 3 years)"
+                  >
+                    Re-sync Data
                   </button>
                   <button
                     onClick={handleDisconnect}
@@ -340,7 +362,6 @@ export default function QuickBooksPage() {
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
-                    Disconnect
                   </button>
                 </div>
               ) : (

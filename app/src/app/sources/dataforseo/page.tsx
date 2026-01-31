@@ -279,30 +279,39 @@ export default function DataForSEOPage() {
 
   const handleStartCrawl = useCallback(() => handleSync("start_crawl"), [handleSync]);
 
-  const handleSyncAll = useCallback(async () => {
+  const handleSyncAll = useCallback(async (mode: 'update' | 'full' = 'update') => {
     if (!currentOrg?.id) {
       setError("No organization selected");
       return;
     }
 
+    // Confirm for full re-sync
+    if (mode === 'full') {
+      const confirmed = confirm(
+        "Re-sync will fetch ALL DataForSEO historical data and replace existing data. This may take several minutes. Continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setIsSyncing(true);
     setError(null);
     
+    const modeLabel = mode === 'full' ? 'Full re-sync' : 'Incremental sync';
     setSyncAllProgress({
-      current: "Syncing to BigQuery",
+      current: `${modeLabel} to BigQuery`,
       completed: [],
       total: 1,
     });
 
     try {
       // Call Cloud Function directly - syncs from DataForSEO API to BigQuery (bypasses Firestore)
-      console.log("Syncing DataForSEO data directly to BigQuery...");
+      console.log(`Syncing DataForSEO data to BigQuery (mode=${mode})...`);
       const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/dataforseo-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId: currentOrg.id,
-          backfillHistory: true,
+          mode,
         }),
       });
 
@@ -316,7 +325,7 @@ export default function DataForSEOPage() {
 
       // Complete
       setSyncAllProgress({
-        current: "Complete",
+        current: `${modeLabel} complete: ${data.rows_inserted || 0} rows`,
         completed: ["BigQuery Sync"],
         total: 1,
       });
@@ -555,12 +564,12 @@ export default function DataForSEOPage() {
               </p>
             </div>
             
-            {/* Unified Sync All Button */}
-            <div className="mb-6">
+            {/* Sync Buttons */}
+            <div className="mb-6 flex gap-3">
               <button
-                onClick={handleSyncAll}
+                onClick={() => handleSyncAll('update')}
                 disabled={isSyncing}
-                className="w-full px-6 py-4 rounded-xl font-semibold text-white transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
+                className="flex-1 px-6 py-4 rounded-xl font-semibold text-white transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
                 style={{ 
                   background: isSyncing 
                     ? "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)" 
@@ -571,15 +580,28 @@ export default function DataForSEOPage() {
                 {isSyncing ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Syncing All Data...
+                    Syncing...
                   </>
                 ) : (
                   <>
                     <Zap className="w-5 h-5" />
-                    Sync to BigQuery
+                    Sync New Data
                   </>
                 )}
               </button>
+              <button
+                onClick={() => handleSyncAll('full')}
+                disabled={isSyncing}
+                className="px-6 py-4 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3"
+                style={{ 
+                  background: "var(--background-tertiary)",
+                  color: "var(--foreground)",
+                  border: "1px solid var(--border)"
+                }}
+              >
+                Re-sync Data
+              </button>
+            </div>
 
               {/* Sync All Progress */}
               {syncAllProgress && (

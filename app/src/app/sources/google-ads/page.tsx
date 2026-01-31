@@ -231,17 +231,25 @@ function GoogleAdsContent() {
     }
   };
 
-  const handleSync = async () => {
+  const handleSync = async (mode: 'update' | 'full') => {
+    // Confirm for full re-sync
+    if (mode === 'full') {
+      const confirmed = confirm(
+        "Re-sync will fetch ALL Google Ads data (up to 1 year) and replace existing data. This may take several minutes. Continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setIsSyncing(true);
     setError(null);
 
     try {
       // Call Cloud Function directly - syncs from Google Ads API to BigQuery (bypasses Firestore)
-      console.log("Syncing Google Ads data directly to BigQuery...");
+      console.log(`Syncing Google Ads data to BigQuery (mode=${mode})...`);
       const response = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/google-ads-bigquery-sync", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ organizationId, mode }),
       });
 
       const data = await response.json();
@@ -250,7 +258,8 @@ function GoogleAdsContent() {
         throw new Error(data.error || 'Sync failed');
       }
 
-      setSuccess(`Synced ${data.campaigns_processed || 0} campaigns, ${data.daily_records || 0} daily records to BigQuery.`);
+      const modeLabel = mode === 'full' ? 'Full re-sync' : 'Incremental sync';
+      setSuccess(`${modeLabel} complete: ${data.campaigns_processed || 0} campaigns, ${data.daily_records || 0} daily records, ${data.rows_inserted || 0} rows to BigQuery.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed');
     } finally {
@@ -341,14 +350,27 @@ function GoogleAdsContent() {
               {connection?.status === 'connected' ? (
                 <>
                   <button
-                    onClick={handleSync}
+                    onClick={() => handleSync('update')}
                     disabled={isSyncing}
                     className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium"
                     style={{ background: "#4285F4", color: "white" }}
-                    title="Sync Google Ads data directly to BigQuery"
+                    title="Sync recent Google Ads data (last 30 days)"
                   >
                     {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    {isSyncing ? 'Syncing to BigQuery...' : 'Sync to BigQuery'}
+                    {isSyncing ? 'Syncing...' : 'Sync New Data'}
+                  </button>
+                  <button
+                    onClick={() => handleSync('full')}
+                    disabled={isSyncing}
+                    className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium"
+                    style={{ 
+                      background: "var(--background-tertiary)", 
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)" 
+                    }}
+                    title="Re-sync all historical data (up to 1 year)"
+                  >
+                    Re-sync Data
                   </button>
                   <button
                     onClick={handleDisconnect}

@@ -88,8 +88,9 @@ def sync_activecampaign_to_bigquery(request):
         return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
+    sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    logger.info(f"Starting ActiveCampaign → BigQuery DIRECT sync for org: {organization_id}")
+    logger.info(f"Starting ActiveCampaign → BigQuery sync for org: {organization_id} (mode={sync_mode})")
     
     try:
         db = firestore.Client()
@@ -321,23 +322,37 @@ def sync_activecampaign_to_bigquery(request):
         # 5. WRITE DIRECTLY TO BIGQUERY
         # ============================================
         if rows:
-            logger.info(f"Inserting {len(rows)} rows directly to BigQuery...")
+            logger.info(f"Writing {len(rows)} rows to BigQuery (mode={sync_mode})...")
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
-            # Delete existing ActiveCampaign data for this org and date
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
-            WHERE organization_id = '{organization_id}'
-              AND entity_type IN ('contact_summary', 'deal_summary', 'email_campaign', 'email_summary', 'email_list')
-              AND date = '{today_str}'
-            """
-            
-            try:
-                bq.query(delete_query).result()
-                logger.info("Deleted existing ActiveCampaign data for today")
-            except Exception as e:
-                logger.warning(f"Delete query warning: {e}")
+            if sync_mode == 'full':
+                # FULL RESYNC: Delete ALL existing ActiveCampaign data for this org
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('contact_summary', 'deal_summary', 'email_campaign', 'email_summary', 'email_list')
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info("Deleted all existing ActiveCampaign data for full resync")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
+            else:
+                # UPDATE SYNC: Only delete today's data (will be replaced with fresh snapshot)
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('contact_summary', 'deal_summary', 'email_campaign', 'email_summary', 'email_list')
+                  AND date = '{today_str}'
+                """
+                
+                try:
+                    bq.query(delete_query).result()
+                    logger.info("Deleted today's ActiveCampaign data for update")
+                except Exception as e:
+                    logger.warning(f"Delete query warning: {e}")
             
             # Insert new rows
             errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
@@ -361,12 +376,14 @@ def sync_activecampaign_to_bigquery(request):
             'updatedAt': firestore.SERVER_TIMESTAMP,
         })
         
-        logger.info(f"✅ ActiveCampaign DIRECT sync complete: {results}")
+        mode_label = "Full re-sync" if sync_mode == 'full' else "Incremental sync"
+        logger.info(f"✅ ActiveCampaign sync complete ({mode_label}): {results}")
         
         return ({
             'success': True,
+            'mode': sync_mode,
             **results,
-            'message': f"Synced {results['rows_inserted']} rows directly to BigQuery (bypassed Firestore)"
+            'message': f"{mode_label}: {results['rows_inserted']} rows to BigQuery"
         }, 200, headers)
         
     except Exception as e:

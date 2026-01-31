@@ -148,17 +148,25 @@ export default function StripePage() {
     window.location.href = `/api/stripe/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async () => {
+  const handleSync = async (mode: 'update' | 'full') => {
+    // Confirm for full re-sync
+    if (mode === 'full') {
+      const confirmed = confirm(
+        "Re-sync will fetch ALL historical Stripe data (up to 2 years) and replace existing data. This may take several minutes. Continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setIsSyncing(true);
     setError(null);
 
     try {
       // Call Cloud Function directly - syncs from Stripe API to BigQuery (bypasses Firestore)
-      console.log("Syncing Stripe data directly to BigQuery...");
+      console.log(`Syncing Stripe data to BigQuery (mode=${mode})...`);
       const syncResponse = await fetch("https://us-central1-opsos-864a1.cloudfunctions.net/stripe-bigquery-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ organizationId, mode }),
       });
 
       const syncData = await syncResponse.json();
@@ -168,7 +176,8 @@ export default function StripePage() {
       }
 
       await fetchMetrics();
-      const message = `Synced to BigQuery: ${syncData.charges_processed || 0} charges, ${syncData.subscriptions_processed || 0} subscriptions, ${syncData.customers_processed || 0} customers.`;
+      const modeLabel = mode === 'full' ? 'Full re-sync' : 'Incremental sync';
+      const message = `${modeLabel} complete: ${syncData.charges_processed || 0} charges, ${syncData.subscriptions_processed || 0} subscriptions, ${syncData.rows_inserted || 0} rows to BigQuery.`;
       
       setSuccess(message);
       setTimeout(() => setSuccess(null), 5000);
@@ -305,17 +314,30 @@ export default function StripePage() {
               {isConnected || isSyncingStatus ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleSync()}
+                    onClick={() => handleSync('update')}
                     disabled={isSyncing}
                     className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
                       background: "#635BFF",
                       color: "white",
                     }}
-                    title="Sync Stripe data directly to BigQuery"
+                    title="Sync recent Stripe data (last 30 days)"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing to BigQuery..." : "Sync to BigQuery"}
+                    {isSyncing ? "Syncing..." : "Sync New Data"}
+                  </button>
+                  <button
+                    onClick={() => handleSync('full')}
+                    disabled={isSyncing}
+                    className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)",
+                    }}
+                    title="Re-sync all historical data (up to 2 years)"
+                  >
+                    Re-sync Data
                   </button>
                   <button
                     onClick={handleDisconnect}
@@ -327,7 +349,6 @@ export default function StripePage() {
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
-                    Disconnect
                   </button>
                 </div>
               ) : (
