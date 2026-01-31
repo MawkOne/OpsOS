@@ -167,10 +167,10 @@ function GoogleAnalyticsContent() {
     setSyncResult(null);
 
     try {
-      // Call Cloud Function directly - syncs from GA4 API to BigQuery (bypasses Firestore)
+      // Call through Vercel API proxy to avoid CORS issues with long-running syncs
       console.log("Syncing GA4 data directly to BigQuery...");
       const response = await fetch(
-        "https://us-central1-opsos-864a1.cloudfunctions.net/ga4-bigquery-sync",
+        "/api/google-analytics/sync",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
