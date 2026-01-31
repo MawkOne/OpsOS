@@ -5,7 +5,7 @@ export const maxDuration = 300; // 5 minutes max for Vercel Pro
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, daysBack = 90 } = body;
+    const { organizationId, daysBack = 1825 } = body;  // 5 years for all-time historical
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
