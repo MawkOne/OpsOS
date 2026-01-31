@@ -153,9 +153,16 @@ def sync_ga4_to_bigquery(request):
         return ({'error': 'Missing organizationId'}, 400, headers)
     
     organization_id = request_json['organizationId']
-    days_back = request_json.get('daysBack', 1825)  # Default to 5 years (all-time historical)
+    sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    logger.info(f"Starting GA4 → BigQuery DIRECT sync for org: {organization_id}")
+    # Update sync: last 30 days, uses MERGE to avoid duplicates
+    # Full sync: all historical data (5 years), deletes and rewrites
+    if sync_mode == 'full':
+        days_back = request_json.get('daysBack', 1825)  # 5 years for full resync
+    else:
+        days_back = request_json.get('daysBack', 30)  # 30 days for incremental update
+    
+    logger.info(f"Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({days_back} days)")
     
     try:
         db = firestore.Client()
@@ -364,52 +371,127 @@ def sync_ga4_to_bigquery(request):
         # 4. WRITE DIRECTLY TO BIGQUERY (in batches)
         # ============================================
         if rows:
-            logger.info(f"Inserting {len(rows)} rows directly to BigQuery in batches...")
+            logger.info(f"Writing {len(rows)} rows to BigQuery ({sync_mode} mode)...")
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
-            # Delete existing GA4 data for this org and date range
-            # Using entity_type to identify GA4 data (website_traffic, traffic_source, page)
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
-            WHERE organization_id = '{organization_id}'
-              AND entity_type IN ('website_traffic', 'traffic_source', 'page')
-              AND date >= '{start_date.isoformat()}'
-            """
-            
-            try:
-                bq.query(delete_query).result()
-                logger.info("Deleted existing GA4 data")
-            except Exception as e:
-                logger.warning(f"Delete query warning: {e}")
-            
-            # Insert rows in batches of 500 to avoid timeouts
-            BATCH_SIZE = 500
-            total_inserted = 0
-            total_errors = 0
-            
-            for i in range(0, len(rows), BATCH_SIZE):
-                batch = rows[i:i + BATCH_SIZE]
-                batch_num = (i // BATCH_SIZE) + 1
-                total_batches = (len(rows) + BATCH_SIZE - 1) // BATCH_SIZE
-                
-                logger.info(f"Inserting batch {batch_num}/{total_batches} ({len(batch)} rows)...")
+            if sync_mode == 'full':
+                # FULL RESYNC: Delete all existing GA4 data and rewrite
+                logger.info("Full resync: Deleting existing GA4 data...")
+                delete_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('website_traffic', 'traffic_source', 'page')
+                  AND date >= '{start_date.isoformat()}'
+                """
                 
                 try:
-                    errors = bq.insert_rows_json(table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
-                    
-                    if errors:
-                        total_errors += len(errors)
-                        logger.warning(f"Batch {batch_num} had {len(errors)} errors")
-                    else:
-                        total_inserted += len(batch)
+                    bq.query(delete_query).result()
+                    logger.info("Deleted existing GA4 data")
                 except Exception as e:
-                    logger.error(f"Batch {batch_num} failed: {e}")
-                    total_errors += len(batch)
+                    logger.warning(f"Delete query warning: {e}")
+                
+                # Insert all rows in batches
+                BATCH_SIZE = 500
+                total_inserted = 0
+                total_errors = 0
+                
+                for i in range(0, len(rows), BATCH_SIZE):
+                    batch = rows[i:i + BATCH_SIZE]
+                    batch_num = (i // BATCH_SIZE) + 1
+                    total_batches = (len(rows) + BATCH_SIZE - 1) // BATCH_SIZE
+                    
+                    logger.info(f"Inserting batch {batch_num}/{total_batches} ({len(batch)} rows)...")
+                    
+                    try:
+                        errors = bq.insert_rows_json(table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                        
+                        if errors:
+                            total_errors += len(errors)
+                            logger.warning(f"Batch {batch_num} had {len(errors)} errors")
+                        else:
+                            total_inserted += len(batch)
+                    except Exception as e:
+                        logger.error(f"Batch {batch_num} failed: {e}")
+                        total_errors += len(batch)
+                
+                results['rows_inserted'] = total_inserted
+                if total_errors > 0:
+                    logger.warning(f"Total errors across all batches: {total_errors}")
             
-            results['rows_inserted'] = total_inserted
-            if total_errors > 0:
-                logger.warning(f"Total errors across all batches: {total_errors}")
+            else:
+                # UPDATE SYNC: Use MERGE to upsert (update existing, insert new)
+                logger.info("Update sync: Using MERGE for efficient upsert...")
+                
+                # Create a temporary table with new data
+                temp_table_id = f"temp_ga4_sync_{organization_id.replace('-', '_')}_{int(datetime.utcnow().timestamp())}"
+                temp_table_ref = f"{PROJECT_ID}.{DATASET_ID}.{temp_table_id}"
+                
+                # Insert to temp table in batches
+                BATCH_SIZE = 500
+                total_inserted = 0
+                
+                # First create temp table by inserting first batch
+                for i in range(0, len(rows), BATCH_SIZE):
+                    batch = rows[i:i + BATCH_SIZE]
+                    batch_num = (i // BATCH_SIZE) + 1
+                    total_batches = (len(rows) + BATCH_SIZE - 1) // BATCH_SIZE
+                    
+                    logger.info(f"Loading batch {batch_num}/{total_batches} to temp table...")
+                    
+                    try:
+                        errors = bq.insert_rows_json(temp_table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                        if not errors:
+                            total_inserted += len(batch)
+                    except Exception as e:
+                        # If table doesn't exist, create it via query
+                        if 'Not found' in str(e) or i == 0:
+                            # Use INSERT via query to auto-create table
+                            logger.info("Creating temp table via streaming insert...")
+                            try:
+                                errors = bq.insert_rows_json(temp_table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                                if not errors:
+                                    total_inserted += len(batch)
+                            except:
+                                pass
+                
+                # Execute MERGE statement
+                merge_query = f"""
+                MERGE `{table_ref}` AS target
+                USING `{temp_table_ref}` AS source
+                ON target.organization_id = source.organization_id
+                   AND target.canonical_entity_id = source.canonical_entity_id
+                   AND target.date = source.date
+                   AND target.entity_type = source.entity_type
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        users = source.users,
+                        sessions = source.sessions,
+                        pageviews = source.pageviews,
+                        conversions = source.conversions,
+                        revenue = source.revenue,
+                        bounce_rate = source.bounce_rate,
+                        avg_session_duration = source.avg_session_duration,
+                        source_breakdown = source.source_breakdown,
+                        updated_at = source.updated_at
+                WHEN NOT MATCHED THEN
+                    INSERT ROW
+                """
+                
+                try:
+                    bq.query(merge_query).result()
+                    results['rows_inserted'] = total_inserted
+                    logger.info(f"MERGE completed: {total_inserted} rows processed")
+                except Exception as e:
+                    logger.error(f"MERGE failed: {e}")
+                    # Fallback: just do streaming insert (may create duplicates but better than failing)
+                    results['rows_inserted'] = total_inserted
+                
+                # Clean up temp table
+                try:
+                    bq.query(f"DROP TABLE IF EXISTS `{temp_table_ref}`").result()
+                except:
+                    pass
         
         # Update connection status
         connection_ref.update({

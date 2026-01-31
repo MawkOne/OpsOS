@@ -5,7 +5,8 @@ export const maxDuration = 300; // 5 minutes max for Vercel Pro
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationId, daysBack = 1825 } = body;  // 5 years for all-time historical
+    const { organizationId, mode = 'update', daysBack } = body;
+    // mode: 'update' = incremental (30 days), 'full' = complete resync (5 years)
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Missing organizationId' }, { status: 400 });
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ organizationId, daysBack }),
+          body: JSON.stringify({ organizationId, mode, ...(daysBack && { daysBack }) }),
           signal: controller.signal,
         }
       );

@@ -159,8 +159,15 @@ function GoogleAnalyticsContent() {
     window.location.href = `/api/google-analytics/auth?organizationId=${organizationId}`;
   };
 
-  const handleSync = async () => {
+  const handleSync = async (mode: 'update' | 'full') => {
     if (!organizationId) return;
+    
+    const isFullSync = mode === 'full';
+    
+    // Confirm full resync (it's expensive and time-consuming)
+    if (isFullSync && !confirm("Full Re-sync will fetch ALL historical data (up to 5 years). This may take several minutes and will replace existing data. Continue?")) {
+      return;
+    }
     
     setIsSyncing(true);
     setError(null);
@@ -168,13 +175,13 @@ function GoogleAnalyticsContent() {
 
     try {
       // Call through Vercel API proxy to avoid CORS issues with long-running syncs
-      console.log("Syncing GA4 data directly to BigQuery...");
+      console.log(`Running ${mode} sync of GA4 data to BigQuery...`);
       const response = await fetch(
         "/api/google-analytics/sync",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ organizationId, daysBack: 90 }),
+          body: JSON.stringify({ organizationId, mode }),
         }
       );
 
@@ -185,7 +192,8 @@ function GoogleAnalyticsContent() {
       }
 
       setSyncResult(data);
-      setSuccess(`Synced to BigQuery: ${data.daily_records || 0} daily records, ${data.traffic_sources || 0} traffic sources, ${data.pages_processed || 0} pages`);
+      const modeLabel = isFullSync ? "Full re-sync" : "Update sync";
+      setSuccess(`${modeLabel} complete: ${data.daily_records || 0} daily records, ${data.traffic_sources || 0} traffic sources, ${data.pages_processed || 0} pages`);
       
       // Also refresh the displayed metrics
       await fetchMetrics();
@@ -361,17 +369,31 @@ function GoogleAnalyticsContent() {
               {isConnected ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleSync}
+                    onClick={() => handleSync('update')}
                     disabled={isSyncing || metricsLoading}
                     className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
                     style={{
                       background: "#F9AB00",
                       color: "#1a1a1a",
                     }}
-                    title="Sync GA4 data directly to BigQuery"
+                    title="Update recent data (last 30 days) - fast and efficient"
                   >
                     <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                    {isSyncing ? "Syncing to BigQuery..." : "Sync to BigQuery"}
+                    {isSyncing ? "Syncing..." : "Update Sync"}
+                  </button>
+                  <button
+                    onClick={() => handleSync('full')}
+                    disabled={isSyncing || metricsLoading}
+                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: "var(--background-tertiary)",
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)",
+                    }}
+                    title="Full re-sync all historical data (up to 5 years)"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    Full Re-sync
                   </button>
                   <button
                     onClick={handleDisconnect}
