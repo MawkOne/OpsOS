@@ -95,16 +95,16 @@ def ga4_run_report(access_token: str, property_id: str, report_request: dict) ->
     return response.json()
 
 
-def ga4_run_report_paginated(access_token: str, property_id: str, report_request: dict) -> list:
-    """Execute GA4 Data API runReport with pagination to fetch ALL rows"""
+def ga4_run_report_paginated(access_token: str, property_id: str, report_request: dict, max_rows: int = 5000) -> list:
+    """Execute GA4 Data API runReport with pagination, limited to max_rows to avoid memory issues"""
     all_rows = []
     offset = 0
-    limit = 10000  # GA4 max per request
+    limit = 1000  # Smaller batches to manage memory
     
     # Set initial limit
     report_request['limit'] = limit
     
-    while True:
+    while len(all_rows) < max_rows:
         report_request['offset'] = offset
         
         data = ga4_run_report(access_token, property_id, report_request)
@@ -114,7 +114,7 @@ def ga4_run_report_paginated(access_token: str, property_id: str, report_request
             break
         
         all_rows.extend(rows)
-        logger.info(f"Fetched {len(all_rows)} rows so far...")
+        logger.info(f"Fetched {len(all_rows)} rows so far (max: {max_rows})...")
         
         # Check if there are more rows
         row_count = int(data.get('rowCount', 0))
@@ -123,7 +123,11 @@ def ga4_run_report_paginated(access_token: str, property_id: str, report_request
         
         offset += limit
     
-    logger.info(f"Total rows fetched: {len(all_rows)}")
+    # Trim to max_rows if we exceeded
+    if len(all_rows) > max_rows:
+        all_rows = all_rows[:max_rows]
+    
+    logger.info(f"Total rows fetched: {len(all_rows)} (limited to {max_rows})")
     return all_rows
 
 
@@ -246,6 +250,7 @@ def sync_ga4_to_bigquery(request):
         logger.info("Fetching ALL traffic sources from GA4 API...")
         
         try:
+            # Limit to top 500 traffic sources to manage memory
             source_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
@@ -258,7 +263,7 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'conversions'},
                     {'name': 'totalRevenue'},
                 ],
-            })
+            }, max_rows=500)
             
             today_str = end_date.isoformat()
             
@@ -296,11 +301,12 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching traffic sources: {e}")
         
         # ============================================
-        # 3. FETCH ALL PAGES (with pagination)
+        # 3. FETCH TOP PAGES (limited to manage memory)
         # ============================================
-        logger.info("Fetching ALL pages from GA4 API...")
+        logger.info("Fetching top pages from GA4 API...")
         
         try:
+            # Limit to top 2000 pages to manage memory
             pages_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
@@ -314,7 +320,7 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'bounceRate'},
                 ],
                 'orderBys': [{'metric': {'metricName': 'screenPageViews'}, 'desc': True}],
-            })
+            }, max_rows=2000)
             
             today_str = end_date.isoformat()
             
