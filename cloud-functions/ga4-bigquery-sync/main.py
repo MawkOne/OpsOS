@@ -163,6 +163,9 @@ def sync_ga4_to_bigquery(request):
         
         connection_data = connection_doc.to_dict()
         property_id = connection_data.get('selectedPropertyId')
+        # Remove 'properties/' prefix if present (stored as 'properties/123456')
+        if property_id and property_id.startswith('properties/'):
+            property_id = property_id.replace('properties/', '')
         
         if not property_id:
             return ({'error': 'No GA4 property selected'}, 400, headers)
