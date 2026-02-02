@@ -60,7 +60,7 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
     label: "AI", 
     icon: <Brain className="w-4 h-4" />, 
     color: "#a855f7",
-    href: "/ai",
+    href: "/ai/opportunities",
   },
   leadership: { 
     label: "Leadership", 
@@ -127,9 +127,8 @@ const getNavigationByModule = (oppCount: number, detectorStats?: { total: number
     {
       title: "Overview",
       items: [
-        { label: "Dashboard", href: "/ai", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { label: "Dashboard", href: "/ai/opportunities", icon: <LayoutDashboard className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
         { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: detectorStats?.total ? String(detectorStats.total) : undefined },
-        { label: "All Opportunities", href: "/ai/opportunities", icon: <Target className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
       ],
     },
     {
