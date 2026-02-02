@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
           ELSE 4
         END,
         potential_impact_score DESC
-      LIMIT 500
+      LIMIT 1000
     `;
 
     const params: Record<string, string> = { organizationId };
