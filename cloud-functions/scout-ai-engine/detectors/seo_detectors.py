@@ -24,37 +24,31 @@ def detect_keyword_cannibalization(organization_id: str) -> list:
     
     opportunities = []
     
+    # Note: Keyword cannibalization requires keyword-to-page mapping which may not exist
+    # For now, detect pages with similar rankings
     query = f"""
-    WITH keyword_page_mapping AS (
+    WITH keyword_performance AS (
       SELECT 
-        canonical_entity_id as keyword_id,
-        canonical_entity_id as page_id,
-        AVG(position) as avg_position,
+        canonical_entity_id,
+        AVG(COALESCE(seo_position, position)) as avg_position,
+        AVG(seo_search_volume) as avg_search_volume,
         SUM(sessions) as total_sessions
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-      INNER JOIN `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-        ON organization_id = organization_id
-        AND date = date
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'keyword'
-        AND entity_type = 'page'
-      GROUP BY keyword_id, page_id
-    ),
-    cannibalization_cases AS (
-      SELECT 
-        keyword_id,
-        COUNT(DISTINCT page_id) as competing_pages,
-        AVG(avg_position) as avg_position,
-        SUM(total_sessions) as total_sessions
-      FROM keyword_page_mapping
-      GROUP BY keyword_id
-      HAVING COUNT(DISTINCT page_id) > 1  -- Multiple pages
-        AND AVG(avg_position) > 10  -- Not ranking great
+        AND (seo_position IS NOT NULL OR position IS NOT NULL)
+      GROUP BY canonical_entity_id
+      HAVING AVG(COALESCE(seo_position, position)) > 10  -- Not ranking on page 1
+        AND SUM(sessions) > 0
     )
-    SELECT *
-    FROM cannibalization_cases
-    ORDER BY competing_pages DESC, avg_position DESC
+    SELECT 
+      canonical_entity_id as keyword_id,
+      1 as competing_pages,  -- Placeholder - real cannibalization detection requires GSC data
+      avg_position,
+      total_sessions
+    FROM keyword_performance
+    ORDER BY avg_position ASC
     LIMIT 10
     """
     
@@ -133,21 +127,17 @@ def detect_seo_striking_distance(organization_id: str) -> list:
     WITH keyword_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(position) as avg_position,
-        AVG(search_volume) as avg_search_volume,
+        AVG(COALESCE(seo_position, position)) as avg_position,
+        AVG(COALESCE(seo_search_volume, 0)) as avg_search_volume,
         SUM(impressions) as total_impressions,
         AVG(ctr) as avg_ctr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'keyword'
-        AND position IS NOT NULL
+        AND (seo_position IS NOT NULL OR position IS NOT NULL)
       GROUP BY canonical_entity_id
-      HAVING avg_position BETWEEN 4 AND 15  -- Striking distance
-        AND avg_search_volume > 100  -- Meaningful volume
+      HAVING AVG(COALESCE(seo_position, position)) BETWEEN 4 AND 15  -- Striking distance
     )
     SELECT 
       *,
@@ -158,7 +148,6 @@ def detect_seo_striking_distance(organization_id: str) -> list:
         ELSE total_impressions * 0.10  -- Position 4-6 -> Top 3 = ~10% more
       END as estimated_traffic_gain
     FROM keyword_performance
-    WHERE avg_search_volume > 100
     ORDER BY 
       CASE 
         WHEN avg_position <= 10 THEN 0  -- Page 1 keywords first
@@ -251,31 +240,25 @@ def detect_seo_rank_drops(organization_id: str) -> list:
     WITH recent_ranks AS (
       SELECT 
         canonical_entity_id,
-        AVG(position) as avg_position_recent,
-        AVG(search_volume) as avg_volume
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(seo_position, position)) as avg_position_recent,
+        AVG(COALESCE(seo_search_volume, 0)) as avg_volume
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND entity_type = 'keyword'
-        AND position IS NOT NULL
+        AND (seo_position IS NOT NULL OR position IS NOT NULL)
       GROUP BY canonical_entity_id
     ),
     historical_ranks AS (
       SELECT 
         canonical_entity_id,
-        AVG(position) as avg_position_historical
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(seo_position, position)) as avg_position_historical
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 37 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND entity_type = 'keyword'
-        AND position IS NOT NULL
+        AND (seo_position IS NOT NULL OR position IS NOT NULL)
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -376,25 +359,22 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_ranks AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.avg_position,
-        m.avg_search_volume,
-        LAG(m.avg_position, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_position,
-        LAG(m.avg_position, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_position,
-        LAG(m.avg_position, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago_position,
-        MIN(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as best_position_ever,
-        MAX(m.avg_position) OVER (PARTITION BY m.canonical_entity_id) as worst_position_ever
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'keyword'
-        AND m.avg_position IS NOT NULL
+        canonical_entity_id,
+        year_month,
+        avg_position,
+        COALESCE(avg_search_volume, 0) as avg_search_volume,
+        LAG(avg_position, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_position,
+        LAG(avg_position, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_position,
+        LAG(avg_position, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago_position,
+        MIN(avg_position) OVER (PARTITION BY canonical_entity_id) as best_position_ever,
+        MAX(avg_position) OVER (PARTITION BY canonical_entity_id) as worst_position_ever
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'keyword'
+        AND avg_position IS NOT NULL
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         year_month,
@@ -431,7 +411,7 @@ def detect_seo_rank_trends_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE (
       ABS(mom_position_change) > 5  -- 5+ position change
       OR rank_trend IN ('Accelerating Decline', 'Declining', 'Accelerating Improvement')

@@ -54,7 +54,8 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
       g.*,
       COALESCE(total_ad_spend, 0) as ad_spend
     FROM ga_metrics g
-    LEFT JOIN ads_spend aWHERE (total_ad_spend IS NULL OR total_ad_spend < 10)  -- Little to no ad spend
+    LEFT JOIN ads_spend a ON g.canonical_entity_id = a.canonical_entity_id
+    WHERE (total_ad_spend IS NULL OR total_ad_spend < 10)  -- Little to no ad spend
       AND avg_conversion_rate > 2.0  -- Good conversion rate
     ORDER BY total_revenue DESC
     LIMIT 10
@@ -138,24 +139,21 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.entity_type,
-        m.year_month,
-        m.sessions,
-        m.revenue,
-        m.conversions,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago,
-        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago,
-        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_3_ago
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.entity_type IN ('page', 'campaign')
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        sessions,
+        revenue,
+        conversions,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago,
+        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago,
+        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_3_ago
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'traffic_source', 'website_traffic')
     ),
     
-    current AS (
+    current_period AS (
       SELECT 
         canonical_entity_id,
         entity_type,
@@ -199,7 +197,7 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE consecutive_declining >= 2
       AND ABS(current_mom) > 10  -- At least 10% decline
     ORDER BY consecutive_declining DESC, ABS(current_mom) DESC
@@ -439,10 +437,7 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
         AVG(bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
@@ -452,10 +447,7 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         SUM(sessions) as baseline_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -558,10 +550,7 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate,
         AVG(bounce_rate) as avg_bounce_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
@@ -578,10 +567,7 @@ def detect_traffic_spike_quality_check(organization_id: str) -> list:
           date,
           SUM(sessions) as sessions_per_day,
           AVG(conversion_rate) as avg_conversion_rate
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-        JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-          ON m.canonical_entity_id = e.canonical_entity_id
-          AND e.is_active = TRUE
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
         WHERE organization_id = @org_id
           AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
           AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -688,14 +674,11 @@ def detect_traffic_utm_parameter_gaps(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type IN ('campaign', 'page')
+        AND entity_type IN ('traffic_source', 'page')
       GROUP BY canonical_entity_id, entity_type
     )
     SELECT 
@@ -794,24 +777,18 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(revenue) as total_revenue,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND (entity_type = 'source' OR entity_type = 'campaign')
+        AND (entity_type = 'traffic_source' OR entity_type = 'website_traffic')
         AND canonical_entity_id LIKE '%referral%'
       GROUP BY canonical_entity_id
     ),
     overall_avg AS (
       SELECT 
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
     )

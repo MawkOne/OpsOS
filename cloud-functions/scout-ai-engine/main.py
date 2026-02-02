@@ -35,8 +35,9 @@ def load_detectors_for_category(category: str):
         List of detector functions
     """
     try:
-        # Import the category module
-        module = importlib.import_module(f'detectors.{category}')
+        # Import the consolidated detector module (e.g., detectors.email_detectors)
+        # These files contain all fixed/working detectors for each category
+        module = importlib.import_module(f'detectors.{category}_detectors')
         
         # Get all functions that start with 'detect_'
         detectors = []
@@ -46,11 +47,11 @@ def load_detectors_for_category(category: str):
                 if callable(func):
                     detectors.append(func)
         
-        logger.info(f"  Loaded {len(detectors)} detectors from {category}")
+        logger.info(f"  Loaded {len(detectors)} detectors from {category}_detectors")
         return detectors
         
     except Exception as e:
-        logger.error(f"  ❌ Error loading {category} detectors: {e}")
+        logger.error(f"  ❌ Error loading {category}_detectors: {e}")
         return []
 
 def get_enabled_areas(organization_id: str):
@@ -87,21 +88,30 @@ def write_opportunities_to_bigquery(opportunities: list):
         for opp in opportunities:
             prepared_opp = opp.copy()
             
-            # Convert nested objects to JSON strings
-            # These fields often contain variable structures that don't fit a fixed schema
-            json_fields = ['evidence', 'metrics', 'historical_performance', 'comparison_data', 'recommended_actions']
+            # Convert nested objects to JSON strings for JSON-type columns
+            # (evidence, metrics, etc. are JSON type in BigQuery)
+            json_fields = ['evidence', 'metrics', 'historical_performance', 'comparison_data']
             
             for field in json_fields:
                 if field in prepared_opp and prepared_opp[field] is not None:
                     if isinstance(prepared_opp[field], (dict, list)):
                         prepared_opp[field] = json.dumps(prepared_opp[field])
             
-            # Ensure all required fields have values (BigQuery doesn't like None for some types)
+            # Ensure all required JSON fields have values
             prepared_opp['evidence'] = prepared_opp.get('evidence') or '{}'
             prepared_opp['metrics'] = prepared_opp.get('metrics') or '{}'
             prepared_opp['historical_performance'] = prepared_opp.get('historical_performance') or '{}'
             prepared_opp['comparison_data'] = prepared_opp.get('comparison_data') or '{}'
-            prepared_opp['recommended_actions'] = prepared_opp.get('recommended_actions') or '[]'
+            
+            # recommended_actions is a REPEATED STRING (array) - keep it as list
+            if prepared_opp.get('recommended_actions') is None:
+                prepared_opp['recommended_actions'] = []
+            elif isinstance(prepared_opp['recommended_actions'], str):
+                # If it's already a string somehow, parse it back to list
+                try:
+                    prepared_opp['recommended_actions'] = json.loads(prepared_opp['recommended_actions'])
+                except:
+                    prepared_opp['recommended_actions'] = [prepared_opp['recommended_actions']]
             
             # Ensure numeric fields are proper numbers
             prepared_opp['confidence_score'] = float(prepared_opp.get('confidence_score') or 0)

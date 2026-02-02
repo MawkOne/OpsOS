@@ -166,10 +166,7 @@ def detect_metric_anomalies(organization_id: str) -> list:
         ctr,
         bounce_rate,
         position
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
     ),
@@ -307,17 +304,14 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_revenue AS (
       SELECT 
-        m.year_month,
-        SUM(m.revenue) as total_revenue,
-        SUM(m.conversions) as total_conversions,
-        SUM(m.cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-      GROUP BY m.year_month
-      ORDER BY m.year_month
+        year_month,
+        SUM(revenue) as total_revenue,
+        SUM(conversions) as total_conversions,
+        SUM(cost) as total_cost
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+      GROUP BY year_month
+      ORDER BY year_month
     ),
     
     with_trends AS (
@@ -343,38 +337,40 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
       FROM monthly_revenue
     ),
     
-    current AS (
+    current_period AS (
       SELECT *
       FROM with_trends
       WHERE year_month = (SELECT MAX(year_month) FROM with_trends)
         AND month_1_ago_revenue IS NOT NULL
     )
     
-    SELECT 
-      *,
-      -- Count consecutive declining months
-      CASE 
-        WHEN total_revenue < month_1_ago_revenue 
-         AND month_1_ago_revenue < month_2_ago_revenue 
-         AND month_2_ago_revenue < month_3_ago_revenue THEN 4
-        WHEN total_revenue < month_1_ago_revenue 
-         AND month_1_ago_revenue < month_2_ago_revenue THEN 3
-        WHEN total_revenue < month_1_ago_revenue THEN 2
-        ELSE 0
-      END as consecutive_declining_months,
-      
-      -- Classify trend pattern
-      CASE 
-        WHEN ABS(mom_change) > ABS(prev_mom_change) AND mom_change < 0 THEN 'Accelerating Decline'
-        WHEN ABS(mom_change) < ABS(prev_mom_change) AND mom_change < 0 THEN 'Decelerating Decline'
-        WHEN ABS(mom_change) > ABS(prev_mom_change) AND mom_change > 0 THEN 'Accelerating Growth'
-        WHEN ABS(mom_change) < ABS(prev_mom_change) AND mom_change > 0 THEN 'Decelerating Growth'
-        WHEN mom_change < -5 THEN 'Steady Decline'
-        WHEN mom_change > 5 THEN 'Steady Growth'
-        ELSE 'Stable'
-      END as pattern
-      
-    FROM current
+    SELECT * FROM (
+      SELECT 
+        *,
+        -- Count consecutive declining months
+        CASE 
+          WHEN total_revenue < month_1_ago_revenue 
+           AND month_1_ago_revenue < month_2_ago_revenue 
+           AND month_2_ago_revenue < month_3_ago_revenue THEN 4
+          WHEN total_revenue < month_1_ago_revenue 
+           AND month_1_ago_revenue < month_2_ago_revenue THEN 3
+          WHEN total_revenue < month_1_ago_revenue THEN 2
+          ELSE 0
+        END as consecutive_declining_months,
+        
+        -- Classify trend pattern
+        CASE 
+          WHEN ABS(mom_change) > ABS(prev_mom_change) AND mom_change < 0 THEN 'Accelerating Decline'
+          WHEN ABS(mom_change) < ABS(prev_mom_change) AND mom_change < 0 THEN 'Decelerating Decline'
+          WHEN ABS(mom_change) > ABS(prev_mom_change) AND mom_change > 0 THEN 'Accelerating Growth'
+          WHEN ABS(mom_change) < ABS(prev_mom_change) AND mom_change > 0 THEN 'Decelerating Growth'
+          WHEN mom_change < -5 THEN 'Steady Decline'
+          WHEN mom_change > 5 THEN 'Steady Growth'
+          ELSE 'Stable'
+        END as pattern
+        
+      FROM current_period
+    )
     WHERE (
       ABS(mom_change) > 10  -- 10%+ change
       OR consecutive_declining_months >= 2
@@ -443,7 +439,6 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
                     'mom_change_pct': mom,
                     'pattern': pattern
                 },
-                'monthly_trend_array': monthly_trend,
                 'hypothesis': f"{pattern} detected in monthly revenue. " + 
                              (f"Decline is ACCELERATING - each month worse than the last. URGENT intervention needed." if pattern == 'Accelerating Decline' 
                               else f"Growth is ACCELERATING - capitalize on this momentum!" if pattern == 'Accelerating Growth'
@@ -493,29 +488,23 @@ def detect_revenue_aov_decline(organization_id: str) -> list:
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        AVG(average_order_value) as avg_aov,
-        SUM(transactions) as total_transactions,
+        SAFE_DIVIDE(SUM(revenue), NULLIF(SUM(conversions), 0)) as avg_aov,
+        SUM(conversions) as total_transactions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND average_order_value > 0
+        AND revenue > 0
     ),
     historical_performance AS (
       SELECT 
-        AVG(average_order_value) as baseline_aov
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        SAFE_DIVIDE(SUM(revenue), NULLIF(SUM(conversions), 0)) as baseline_aov
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND average_order_value > 0
+        AND revenue > 0
     )
     SELECT 
       r.avg_aov as current_aov,
@@ -597,30 +586,30 @@ def detect_revenue_payment_failure_spike(organization_id: str) -> list:
     
     opportunities = []
     
+    # Note: This detector is temporarily disabled as payment_failure_rate column may not exist
+    # We'll implement this when Stripe data is integrated
+    logger.info("⏸️ Payment failure detector skipped - requires Stripe integration")
+    return opportunities
+    
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        AVG(payment_failure_rate) as avg_failure_rate,
-        SUM(payment_failures) as total_failures,
-        SUM(transactions) as total_transactions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        0.0 as avg_failure_rate,
+        0 as total_failures,
+        SUM(conversions) as total_transactions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
-        AVG(payment_failure_rate) as baseline_failure_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        0.0 as baseline_failure_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+      LIMIT 1
     )
     SELECT 
       r.avg_failure_rate as current_failure_rate,
@@ -702,30 +691,26 @@ def detect_revenue_new_customer_decline(organization_id: str) -> list:
     
     opportunities = []
     
+    # Note: This detector requires GA4 data with new/returning user segments
+    # For now, we'll use is_returning_traffic flag
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        SUM(CASE WHEN first_time_customers > 0 THEN revenue ELSE 0 END) as new_customer_revenue,
-        SUM(CASE WHEN returning_customers > 0 THEN revenue ELSE 0 END) as returning_customer_revenue,
-        SUM(first_time_customers) as total_new_customers,
-        SUM(returning_customers) as total_returning_customers,
+        SUM(CASE WHEN is_returning_traffic = FALSE THEN revenue ELSE 0 END) as new_customer_revenue,
+        SUM(CASE WHEN is_returning_traffic = TRUE THEN revenue ELSE 0 END) as returning_customer_revenue,
+        SUM(CASE WHEN is_returning_traffic = FALSE THEN users ELSE 0 END) as total_new_customers,
+        SUM(CASE WHEN is_returning_traffic = TRUE THEN users ELSE 0 END) as total_returning_customers,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
-        SUM(CASE WHEN first_time_customers > 0 THEN revenue ELSE 0 END) as baseline_new_customer_revenue,
-        SUM(CASE WHEN returning_customers > 0 THEN revenue ELSE 0 END) as baseline_returning_customer_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        SUM(CASE WHEN is_returning_traffic = FALSE THEN revenue ELSE 0 END) as baseline_new_customer_revenue,
+        SUM(CASE WHEN is_returning_traffic = TRUE THEN revenue ELSE 0 END) as baseline_returning_customer_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -816,33 +801,30 @@ def detect_revenue_discount_cannibalization(organization_id: str) -> list:
     
     opportunities = []
     
-    # Note: This requires discount data from Stripe
-    # For now, we'll check if refund_rate is increasing as a proxy
+    # Note: This detector requires Stripe refund data - temporarily disabled
+    logger.info("⏸️ Discount cannibalization detector skipped - requires Stripe integration")
+    return opportunities
+    
     query = f"""
     WITH recent_performance AS (
       SELECT 
-        AVG(refund_rate) as avg_refund_rate,
-        SUM(refunds) as total_refunds,
+        0.0 as avg_refund_rate,
+        0.0 as total_refunds,
         SUM(revenue) as total_revenue,
-        SUM(transactions) as total_transactions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        SUM(conversions) as total_transactions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
     ),
     historical_performance AS (
       SELECT 
-        AVG(refund_rate) as baseline_refund_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        0.0 as baseline_refund_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      LIMIT 1
     )
     SELECT 
       r.avg_refund_rate,
@@ -930,10 +912,7 @@ def detect_revenue_seasonality_deviation(organization_id: str) -> list:
         DATE_TRUNC(date, MONTH) as month,
         EXTRACT(MONTH FROM date) as month_number,
         SUM(revenue) as monthly_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH)  -- 2 years of data
       GROUP BY month, month_number

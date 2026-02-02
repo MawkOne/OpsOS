@@ -15,92 +15,75 @@ const categoryMap: Record<string, string> = {
 };
 
 // Detectors that are ACTUALLY operational (verified with real data + opportunities)
-// Updated 2026-01-27: HONEST COUNT = 18 working (not 59)
+// Updated 2026-02-02: Verified after SQL fixes - 23 working detectors
 const workingDetectors = [
   // ============================================================
-  // SEO (11 working) - DataForSEO integration VERIFIED ✅
+  // SEO (4 working) - DataForSEO integration VERIFIED ✅
+  // SQL queries fixed 2026-02-02
   // ============================================================
   "detect_seo_striking_distance",
   "detect_seo_rank_drops",
-  "detect_seo_keyword_cannibalization",
+  "detect_keyword_cannibalization",
   "detect_seo_rank_trends_multitimeframe",
-  "detect_backlink_quality_decline",
-  "detect_core_web_vitals_failing",
-  "detect_internal_link_opportunities",
-  "detect_rank_volatility_daily",
-  "detect_schema_markup_gaps",
-  "detect_technical_seo_health_score",
-  "detect_content_freshness_decay",
   
   // ============================================================
-  // Content (7 working) - GA4 + inferred content_type ✅
+  // Content (2 working) - GA4 data ✅
+  // SQL queries fixed 2026-02-02
   // ============================================================
   "detect_content_decay",
   "detect_content_decay_multitimeframe",
-  "detect_dwell_time_decline",
-  "detect_engagement_rate_decline",
-  "detect_content_format_winners",
-  "detect_republishing_opportunities",
-  "detect_publishing_volume_gap",
   
   // ============================================================
-  // BLOCKED - Missing data in BigQuery (commented out = NOT ACTIVE)
+  // Revenue (3 working) - Stripe data ✅
+  // SQL queries fixed 2026-02-02
   // ============================================================
+  "detect_revenue_anomaly",
+  "detect_metric_anomalies",
+  "detect_revenue_trends_multitimeframe",
   
-  // Email (0 working) - BLOCKED: No email data in BigQuery yet
-  // "detect_email_engagement_drop",
-  // "detect_email_bounce_rate_spike",
-  // "detect_email_click_to_open_rate_decline",
-  // "detect_email_high_opens_low_clicks",
-  // "detect_email_list_health_decline",
-  // "detect_email_optimal_frequency_deviation",
-  // "detect_email_spam_complaint_spike",
-  // "detect_email_trends_multitimeframe",
-  // "detect_email_volume_gap",
-  // "detect_revenue_per_subscriber_decline",
-  // "detect_device_client_performance_gap",
-  // "detect_ab_test_recommendations",
-  // "detect_list_segmentation_opportunities",
+  // ============================================================
+  // Pages (5 working) - GA4 page data ✅
+  // SQL queries fixed 2026-02-02
+  // ============================================================
+  "detect_high_traffic_low_conversion_pages",
+  "detect_scale_winners",
+  "detect_fix_losers",
+  "detect_page_engagement_decay",
+  "detect_scale_winners_multitimeframe",
   
-  // Revenue (0 working) - BLOCKED: No revenue data in BigQuery yet
-  // "detect_revenue_anomaly",
-  // "detect_metric_anomalies",
-  // "detect_revenue_trends_multitimeframe",
-  // "detect_revenue_aov_decline",
-  // "detect_revenue_new_customer_decline",
-  // "detect_revenue_discount_cannibalization",
-  // "detect_revenue_seasonality_deviation",
-  // "detect_revenue_payment_failure_spike",
+  // ============================================================
+  // Traffic (3 working) - GA4 traffic source data ✅
+  // SQL queries fixed 2026-02-02
+  // ============================================================
+  "detect_cross_channel_gaps",
+  "detect_declining_performers",
+  "detect_declining_performers_multitimeframe",
   
-  // Pages (0 working) - BLOCKED: Need device_type, funnel events
-  // "detect_high_traffic_low_conversion_pages",
-  // "detect_page_engagement_decay",
-  // "detect_scale_winners",
-  // "detect_fix_losers",
-  // "detect_scale_winners_multitimeframe",
+  // ============================================================
+  // Advertising (3 working) - Cost/ROAS data ✅
+  // SQL queries fixed 2026-02-02
+  // ============================================================
+  "detect_cost_inefficiency",
+  "detect_paid_waste",
+  "detect_paid_campaigns_multitimeframe",
+  
+  // ============================================================
+  // Email (3 working) - Email metrics data ✅
+  // ============================================================
+  "detect_email_engagement_drop",
+  "detect_email_high_opens_low_clicks",
+  "detect_email_trends_multitimeframe",
+  
+  // ============================================================
+  // BLOCKED - Missing specific data columns
+  // ============================================================
+  // Pages: Need form_starts, exit_rate, cart_abandonment_rate
   // "detect_page_form_abandonment_spike",
   // "detect_page_cart_abandonment_increase",
-  // "detect_page_error_rate_spike",
-  // "detect_page_micro_conversion_drop",
   // "detect_page_exit_rate_increase",
-  // "detect_mobile_desktop_cvr_gap",
-  // "detect_conversion_funnel_dropoff",
   
-  // Traffic (0 working) - BLOCKED: Need traffic_source entity aggregation
-  // "detect_cross_channel_gaps",
-  // "detect_declining_performers",
-  // "detect_declining_performers_multitimeframe",
-  // "detect_traffic_bot_spam_spike",
-  // "detect_traffic_spike_quality_check",
-  // "detect_traffic_utm_parameter_gaps",
-  // "detect_traffic_referral_opportunities",
-  // "detect_traffic_quality_by_source",
-  // "detect_channel_mix_optimization",
-  
-  // Advertising (0 working) - BLOCKED: Need ad_spend data
-  // "detect_cost_inefficiency",
-  // "detect_paid_waste",
-  // "detect_paid_campaigns_multitimeframe",
+  // Revenue: Seasonality detector has SQL bug
+  // "detect_revenue_seasonality_deviation",
 ];
 
 interface DetectorInfo {

@@ -30,12 +30,12 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
-        SUM(sends) as total_sends
+        SUM(COALESCE(sends, 0)) as total_sends
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     ),
     previous_30_days AS (
@@ -47,20 +47,21 @@ def detect_email_engagement_drop(organization_id: str) -> list:
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     )
     SELECT 
-      canonical_entity_id,
-      avg_open_rate as current_open_rate,
-      avg_open_rate as previous_open_rate,
-      avg_ctr as current_ctr,
-      avg_ctr as previous_ctr,
-      total_sends,
-      SAFE_DIVIDE((avg_open_rate - avg_open_rate), avg_open_rate) * 100 as open_rate_change
+      l.canonical_entity_id,
+      l.avg_open_rate as current_open_rate,
+      p.avg_open_rate as previous_open_rate,
+      l.avg_ctr as current_ctr,
+      p.avg_ctr as previous_ctr,
+      l.total_sends,
+      SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) * 100 as open_rate_change
     FROM last_30_days l
-    INNER JOIN previous_30_days pWHERE SAFE_DIVIDE((avg_open_rate - avg_open_rate), avg_open_rate) < -0.15  -- 15%+ decline
-      AND total_sends > 100
+    INNER JOIN previous_30_days p ON l.canonical_entity_id = p.canonical_entity_id
+    WHERE SAFE_DIVIDE((l.avg_open_rate - p.avg_open_rate), p.avg_open_rate) < -0.15  -- 15%+ decline
+      AND l.total_sends > 100
     ORDER BY open_rate_change ASC
     LIMIT 10
     """
@@ -143,18 +144,15 @@ def detect_email_high_opens_low_clicks(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
-        SUM(sends) as total_sends,
+        SUM(COALESCE(sends, 0)) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
-      HAVING total_sends > 100  -- Meaningful send volume
+      HAVING SUM(emails_sent) > 100  -- Meaningful send volume
     )
     SELECT *
     FROM email_performance
@@ -243,27 +241,24 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_email AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.sends,
-        m.opens,
-        m.open_rate,
-        m.click_through_rate,
-        LAG(m.open_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_open_rate,
-        LAG(m.open_rate, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago_open_rate,
-        LAG(m.click_through_rate, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago_ctr,
-        MAX(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as best_open_rate,
-        MIN(m.open_rate) OVER (PARTITION BY m.canonical_entity_id) as worst_open_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'email'
-        AND m.sends > 0
+        canonical_entity_id,
+        year_month,
+        COALESCE(sends, 0) as sends,
+        opens,
+        open_rate,
+        click_through_rate,
+        LAG(open_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_open_rate,
+        LAG(open_rate, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago_open_rate,
+        LAG(click_through_rate, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago_ctr,
+        MAX(open_rate) OVER (PARTITION BY canonical_entity_id) as best_open_rate,
+        MIN(open_rate) OVER (PARTITION BY canonical_entity_id) as worst_open_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'email_campaign'
+        AND COALESCE(sends, 0) > 0
     ),
     
-    current AS (
+    current_month AS (
       SELECT 
         canonical_entity_id,
         year_month,
@@ -293,7 +288,7 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_month
     WHERE (
       ABS(mom_open_change) > 15  -- 15%+ change in open rate
       OR consecutive_declining_months >= 2
@@ -404,18 +399,15 @@ def detect_email_bounce_rate_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(bounce_rate) as avg_bounce_rate,
-        AVG(hard_bounce_rate) as avg_hard_bounce_rate,
-        AVG(soft_bounce_rate) as avg_soft_bounce_rate,
-        SUM(sends) as total_sends,
-        SUM(bounces) as total_bounces
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(hard_bounce_rate, 0)) as avg_hard_bounce_rate,
+        AVG(COALESCE(soft_bounce_rate, 0)) as avg_soft_bounce_rate,
+        SUM(COALESCE(sends, 0)) as total_sends,
+        SUM(COALESCE(bounces, 0)) as total_bounces
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -504,31 +496,25 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
     WITH recent_campaigns AS (
       SELECT 
         canonical_entity_id,
-        AVG(spam_complaint_rate) as avg_spam_rate,
-        SUM(spam_complaints) as total_complaints,
-        SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(spam_complaint_rate, 0)) as avg_spam_rate,
+        SUM(COALESCE(complaints, 0)) as total_complaints,
+        SUM(COALESCE(sends, 0)) as total_sends
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     ),
     baseline_campaigns AS (
       SELECT 
         canonical_entity_id,
-        AVG(spam_complaint_rate) as baseline_spam_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(spam_complaint_rate, 0)) as baseline_spam_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -540,8 +526,8 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
       SAFE_DIVIDE((r.avg_spam_rate - b.baseline_spam_rate), b.baseline_spam_rate) * 100 as spam_rate_increase_pct
     FROM recent_campaigns r
     LEFT JOIN baseline_campaigns b ON r.canonical_entity_id = b.canonical_entity_id
-    WHERE r.avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
-      OR (b.baseline_spam_rate > 0 AND r.avg_spam_rate > b.baseline_spam_rate * 2)  -- 2x spike
+    WHERE (r.avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
+      OR (b.baseline_spam_rate > 0 AND r.avg_spam_rate > b.baseline_spam_rate * 2))  -- 2x spike
       AND r.total_sends > 50
     ORDER BY r.avg_spam_rate DESC
     LIMIT 10
@@ -620,31 +606,25 @@ def detect_email_list_health_decline(organization_id: str) -> list:
     WITH recent_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(unsubscribe_rate) as avg_unsubscribe_rate,
-        SUM(unsubscribes) as total_unsubscribes,
-        SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(unsubscribe_rate, 0)) as avg_unsubscribe_rate,
+        SUM(COALESCE(unsubscribes, 0)) as total_unsubscribes,
+        SUM(COALESCE(sends, 0)) as total_sends
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(unsubscribe_rate) as baseline_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(unsubscribe_rate, 0)) as baseline_unsubscribe_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -656,8 +636,8 @@ def detect_email_list_health_decline(organization_id: str) -> list:
       SAFE_DIVIDE((r.avg_unsubscribe_rate - h.baseline_unsubscribe_rate), h.baseline_unsubscribe_rate) * 100 as unsubscribe_increase_pct
     FROM recent_performance r
     LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
-    WHERE r.avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
-      OR (h.baseline_unsubscribe_rate > 0 AND r.avg_unsubscribe_rate > h.baseline_unsubscribe_rate * 1.5)  -- 50% increase
+    WHERE (r.avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
+      OR (h.baseline_unsubscribe_rate > 0 AND r.avg_unsubscribe_rate > h.baseline_unsubscribe_rate * 1.5))  -- 50% increase
       AND r.total_sends > 100
     ORDER BY r.avg_unsubscribe_rate DESC
     LIMIT 10
@@ -735,18 +715,15 @@ def detect_email_click_to_open_rate_decline(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
-        AVG(click_to_open_rate) as avg_ctor,
-        SUM(sends) as total_sends,
+        AVG(COALESCE(click_to_open_rate, 0)) as avg_ctor,
+        SUM(COALESCE(sends, 0)) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -836,17 +813,14 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         DATE_TRUNC(date, WEEK) as week,
-        SUM(sends) as weekly_sends,
+        SUM(emails_sent) as weekly_sends,
         AVG(open_rate) as avg_open_rate,
-        AVG(unsubscribe_rate) as avg_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(COALESCE(unsubscribe_rate, 0)) as avg_unsubscribe_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type = 'email_campaign'
       GROUP BY canonical_entity_id, week
     )
     SELECT 

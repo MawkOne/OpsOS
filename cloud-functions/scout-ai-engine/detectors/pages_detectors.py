@@ -45,15 +45,17 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
         AVG(avg_cvr) as site_avg_cvr
       FROM page_performance
     )
-    SELECT 
-      p.*,
-      pa.site_avg_cvr,
-      PERCENT_RANK() OVER (ORDER BY total_sessions) as traffic_percentile,
-      PERCENT_RANK() OVER (ORDER BY avg_cvr) as cvr_percentile
-    FROM page_performance p
-    CROSS JOIN peer_avg pa
+    SELECT * FROM (
+      SELECT 
+        p.*,
+        pa.site_avg_cvr,
+        PERCENT_RANK() OVER (ORDER BY total_sessions) as traffic_percentile,
+        PERCENT_RANK() OVER (ORDER BY avg_cvr) as cvr_percentile
+      FROM page_performance p
+      CROSS JOIN peer_avg pa
+    )
     WHERE traffic_percentile > 0.70  -- Top 30% traffic
-      AND avg_cvr < pa.site_avg_cvr * 0.80  -- 20% below site average
+      AND avg_cvr < site_avg_cvr * 0.80  -- 20% below site average
     ORDER BY total_sessions DESC
     LIMIT 15
     """
@@ -144,10 +146,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement,
         SUM(sessions) as total_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
         AND date < CURRENT_DATE()
@@ -160,10 +159,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
         AVG(avg_session_duration) as avg_duration,
         AVG(bounce_rate) as avg_bounce,
         AVG(engagement_rate) as avg_engagement
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
@@ -274,24 +270,21 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_performance AS (
       SELECT 
-        m.canonical_entity_id,
-        m.entity_type,
-        m.year_month,
-        m.conversion_rate,
-        m.sessions,
-        m.revenue,
-        LAG(m.conversion_rate, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_cvr,
-        LAG(m.conversion_rate, 2) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_2_ago_cvr,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id, m.entity_type ORDER BY m.year_month) as month_1_ago_sessions,
-        MAX(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as best_cvr_ever,
-        STDDEV(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) / AVG(m.conversion_rate) OVER (PARTITION BY m.canonical_entity_id, m.entity_type) as cvr_volatility
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.entity_type IN ('page', 'campaign')
-        AND m.sessions > 10
+        canonical_entity_id,
+        entity_type,
+        year_month,
+        conversion_rate,
+        sessions,
+        revenue,
+        LAG(conversion_rate, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_cvr,
+        LAG(conversion_rate, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago_cvr,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_sessions,
+        MAX(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as best_cvr_ever,
+        STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) / AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as cvr_volatility
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type IN ('page', 'traffic_source')
+        AND sessions > 10
     ),
     
     current_month AS (
@@ -673,10 +666,7 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
         AVG(form_abandonment_rate) as avg_abandonment_rate,
         SUM(form_starts) as total_form_starts,
         SUM(form_submits) as total_form_submits
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
@@ -688,10 +678,7 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(form_abandonment_rate) as baseline_abandonment_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -790,10 +777,7 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
         SUM(add_to_cart) as total_add_to_cart,
         SUM(begin_checkout) as total_begin_checkout,
         SUM(purchase_count) as total_purchases
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
@@ -802,10 +786,7 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
     historical_performance AS (
       SELECT 
         AVG(cart_abandonment_rate) as baseline_cart_abandonment
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -900,10 +881,7 @@ def detect_page_error_rate_spike(organization_id: str) -> list:
         SUM(error_count) as total_errors,
         SUM(sessions) as total_sessions,
         SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as error_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
@@ -914,10 +892,7 @@ def detect_page_error_rate_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         SAFE_DIVIDE(SUM(error_count), SUM(sessions)) * 100 as baseline_error_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
@@ -1012,14 +987,9 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
     WITH recent_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(scroll_depth_avg) as avg_scroll_depth,
-        SUM(scroll_depth_75) as total_scroll_75,
-        SUM(sessions) as total_sessions,
-        SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(scroll_depth) as avg_scroll_depth,
+        SUM(sessions) as total_sessions
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
@@ -1029,12 +999,8 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
     historical_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(scroll_depth_avg) as baseline_scroll_depth,
-        SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as baseline_scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+        AVG(scroll_depth) as baseline_scroll_depth
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
@@ -1045,8 +1011,6 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
       r.canonical_entity_id,
       r.avg_scroll_depth,
       h.baseline_scroll_depth,
-      r.scroll_75_rate,
-      h.baseline_scroll_75_rate,
       r.total_sessions,
       SAFE_DIVIDE((r.avg_scroll_depth - h.baseline_scroll_depth), h.baseline_scroll_depth) * 100 as scroll_depth_change_pct
     FROM recent_performance r
@@ -1087,8 +1051,6 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
                     "current_scroll_depth": float(row.avg_scroll_depth),
                     "baseline_scroll_depth": float(row.baseline_scroll_depth),
                     "scroll_depth_change_pct": float(row.scroll_depth_change_pct),
-                    "scroll_75_rate": float(row.scroll_75_rate),
-                    "baseline_scroll_75_rate": float(row.baseline_scroll_75_rate) if row.baseline_scroll_75_rate else None,
                     "total_sessions": int(row.total_sessions),
                 },
                 "metrics": {
@@ -1134,10 +1096,7 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
         AVG(exit_rate) as avg_exit_rate,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
@@ -1148,10 +1107,7 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(exit_rate) as baseline_exit_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)

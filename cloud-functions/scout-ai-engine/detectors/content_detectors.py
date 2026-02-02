@@ -49,16 +49,17 @@ def detect_content_decay(organization_id: str) -> list:
       GROUP BY canonical_entity_id
     )
     SELECT 
-      canonical_entity_id,
-      sessions_recent,
-      sessions_historical,
-      cvr_recent,
-      cvr_historical,
-      SAFE_DIVIDE((sessions_recent - sessions_historical), sessions_historical) * 100 as sessions_change_pct,
-      SAFE_DIVIDE((cvr_recent - cvr_historical), cvr_historical) * 100 as cvr_change_pct
+      r.canonical_entity_id,
+      r.sessions_recent,
+      h.sessions_historical,
+      r.cvr_recent,
+      h.cvr_historical,
+      SAFE_DIVIDE((r.sessions_recent - h.sessions_historical), h.sessions_historical) * 100 as sessions_change_pct,
+      SAFE_DIVIDE((r.cvr_recent - h.cvr_historical), h.cvr_historical) * 100 as cvr_change_pct
     FROM recent_performance r
-    INNER JOIN historical_performance hWHERE sessions_historical > 500  -- Was getting meaningful traffic
-      AND SAFE_DIVIDE((sessions_recent - sessions_historical), sessions_historical) < -0.30  -- 30%+ traffic drop
+    INNER JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE h.sessions_historical > 500  -- Was getting meaningful traffic
+      AND SAFE_DIVIDE((r.sessions_recent - h.sessions_historical), h.sessions_historical) < -0.30  -- 30%+ traffic drop
     ORDER BY ABS(sessions_change_pct) DESC
     LIMIT 15
     """
@@ -144,21 +145,17 @@ def detect_content_decay_multitimeframe(organization_id: str) -> list:
     query = f"""
     WITH monthly_trends AS (
       SELECT 
-        m.canonical_entity_id,
-        m.year_month,
-        m.sessions,
-        m.mom_change_pct,
-        LAG(m.sessions, 1) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_1_ago,
-        LAG(m.sessions, 2) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_2_ago,
-        LAG(m.sessions, 3) OVER (PARTITION BY m.canonical_entity_id ORDER BY m.year_month) as month_3_ago,
-        MAX(m.sessions) OVER (PARTITION BY m.canonical_entity_id) as all_time_peak
-      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics` m
-      JOIN `{PROJECT_ID}.{DATASET_ID}.entity_map` e
-        ON m.canonical_entity_id = e.canonical_entity_id
-        AND e.is_active = TRUE
-      WHERE m.organization_id = @org_id
-        AND m.entity_type = 'page'
-      ORDER BY m.canonical_entity_id, m.year_month
+        canonical_entity_id,
+        year_month,
+        sessions,
+        mom_change_pct,
+        LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_1_ago,
+        LAG(sessions, 2) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_2_ago,
+        LAG(sessions, 3) OVER (PARTITION BY canonical_entity_id ORDER BY year_month) as month_3_ago,
+        MAX(sessions) OVER (PARTITION BY canonical_entity_id) as all_time_peak
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND entity_type = 'page'
     ),
     
     current_month AS (
