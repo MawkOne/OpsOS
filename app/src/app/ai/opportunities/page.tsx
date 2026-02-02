@@ -139,6 +139,15 @@ export default function OpportunitiesPage() {
     return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
   };
 
+  // Count priorities for a list of opportunities
+  const getPriorityCounts = (opps: Opportunity[]) => {
+    return {
+      high: opps.filter(o => o.priority === 'high').length,
+      medium: opps.filter(o => o.priority === 'medium').length,
+      low: opps.filter(o => o.priority === 'low').length
+    };
+  };
+
   const channelGroups = groupByChannel();
   
   console.log("Render state:", { 
@@ -286,18 +295,49 @@ export default function OpportunitiesPage() {
                     </div>
                   </div>
 
-                  {/* Opportunity Count */}
-                  <div className="flex items-center justify-between py-3 border-t border-b" style={{ borderColor: "var(--border)" }}>
-                    <span className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>
-                      {channel.opportunities.length}
-                    </span>
-                    <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                      {channel.opportunities.length === 0 
-                        ? "No issues"
-                        : channel.opportunities.length === 1 
-                        ? "opportunity"
-                        : "opportunities"}
-                    </span>
+                  {/* Opportunity Count & Priority Breakdown */}
+                  <div className="py-3 border-t border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-3xl font-bold" style={{ color: "var(--foreground)" }}>
+                        {channel.opportunities.length}
+                      </span>
+                      <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                        {channel.opportunities.length === 0 
+                          ? "No issues"
+                          : channel.opportunities.length === 1 
+                          ? "opportunity"
+                          : "opportunities"}
+                      </span>
+                    </div>
+                    {channel.opportunities.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        {(() => {
+                          const counts = getPriorityCounts(channel.opportunities);
+                          return (
+                            <>
+                              {counts.high > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                  <span className="text-sm font-medium text-red-400">{counts.high} High</span>
+                                </div>
+                              )}
+                              {counts.medium > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                  <span className="text-sm font-medium text-yellow-400">{counts.medium} Med</span>
+                                </div>
+                              )}
+                              {counts.low > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                  <span className="text-sm font-medium text-blue-400">{counts.low} Low</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
 
                   {/* Opportunity Breakdown */}
