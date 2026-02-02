@@ -102,45 +102,33 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
   const detectorsPath = path.join(process.cwd(), "..", "cloud-functions", "scout-ai-engine", "detectors");
 
   try {
-    // Read all category directories
-    const categories = await fs.readdir(detectorsPath);
+    // Read consolidated detector files (e.g., seo_detectors.py, email_detectors.py)
+    const files = await fs.readdir(detectorsPath);
 
-    for (const category of categories) {
-      if (category.startsWith(".") || category.endsWith(".py") || category.endsWith(".md")) continue;
+    for (const file of files) {
+      // Only process consolidated detector files (e.g., seo_detectors.py)
+      if (!file.endsWith("_detectors.py")) continue;
 
-      const categoryPath = path.join(detectorsPath, category);
-      const stat = await fs.stat(categoryPath);
+      const category = file.replace("_detectors.py", "");
+      const filePath = path.join(detectorsPath, file);
 
-      if (!stat.isDirectory()) continue;
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
 
-      // Read detector files in this category
-      const files = await fs.readdir(categoryPath);
+        // Find all detector functions in the file
+        const functionPattern = /def (detect_\w+)\(organization_id[^)]*\)[^:]*:[\s\S]*?"""([\s\S]*?)"""/g;
+        let match;
 
-      for (const file of files) {
-        if (!file.startsWith("detect_") || !file.endsWith(".py")) continue;
-        if (file === "__init__.py") continue;
-
-        const detectorId = file.replace(".py", "");
-        const filePath = path.join(categoryPath, file);
-
-        try {
-          // Read the Python file to extract metadata
-          const content = await fs.readFile(filePath, "utf-8");
-
-          // Extract docstring (multiline-compatible without ES2018 flag)
-          const docstringMatch = content.match(/"""([\s\S]*?)"""/);
-          let docstring = "";
-          if (docstringMatch && (docstringMatch[1].includes("Detector") || docstringMatch[1].includes("detector"))) {
-            docstring = docstringMatch[1].trim();
-          }
+        while ((match = functionPattern.exec(content)) !== null) {
+          const detectorId = match[1];
+          const docstring = match[2].trim();
 
           // Parse docstring for metadata
           const lines = docstring.split("\n").map(l => l.trim()).filter(l => l.length > 0);
           
-          // Extract name (first line, remove "Detector" suffix)
+          // Extract name from first line or generate from function name
           let name = lines[0]?.replace(" Detector", "").replace(/^['"]|['"]$/g, "") || "";
-          if (!name) {
-            // Fallback: convert detector_id to readable name
+          if (!name || name.length < 3) {
             name = detectorId
               .replace(/^detect_/, "")
               .split("_")
@@ -148,33 +136,20 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
               .join(" ");
           }
           
-          // Extract "Detects:" or "Detect:" line for better description
+          // Extract "Detects:" or "Detect:" line
           const detectsLine = lines.find(l => l.startsWith("Detects:") || l.startsWith("Detect:"));
           const detects = detectsLine ? detectsLine.replace(/^Detects?:\s*/i, "") : "";
 
-          // Build description from Category line or other context
-          let description = "";
-          
-          // Try to find Category line
-          const categoryLine = lines.find(l => l.startsWith("Category:"));
-          
-          // Use detects line as description if available, otherwise build from context
-          if (detects) {
-            description = detects;
-          } else if (lines.length > 1) {
-            // Use second line or combine context lines
+          // Build description
+          let description = detects;
+          if (!description || description.length < 20) {
             const contextLines = lines.slice(1, 3).filter(l => 
               !l.startsWith("Category:") && 
               !l.startsWith("Detects:") &&
               !l.startsWith("Detect:") &&
               l.length > 10
             );
-            description = contextLines.join(" ").trim();
-          }
-          
-          // Fallback description based on detector name
-          if (!description || description.length < 20) {
-            description = `Analyzes ${name.toLowerCase()} to identify optimization opportunities and performance issues`;
+            description = contextLines.join(" ").trim() || `Analyzes ${name.toLowerCase()} to identify optimization opportunities`;
           }
 
           // Determine layer from docstring
@@ -183,7 +158,7 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
             layer = "fast";
           } else if (docstring.includes("Weekly check") || docstring.includes("Trend Layer")) {
             layer = "trend";
-          } else if (docstring.includes("Monthly check") || docstring.includes("Strategic Layer")) {
+          } else if (docstring.includes("Monthly check") || docstring.includes("Strategic Layer") || docstring.includes("Multi-Timeframe")) {
             layer = "strategic";
           }
 
@@ -196,13 +171,13 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
             category: categoryMap[category] || category,
             status,
             layer,
-            description: description.substring(0, 250), // Increased from 200 for better descriptions
+            description: description.substring(0, 250),
             detects: detects || description,
-            pythonFile: `${category}/${file}`,
+            pythonFile: file,
           });
-        } catch (err) {
-          console.error(`Error reading detector file ${file}:`, err);
         }
+      } catch (err) {
+        console.error(`Error reading detector file ${file}:`, err);
       }
     }
   } catch (err) {
