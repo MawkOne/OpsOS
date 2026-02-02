@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
       q = query(q, where('category', '==', category));
     }
 
-    // Limit to 100 opportunities
-    q = query(q, firestoreLimit(100));
+    // Limit to 500 opportunities (increased from 100)
+    q = query(q, firestoreLimit(500));
 
     const snapshot = await getDocs(q);
     
