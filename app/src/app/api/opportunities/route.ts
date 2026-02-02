@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const opportunities = snapshot.docs
+    const allOpportunities = snapshot.docs
       .map(doc => {
         const data = doc.data();
         return {
@@ -85,6 +85,17 @@ export async function GET(request: NextRequest) {
         const detectedDate = new Date(opp.detected_at);
         return detectedDate >= sevenDaysAgo;
       });
+
+    // Deduplicate by title + entity_id (keep the most recent)
+    const dedupeMap = new Map<string, typeof allOpportunities[0]>();
+    for (const opp of allOpportunities) {
+      const key = `${opp.title}|${opp.entity_id}`;
+      const existing = dedupeMap.get(key);
+      if (!existing || new Date(opp.detected_at) > new Date(existing.detected_at)) {
+        dedupeMap.set(key, opp);
+      }
+    }
+    const opportunities = Array.from(dedupeMap.values());
 
     // Sort by impact score (client-side since Firestore has limited ordering with filters)
     opportunities.sort((a, b) => {
