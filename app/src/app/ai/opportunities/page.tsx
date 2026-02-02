@@ -94,26 +94,40 @@ export default function OpportunitiesPage() {
     return {
       seo: opportunities.filter(o => 
         o.entity_type === 'keyword' || 
-        o.category === 'seo_issues' ||
-        (o.entity_type === 'page' && o.category === 'declining_performer')
+        o.entity_type === 'seo_keyword' ||
+        o.category.startsWith('seo') ||
+        o.category === 'content_decay'
       ),
       email: opportunities.filter(o => 
         o.entity_type === 'email' || 
-        o.category === 'email_issues'
+        o.entity_type === 'email_campaign' ||
+        o.category.startsWith('email')
       ),
       ads: opportunities.filter(o => 
         o.entity_type === 'campaign' || 
+        o.entity_type === 'ad_campaign' ||
+        o.category.startsWith('advertising') ||
         o.category === 'cost_inefficiency'
       ),
       pages: opportunities.filter(o => 
-        o.entity_type === 'page' && 
-        ['scale_winner', 'fix_loser', 'cross_channel'].includes(o.category)
+        (o.entity_type === 'page' && (
+          o.category.startsWith('page') ||
+          o.category === 'scale_winner' ||
+          o.category === 'fix_loser'
+        ))
       ),
-      content: opportunities.filter(o => 
-        o.entity_type === 'page' && 
-        o.category === 'declining_performer'
+      traffic: opportunities.filter(o =>
+        o.entity_type === 'traffic_source' ||
+        o.entity_type === 'traffic_channel' ||
+        o.entity_type === 'traffic_balance' ||
+        o.entity_type === 'traffic_trend' ||
+        o.category.startsWith('traffic')
       ),
-      social: [] // Coming soon
+      revenue: opportunities.filter(o =>
+        o.entity_type === 'revenue' ||
+        o.entity_type === 'aggregate' ||
+        o.category.startsWith('revenue')
+      )
     };
   };
 
@@ -162,20 +176,36 @@ export default function OpportunitiesPage() {
       description: 'Keywords & Search Rankings'
     },
     {
+      id: 'traffic',
+      name: 'Traffic',
+      icon: <BarChart3 className="w-6 h-6" />,
+      color: 'bg-cyan-500',
+      opportunities: channelGroups.traffic,
+      description: 'Traffic Sources & Channels'
+    },
+    {
       id: 'pages',
       name: 'Pages',
       icon: <FileText className="w-6 h-6" />,
       color: 'bg-purple-500',
       opportunities: channelGroups.pages,
-      description: 'Landing Pages & Content'
+      description: 'Landing Pages & CRO'
     },
     {
       id: 'ads',
-      name: 'Ads',
+      name: 'Advertising',
       icon: <Megaphone className="w-6 h-6" />,
       color: 'bg-green-500',
       opportunities: channelGroups.ads,
       description: 'Paid Campaigns & Spend'
+    },
+    {
+      id: 'revenue',
+      name: 'Revenue',
+      icon: <DollarSign className="w-6 h-6" />,
+      color: 'bg-emerald-500',
+      opportunities: channelGroups.revenue,
+      description: 'Revenue & Metrics'
     },
     {
       id: 'email',
@@ -184,22 +214,6 @@ export default function OpportunitiesPage() {
       color: 'bg-orange-500',
       opportunities: channelGroups.email,
       description: 'Email Campaigns'
-    },
-    {
-      id: 'content',
-      name: 'Content',
-      icon: <BarChart3 className="w-6 h-6" />,
-      color: 'bg-pink-500',
-      opportunities: channelGroups.content,
-      description: 'Blog & Content Performance'
-    },
-    {
-      id: 'social',
-      name: 'Social',
-      icon: <Share2 className="w-6 h-6" />,
-      color: 'bg-indigo-500',
-      opportunities: channelGroups.social,
-      description: 'Social Media (Coming Soon)'
     }
   ];
 
