@@ -1,5 +1,6 @@
 """SEO Detectors"""
 
+from .detect_backlink_opportunities import detect_backlink_opportunities
 from .detect_backlink_quality_decline import detect_backlink_quality_decline
 from .detect_content_freshness_decay import detect_content_freshness_decay
 from .detect_core_web_vitals_failing import detect_core_web_vitals_failing
@@ -14,6 +15,7 @@ from .detect_seo_striking_distance import detect_seo_striking_distance
 from .detect_technical_seo_health_score import detect_technical_seo_health_score
 
 __all__ = [
+    'detect_backlink_opportunities',
     'detect_backlink_quality_decline',
     'detect_content_freshness_decay',
     'detect_core_web_vitals_failing',

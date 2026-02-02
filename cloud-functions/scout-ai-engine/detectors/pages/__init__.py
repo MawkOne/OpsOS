@@ -13,6 +13,7 @@ from .detect_page_exit_rate_increase import detect_page_exit_rate_increase
 from .detect_page_form_abandonment_spike import detect_page_form_abandonment_spike
 from .detect_page_micro_conversion_drop import detect_page_micro_conversion_drop
 from .detect_page_speed_decline import detect_page_speed_decline
+from .detect_pricing_page_optimization import detect_pricing_page_optimization
 from .detect_scale_winners import detect_scale_winners
 from .detect_scale_winners_multitimeframe import detect_scale_winners_multitimeframe
 from .detect_social_proof_opportunities import detect_social_proof_opportunities
@@ -33,6 +34,7 @@ __all__ = [
     'detect_page_form_abandonment_spike',
     'detect_page_micro_conversion_drop',
     'detect_page_speed_decline',
+    'detect_pricing_page_optimization',
     'detect_scale_winners',
     'detect_scale_winners_multitimeframe',
     'detect_social_proof_opportunities',

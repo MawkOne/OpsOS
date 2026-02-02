@@ -46,7 +46,7 @@ const workingDetectors = [
   "detect_traffic_trends_multitimeframe",
   
   // ============================================================
-  // Pages (17 working) - Monthly table ✅
+  // Pages (15 working) - Monthly table ✅
   // Fixed: Switched to monthly_entity_metrics (has 2.9M sessions)
   // Fixed: Category prefix pages_ for counting
   // ============================================================
@@ -63,10 +63,7 @@ const workingDetectors = [
   "detect_trust_signal_gaps",
   "detect_video_engagement_gap",
   "detect_mobile_desktop_cvr_gap",
-  "detect_personalization_opportunities",
   "detect_pricing_page_optimization",
-  "detect_testimonial_placement_gaps",
-  "detect_urgency_scarcity_opportunities",
   
   // ============================================================
   // Advertising (13 working) - Monthly table ✅
