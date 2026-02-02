@@ -11,11 +11,11 @@ def detect_trust_signal_gaps(organization_id: str) -> list:
     opportunities = []
     # Detector ready - needs specific metrics/data to be fully operational
     query = f"""
-    SELECT canonical_entity_id SUM(sessions) as sessions
-    FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
-    WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    SELECT canonical_entity_id, SUM(sessions) as sessions
+    FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+    WHERE organization_id = @org_id AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
       AND entity_type = 'page' AND sessions > 1000
-    GROUP BY canonical_entity_id, entity_name
+    GROUP BY canonical_entity_id
     LIMIT 10
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

@@ -35,21 +35,21 @@ def detect_page_cart_abandonment_increase(organization_id: str) -> list:
         SUM(add_to_cart) as total_add_to_cart,
         SUM(begin_checkout) as total_begin_checkout,
         SUM(purchase_count) as total_purchases
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
+        
         AND add_to_cart > 0
     ),
     historical_performance AS (
       SELECT 
         AVG(cart_abandonment_rate) as baseline_cart_abandonment
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        
+        
         AND add_to_cart > 0
     )
     SELECT 

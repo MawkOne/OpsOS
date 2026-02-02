@@ -41,9 +41,8 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
         LAG(conversion_rate, 2) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_2_ago_cvr,
         LAG(sessions, 1) OVER (PARTITION BY canonical_entity_id, entity_type ORDER BY year_month) as month_1_ago_sessions,
         MAX(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as best_cvr_ever,
-        STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) / AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type) as cvr_volatility
+        SAFE_DIVIDE(STDDEV(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type), AVG(conversion_rate) OVER (PARTITION BY canonical_entity_id, entity_type)) as cvr_volatility
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
-        
       WHERE organization_id = @org_id
         AND entity_type IN ('page', 'campaign')
         AND sessions > 10
@@ -62,7 +61,6 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
         best_cvr_ever,
         cvr_volatility,
         
-        -- CVR momentum
         CASE 
           WHEN conversion_rate > month_1_ago_cvr AND month_1_ago_cvr > month_2_ago_cvr THEN 'Improving'
           WHEN conversion_rate < month_1_ago_cvr AND month_1_ago_cvr < month_2_ago_cvr THEN 'Declining'
@@ -74,7 +72,7 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
         
       FROM monthly_performance
       WHERE year_month = (SELECT MAX(year_month) FROM monthly_performance)
-        AND conversion_rate > 2.0  -- Minimum CVR threshold
+        AND conversion_rate > 2.0
     ),
     
     peer_benchmarks AS (
@@ -88,19 +86,19 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
     
     SELECT 
       c.*,
-      cvr_p70,
-      sessions_p30
+      p.cvr_p70,
+      p.sessions_p30
     FROM current_month c
-    JOIN peer_benchmarks p ON entity_type = entity_type
-    WHERE current_cvr > cvr_p70  -- Top 30% CVR
-      AND current_sessions < sessions_p30  -- Bottom 30% traffic
+    JOIN peer_benchmarks p ON c.entity_type = p.entity_type
+    WHERE c.current_cvr > p.cvr_p70
+      AND c.current_sessions < p.sessions_p30
     ORDER BY 
       CASE 
-        WHEN cvr_momentum = 'Improving' THEN 1
-        WHEN cvr_momentum = 'Stable' THEN 2
+        WHEN c.cvr_momentum = 'Improving' THEN 1
+        WHEN c.cvr_momentum = 'Stable' THEN 2
         ELSE 3
       END,
-      current_cvr DESC
+      c.current_cvr DESC
     LIMIT 20
     """
     
@@ -137,7 +135,7 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'scale_winner',
+                'category': 'pages_scale_winner',
                 'type': f'high_cvr_low_traffic_{momentum.lower()}',
                 'priority': priority,
                 'status': 'new',

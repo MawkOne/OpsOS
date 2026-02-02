@@ -34,15 +34,16 @@ def detect_scale_winners(organization_id: str) -> list:
         canonical_entity_id,
         entity_type,
         AVG(conversion_rate) as avg_conversion_rate,
-        AVG(roas) as avg_roas,
+        AVG(avg_roas) as avg_roas,
         SUM(sessions) as total_sessions,
         SUM(revenue) as total_revenue,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
         AND entity_type IN ('page', 'campaign')
       GROUP BY canonical_entity_id, entity_type
-      HAVING total_sessions > 10  -- Minimum threshold
+      HAVING SUM(sessions) > 10
     ),
     ranked AS (
       SELECT 
@@ -53,9 +54,9 @@ def detect_scale_winners(organization_id: str) -> list:
     )
     SELECT *
     FROM ranked
-    WHERE conversion_percentile > 0.7  -- Top 30% performers
-      AND traffic_percentile < 0.3     -- Bottom 30% traffic
-      AND avg_conversion_rate > 2.0    -- Minimum conversion rate
+    WHERE conversion_percentile > 0.7
+      AND traffic_percentile < 0.3
+      AND avg_conversion_rate > 2.0
     ORDER BY avg_conversion_rate DESC
     LIMIT 10
     """
@@ -80,7 +81,7 @@ def detect_scale_winners(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'scale_winner',
+                'category': 'pages_scale_winner',
                 'type': 'high_conversion_low_traffic',
                 'priority': 'high',
                 'status': 'new',

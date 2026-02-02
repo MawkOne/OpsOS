@@ -33,44 +33,46 @@ def detect_page_engagement_decay(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(avg_session_duration) as avg_duration,
-        AVG(bounce_rate) as avg_bounce,
-        AVG(engagement_rate) as avg_engagement,
+        AVG(avg_bounce_rate) as avg_bounce,
+        AVG(avg_engagement_rate) as avg_engagement,
         SUM(sessions) as total_sessions
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-        AND date < CURRENT_DATE()
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH))
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     ),
     historical_engagement AS (
       SELECT 
         canonical_entity_id,
-        AVG(avg_session_duration) as avg_duration,
-        AVG(bounce_rate) as avg_bounce,
-        AVG(engagement_rate) as avg_engagement
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 45 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+        AVG(avg_session_duration) as hist_duration,
+        AVG(avg_bounce_rate) as hist_bounce,
+        AVG(avg_engagement_rate) as hist_engagement
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     )
     SELECT 
-      canonical_entity_id,
-      avg_duration as recent_duration,
-      avg_duration as historical_duration,
-      avg_bounce as recent_bounce,
-      avg_bounce as historical_bounce,
-      total_sessions,
-      SAFE_DIVIDE((avg_duration - avg_duration), avg_duration) * 100 as duration_change_pct,
-      SAFE_DIVIDE((avg_bounce - avg_bounce), avg_bounce) * 100 as bounce_change_pct
+      r.canonical_entity_id,
+      r.avg_duration as recent_duration,
+      h.hist_duration as historical_duration,
+      r.avg_bounce as recent_bounce,
+      h.hist_bounce as historical_bounce,
+      r.total_sessions,
+      SAFE_DIVIDE((r.avg_duration - h.hist_duration), h.hist_duration) * 100 as duration_change_pct,
+      SAFE_DIVIDE((r.avg_bounce - h.hist_bounce), h.hist_bounce) * 100 as bounce_change_pct
     FROM recent_engagement r
-    INNER JOIN historical_engagement h 
-    WHERE total_sessions > 50  -- Meaningful traffic
+    INNER JOIN historical_engagement h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE r.total_sessions > 50
       AND (
-        SAFE_DIVIDE((avg_duration - avg_duration), avg_duration) < -0.20  -- 20%+ drop in duration
-        OR SAFE_DIVIDE((avg_bounce - avg_bounce), avg_bounce) > 0.15  -- 15%+ increase in bounce
+        SAFE_DIVIDE((r.avg_duration - h.hist_duration), h.hist_duration) < -0.20
+        OR SAFE_DIVIDE((r.avg_bounce - h.hist_bounce), h.hist_bounce) > 0.15
       )
-    ORDER BY ABS(duration_change_pct) DESC
+    ORDER BY ABS(SAFE_DIVIDE((r.avg_duration - h.hist_duration), h.hist_duration)) DESC
     LIMIT 15
     """
     
@@ -95,7 +97,7 @@ def detect_page_engagement_decay(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'page_optimization',
+                'category': 'pages_optimization',
                 'type': 'engagement_decay',
                 'priority': 'medium',
                 'status': 'new',

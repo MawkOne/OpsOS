@@ -28,7 +28,6 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
     WITH campaign_stats AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
         SUM(sends) as total_sends,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
@@ -36,16 +35,16 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
         COUNT(DISTINCT date) as send_days,
         MIN(date) as first_send,
         MAX(date) as last_send
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email_campaign'
+        AND entity_type IN ('email', 'email_campaign')
         AND sends > 0
-      GROUP BY canonical_entity_id, entity_name
+      GROUP BY canonical_entity_id
     )
     SELECT 
       canonical_entity_id,
-      entity_name,
       total_sends,
       avg_open_rate,
       avg_ctr,
@@ -54,9 +53,9 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
       first_send,
       last_send
     FROM campaign_stats
-    WHERE total_sends > 5000  -- High volume campaigns
-      AND send_days > 10  -- Regular sending
-      AND stddev_open_rate < 3  -- Low variation (not testing)
+    WHERE total_sends > 5000
+      AND send_days > 10
+      AND (stddev_open_rate < 3 OR stddev_open_rate IS NULL)
     ORDER BY total_sends DESC
     LIMIT 20
     """
@@ -97,7 +96,7 @@ def detect_ab_test_recommendations(organization_id: str) -> list:
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email_campaign",
                 "title": f"A/B Test Opportunity: {row.total_sends:,.0f} sends with no variation",
-                "description": f"'{row.entity_name}' has high volume ({row.total_sends:,.0f} sends) but low performance variation - ideal for A/B testing {test_focus}",
+                "description": f"Campaign has high volume ({row.total_sends:,.0f} sends) but low performance variation - ideal for A/B testing {test_focus}",
                 "evidence": {
                     "total_sends": int(row.total_sends),
                     "avg_open_rate": float(row.avg_open_rate),

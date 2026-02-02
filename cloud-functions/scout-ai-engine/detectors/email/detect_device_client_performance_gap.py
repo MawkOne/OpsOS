@@ -33,19 +33,19 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
     WITH campaign_metrics AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks,
         SUM(sends) as total_sends,
         SAFE_DIVIDE(SUM(opens), SUM(sends)) * 100 as open_rate,
         SAFE_DIVIDE(SUM(clicks), SUM(opens)) * 100 as click_to_open_rate,
         SAFE_DIVIDE(SUM(clicks), SUM(sends)) * 100 as click_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email_campaign'
-        AND sends > 100  -- Minimum volume for statistical significance
-      GROUP BY canonical_entity_id, entity_name
+        AND entity_type IN ('email', 'email_campaign')
+        AND sends > 100
+      GROUP BY canonical_entity_id
     ),
     org_benchmarks AS (
       SELECT 
@@ -55,20 +55,19 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
       FROM campaign_metrics
     )
     SELECT 
-      canonical_entity_id,
-      entity_name,
-      open_rate,
-      click_to_open_rate,
-      click_rate,
-      total_sends,
-      avg_ctor,
-      stddev_ctor,
-      ABS(click_to_open_rate - avg_ctor) / NULLIF(stddev_ctor, 0) as z_score
+      c.canonical_entity_id,
+      c.open_rate,
+      c.click_to_open_rate,
+      c.click_rate,
+      c.total_sends,
+      b.avg_ctor,
+      b.stddev_ctor,
+      ABS(c.click_to_open_rate - b.avg_ctor) / NULLIF(b.stddev_ctor, 0) as z_score
     FROM campaign_metrics c
     CROSS JOIN org_benchmarks b
-    WHERE open_rate > 15  -- Good opens
-      AND click_to_open_rate < avg_ctor * 0.7  -- But poor CTOR (30%+ below avg)
-      AND total_sends > 500  -- Sufficient volume
+    WHERE c.open_rate > 15
+      AND c.click_to_open_rate < b.avg_ctor * 0.7
+      AND c.total_sends > 500
     ORDER BY z_score DESC
     LIMIT 15
     """
@@ -98,7 +97,7 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email_campaign",
                 "title": f"Suspected Device/Client Issue: {gap_pct:.0f}% engagement gap",
-                "description": f"'{row.entity_name}' has {row.open_rate:.1f}% opens but only {row.click_to_open_rate:.1f}% CTOR vs {row.avg_ctor:.1f}% org avg - may indicate device rendering issues",
+                "description": f"Has {row.open_rate:.1f}% opens but only {row.click_to_open_rate:.1f}% CTOR vs {row.avg_ctor:.1f}% org avg - may indicate device rendering issues",
                 "evidence": {
                     "open_rate": float(row.open_rate),
                     "click_to_open_rate": float(row.click_to_open_rate),

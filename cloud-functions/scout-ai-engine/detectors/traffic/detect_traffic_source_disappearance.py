@@ -10,11 +10,11 @@ def detect_traffic_source_disappearance(organization_id: str) -> list:
     logger.info("🔍 Running 'traffic_source_disappearance' detector...")
     opportunities = []
     query = f"""
-    SELECT canonical_entity_id source, SUM(sessions) as sessions, SUM(revenue) as revenue
+    SELECT canonical_entity_id, SUM(sessions) as sessions, SUM(revenue) as revenue
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
     WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
       AND entity_type = 'traffic_source' AND sessions > 100
-    GROUP BY canonical_entity_id source
+    GROUP BY canonical_entity_id
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

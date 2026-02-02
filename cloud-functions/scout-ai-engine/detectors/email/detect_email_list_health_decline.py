@@ -36,37 +36,44 @@ def detect_email_list_health_decline(organization_id: str) -> list:
     WITH recent_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(unsubscribe_rate) as avg_unsubscribe_rate,
-        SUM(unsubscribes) as total_unsubscribes,
-        SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(open_rate) as avg_open_rate,
+        SUM(sends) as total_sends,
+        SUM(opens) as total_opens
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
-        AVG(unsubscribe_rate) as baseline_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(bounce_rate) as baseline_bounce_rate,
+        AVG(open_rate) as baseline_open_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     )
     SELECT 
-      canonical_entity_id,
-      avg_unsubscribe_rate,
-      baseline_unsubscribe_rate,
-      total_unsubscribes,
-      total_sends,
-      SAFE_DIVIDE((avg_unsubscribe_rate - baseline_unsubscribe_rate), baseline_unsubscribe_rate) * 100 as unsubscribe_increase_pct
+      r.canonical_entity_id,
+      r.avg_bounce_rate,
+      r.avg_open_rate,
+      h.baseline_bounce_rate,
+      h.baseline_open_rate,
+      r.total_sends,
+      r.total_opens,
+      SAFE_DIVIDE((r.avg_open_rate - h.baseline_open_rate), h.baseline_open_rate) * 100 as open_rate_change_pct
     FROM recent_performance r
-    WHERE avg_unsubscribe_rate > 0.5  -- >0.5% unsubscribe rate is concerning
-      OR (baseline_unsubscribe_rate > 0 AND avg_unsubscribe_rate > baseline_unsubscribe_rate * 1.5)  -- 50% increase
-      AND total_sends > 100
-    ORDER BY avg_unsubscribe_rate DESC
+    LEFT JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE (r.avg_bounce_rate > 5 OR r.avg_open_rate < 10 OR 
+           (h.baseline_open_rate IS NOT NULL AND r.avg_open_rate < h.baseline_open_rate * 0.7))
+      AND r.total_sends > 100
+    ORDER BY r.avg_open_rate ASC
     LIMIT 10
     """
     
@@ -81,7 +88,9 @@ def detect_email_list_health_decline(organization_id: str) -> list:
         results = query_job.result()
         
         for row in results:
-            priority = "high" if row.avg_unsubscribe_rate > 1.0 else "medium"
+            bounce_rate = row.avg_bounce_rate or 0
+            open_rate = row.avg_open_rate or 0
+            priority = "high" if bounce_rate > 10 or open_rate < 5 else "medium"
             
             opportunities.append({
                 "id": str(uuid.uuid4()),
@@ -93,22 +102,23 @@ def detect_email_list_health_decline(organization_id: str) -> list:
                 "status": "new",
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email",
-                "title": f"High Unsubscribe Rate: {row.avg_unsubscribe_rate:.2f}%",
-                "description": f"Email unsubscribe rate is {row.avg_unsubscribe_rate:.2f}%, indicating list health issues",
+                "title": f"List Health Issue: {open_rate:.1f}% open rate",
+                "description": f"Email list showing signs of fatigue with {open_rate:.1f}% open rate and {bounce_rate:.1f}% bounce rate",
                 "evidence": {
-                    "current_unsubscribe_rate": float(row.avg_unsubscribe_rate),
-                    "baseline_unsubscribe_rate": float(row.baseline_unsubscribe_rate) if row.baseline_unsubscribe_rate else None,
-                    "unsubscribe_increase": float(row.unsubscribe_increase_pct) if row.unsubscribe_increase_pct else None,
-                    "total_unsubscribes": int(row.total_unsubscribes),
+                    "current_open_rate": float(open_rate),
+                    "current_bounce_rate": float(bounce_rate),
+                    "baseline_open_rate": float(row.baseline_open_rate) if row.baseline_open_rate else None,
+                    "open_rate_change": float(row.open_rate_change_pct) if row.open_rate_change_pct else None,
                     "total_sends": int(row.total_sends),
                 },
                 "metrics": {
-                    "unsubscribe_rate": float(row.avg_unsubscribe_rate),
+                    "open_rate": float(open_rate),
+                    "bounce_rate": float(bounce_rate),
                 },
-                "hypothesis": "High unsubscribe rates indicate content relevance issues, sending frequency problems, or poor list acquisition",
+                "hypothesis": "Declining open rates and high bounces indicate list quality issues or content fatigue",
                 "confidence_score": 0.85,
-                "potential_impact_score": min(100, row.avg_unsubscribe_rate * 50),
-                "urgency_score": 80 if row.avg_unsubscribe_rate > 1.0 else 60,
+                "potential_impact_score": min(100, (20 - open_rate) * 5) if open_rate < 20 else 30,
+                "urgency_score": 80 if bounce_rate > 10 else 60,
                 "recommended_actions": [
                     "Reduce email frequency if sending >5x/week",
                     "Segment audience for more relevant content",

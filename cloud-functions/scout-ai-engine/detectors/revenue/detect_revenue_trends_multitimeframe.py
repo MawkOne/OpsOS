@@ -95,7 +95,7 @@ def detect_revenue_trends_multitimeframe(organization_id: str) -> list:
         ELSE 'Stable'
       END as pattern
       
-    FROM current
+    FROM current_period
     WHERE (
       ABS(mom_change) > 10  -- 10%+ change
       OR consecutive_declining_months >= 2

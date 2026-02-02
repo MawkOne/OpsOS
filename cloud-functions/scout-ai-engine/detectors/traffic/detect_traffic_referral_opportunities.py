@@ -37,34 +37,35 @@ def detect_traffic_referral_opportunities(organization_id: str) -> list:
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(revenue) as total_revenue,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
         AND (entity_type = 'source' OR entity_type = 'campaign')
-        AND canonical_entity_id LIKE '%referral%'
       GROUP BY canonical_entity_id
     ),
     overall_avg AS (
       SELECT 
-        AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(conversion_rate) as site_avg_cvr
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
     )
     SELECT 
-      canonical_entity_id,
-      total_sessions,
-      total_conversions,
-      avg_conversion_rate,
-      total_revenue,
-      avg_duration,
-      avg_conversion_rate as site_avg_conversion_rate,
-      SAFE_DIVIDE((avg_conversion_rate - avg_conversion_rate), avg_conversion_rate) * 100 as cvr_vs_avg_pct
+      r.canonical_entity_id,
+      r.total_sessions,
+      r.total_conversions,
+      r.avg_conversion_rate,
+      r.total_revenue,
+      r.avg_duration,
+      o.site_avg_cvr as site_avg_conversion_rate,
+      SAFE_DIVIDE((r.avg_conversion_rate - o.site_avg_cvr), o.site_avg_cvr) * 100 as cvr_vs_avg_pct
     FROM referral_performance r
     CROSS JOIN overall_avg o
-    WHERE avg_conversion_rate > avg_conversion_rate * 1.2  -- 20%+ better than average
-      AND total_sessions > 20
-      AND total_sessions < 500  -- Not maxed out yet
-    ORDER BY cvr_vs_avg_pct DESC
+    WHERE r.avg_conversion_rate > o.site_avg_cvr * 1.2
+      AND r.total_sessions > 20
+      AND r.total_sessions < 500
+    ORDER BY SAFE_DIVIDE((r.avg_conversion_rate - o.site_avg_cvr), o.site_avg_cvr) DESC
     LIMIT 10
     """
     

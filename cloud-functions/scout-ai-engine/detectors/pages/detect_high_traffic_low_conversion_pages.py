@@ -35,13 +35,14 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_cvr,
         SUM(conversions) as total_conversions,
-        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(avg_bounce_rate) as avg_bounce_rate,
         AVG(avg_session_duration) as avg_duration
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
-      HAVING total_sessions > 100  -- Meaningful traffic
+      HAVING SUM(sessions) > 100
     ),
     peer_avg AS (
       SELECT 
@@ -84,7 +85,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'page_optimization',
+                'category': 'pages_optimization',
                 'type': 'high_traffic_low_cvr',
                 'priority': 'high',
                 'status': 'new',

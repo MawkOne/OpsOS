@@ -28,45 +28,46 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
     WITH recent_performance AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
-        SUM(revenue_attributed) as total_revenue,
-        AVG(list_size) as avg_list_size,
-        SAFE_DIVIDE(SUM(revenue_attributed), AVG(list_size)) as revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        SUM(revenue) as total_revenue,
+        SUM(sends) as total_sends,
+        SAFE_DIVIDE(SUM(revenue), SUM(sends)) as revenue_per_send
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email_campaign'
-        AND list_size > 0
-      GROUP BY canonical_entity_id, entity_name
-      HAVING SUM(revenue_attributed) > 0
+        AND entity_type IN ('email', 'email_campaign')
+        AND sends > 0
+      GROUP BY canonical_entity_id
+      HAVING SUM(revenue) > 0
     ),
     historical_performance AS (
       SELECT 
         canonical_entity_id,
-        SUM(revenue_attributed) as baseline_revenue,
-        AVG(list_size) as baseline_list_size,
-        SAFE_DIVIDE(SUM(revenue_attributed), AVG(list_size)) as baseline_revenue_per_subscriber
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        SUM(revenue) as baseline_revenue,
+        SUM(sends) as baseline_sends,
+        SAFE_DIVIDE(SUM(revenue), SUM(sends)) as baseline_revenue_per_send
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email_campaign'
-        AND list_size > 0
+        AND entity_type IN ('email', 'email_campaign')
+        AND sends > 0
       GROUP BY canonical_entity_id
-      HAVING SUM(revenue_attributed) > 0
+      HAVING SUM(revenue) > 0
     )
     SELECT 
-      canonical_entity_id,
-      entity_name,
-      total_revenue,
-      avg_list_size,
-      revenue_per_subscriber,
-      baseline_revenue,
-      baseline_list_size,
-      baseline_revenue_per_subscriber,
-      SAFE_DIVIDE((revenue_per_subscriber - baseline_revenue_per_subscriber), baseline_revenue_per_subscriber) * 100 as rps_change_pct
+      r.canonical_entity_id,
+      r.total_revenue,
+      r.total_sends,
+      r.revenue_per_send,
+      h.baseline_revenue,
+      h.baseline_sends,
+      h.baseline_revenue_per_send,
+      SAFE_DIVIDE((r.revenue_per_send - h.baseline_revenue_per_send), h.baseline_revenue_per_send) * 100 as rps_change_pct
     FROM recent_performance r
-    WHERE baseline_revenue_per_subscriber > 0
-      AND SAFE_DIVIDE((revenue_per_subscriber - baseline_revenue_per_subscriber), baseline_revenue_per_subscriber) < -0.20  -- >20% decline
+    JOIN historical_performance h ON r.canonical_entity_id = h.canonical_entity_id
+    WHERE h.baseline_revenue_per_send > 0
+      AND SAFE_DIVIDE((r.revenue_per_send - h.baseline_revenue_per_send), h.baseline_revenue_per_send) < -0.20
     ORDER BY rps_change_pct ASC
     LIMIT 20
     """
@@ -89,22 +90,22 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
                 "category": "email_optimization",
-                "type": "revenue_per_subscriber_decline",
+                "type": "revenue_per_send_decline",
                 "priority": priority,
                 "status": "new",
                 "entity_id": row.canonical_entity_id,
-                "entity_type": "email_campaign",
-                "title": f"Revenue Per Subscriber Down: {abs(row.rps_change_pct):.0f}%",
-                "description": f"'{row.entity_name}' generating ${row.revenue_per_subscriber:.2f} per subscriber vs ${row.baseline_revenue_per_subscriber:.2f} baseline",
+                "entity_type": "email",
+                "title": f"Revenue Per Send Down: {abs(row.rps_change_pct):.0f}%",
+                "description": f"Generating ${row.revenue_per_send:.2f} per send vs ${row.baseline_revenue_per_send:.2f} baseline",
                 "evidence": {
-                    "current_revenue_per_subscriber": float(row.revenue_per_subscriber),
-                    "baseline_revenue_per_subscriber": float(row.baseline_revenue_per_subscriber),
+                    "current_revenue_per_send": float(row.revenue_per_send),
+                    "baseline_revenue_per_send": float(row.baseline_revenue_per_send),
                     "rps_change_pct": float(row.rps_change_pct),
-                    "current_list_size": int(row.avg_list_size),
+                    "total_sends": int(row.total_sends),
                     "total_revenue": float(row.total_revenue)
                 },
                 "metrics": {
-                    "revenue_per_subscriber": float(row.revenue_per_subscriber),
+                    "revenue_per_send": float(row.revenue_per_send),
                     "rps_change_pct": float(row.rps_change_pct)
                 },
                 "hypothesis": "Declining subscriber value - need better offers, targeting, or frequency optimization",
@@ -122,12 +123,12 @@ def detect_revenue_per_subscriber_decline(organization_id: str) -> list:
                 "estimated_effort": "medium",
                 "estimated_timeline": "2-4 weeks",
                 "historical_performance": {
-                    "baseline_rps": float(row.baseline_revenue_per_subscriber),
-                    "current_rps": float(row.revenue_per_subscriber)
+                    "baseline_rps": float(row.baseline_revenue_per_send),
+                    "current_rps": float(row.revenue_per_send)
                 },
                 "comparison_data": {
-                    "list_size_current": int(row.avg_list_size),
-                    "list_size_baseline": int(row.baseline_list_size)
+                    "sends_current": int(row.total_sends),
+                    "sends_baseline": int(row.baseline_sends)
                 },
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()

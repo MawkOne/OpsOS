@@ -35,7 +35,8 @@ def detect_revenue_anomaly(organization_id: str) -> list:
         SUM(revenue) as total_revenue,
         SUM(conversions) as total_conversions,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY date
     ),

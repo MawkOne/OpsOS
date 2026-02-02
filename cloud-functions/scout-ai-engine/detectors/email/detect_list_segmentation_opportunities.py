@@ -28,50 +28,43 @@ def detect_list_segmentation_opportunities(organization_id: str) -> list:
     WITH campaign_engagement AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
         date,
         open_rate,
         click_through_rate,
-        sends,
-        list_size
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        sends
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email_campaign'
+        AND entity_type IN ('email', 'email_campaign')
         AND sends > 100
-        AND list_size > 0
     ),
     list_stats AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
         AVG(open_rate) as avg_open_rate,
         STDDEV(open_rate) as stddev_open_rate,
         AVG(click_through_rate) as avg_ctr,
         STDDEV(click_through_rate) as stddev_ctr,
         SUM(sends) as total_sends,
-        AVG(list_size) as avg_list_size,
         COUNT(DISTINCT date) as send_count
       FROM campaign_engagement
-      GROUP BY canonical_entity_id, entity_name
+      GROUP BY canonical_entity_id
     )
     SELECT 
       canonical_entity_id,
-      entity_name,
       avg_open_rate,
       stddev_open_rate,
       avg_ctr,
       stddev_ctr,
       total_sends,
-      avg_list_size,
       send_count,
-      -- Coefficient of variation (higher = more variance = segmentation opportunity)
       SAFE_DIVIDE(stddev_open_rate, avg_open_rate) * 100 as cv_open_rate
     FROM list_stats
-    WHERE avg_list_size > 500  -- Sufficient list size for segmentation
-      AND send_count > 5  -- Regular sending
-      AND stddev_open_rate > 5  -- High variance in engagement
-      AND SAFE_DIVIDE(stddev_open_rate, avg_open_rate) > 0.25  -- CV > 25%
+    WHERE total_sends > 500
+      AND send_count > 5
+      AND stddev_open_rate > 5
+      AND SAFE_DIVIDE(stddev_open_rate, avg_open_rate) > 0.25
     ORDER BY cv_open_rate DESC
     LIMIT 20
     """
@@ -104,19 +97,19 @@ def detect_list_segmentation_opportunities(organization_id: str) -> list:
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email_campaign",
                 "title": f"Segmentation Opportunity: {cv:.0f}% engagement variance",
-                "description": f"'{row.entity_name}' shows high engagement variance ({row.stddev_open_rate:.1f}% stdev) across {row.avg_list_size:,.0f} subscribers - segment for better targeting",
+                "description": f"Campaign shows high engagement variance ({row.stddev_open_rate:.1f}% stdev) across {row.total_sends:,.0f} sends - segment for better targeting",
                 "evidence": {
                     "avg_open_rate": float(row.avg_open_rate),
                     "stddev_open_rate": float(row.stddev_open_rate),
                     "coefficient_of_variation": float(cv),
-                    "avg_ctr": float(row.avg_ctr),
-                    "list_size": int(row.avg_list_size),
+                    "avg_ctr": float(row.avg_ctr) if row.avg_ctr else 0,
+                    "total_sends": int(row.total_sends),
                     "send_count": int(row.send_count),
                     "suggested_segments": suggested_segments
                 },
                 "metrics": {
                     "engagement_variance": float(cv),
-                    "list_size": int(row.avg_list_size)
+                    "total_sends": int(row.total_sends)
                 },
                 "hypothesis": "High engagement variance indicates diverse audience behaviors - segmentation will improve relevance and performance",
                 "confidence_score": 0.85,
@@ -142,7 +135,7 @@ def detect_list_segmentation_opportunities(organization_id: str) -> list:
                 "comparison_data": {
                     "variance_level": "High" if cv > 40 else "Medium",
                     "suggested_segments": suggested_segments,
-                    "list_size": f"{row.avg_list_size:,.0f} subscribers"
+                    "total_sends": f"{row.total_sends:,.0f} sends"
                 },
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()

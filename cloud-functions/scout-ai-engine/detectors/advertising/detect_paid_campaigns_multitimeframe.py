@@ -78,7 +78,7 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE (
       current_roas < 2.0  -- Below efficiency threshold
       OR efficiency_trend = 'Deteriorating'  -- Getting worse
@@ -118,7 +118,7 @@ def detect_paid_campaigns_multitimeframe(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'cost_inefficiency',
+                'category': 'advertising_cost_inefficiency',
                 'type': f'poor_roas_{trend.lower()}',
                 'priority': priority,
                 'status': 'new',

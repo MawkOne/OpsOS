@@ -19,11 +19,11 @@ def detect_mobile_desktop_cvr_gap(organization_id: str) -> list:
         SUM(sessions) as sessions,
         SUM(conversions) as conversions,
         SUM(pageviews) as pageviews,
-        AVG(bounce_rate) as bounce_rate,
+        AVG(avg_bounce_rate) as bounce_rate,
         SAFE_DIVIDE(SUM(conversions), SUM(sessions)) * 100 as cvr
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
       WHERE organization_id = @org_id 
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        
         AND entity_type = 'page'
         AND device_type IN ('mobile', 'desktop')
         AND sessions > 10

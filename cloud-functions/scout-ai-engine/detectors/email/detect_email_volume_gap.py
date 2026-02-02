@@ -28,26 +28,27 @@ def detect_email_volume_gap(organization_id: str) -> list:
     WITH recent_volume AS (
       SELECT 
         canonical_entity_id,
-        entity_name,
         SUM(sends) as total_sends,
         COUNT(DISTINCT date) as days_with_sends,
         AVG(sends) as avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email_campaign'
+        AND entity_type IN ('email', 'email_campaign')
         AND sends > 0
-      GROUP BY canonical_entity_id, entity_name
+      GROUP BY canonical_entity_id
     ),
     historical_volume AS (
       SELECT 
         canonical_entity_id,
         SUM(sends) as baseline_total_sends,
         AVG(sends) as baseline_avg_daily_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email_campaign'
+        AND entity_type IN ('email', 'email_campaign')
         AND sends > 0
       GROUP BY canonical_entity_id
     ),
@@ -58,31 +59,31 @@ def detect_email_volume_gap(organization_id: str) -> list:
         SELECT 
           canonical_entity_id,
           SUM(sends) as total_sends
-        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+        WHERE organization_id = @org_id
           AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-          AND entity_type = 'email_campaign'
+          AND entity_type IN ('email', 'email_campaign')
           AND sends > 0
         GROUP BY canonical_entity_id
       )
     )
     SELECT 
-      canonical_entity_id,
-      entity_name,
-      total_sends,
-      days_with_sends,
-      avg_daily_sends,
-      baseline_total_sends,
-      baseline_avg_daily_sends,
-      benchmark_volume,
-      SAFE_DIVIDE((total_sends - baseline_total_sends), baseline_total_sends) * 100 as volume_change_pct,
-      SAFE_DIVIDE(total_sends, benchmark_volume) * 100 as vs_benchmark_pct
+      r.canonical_entity_id,
+      r.total_sends,
+      r.days_with_sends,
+      r.avg_daily_sends,
+      h.baseline_total_sends,
+      h.baseline_avg_daily_sends,
+      b.benchmark_volume,
+      SAFE_DIVIDE((r.total_sends - h.baseline_total_sends), h.baseline_total_sends) * 100 as volume_change_pct,
+      SAFE_DIVIDE(r.total_sends, b.benchmark_volume) * 100 as vs_benchmark_pct
     FROM recent_volume r
+    LEFT JOIN historical_volume h ON r.canonical_entity_id = h.canonical_entity_id
     CROSS JOIN org_benchmark b
     WHERE 
-      -- Either significantly below benchmark OR declining trend
-      (total_sends < benchmark_volume * 0.5)  -- <50% of benchmark
-      OR (baseline_total_sends > 0 AND 
-          SAFE_DIVIDE((total_sends - baseline_total_sends), baseline_total_sends) < -0.30)  -- >30% decline
+      (r.total_sends < b.benchmark_volume * 0.5)
+      OR (h.baseline_total_sends > 0 AND 
+          SAFE_DIVIDE((r.total_sends - h.baseline_total_sends), h.baseline_total_sends) < -0.30)
     ORDER BY volume_change_pct ASC
     LIMIT 20
     """
@@ -123,7 +124,7 @@ def detect_email_volume_gap(organization_id: str) -> list:
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email_campaign",
                 "title": title,
-                "description": f"'{row.entity_name}' sending only {row.total_sends:,.0f} emails in last 30 days vs {row.baseline_total_sends:,.0f} in previous period",
+                "description": f"Sending only {row.total_sends:,.0f} emails in last 30 days vs {row.baseline_total_sends:,.0f} in previous period" if row.baseline_total_sends else f"Sending only {row.total_sends:,.0f} emails in last 30 days",
                 "evidence": {
                     "current_volume": int(row.total_sends),
                     "baseline_volume": int(row.baseline_total_sends) if row.baseline_total_sends else 0,

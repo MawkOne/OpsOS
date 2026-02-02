@@ -38,16 +38,17 @@ def detect_email_high_opens_low_clicks(organization_id: str) -> list:
         SUM(sends) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
-      HAVING total_sends > 100  -- Meaningful send volume
+      HAVING SUM(sends) > 100
     )
     SELECT *
     FROM email_performance
-    WHERE avg_open_rate > 20  -- Good open rate (>20%)
-      AND avg_ctr < 2  -- Poor click rate (<2%)
+    WHERE avg_open_rate > 20
+      AND avg_ctr < 2
     ORDER BY total_opens DESC
     LIMIT 15
     """

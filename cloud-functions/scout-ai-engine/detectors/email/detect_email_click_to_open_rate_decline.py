@@ -35,14 +35,16 @@ def detect_email_click_to_open_rate_decline(organization_id: str) -> list:
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
         AVG(click_through_rate) as avg_ctr,
-        AVG(click_to_open_rate) as avg_ctor,
+        -- Calculate click-to-open rate from clicks and opens
+        SAFE_DIVIDE(SUM(clicks), SUM(opens)) * 100 as avg_ctor,
         SUM(sends) as total_sends,
         SUM(opens) as total_opens,
         SUM(clicks) as total_clicks
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -54,8 +56,8 @@ def detect_email_click_to_open_rate_decline(organization_id: str) -> list:
       total_opens,
       total_clicks
     FROM recent_performance
-    WHERE avg_open_rate > 20  -- Good open rate
-      AND avg_ctor < 15  -- But poor click-to-open rate
+    WHERE avg_open_rate > 20
+      AND avg_ctor < 15
       AND total_sends > 50
     ORDER BY avg_open_rate DESC, avg_ctor ASC
     LIMIT 10

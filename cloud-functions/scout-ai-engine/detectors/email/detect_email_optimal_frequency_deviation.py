@@ -36,23 +36,24 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
         DATE_TRUNC(date, WEEK) as week,
         SUM(sends) as weekly_sends,
         AVG(open_rate) as avg_open_rate,
-        AVG(unsubscribe_rate) as avg_unsubscribe_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(bounce_rate) as avg_bounce_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id, week
     )
     SELECT 
       canonical_entity_id,
       AVG(weekly_sends) as avg_weekly_sends,
       AVG(avg_open_rate) as overall_open_rate,
-      AVG(avg_unsubscribe_rate) as overall_unsubscribe_rate,
+      AVG(avg_bounce_rate) as overall_bounce_rate,
       COUNT(DISTINCT week) as weeks_tracked
     FROM weekly_sends
     GROUP BY canonical_entity_id
-    HAVING AVG(weekly_sends) > 7  -- Sending more than 1/day average
-      OR AVG(weekly_sends) < 1  -- Less than 1/week
+    HAVING AVG(weekly_sends) > 7
+      OR AVG(weekly_sends) < 1
     ORDER BY avg_weekly_sends DESC
     LIMIT 10
     """
@@ -73,8 +74,8 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
             
             if is_too_high:
                 title = f"Email Frequency Too High: {row.avg_weekly_sends:.1f}/week"
-                desc = f"Sending {row.avg_weekly_sends:.1f} emails per week on average may lead to fatigue and higher unsubscribes"
-                priority = "high" if row.overall_unsubscribe_rate > 0.5 else "medium"
+                desc = f"Sending {row.avg_weekly_sends:.1f} emails per week on average may lead to fatigue"
+                priority = "high" if row.overall_bounce_rate > 5 else "medium"
             else:
                 title = f"Email Frequency Too Low: {row.avg_weekly_sends:.1f}/week"
                 desc = f"Sending only {row.avg_weekly_sends:.1f} emails per week may be missing engagement opportunities"
@@ -94,13 +95,13 @@ def detect_email_optimal_frequency_deviation(organization_id: str) -> list:
                 "description": desc,
                 "evidence": {
                     "avg_weekly_sends": float(row.avg_weekly_sends),
-                    "open_rate": float(row.overall_open_rate),
-                    "unsubscribe_rate": float(row.overall_unsubscribe_rate),
+                    "open_rate": float(row.overall_open_rate) if row.overall_open_rate else 0,
+                    "bounce_rate": float(row.overall_bounce_rate) if row.overall_bounce_rate else 0,
                     "weeks_tracked": int(row.weeks_tracked),
                 },
                 "metrics": {
                     "weekly_frequency": float(row.avg_weekly_sends),
-                    "unsubscribe_rate": float(row.overall_unsubscribe_rate),
+                    "open_rate": float(row.overall_open_rate) if row.overall_open_rate else 0,
                 },
                 "hypothesis": "Too high frequency causes fatigue; too low frequency misses opportunities" if is_too_high else "Low send frequency may be missing revenue and engagement opportunities",
                 "confidence_score": 0.7,

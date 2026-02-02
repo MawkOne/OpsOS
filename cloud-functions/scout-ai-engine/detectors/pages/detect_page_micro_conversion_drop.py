@@ -36,11 +36,11 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
         SUM(scroll_depth_75) as total_scroll_75,
         SUM(sessions) as total_sessions,
         SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     ),
@@ -49,11 +49,11 @@ def detect_page_micro_conversion_drop(organization_id: str) -> list:
         canonical_entity_id,
         AVG(scroll_depth_avg) as baseline_scroll_depth,
         SAFE_DIVIDE(SUM(scroll_depth_75), SUM(sessions)) * 100 as baseline_scroll_75_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     )

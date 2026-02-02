@@ -10,11 +10,11 @@ def detect_content_to_lead_attribution(organization_id: str) -> list:
     logger.info("🔍 Running 'content_to_lead_attribution' detector...")
     opportunities = []
     query = f"""
-    SELECT canonical_entity_id SUM(sessions) as sessions, SUM(conversions) as conversions
+    SELECT canonical_entity_id, SUM(sessions) as sessions, SUM(conversions) as conversions
     FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
     WHERE organization_id = @org_id AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      AND entity_type = 'content' AND sessions > 100
-    GROUP BY canonical_entity_id, entity_name
+      AND entity_type = 'page' AND sessions > 100
+    GROUP BY canonical_entity_id
     LIMIT 20
     """
     job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("org_id", "STRING", organization_id)])

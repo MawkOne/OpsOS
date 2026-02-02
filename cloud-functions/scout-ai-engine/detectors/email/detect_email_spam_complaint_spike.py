@@ -30,40 +30,45 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
     opportunities = []
     
     query = f"""
+    -- Note: Using bounce_rate as proxy for deliverability issues
+    -- True spam complaint rate would need to come from ESP data
     WITH recent_campaigns AS (
       SELECT 
         canonical_entity_id,
-        AVG(spam_complaint_rate) as avg_spam_rate,
-        SUM(spam_complaints) as total_complaints,
+        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(open_rate) as avg_open_rate,
         SUM(sends) as total_sends
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
         AND date < CURRENT_DATE()
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     ),
     baseline_campaigns AS (
       SELECT 
         canonical_entity_id,
-        AVG(spam_complaint_rate) as baseline_spam_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(bounce_rate) as baseline_bounce_rate
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     )
     SELECT 
-      canonical_entity_id,
-      avg_spam_rate,
-      baseline_spam_rate,
-      total_complaints,
-      total_sends,
-      SAFE_DIVIDE((avg_spam_rate - baseline_spam_rate), baseline_spam_rate) * 100 as spam_rate_increase_pct
+      r.canonical_entity_id,
+      r.avg_bounce_rate,
+      r.avg_open_rate,
+      b.baseline_bounce_rate,
+      r.total_sends,
+      SAFE_DIVIDE((r.avg_bounce_rate - b.baseline_bounce_rate), b.baseline_bounce_rate) * 100 as bounce_increase_pct
     FROM recent_campaigns r
-    WHERE avg_spam_rate > 0.05  -- >0.05% is concerning, >0.1% is critical
-      OR (baseline_spam_rate > 0 AND avg_spam_rate > baseline_spam_rate * 2)  -- 2x spike
-      AND total_sends > 50
-    ORDER BY avg_spam_rate DESC
+    LEFT JOIN baseline_campaigns b ON r.canonical_entity_id = b.canonical_entity_id
+    WHERE r.avg_bounce_rate > 10
+      OR (b.baseline_bounce_rate > 0 AND r.avg_bounce_rate > b.baseline_bounce_rate * 2)
+      AND r.total_sends > 50
+    ORDER BY r.avg_bounce_rate DESC
     LIMIT 10
     """
     
@@ -78,34 +83,34 @@ def detect_email_spam_complaint_spike(organization_id: str) -> list:
         results = query_job.result()
         
         for row in results:
-            priority = "high" if row.avg_spam_rate > 0.1 else "medium"
+            bounce_rate = row.avg_bounce_rate or 0
+            priority = "high" if bounce_rate > 15 else "medium"
             
             opportunities.append({
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
                 "category": "email_deliverability",
-                "type": "spam_complaint_spike",
+                "type": "deliverability_spike",
                 "priority": priority,
                 "status": "new",
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "email",
-                "title": f"Spam Complaints: {row.avg_spam_rate:.2f}%",
-                "description": f"Email campaign spam complaint rate is {row.avg_spam_rate:.2f}%, risking sender reputation and deliverability",
+                "title": f"Deliverability Issue: {bounce_rate:.1f}% bounce rate",
+                "description": f"Email campaign bounce rate is {bounce_rate:.1f}%, risking sender reputation and deliverability",
                 "evidence": {
-                    "current_spam_rate": float(row.avg_spam_rate),
-                    "baseline_spam_rate": float(row.baseline_spam_rate) if row.baseline_spam_rate else None,
-                    "spam_rate_increase": float(row.spam_rate_increase_pct) if row.spam_rate_increase_pct else None,
-                    "total_complaints": int(row.total_complaints),
+                    "current_bounce_rate": float(bounce_rate),
+                    "baseline_bounce_rate": float(row.baseline_bounce_rate) if row.baseline_bounce_rate else None,
+                    "bounce_increase": float(row.bounce_increase_pct) if row.bounce_increase_pct else None,
                     "total_sends": int(row.total_sends),
                 },
                 "metrics": {
-                    "spam_complaint_rate": float(row.avg_spam_rate),
+                    "bounce_rate": float(bounce_rate),
                 },
-                "hypothesis": "High spam complaints damage sender reputation and will cause long-term deliverability issues (30-60 days to fix)",
-                "confidence_score": 0.95,
-                "potential_impact_score": min(100, row.avg_spam_rate * 500),  # Scale up since even 0.2% is serious
-                "urgency_score": 95 if row.avg_spam_rate > 0.1 else 80,
+                "hypothesis": "High bounce rates damage sender reputation and will cause long-term deliverability issues",
+                "confidence_score": 0.90,
+                "potential_impact_score": min(100, bounce_rate * 5),
+                "urgency_score": 95 if bounce_rate > 15 else 80,
                 "recommended_actions": [
                     "Review content for spam triggers (excessive caps, misleading subject)",
                     "Segment audience better - stop sending to unengaged contacts",

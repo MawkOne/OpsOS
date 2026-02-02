@@ -90,7 +90,7 @@ def detect_declining_performers_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE consecutive_declining >= 2
       AND ABS(current_mom) > 10  -- At least 10% decline
     ORDER BY consecutive_declining DESC, ABS(current_mom) DESC

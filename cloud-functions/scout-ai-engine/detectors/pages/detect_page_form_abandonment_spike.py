@@ -35,11 +35,11 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
         AVG(form_abandonment_rate) as avg_abandonment_rate,
         SUM(form_starts) as total_form_starts,
         SUM(form_submits) as total_form_submits
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-        AND date < CURRENT_DATE()
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+        
         AND entity_type = 'page'
         AND form_starts > 0
       GROUP BY canonical_entity_id
@@ -48,11 +48,11 @@ def detect_page_form_abandonment_spike(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(form_abandonment_rate) as baseline_abandonment_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
+        
         AND entity_type = 'page'
         AND form_starts > 0
       GROUP BY canonical_entity_id

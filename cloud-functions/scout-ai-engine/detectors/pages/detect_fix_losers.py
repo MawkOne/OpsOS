@@ -34,15 +34,16 @@ def detect_fix_losers(organization_id: str) -> list:
         canonical_entity_id,
         entity_type,
         AVG(conversion_rate) as avg_conversion_rate,
-        AVG(bounce_rate) as avg_bounce_rate,
+        AVG(avg_bounce_rate) as avg_bounce_rate,
         SUM(sessions) as total_sessions,
         SUM(revenue) as total_revenue,
         SUM(cost) as total_cost
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
+      WHERE organization_id = @org_id
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
         AND entity_type IN ('page', 'campaign')
       GROUP BY canonical_entity_id, entity_type
-      HAVING total_sessions > 50  -- Significant traffic
+      HAVING SUM(sessions) > 50
     ),
     ranked AS (
       SELECT 
@@ -53,8 +54,8 @@ def detect_fix_losers(organization_id: str) -> list:
     )
     SELECT *
     FROM ranked
-    WHERE traffic_percentile > 0.5    -- Top 50% traffic
-      AND conversion_percentile < 0.3  -- Bottom 30% conversion
+    WHERE traffic_percentile > 0.5
+      AND conversion_percentile < 0.3
     ORDER BY total_sessions DESC
     LIMIT 10
     """
@@ -80,7 +81,7 @@ def detect_fix_losers(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'fix_loser',
+                'category': 'pages_fix_loser',
                 'type': 'high_traffic_low_conversion',
                 'priority': 'high',
                 'status': 'new',

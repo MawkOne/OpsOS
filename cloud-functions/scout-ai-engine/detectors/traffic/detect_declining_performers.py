@@ -35,7 +35,8 @@ def detect_declining_performers(organization_id: str) -> list:
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(sessions) as total_sessions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
       GROUP BY canonical_entity_id, entity_type
@@ -44,31 +45,31 @@ def detect_declining_performers(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         entity_type,
-        AVG(conversion_rate) as avg_conversion_rate,
-        SUM(sessions) as total_sessions,
-        SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+        AVG(conversion_rate) as prev_conversion_rate,
+        SUM(sessions) as prev_sessions,
+        SUM(revenue) as prev_revenue
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       GROUP BY canonical_entity_id, entity_type
     )
     SELECT 
-      canonical_entity_id,
-      entity_type,
-      total_sessions as current_sessions,
-      total_sessions as previous_sessions,
-      total_revenue as current_revenue,
-      total_revenue as previous_revenue,
-      avg_conversion_rate as current_conversion_rate,
-      avg_conversion_rate as previous_conversion_rate,
-      SAFE_DIVIDE((total_sessions - total_sessions), total_sessions) * 100 as sessions_change_pct,
-      SAFE_DIVIDE((total_revenue - total_revenue), total_revenue) * 100 as revenue_change_pct
+      l.canonical_entity_id,
+      l.entity_type,
+      l.total_sessions as current_sessions,
+      p.prev_sessions as previous_sessions,
+      l.total_revenue as current_revenue,
+      p.prev_revenue as previous_revenue,
+      l.avg_conversion_rate as current_conversion_rate,
+      p.prev_conversion_rate as previous_conversion_rate,
+      SAFE_DIVIDE((l.total_sessions - p.prev_sessions), p.prev_sessions) * 100 as sessions_change_pct,
+      SAFE_DIVIDE((l.total_revenue - p.prev_revenue), p.prev_revenue) * 100 as revenue_change_pct
     FROM last_30_days l
-    INNER JOIN previous_30_days p 
-      AND entity_type = entity_type
-    WHERE total_sessions > 20  -- Had meaningful traffic
-      AND SAFE_DIVIDE((total_sessions - total_sessions), total_sessions) < -0.2  -- 20%+ decline
-    ORDER BY revenue_change_pct ASC
+    INNER JOIN previous_30_days p ON l.canonical_entity_id = p.canonical_entity_id AND l.entity_type = p.entity_type
+    WHERE p.prev_sessions > 20
+      AND SAFE_DIVIDE((l.total_sessions - p.prev_sessions), p.prev_sessions) < -0.2
+    ORDER BY SAFE_DIVIDE((l.total_revenue - p.prev_revenue), p.prev_revenue) ASC
     LIMIT 10
     """
     

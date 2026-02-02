@@ -42,7 +42,8 @@ def detect_metric_anomalies(organization_id: str) -> list:
         ctr,
         bounce_rate,
         position
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY)
     ),
     yesterday AS (
@@ -66,29 +67,28 @@ def detect_metric_anomalies(organization_id: str) -> list:
       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY)
         AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
       GROUP BY canonical_entity_id, entity_type
-      HAVING AVG(sessions) > 10  -- Meaningful traffic
+      HAVING AVG(sessions) > 10
     )
     SELECT 
-      canonical_entity_id,
-      entity_type,
-      sessions,
-      avg_sessions,
-      conversion_rate,
-      avg_cvr,
-      cost,
-      avg_cost,
-      SAFE_DIVIDE((sessions - avg_sessions), avg_sessions) * 100 as sessions_change_pct,
-      SAFE_DIVIDE((conversion_rate - avg_cvr), avg_cvr) * 100 as cvr_change_pct,
-      SAFE_DIVIDE((cost - avg_cost), avg_cost) * 100 as cost_change_pct
+      y.canonical_entity_id,
+      y.entity_type,
+      y.sessions,
+      b.avg_sessions,
+      y.conversion_rate,
+      b.avg_cvr,
+      y.cost,
+      b.avg_cost,
+      SAFE_DIVIDE((y.sessions - b.avg_sessions), b.avg_sessions) * 100 as sessions_change_pct,
+      SAFE_DIVIDE((y.conversion_rate - b.avg_cvr), b.avg_cvr) * 100 as cvr_change_pct,
+      SAFE_DIVIDE((y.cost - b.avg_cost), b.avg_cost) * 100 as cost_change_pct
     FROM yesterday y
-    INNER JOIN baseline b 
-      AND entity_type = entity_type
+    INNER JOIN baseline b ON y.canonical_entity_id = b.canonical_entity_id AND y.entity_type = b.entity_type
     WHERE (
-      ABS(SAFE_DIVIDE((sessions - avg_sessions), avg_sessions)) > 0.40  -- 40%+ session change
-      OR ABS(SAFE_DIVIDE((conversion_rate - avg_cvr), avg_cvr)) > 0.30  -- 30%+ CVR change
-      OR ABS(SAFE_DIVIDE((cost - avg_cost), avg_cost)) > 0.50  -- 50%+ cost change
+      ABS(SAFE_DIVIDE((y.sessions - b.avg_sessions), b.avg_sessions)) > 0.40
+      OR ABS(SAFE_DIVIDE((y.conversion_rate - b.avg_cvr), b.avg_cvr)) > 0.30
+      OR ABS(SAFE_DIVIDE((y.cost - b.avg_cost), b.avg_cost)) > 0.50
     )
-    ORDER BY ABS(sessions_change_pct) DESC
+    ORDER BY ABS(SAFE_DIVIDE((y.sessions - b.avg_sessions), b.avg_sessions)) DESC
     LIMIT 15
     """
     

@@ -39,7 +39,8 @@ def detect_traffic_utm_parameter_gaps(organization_id: str) -> list:
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND date < CURRENT_DATE()
         AND entity_type IN ('campaign', 'page')

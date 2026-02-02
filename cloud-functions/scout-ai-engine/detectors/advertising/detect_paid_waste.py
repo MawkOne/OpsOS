@@ -36,9 +36,9 @@ def detect_paid_waste(organization_id: str) -> list:
         SUM(clicks) as total_clicks,
         SUM(conversions) as total_conversions,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
         AND entity_type = 'campaign'
         AND cost > 0
       GROUP BY canonical_entity_id
@@ -75,7 +75,7 @@ def detect_paid_waste(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
-                'category': 'paid_waste',
+                'category': 'advertising_paid_waste',
                 'type': 'zero_conversions' if is_zero_conv else 'high_cpa',
                 'priority': 'high',
                 'status': 'new',

@@ -46,7 +46,7 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND entity_type = 'email'
+        AND entity_type IN ('email', 'email_campaign')
         AND sends > 0
     ),
     
@@ -80,7 +80,7 @@ def detect_email_trends_multitimeframe(organization_id: str) -> list:
     )
     
     SELECT *
-    FROM current
+    FROM current_period
     WHERE (
       ABS(mom_open_change) > 15  -- 15%+ change in open rate
       OR consecutive_declining_months >= 2

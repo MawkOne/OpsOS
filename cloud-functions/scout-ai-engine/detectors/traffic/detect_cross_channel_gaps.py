@@ -35,18 +35,19 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
         SUM(sessions) as organic_sessions,
         AVG(conversion_rate) as avg_conversion_rate,
         SUM(revenue) as total_revenue
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'
-        AND JSON_EXTRACT_SCALAR(source_breakdown, '$.ga4') IS NOT NULL
       GROUP BY canonical_entity_id
-      HAVING organic_sessions > 100
+      HAVING SUM(sessions) > 100
     ),
     ads_spend AS (
       SELECT 
         canonical_entity_id,
         SUM(cost) as total_ad_spend
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics` organization_id = @org_id
+      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      WHERE organization_id = @org_id
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         AND entity_type = 'page'
         AND cost > 0
@@ -54,11 +55,12 @@ def detect_cross_channel_gaps(organization_id: str) -> list:
     )
     SELECT 
       g.*,
-      COALESCE(total_ad_spend, 0) as ad_spend
+      COALESCE(a.total_ad_spend, 0) as ad_spend
     FROM ga_metrics g
-    WHERE (total_ad_spend IS NULL OR total_ad_spend < 10)  -- Little to no ad spend
-      AND avg_conversion_rate > 2.0  -- Good conversion rate
-    ORDER BY total_revenue DESC
+    LEFT JOIN ads_spend a ON g.canonical_entity_id = a.canonical_entity_id
+    WHERE (a.total_ad_spend IS NULL OR a.total_ad_spend < 10)
+      AND g.avg_conversion_rate > 2.0
+    ORDER BY g.total_revenue DESC
     LIMIT 10
     """
     

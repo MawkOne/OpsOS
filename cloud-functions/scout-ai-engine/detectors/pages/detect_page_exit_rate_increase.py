@@ -35,11 +35,11 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
         AVG(exit_rate) as avg_exit_rate,
         SUM(sessions) as total_sessions,
         AVG(conversion_rate) as avg_conversion_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        AND date < CURRENT_DATE()
+        AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     ),
@@ -47,11 +47,11 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       SELECT 
         canonical_entity_id,
         AVG(exit_rate) as baseline_exit_rate
-      FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
+      FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        
+        
         AND entity_type = 'page'
       GROUP BY canonical_entity_id
     )
