@@ -272,26 +272,15 @@ def sync_activecampaign_to_bigquery(request):
                         
                         'entity_name': campaign_name,
                         
-                        # Core metrics
-                        'emails_sent': send_amt,
+                        # Core metrics (use schema column names)
+                        'sends': send_amt,  # Fixed: was 'emails_sent'
                         'opens': opens,
                         'clicks': clicks,
-                        'bounces': bounces,
-                        'hard_bounces': hard_bounces,
-                        'soft_bounces': soft_bounces,
-                        'unsubscribes': unsubscribes,
-                        'complaints': complaints,
                         
                         # Calculated rates (needed by detectors)
                         'open_rate': open_rate,
-                        'click_rate': click_rate,
-                        'click_through_rate': click_rate,  # Alias
-                        'click_to_open_rate': click_to_open_rate,
+                        'click_through_rate': click_rate,
                         'bounce_rate': bounce_rate,
-                        'hard_bounce_rate': (hard_bounces / send_amt * 100) if send_amt > 0 else 0,
-                        'soft_bounce_rate': (soft_bounces / send_amt * 100) if send_amt > 0 else 0,
-                        'unsubscribe_rate': unsubscribe_rate,
-                        'spam_complaint_rate': spam_complaint_rate,
                         
                         'created_at': now_iso,
                         'updated_at': now_iso,
@@ -312,21 +301,14 @@ def sync_activecampaign_to_bigquery(request):
                 'entity_type': 'email_summary',
                 
                 'entity_name': 'Email Performance',
-                'total_campaigns': len(campaigns),
-                'emails_sent': total_sent,
-                'total_opens': total_opens,
-                'total_clicks': total_clicks,
-                'total_bounces': total_bounces,
-                'total_unsubscribes': total_unsubscribes,
-                'total_complaints': total_complaints,
+                'sends': total_sent,  # Fixed: was 'emails_sent'
+                'opens': total_opens,
+                'clicks': total_clicks,
                 
                 # Calculated rates (needed by detectors)
                 'open_rate': avg_open_rate,
-                'click_rate': avg_click_rate,
                 'click_through_rate': avg_click_rate,
                 'bounce_rate': avg_bounce_rate,
-                'unsubscribe_rate': avg_unsubscribe_rate,
-                'spam_complaint_rate': avg_complaint_rate,
                 
                 'created_at': now_iso,
                 'updated_at': now_iso,
