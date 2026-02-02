@@ -147,8 +147,17 @@ export async function GET(request: NextRequest) {
       total: opportunities.length
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching opportunities:', error);
+    
+    // Check if it's a credentials issue
+    if (error.message?.includes('GOOGLE_APPLICATION_CREDENTIALS_JSON')) {
+      return NextResponse.json(
+        { error: 'BigQuery credentials not configured', details: error.message, opportunities: [], total: 0 },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to fetch opportunities', details: String(error), opportunities: [], total: 0 },
       { status: 500 }
