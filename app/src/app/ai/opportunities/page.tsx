@@ -5,9 +5,9 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { 
-  Target, TrendingUp, AlertCircle, Search, Mail, 
-  Zap, RefreshCw, FileText, Share2, DollarSign,
-  Clock, ChevronRight, BarChart3, Megaphone
+  Target, Search, Mail, 
+  Zap, RefreshCw, FileText, DollarSign,
+  BarChart3, Megaphone
 } from "lucide-react";
 
 interface Opportunity {
@@ -37,7 +37,6 @@ export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [topListView, setTopListView] = useState<"top10" | "all" | "new">("top10");
 
   useEffect(() => {
     if (currentOrg) {
@@ -131,22 +130,6 @@ export default function OpportunitiesPage() {
     };
   };
 
-  // Get top opportunities by priority
-  const getTopOpportunities = () => {
-    const sorted = [...opportunities].sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-      
-      if (aPriority !== bPriority) return bPriority - aPriority;
-      return b.potential_impact_score - a.potential_impact_score;
-    });
-
-    if (topListView === "top10") return sorted.slice(0, 10);
-    if (topListView === "new") return sorted.filter(o => o.status === "new");
-    return sorted;
-  };
-
   const getPriorityColor = (priority: string) => {
     const colors = {
       high: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -157,12 +140,10 @@ export default function OpportunitiesPage() {
   };
 
   const channelGroups = groupByChannel();
-  const topOpportunities = getTopOpportunities();
   
   console.log("Render state:", { 
     loading, 
     oppCount: opportunities.length,
-    topCount: topOpportunities.length,
     channels: Object.keys(channelGroups).map(k => ({ [k]: channelGroups[k as keyof typeof channelGroups].length }))
   });
 
@@ -283,108 +264,10 @@ export default function OpportunitiesPage() {
           </div>
         </Card>
 
-        {/* Top Opportunities List */}
-        <Card className="glass">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
-                <TrendingUp className="w-5 h-5" style={{ color: "var(--accent)" }} />
-                Priority Opportunities
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setTopListView("top10")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
-                  style={{
-                    background: topListView === "top10" ? "var(--accent)" : "var(--background-tertiary)",
-                    color: topListView === "top10" ? "var(--background)" : "var(--foreground-muted)"
-                  }}
-                >
-                  Top 10
-                </button>
-                <button
-                  onClick={() => setTopListView("new")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
-                  style={{
-                    background: topListView === "new" ? "var(--accent)" : "var(--background-tertiary)",
-                    color: topListView === "new" ? "var(--background)" : "var(--foreground-muted)"
-                  }}
-                >
-                  New
-                </button>
-                <button
-                  onClick={() => setTopListView("all")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors`}
-                  style={{
-                    background: topListView === "all" ? "var(--accent)" : "var(--background-tertiary)",
-                    color: topListView === "all" ? "var(--background)" : "var(--foreground-muted)"
-                  }}
-                >
-                  All
-                </button>
-              </div>
-            </div>
-
-            {topOpportunities.length === 0 ? (
-              <div className="text-center py-8" style={{ color: "var(--foreground-muted)" }}>
-                No opportunities found. Run Scout AI to detect opportunities.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {topOpportunities.map((opp, index) => (
-                  <div
-                    key={opp.id}
-                    className="flex items-center gap-4 p-4 rounded-lg transition-colors border"
-                    style={{
-                      background: "var(--background-secondary)",
-                      borderColor: "var(--border)"
-                    }}
-                  >
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--accent-muted)" }}>
-                      <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>{index + 1}</span>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
-                          {opp.priority.toUpperCase()}
-                        </span>
-                        <span className="text-xs" style={{ color: "var(--foreground-subtle)" }}>{opp.entity_type}</span>
-                      </div>
-                      <h3 className="font-semibold truncate" style={{ color: "var(--foreground)" }}>{opp.title}</h3>
-                      <p className="text-sm truncate" style={{ color: "var(--foreground-muted)" }}>{opp.description}</p>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="w-4 h-4 text-green-400" />
-                          <span className="font-bold" style={{ color: "var(--foreground)" }}>{opp.potential_impact_score.toFixed(0)}</span>
-                        </div>
-                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Impact</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold" style={{ color: "var(--foreground)" }}>{(opp.confidence_score * 100).toFixed(0)}%</div>
-                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Confidence</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold" style={{ color: "var(--foreground)" }}>{opp.recommended_actions.length}</div>
-                        <div className="text-xs" style={{ color: "var(--foreground-subtle)" }}>Actions</div>
-                      </div>
-                    </div>
-
-                    <ChevronRight className="w-5 h-5" style={{ color: "var(--foreground-subtle)" }} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-
         {/* Channel Cards Grid */}
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>Opportunities by Channel</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {channels.map((channel) => (
               <Card key={channel.id} className="glass">
                 <div className="space-y-4">
