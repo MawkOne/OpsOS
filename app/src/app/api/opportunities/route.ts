@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy, limit as firestoreLimit } from 'firebase/firestore';
+import { bigquery } from '@/lib/bigquery';
 
 /**
  * Opportunities API
- * GET - List opportunities (reads from Firestore - synced from BigQuery)
- * PATCH - Update opportunity status
+ * GET - List opportunities (reads directly from BigQuery)
+ * PATCH - Update opportunity status (updates BigQuery)
  */
+
+const PROJECT_ID = 'opsos-864a1';
+const DATASET_ID = 'marketing_ai';
 
 // GET /api/opportunities?organizationId=xxx&status=new&priority=high
 export async function GET(request: NextRequest) {
@@ -24,88 +26,107 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Read from Firestore instead of BigQuery (works better in serverless)
-    let q = query(
-      collection(db, 'opportunities'),
-      where('organization_id', '==', organizationId)
-    );
-
+    // Build query with filters
+    let whereClause = `WHERE organization_id = @organizationId
+      AND detected_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)`;
+    
     if (status && status !== 'all') {
-      q = query(q, where('status', '==', status));
+      whereClause += ` AND status = @status`;
     }
-
+    
     if (priority && priority !== 'all') {
-      q = query(q, where('priority', '==', priority));
+      whereClause += ` AND priority = @priority`;
     }
-
+    
     if (category && category !== 'all') {
-      q = query(q, where('category', '==', category));
+      whereClause += ` AND category = @category`;
     }
 
-    // Limit to 500 opportunities (increased from 100)
-    q = query(q, firestoreLimit(500));
+    const query = `
+      WITH ranked_opps AS (
+        SELECT 
+          id,
+          organization_id,
+          detected_at,
+          category,
+          type,
+          priority,
+          COALESCE(status, 'new') as status,
+          entity_id,
+          entity_type,
+          title,
+          description,
+          evidence,
+          metrics,
+          hypothesis,
+          COALESCE(confidence_score, 0) as confidence_score,
+          COALESCE(potential_impact_score, 0) as potential_impact_score,
+          COALESCE(urgency_score, 0) as urgency_score,
+          recommended_actions,
+          estimated_effort,
+          estimated_timeline,
+          historical_performance,
+          comparison_data,
+          ROW_NUMBER() OVER (
+            PARTITION BY title, entity_id 
+            ORDER BY detected_at DESC
+          ) as rn
+        FROM \`${PROJECT_ID}.${DATASET_ID}.opportunities\`
+        ${whereClause}
+      )
+      SELECT * EXCEPT(rn)
+      FROM ranked_opps
+      WHERE rn = 1
+      ORDER BY 
+        CASE priority
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3
+          ELSE 4
+        END,
+        potential_impact_score DESC
+      LIMIT 500
+    `;
 
-    const snapshot = await getDocs(q);
-    
-    // Filter to only show opportunities from last 7 days (removes old pre-priority-pages data)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    const allOpportunities = snapshot.docs
-      .map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          organization_id: data.organization_id,
-          detected_at: data.detected_at,
-          category: data.category,
-          type: data.type,
-          priority: data.priority,
-          status: data.status || 'new',
-          entity_id: data.entity_id,
-          entity_type: data.entity_type,
-          title: data.title,
-          description: data.description,
-          evidence: data.evidence || {},
-          metrics: data.metrics || {},
-          hypothesis: data.hypothesis,
-          confidence_score: data.confidence_score || 0,
-          potential_impact_score: data.potential_impact_score || 0,
-          urgency_score: data.urgency_score || 0,
-          recommended_actions: data.recommended_actions || [],
-          estimated_effort: data.estimated_effort,
-          estimated_timeline: data.estimated_timeline,
-          historical_performance: data.historical_performance || {},
-          comparison_data: data.comparison_data || {},
-        };
-      })
-      .filter(opp => {
-        // Only show opportunities from last 7 days
-        if (!opp.detected_at) return false;
-        const detectedDate = new Date(opp.detected_at);
-        return detectedDate >= sevenDaysAgo;
-      });
+    const params: Record<string, string> = { organizationId };
+    if (status && status !== 'all') params.status = status;
+    if (priority && priority !== 'all') params.priority = priority;
+    if (category && category !== 'all') params.category = category;
 
-    // Deduplicate by title + entity_id (keep the most recent)
-    const dedupeMap = new Map<string, typeof allOpportunities[0]>();
-    for (const opp of allOpportunities) {
-      const key = `${opp.title}|${opp.entity_id}`;
-      const existing = dedupeMap.get(key);
-      if (!existing || new Date(opp.detected_at) > new Date(existing.detected_at)) {
-        dedupeMap.set(key, opp);
-      }
-    }
-    const opportunities = Array.from(dedupeMap.values());
-
-    // Sort by impact score (client-side since Firestore has limited ordering with filters)
-    opportunities.sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-      
-      if (aPriority !== bPriority) return bPriority - aPriority;
-      return b.potential_impact_score - a.potential_impact_score;
+    const [rows] = await bigquery.query({
+      query,
+      params,
     });
+
+    // Transform BigQuery rows to API format
+    const opportunities = rows.map((row: any) => ({
+      id: row.id,
+      organization_id: row.organization_id,
+      detected_at: row.detected_at?.value || row.detected_at,
+      category: row.category,
+      type: row.type,
+      priority: row.priority,
+      status: row.status,
+      entity_id: row.entity_id,
+      entity_type: row.entity_type,
+      title: row.title,
+      description: row.description,
+      evidence: typeof row.evidence === 'string' ? JSON.parse(row.evidence) : row.evidence || {},
+      metrics: typeof row.metrics === 'string' ? JSON.parse(row.metrics) : row.metrics || {},
+      hypothesis: row.hypothesis,
+      confidence_score: row.confidence_score || 0,
+      potential_impact_score: row.potential_impact_score || 0,
+      urgency_score: row.urgency_score || 0,
+      recommended_actions: row.recommended_actions || [],
+      estimated_effort: row.estimated_effort,
+      estimated_timeline: row.estimated_timeline,
+      historical_performance: typeof row.historical_performance === 'string' 
+        ? JSON.parse(row.historical_performance) 
+        : row.historical_performance || {},
+      comparison_data: typeof row.comparison_data === 'string' 
+        ? JSON.parse(row.comparison_data) 
+        : row.comparison_data || {},
+    }));
 
     return NextResponse.json({
       opportunities,
@@ -121,7 +142,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH /api/opportunities - Update opportunity
+// PATCH /api/opportunities - Update opportunity status in BigQuery
 export async function PATCH(request: NextRequest) {
   const body = await request.json();
   const { id, status, dismissed_by, dismissed_reason } = body;
@@ -134,30 +155,34 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const docRef = doc(db, 'opportunities', id);
-    const updates: any = {
-      updated_at: new Date().toISOString()
-    };
-
-    if (status) {
-      updates.status = status;
-      
-      if (status === 'dismissed') {
-        updates.dismissed_at = new Date().toISOString();
-        if (dismissed_by) updates.dismissed_by = dismissed_by;
-        if (dismissed_reason) updates.dismissed_reason = dismissed_reason;
+    let updateFields = [`status = @status`, `updated_at = CURRENT_TIMESTAMP()`];
+    const params: Record<string, string> = { id, status };
+    
+    if (status === 'dismissed') {
+      updateFields.push(`dismissed_at = CURRENT_TIMESTAMP()`);
+      if (dismissed_by) {
+        updateFields.push(`dismissed_by = @dismissed_by`);
+        params.dismissed_by = dismissed_by;
       }
-      
-      if (status === 'completed') {
-        updates.completed_at = new Date().toISOString();
+      if (dismissed_reason) {
+        updateFields.push(`dismissed_reason = @dismissed_reason`);
+        params.dismissed_reason = dismissed_reason;
       }
     }
+    
+    if (status === 'completed') {
+      updateFields.push(`completed_at = CURRENT_TIMESTAMP()`);
+    }
 
-    await updateDoc(docRef, updates);
+    const query = `
+      UPDATE \`${PROJECT_ID}.${DATASET_ID}.opportunities\`
+      SET ${updateFields.join(', ')}
+      WHERE id = @id
+    `;
 
-    return NextResponse.json({
-      success: true
-    });
+    await bigquery.query({ query, params });
+
+    return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Error updating opportunity:', error);
