@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { bigquery } from '@/lib/bigquery';
+import { BigQuery } from '@google-cloud/bigquery';
 
 /**
  * Opportunities API
@@ -9,6 +9,19 @@ import { bigquery } from '@/lib/bigquery';
 
 const PROJECT_ID = 'opsos-864a1';
 const DATASET_ID = 'marketing_ai';
+
+function getBigQueryClient() {
+  const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (!credentialsJson) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON not configured');
+  }
+  
+  const credentials = JSON.parse(credentialsJson);
+  return new BigQuery({
+    projectId: PROJECT_ID,
+    credentials,
+  });
+}
 
 // GET /api/opportunities?organizationId=xxx&status=new&priority=high
 export async function GET(request: NextRequest) {
@@ -93,6 +106,7 @@ export async function GET(request: NextRequest) {
     if (priority && priority !== 'all') params.priority = priority;
     if (category && category !== 'all') params.category = category;
 
+    const bigquery = getBigQueryClient();
     const [rows] = await bigquery.query({
       query,
       params,
@@ -180,6 +194,7 @@ export async function PATCH(request: NextRequest) {
       WHERE id = @id
     `;
 
+    const bigquery = getBigQueryClient();
     await bigquery.query({ query, params });
 
     return NextResponse.json({ success: true });
