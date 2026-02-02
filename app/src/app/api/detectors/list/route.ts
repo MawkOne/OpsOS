@@ -102,31 +102,42 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
   const detectorsPath = path.join(process.cwd(), "..", "cloud-functions", "scout-ai-engine", "detectors");
 
   try {
-    // Read consolidated detector files (e.g., seo_detectors.py, email_detectors.py)
-    const files = await fs.readdir(detectorsPath);
+    // Read all category directories
+    const categories = await fs.readdir(detectorsPath);
 
-    for (const file of files) {
-      // Only process consolidated detector files (e.g., seo_detectors.py)
-      if (!file.endsWith("_detectors.py")) continue;
+    for (const category of categories) {
+      if (category.startsWith(".") || category.endsWith(".py") || category.endsWith(".md")) continue;
 
-      const category = file.replace("_detectors.py", "");
-      const filePath = path.join(detectorsPath, file);
+      const categoryPath = path.join(detectorsPath, category);
+      const stat = await fs.stat(categoryPath);
 
-      try {
-        const content = await fs.readFile(filePath, "utf-8");
+      if (!stat.isDirectory()) continue;
 
-        // Find all detector functions in the file
-        const functionPattern = /def (detect_\w+)\(organization_id[^)]*\)[^:]*:[\s\S]*?"""([\s\S]*?)"""/g;
-        let match;
+      // Read detector files in this category
+      const files = await fs.readdir(categoryPath);
 
-        while ((match = functionPattern.exec(content)) !== null) {
-          const detectorId = match[1];
-          const docstring = match[2].trim();
+      for (const file of files) {
+        if (!file.startsWith("detect_") || !file.endsWith(".py")) continue;
+        if (file === "__init__.py") continue;
+
+        const detectorId = file.replace(".py", "");
+        const filePath = path.join(categoryPath, file);
+
+        try {
+          // Read the Python file to extract metadata
+          const content = await fs.readFile(filePath, "utf-8");
+
+          // Extract docstring
+          const docstringMatch = content.match(/"""([\s\S]*?)"""/);
+          let docstring = "";
+          if (docstringMatch) {
+            docstring = docstringMatch[1].trim();
+          }
 
           // Parse docstring for metadata
           const lines = docstring.split("\n").map(l => l.trim()).filter(l => l.length > 0);
           
-          // Extract name from first line or generate from function name
+          // Extract name (first line, remove "Detector" suffix)
           let name = lines[0]?.replace(" Detector", "").replace(/^['"]|['"]$/g, "") || "";
           if (!name || name.length < 3) {
             name = detectorId
@@ -173,11 +184,11 @@ async function scanDetectorFiles(): Promise<DetectorInfo[]> {
             layer,
             description: description.substring(0, 250),
             detects: detects || description,
-            pythonFile: file,
+            pythonFile: `${category}/${file}`,
           });
+        } catch (err) {
+          console.error(`Error reading detector file ${file}:`, err);
         }
-      } catch (err) {
-        console.error(`Error reading detector file ${file}:`, err);
       }
     }
   } catch (err) {

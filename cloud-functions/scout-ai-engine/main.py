@@ -26,7 +26,7 @@ db = firestore.Client()
 
 def load_detectors_for_category(category: str):
     """
-    Dynamically load all detector functions from a category
+    Dynamically load all detector functions from a category folder
     
     Args:
         category: Category name (email, revenue, pages, etc.)
@@ -35,9 +35,9 @@ def load_detectors_for_category(category: str):
         List of detector functions
     """
     try:
-        # Import the consolidated detector module (e.g., detectors.email_detectors)
-        # These files contain all fixed/working detectors for each category
-        module = importlib.import_module(f'detectors.{category}_detectors')
+        # Import the category module (e.g., detectors.seo)
+        # Each category folder has an __init__.py that exports its detectors
+        module = importlib.import_module(f'detectors.{category}')
         
         # Get all functions that start with 'detect_'
         detectors = []
@@ -47,11 +47,11 @@ def load_detectors_for_category(category: str):
                 if callable(func):
                     detectors.append(func)
         
-        logger.info(f"  Loaded {len(detectors)} detectors from {category}_detectors")
+        logger.info(f"  Loaded {len(detectors)} detectors from {category}/")
         return detectors
         
     except Exception as e:
-        logger.error(f"  ❌ Error loading {category}_detectors: {e}")
+        logger.error(f"  ❌ Error loading {category} detectors: {e}")
         return []
 
 def get_enabled_areas(organization_id: str):
