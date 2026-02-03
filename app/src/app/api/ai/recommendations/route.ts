@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     console.log('Gemini API key found, length:', apiKey.length);
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     
     console.log('Sending request to Gemini with', opportunities.length, 'opportunities');
 
