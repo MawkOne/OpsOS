@@ -12,19 +12,25 @@ import json
 import uuid
 from datetime import datetime, timedelta
 import logging
+from typing import Optional, Dict
+
+from .priority_filter import get_priority_pages_where_clause
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 
-def detect_page_exit_rate_increase(organization_id: str) -> list:
+def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optional[Dict] = None) -> list:
     bq_client = bigquery.Client()
     """
     Detect: Exit rate increasing on important pages
     Trend Layer: Weekly check
     """
     logger.info("🔍 Running Exit Rate Increase detector...")
+    
+    # Build priority pages filter if provided
+    priority_filter = get_priority_pages_where_clause(priority_pages)
     
     opportunities = []
     
@@ -39,8 +45,8 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
         
       WHERE organization_id = @org_id
         AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
-        
         AND entity_type = 'page'
+        {priority_filter}
       GROUP BY canonical_entity_id
     ),
     historical_performance AS (
@@ -50,9 +56,8 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       FROM `{PROJECT_ID}.{DATASET_ID}.monthly_entity_metrics`
         
       WHERE organization_id = @org_id
-        
-        
         AND entity_type = 'page'
+        {priority_filter}
       GROUP BY canonical_entity_id
     )
     SELECT 
@@ -63,7 +68,8 @@ def detect_page_exit_rate_increase(organization_id: str) -> list:
       avg_conversion_rate,
       SAFE_DIVIDE((avg_exit_rate - baseline_exit_rate), baseline_exit_rate) * 100 as exit_rate_increase_pct
     FROM recent_performance r
-    LEFT JOIN historical_performance hWHERE baseline_exit_rate > 0
+    LEFT JOIN historical_performance h USING (canonical_entity_id)
+    WHERE baseline_exit_rate > 0
       AND avg_exit_rate > baseline_exit_rate * 1.2  -- 20%+ increase
       AND total_sessions > 100
     ORDER BY exit_rate_increase_pct DESC

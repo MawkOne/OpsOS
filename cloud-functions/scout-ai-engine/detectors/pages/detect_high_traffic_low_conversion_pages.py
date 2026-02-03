@@ -12,19 +12,25 @@ import json
 import uuid
 from datetime import datetime, timedelta
 import logging
+from typing import Optional, Dict
+
+from .priority_filter import get_priority_pages_where_clause
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 
-def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
+def detect_high_traffic_low_conversion_pages(organization_id: str, priority_pages: Optional[Dict] = None) -> list:
     bq_client = bigquery.Client()
     """
     PHASE 2A #3: High Traffic, Low Conversion Pages
     Detect: Pages getting significant traffic but converting poorly
     """
     logger.info("🔍 Running High Traffic Low CVR Pages detector...")
+    
+    # Build priority pages filter if provided
+    priority_filter = get_priority_pages_where_clause(priority_pages)
     
     opportunities = []
     
@@ -41,6 +47,7 @@ def detect_high_traffic_low_conversion_pages(organization_id: str) -> list:
       WHERE organization_id = @org_id
         AND year_month >= FORMAT_DATE('%Y-%m', DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH))
         AND entity_type = 'page'
+        {priority_filter}
       GROUP BY canonical_entity_id
       HAVING SUM(sessions) > 100
     ),

@@ -8,9 +8,11 @@ import { NextRequest, NextResponse } from 'next/server';
  * - organizationId: string (required)
  * - lookbackDays: object (optional) - lookback period per category
  *   { seo: 30, email: 30, advertising: 30, pages: 30, traffic: 30, revenue: 30, content: 30 }
+ * - priorityPages: object (optional) - filter pages detectors to priority pages only
+ *   { urls: string[], prefixes: string[], domain: string }
  */
 export async function POST(request: NextRequest) {
-  const { organizationId, lookbackDays } = await request.json();
+  const { organizationId, lookbackDays, priorityPages } = await request.json();
 
   if (!organizationId) {
     return NextResponse.json(
@@ -20,7 +22,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Call Scout AI Cloud Function with lookback periods
+    // Build request body for cloud function
+    const cloudFunctionBody: any = { 
+      organizationId,
+      lookbackDays: lookbackDays || {}
+    };
+    
+    // Add priority pages filter if provided
+    if (priorityPages) {
+      cloudFunctionBody.priorityPages = priorityPages;
+    }
+    
+    // Call Scout AI Cloud Function
     const response = await fetch(
       'https://us-central1-opsos-864a1.cloudfunctions.net/scout-ai-engine',
       {
@@ -28,10 +41,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          organizationId,
-          lookbackDays: lookbackDays || {}
-        }),
+        body: JSON.stringify(cloudFunctionBody),
       }
     );
 

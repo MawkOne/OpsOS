@@ -199,6 +199,11 @@ def run_scout_ai(request):
         "traffic": 30,
         "revenue": 30,
         "content": 30
+      },
+      "priorityPages": {  // optional: filter pages detectors to specific pages
+        "urls": ["https://example.com/page1", "https://example.com/page2"],
+        "prefixes": ["/blog", "/products"],
+        "domain": "example.com"
       }
     }
     """
@@ -211,13 +216,19 @@ def run_scout_ai(request):
     send_slack = request_json.get('sendSlackNotification', False)
     product_type = request_json.get('productType', None)
     lookback_days = request_json.get('lookbackDays', {})
+    priority_pages = request_json.get('priorityPages', None)
     
-    logger.info(f"🤖 Starting Scout AI v3 (Priority Pages Only) for {organization_id}")
+    logger.info(f"🤖 Starting Scout AI v3 for {organization_id}")
     if product_type:
         logger.info(f"   Product type: {product_type}")
     if lookback_days:
         logger.info(f"   Lookback periods: {lookback_days}")
-    logger.info(f"   💡 DataForSEO only crawls priority pages - no filtering needed")
+    if priority_pages:
+        url_count = len(priority_pages.get('urls', []))
+        prefix_count = len(priority_pages.get('prefixes', []))
+        logger.info(f"   ⭐ Priority pages filter: {url_count} URLs, {prefix_count} prefixes")
+    else:
+        logger.info(f"   📄 Running on ALL pages (no priority filter)")
     
     try:
         all_opportunities = []
@@ -241,7 +252,11 @@ def run_scout_ai(request):
         for category in enabled_categories:
             icon = category_icons.get(category, '📊')
             category_lookback = lookback_days.get(category, 30)  # Default to 30 days
-            logger.info(f"{icon} Running {category.title()} detectors (lookback: {category_lookback} days)...")
+            
+            # Check if priority pages filter applies to this category
+            category_priority_pages = priority_pages if category == 'pages' and priority_pages else None
+            filter_note = " (priority pages only)" if category_priority_pages else ""
+            logger.info(f"{icon} Running {category.title()} detectors (lookback: {category_lookback} days){filter_note}...")
             
             # Dynamically load detectors for this category
             detectors = load_detectors_for_category(category)
@@ -251,12 +266,17 @@ def run_scout_ai(request):
                 try:
                     logger.info(f"   Running {detector_func.__name__}...")
                     
-                    # Check if detector accepts lookback_days parameter
+                    # Check what parameters the detector accepts
                     sig = inspect.signature(detector_func)
+                    kwargs = {}
+                    
                     if 'lookback_days' in sig.parameters:
-                        opportunities = detector_func(organization_id, lookback_days=category_lookback)
-                    else:
-                        opportunities = detector_func(organization_id)
+                        kwargs['lookback_days'] = category_lookback
+                    
+                    if 'priority_pages' in sig.parameters and category_priority_pages:
+                        kwargs['priority_pages'] = category_priority_pages
+                    
+                    opportunities = detector_func(organization_id, **kwargs)
                     
                     all_opportunities.extend(opportunities)
                     if opportunities:

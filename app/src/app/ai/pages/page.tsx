@@ -79,16 +79,28 @@ export default function PagesConversionPage() {
     
     setRunning(true);
     try {
+      // Build request body - include priority pages filter if toggle is on
+      const requestBody: any = { organizationId: currentOrg.id };
+      
+      if (priorityPagesOnly && hasPriorityPages) {
+        requestBody.priorityPages = {
+          urls: priorityUrls,
+          prefixes: priorityPrefixes,
+          domain: domain
+        };
+      }
+      
       const response = await fetch("/api/opportunities/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId: currentOrg.id })
+        body: JSON.stringify(requestBody)
       });
 
       const result = await response.json();
       
       if (result.success) {
-        alert(`✅ Scout AI found ${result.total_opportunities} opportunities!`);
+        const filterNote = priorityPagesOnly ? ' (priority pages only)' : '';
+        alert(`✅ Scout AI found ${result.total_opportunities} opportunities${filterNote}!`);
         fetchOpportunities();
       }
     } catch (error) {
