@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,8 +21,7 @@ import {
   AlertCircle,
   Database,
   Target,
-  Loader2,
-  ChevronDown
+  Loader2
 } from "lucide-react";
 
 type DetectorCategory = "email" | "revenue" | "pages" | "traffic" | "seo" | "advertising" | "content" | "system";
@@ -43,144 +42,11 @@ interface DetectorInfo {
   priority?: "high" | "medium" | "low";
 }
 
-// Multi-select dropdown component
-interface MultiSelectProps {
-  label: string;
-  options: { id: string; label: string; count?: number }[];
-  selected: string[];
-  onChange: (selected: string[]) => void;
-  icon?: React.ReactNode;
-}
-
-function MultiSelect({ label, options, selected, onChange, icon }: MultiSelectProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const toggleOption = (optionId: string) => {
-    if (selected.includes(optionId)) {
-      onChange(selected.filter((id) => id !== optionId));
-    } else {
-      onChange([...selected, optionId]);
-    }
-  };
-
-  const clearAll = () => {
-    onChange([]);
-  };
-
-  const selectAll = () => {
-    onChange(options.map((o) => o.id));
-  };
-
-  const displayText = selected.length === 0
-    ? `All ${label}`
-    : selected.length === options.length
-    ? `All ${label}`
-    : `${selected.length} selected`;
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:bg-opacity-80"
-        style={{
-          background: selected.length > 0 && selected.length < options.length 
-            ? "var(--accent-muted)" 
-            : "var(--background-tertiary)",
-          border: "1px solid var(--border)",
-          color: selected.length > 0 && selected.length < options.length 
-            ? "var(--accent)" 
-            : "var(--foreground)",
-        }}
-      >
-        {icon}
-        <span>{displayText}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </button>
-
-      {isOpen && (
-        <div
-          className="absolute top-full left-0 mt-1 min-w-[200px] rounded-lg shadow-xl z-50 overflow-hidden"
-          style={{
-            background: "var(--background-secondary)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {/* Quick actions */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-            <button
-              onClick={selectAll}
-              className="text-xs px-2 py-1 rounded hover:bg-opacity-80"
-              style={{ background: "var(--background-tertiary)", color: "var(--foreground-muted)" }}
-            >
-              Select All
-            </button>
-            <button
-              onClick={clearAll}
-              className="text-xs px-2 py-1 rounded hover:bg-opacity-80"
-              style={{ background: "var(--background-tertiary)", color: "var(--foreground-muted)" }}
-            >
-              Clear
-            </button>
-          </div>
-
-          {/* Options */}
-          <div className="max-h-[300px] overflow-y-auto py-1">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => toggleOption(option.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-opacity-50 transition-colors"
-                style={{
-                  background: selected.includes(option.id) ? "var(--accent-muted)" : "transparent",
-                  color: "var(--foreground)",
-                }}
-              >
-                <div
-                  className="w-4 h-4 rounded border flex items-center justify-center"
-                  style={{
-                    borderColor: selected.includes(option.id) ? "var(--accent)" : "var(--border)",
-                    background: selected.includes(option.id) ? "var(--accent)" : "transparent",
-                  }}
-                >
-                  {selected.includes(option.id) && (
-                    <Check className="w-3 h-3" style={{ color: "var(--background)" }} />
-                  )}
-                </div>
-                <span className="flex-1">{option.label}</span>
-                {option.count !== undefined && (
-                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ 
-                    background: "var(--background-tertiary)", 
-                    color: "var(--foreground-muted)" 
-                  }}>
-                    {option.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function DetectorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedLayers, setSelectedLayers] = useState<string[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<DetectorCategory | "all">("all");
+  const [selectedLayer, setSelectedLayer] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "active" | "planned">("all");
   const [selectedDetector, setSelectedDetector] = useState<DetectorInfo | null>(null);
   const [detectors, setDetectors] = useState<DetectorInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,28 +76,24 @@ export default function DetectorsPage() {
     fetchDetectors();
   }, []);
 
-  // Filter options with counts
-  const categoryOptions = useMemo(() => [
-    { id: "email", label: "Email", count: detectors.filter(d => d.category === "email").length },
-    { id: "seo", label: "SEO", count: detectors.filter(d => d.category === "seo").length },
-    { id: "advertising", label: "Advertising", count: detectors.filter(d => d.category === "advertising").length },
-    { id: "pages", label: "Pages/CRO", count: detectors.filter(d => d.category === "pages").length },
-    { id: "content", label: "Content", count: detectors.filter(d => d.category === "content").length },
-    { id: "traffic", label: "Traffic", count: detectors.filter(d => d.category === "traffic").length },
-    { id: "revenue", label: "Revenue", count: detectors.filter(d => d.category === "revenue").length },
-    { id: "system", label: "System", count: detectors.filter(d => d.category === "system").length },
-  ].filter(c => c.count > 0), [detectors]);
+  const categories: { id: DetectorCategory | "all"; label: string; icon: any; count: number }[] = [
+    { id: "all", label: "All Detectors", icon: Target, count: detectors.length },
+    { id: "email", label: "Email", icon: Mail, count: detectors.filter(d => d.category === "email").length },
+    { id: "seo", label: "SEO", icon: Search, count: detectors.filter(d => d.category === "seo").length },
+    { id: "advertising", label: "Advertising", icon: Hash, count: detectors.filter(d => d.category === "advertising").length },
+    { id: "pages", label: "Pages/CRO", icon: FileText, count: detectors.filter(d => d.category === "pages").length },
+    { id: "content", label: "Content", icon: FileText, count: detectors.filter(d => d.category === "content").length },
+    { id: "traffic", label: "Traffic", icon: Activity, count: detectors.filter(d => d.category === "traffic").length },
+    { id: "revenue", label: "Revenue", icon: DollarSign, count: detectors.filter(d => d.category === "revenue").length },
+    { id: "system", label: "System", icon: Shield, count: detectors.filter(d => d.category === "system").length },
+  ];
 
-  const layerOptions = useMemo(() => [
-    { id: "fast", label: "Fast (Daily)", count: detectors.filter(d => d.layer === "fast").length },
-    { id: "trend", label: "Trend (Weekly)", count: detectors.filter(d => d.layer === "trend").length },
-    { id: "strategic", label: "Strategic (Monthly)", count: detectors.filter(d => d.layer === "strategic").length },
-  ].filter(l => l.count > 0), [detectors]);
-
-  const statusOptions = useMemo(() => [
-    { id: "active", label: "Active", count: detectors.filter(d => d.status === "active").length },
-    { id: "planned", label: "Planned", count: detectors.filter(d => d.status === "planned").length },
-  ].filter(s => s.count > 0), [detectors]);
+  const layers = [
+    { id: "all", label: "All Layers" },
+    { id: "fast", label: "Fast (Daily)" },
+    { id: "trend", label: "Trend (Weekly)" },
+    { id: "strategic", label: "Strategic (Monthly)" },
+  ];
 
   const filteredDetectors = useMemo(() => {
     return detectors.filter((detector) => {
@@ -239,24 +101,14 @@ export default function DetectorsPage() {
         detector.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         detector.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory =
-        selectedCategories.length === 0 || selectedCategories.includes(detector.category);
+        selectedCategory === "all" || detector.category === selectedCategory;
       const matchesLayer =
-        selectedLayers.length === 0 || selectedLayers.includes(detector.layer);
+        selectedLayer === "all" || detector.layer === selectedLayer;
       const matchesStatus =
-        selectedStatuses.length === 0 || selectedStatuses.includes(detector.status);
+        selectedStatus === "all" || detector.status === selectedStatus;
       return matchesSearch && matchesCategory && matchesLayer && matchesStatus;
     });
-  }, [searchQuery, selectedCategories, selectedLayers, selectedStatuses, detectors]);
-
-  // Count active filters
-  const activeFilterCount = selectedCategories.length + selectedLayers.length + selectedStatuses.length;
-
-  const clearAllFilters = () => {
-    setSelectedCategories([]);
-    setSelectedLayers([]);
-    setSelectedStatuses([]);
-    setSearchQuery("");
-  };
+  }, [searchQuery, selectedCategory, selectedLayer, selectedStatus, detectors]);
 
   const stats = {
     total: detectors.length,
@@ -307,13 +159,13 @@ export default function DetectorsPage() {
       title="Detectors"
       subtitle={`${stats.total} total detectors (${stats.active} active, ${stats.planned} planned)`}
     >
-      {/* Horizontal Filter Bar */}
-      <Card className="glass mb-6">
-        <div className="flex items-center gap-3 flex-wrap">
+      {/* Filters */}
+      <Card className="glass mb-8">
+        <div className="space-y-4">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5"
               style={{ color: "var(--foreground-muted)" }}
             />
             <input
@@ -321,7 +173,7 @@ export default function DetectorsPage() {
               placeholder="Search detectors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-lg text-sm"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
               style={{
                 background: "var(--background-tertiary)",
                 border: "1px solid var(--border)",
@@ -330,48 +182,69 @@ export default function DetectorsPage() {
             />
           </div>
 
-          {/* Divider */}
-          <div className="h-8 w-px" style={{ background: "var(--border)" }} />
+          {/* Filter Dropdowns */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Category Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value as DetectorCategory | "all")}
+                className="px-3 py-1.5 rounded-lg text-sm"
+                style={{
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label} ({cat.count})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Multi-select Filters */}
-          <MultiSelect
-            label="Status"
-            options={statusOptions}
-            selected={selectedStatuses}
-            onChange={setSelectedStatuses}
-            icon={<Activity className="w-4 h-4" />}
-          />
+            {/* Layer Filter */}
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+              <select
+                value={selectedLayer}
+                onChange={(e) => setSelectedLayer(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-sm"
+                style={{
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                {layers.map((layer) => (
+                  <option key={layer.id} value={layer.id}>
+                    {layer.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <MultiSelect
-            label="Category"
-            options={categoryOptions}
-            selected={selectedCategories}
-            onChange={setSelectedCategories}
-            icon={<Filter className="w-4 h-4" />}
-          />
-
-          <MultiSelect
-            label="Layer"
-            options={layerOptions}
-            selected={selectedLayers}
-            onChange={setSelectedLayers}
-            icon={<Clock className="w-4 h-4" />}
-          />
-
-          {/* Clear All Filters */}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:bg-opacity-80"
-              style={{
-                background: "var(--error-muted, rgba(239, 68, 68, 0.1))",
-                color: "var(--error, #ef4444)",
-              }}
-            >
-              <X className="w-4 h-4" />
-              Clear ({activeFilterCount})
-            </button>
-          )}
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4" style={{ color: "var(--foreground-muted)" }} />
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value as "all" | "active" | "planned")}
+                className="px-3 py-1.5 rounded-lg text-sm"
+                style={{
+                  background: "var(--background-tertiary)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              >
+                <option value="all">All Detectors</option>
+                <option value="active">Active ({stats.active})</option>
+                <option value="planned">Planned ({stats.planned})</option>
+              </select>
+            </div>
+          </div>
         </div>
       </Card>
 
