@@ -21,6 +21,7 @@ interface Opportunity {
   entity_type: string;
   entity_id?: string;
   category: string;
+  type?: string;
   detector_name?: string;
   detected_at?: string;
   data_period_end?: string;
@@ -32,7 +33,13 @@ interface Opportunity {
     site_avg_cvr?: number;
     traffic_percentile?: number;
     current_exit_rate?: number;
+    baseline_exit_rate?: number;
     exit_rate_increase_pct?: number;
+    mobile_cvr?: number;
+    desktop_cvr?: number;
+    current_error_rate?: number;
+    avg_abandonment_rate?: number;
+    avg_scroll_depth?: number;
     [key: string]: unknown;
   };
   metrics?: {
@@ -123,55 +130,138 @@ function formatNumber(num: number): string {
  */
 function getDetectorInfo(opp: Opportunity): { check: string; reason: string; color: string } {
   const category = opp.category || '';
+  const type = opp.type || '';
   const evidence = opp.evidence || {};
+  const sessions = getSessionsCount(opp);
   
-  if (category.includes('fix_loser') || category.includes('high_traffic_low_conversion')) {
+  // Fix Losers - High traffic, low conversion
+  if (category.includes('fix_loser')) {
     const cvr = evidence.conversion_rate;
-    const siteAvg = evidence.site_avg_cvr as number | undefined;
+    const bounce = evidence.bounce_rate;
     return {
-      check: 'Low Conversion Rate',
+      check: '🔧 Fix: Low Conversion',
       reason: cvr !== undefined 
-        ? `CVR is ${cvr.toFixed(2)}%${siteAvg ? ` vs site avg ${siteAvg.toFixed(2)}%` : ''}`
-        : 'Converting below potential',
+        ? `Only ${cvr.toFixed(2)}% CVR despite ${sessions ? formatNumber(sessions) + ' sessions' : 'high traffic'}${bounce ? `. Bounce rate: ${bounce.toFixed(1)}%` : ''}`
+        : 'High traffic but poor conversion rate',
       color: 'text-red-400'
     };
   }
   
+  // Scale Winners - High conversion, low traffic
   if (category.includes('scale_winner')) {
     const cvr = evidence.conversion_rate;
     return {
-      check: 'High CVR, Low Traffic',
+      check: '🚀 Scale: High CVR',
       reason: cvr !== undefined 
-        ? `CVR is ${cvr.toFixed(2)}% - scale this page`
-        : 'Strong conversion, needs more traffic',
+        ? `${cvr.toFixed(2)}% CVR is excellent - send more traffic here`
+        : 'Top converter that needs more traffic',
       color: 'text-green-400'
     };
   }
   
-  if (category.includes('engagement') || category.includes('exit_rate')) {
+  // High traffic low CVR
+  if (category.includes('pages_optimization') && type.includes('high_traffic_low_cvr')) {
+    const cvr = evidence.conversion_rate;
+    const siteAvg = evidence.site_avg_cvr as number | undefined;
+    return {
+      check: '🎯 High Traffic, Low CVR',
+      reason: cvr !== undefined && siteAvg
+        ? `${cvr.toFixed(2)}% CVR vs ${siteAvg.toFixed(2)}% site average - ${((siteAvg - cvr) / siteAvg * 100).toFixed(0)}% below average`
+        : 'Converting below site average despite high traffic',
+      color: 'text-red-400'
+    };
+  }
+  
+  // Exit rate issues
+  if (category.includes('engagement') || type.includes('exit_rate')) {
     const exitRate = evidence.current_exit_rate as number | undefined;
     const increase = evidence.exit_rate_increase_pct as number | undefined;
+    const baseline = evidence.baseline_exit_rate as number | undefined;
     return {
-      check: 'Exit Rate Issue',
+      check: '🚪 Exit Rate Spike',
       reason: exitRate !== undefined 
-        ? `Exit rate at ${exitRate.toFixed(1)}%${increase ? ` (+${increase.toFixed(1)}% increase)` : ''}`
-        : 'Users leaving without converting',
+        ? `Exit rate jumped to ${exitRate.toFixed(1)}%${baseline ? ` from ${baseline.toFixed(1)}%` : ''}${increase ? ` (+${increase.toFixed(0)}% increase)` : ''}`
+        : 'Users are leaving this page at higher rates',
       color: 'text-orange-400'
     };
   }
   
-  if (category.includes('optimization')) {
+  // Mobile CVR gap
+  if (type.includes('mobile_cvr_gap')) {
+    const mobileCvr = evidence.mobile_cvr as number | undefined;
+    const desktopCvr = evidence.desktop_cvr as number | undefined;
     return {
-      check: 'Optimization Opportunity',
-      reason: opp.hypothesis || 'Room for improvement identified',
+      check: '📱 Mobile CVR Gap',
+      reason: mobileCvr !== undefined && desktopCvr !== undefined
+        ? `Mobile ${mobileCvr.toFixed(2)}% vs Desktop ${desktopCvr.toFixed(2)}% - fix mobile UX`
+        : 'Mobile converts much worse than desktop',
+      color: 'text-purple-400'
+    };
+  }
+  
+  // Technical/error issues
+  if (category.includes('technical') || type.includes('error')) {
+    const errorRate = evidence.current_error_rate as number | undefined;
+    return {
+      check: '⚠️ Page Errors',
+      reason: errorRate !== undefined
+        ? `${errorRate.toFixed(1)}% of sessions hitting errors`
+        : 'Technical errors affecting user experience',
+      color: 'text-red-500'
+    };
+  }
+  
+  // Form abandonment
+  if (type.includes('form_abandonment')) {
+    const abandonment = evidence.avg_abandonment_rate as number | undefined;
+    return {
+      check: '📝 Form Abandonment',
+      reason: abandonment !== undefined
+        ? `${abandonment.toFixed(1)}% abandonment rate on forms`
+        : 'Users abandoning forms before completion',
+      color: 'text-yellow-400'
+    };
+  }
+  
+  // Funnel dropoff
+  if (type.includes('funnel') || type.includes('dropoff')) {
+    return {
+      check: '📉 Funnel Drop-off',
+      reason: opp.description || 'Significant drop-off in conversion funnel',
+      color: 'text-orange-400'
+    };
+  }
+  
+  // Scroll depth / micro conversion
+  if (type.includes('scroll') || type.includes('micro_conversion')) {
+    const scrollDepth = evidence.avg_scroll_depth as number | undefined;
+    return {
+      check: '📜 Low Engagement',
+      reason: scrollDepth !== undefined
+        ? `Only ${scrollDepth.toFixed(0)}% average scroll depth`
+        : 'Users not engaging with page content',
+      color: 'text-yellow-400'
+    };
+  }
+  
+  // Generic page_optimization with sessions - these are placeholder detectors
+  if (category === 'page_optimization' && sessions) {
+    // Use the type to make it more specific
+    const typeLabel = type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+    return {
+      check: `📊 ${typeLabel || 'Analysis Needed'}`,
+      reason: `${formatNumber(sessions)} sessions - needs deeper analysis`,
       color: 'text-blue-400'
     };
   }
   
-  // Default
+  // Fallback - use actual title/description from detector
+  const title = opp.title || '';
+  const cleanTitle = title.replace(/^[🔧🚀🎯📱⚠️📝📉📜📊]\s*/, '').split(':')[0].trim();
+  
   return {
-    check: extractActionType(opp.title),
-    reason: opp.hypothesis || opp.description || 'Opportunity detected',
+    check: cleanTitle || 'Review Needed',
+    reason: opp.description || opp.hypothesis || 'Flagged for review',
     color: 'text-gray-400'
   };
 }
