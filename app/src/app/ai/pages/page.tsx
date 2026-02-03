@@ -5,7 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import Link from "next/link";
-import { Layers, Target, TrendingUp, Wrench, RefreshCw, Zap, ChevronRight, AlertCircle, Star } from "lucide-react";
+import { Layers, Target, TrendingUp, Wrench, RefreshCw, Zap, ChevronRight, AlertCircle, Star, ArrowUpDown } from "lucide-react";
 import { usePriorityPages, isPriorityPage } from "@/hooks/usePriorityPages";
 import AIRecommendations from "@/components/AIRecommendations";
 
@@ -113,12 +113,15 @@ function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
+type SortOption = 'priority' | 'sessions' | 'impact';
+
 export default function PagesConversionPage() {
   const { currentOrg } = useOrganization();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [priorityPagesOnly, setPriorityPagesOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>('sessions');
 
   // Fetch priority pages for filtering
   const { priorityUrls, priorityPrefixes, excludePatterns, domain } = usePriorityPages(currentOrg?.id);
@@ -160,9 +163,26 @@ export default function PagesConversionPage() {
   };
 
   // Apply priority pages filter to opportunities
-  const filteredOpportunities = priorityPagesOnly && hasPriorityPages
+  const filteredByPriority = priorityPagesOnly && hasPriorityPages
     ? opportunities.filter(opp => isPriorityPage(opp.entity_id || '', priorityUrls, priorityPrefixes, domain, excludePatterns))
     : opportunities;
+
+  // Sort opportunities
+  const filteredOpportunities = [...filteredByPriority].sort((a, b) => {
+    if (sortBy === 'priority') {
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
+      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      // Secondary sort by sessions
+      return (getSessionsCount(b) || 0) - (getSessionsCount(a) || 0);
+    } else if (sortBy === 'sessions') {
+      return (getSessionsCount(b) || 0) - (getSessionsCount(a) || 0);
+    } else if (sortBy === 'impact') {
+      return (b.potential_impact_score || 0) - (a.potential_impact_score || 0);
+    }
+    return 0;
+  });
 
   const handleRunScoutAI = async () => {
     if (!currentOrg) return;
@@ -242,6 +262,20 @@ export default function PagesConversionPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="w-4 h-4 text-gray-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-gray-700/50 border border-gray-600 text-gray-300 text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="sessions">Sort by Sessions</option>
+                <option value="priority">Sort by Priority</option>
+                <option value="impact">Sort by Impact</option>
+              </select>
+            </div>
+            
             {/* Priority Pages Toggle */}
             {hasPriorityPages && (
               <button
