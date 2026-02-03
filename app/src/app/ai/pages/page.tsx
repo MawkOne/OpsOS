@@ -7,6 +7,7 @@ import Card from "@/components/Card";
 import Link from "next/link";
 import { Layers, Target, TrendingUp, Wrench, RefreshCw, Zap, ChevronRight, AlertCircle, Star } from "lucide-react";
 import { usePriorityPages, isPriorityPage } from "@/hooks/usePriorityPages";
+import AIRecommendations from "@/components/AIRecommendations";
 
 interface Opportunity {
   id: string;
@@ -199,6 +200,15 @@ export default function PagesConversionPage() {
             </div>
           </Card>
         </div>
+
+        {/* AI Recommendations */}
+        {!loading && filteredOpportunities.length > 0 && (
+          <AIRecommendations 
+            opportunities={filteredOpportunities}
+            category="pages"
+            context={priorityPagesOnly ? "Focus on priority pages only" : undefined}
+          />
+        )}
 
         <Card>
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">

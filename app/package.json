@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
+    "@google/generative-ai": "^0.24.1",
     "firebase": "^12.7.0",
     "framer-motion": "^12.24.7",
     "lucide-react": "^0.562.0",
