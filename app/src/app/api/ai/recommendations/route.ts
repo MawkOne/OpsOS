@@ -163,4 +163,3 @@ Respond ONLY with valid JSON, no additional text or markdown.`;
     );
   }
 }
-# Trigger rebuild
