@@ -62,14 +62,26 @@ export function usePriorityPages(organizationId: string | undefined): PriorityPa
 }
 
 /**
+ * Normalize a path to match BigQuery canonical entity_id format
+ * e.g., "/talent-search/all-categories" -> "talentsearchallcategories"
+ */
+function normalizePathToEntityId(path: string): string {
+  // Remove leading slash and 'page_' prefix if present
+  let normalized = path.replace(/^\//, '').replace(/^page_/, '');
+  // Remove special characters, convert to lowercase
+  normalized = normalized.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized;
+}
+
+/**
  * Check if a page matches priority criteria
- * @param pagePath - The page path (e.g., "/blog/article" or full URL)
+ * @param entityId - The entity_id from opportunities (e.g., "page_talentsearchallcategories" or "/blog/article")
  * @param priorityUrls - Array of full priority URLs
  * @param priorityPrefixes - Array of URL prefixes
  * @param domain - The domain to construct full URLs
  */
 export function isPriorityPage(
-  pagePath: string,
+  entityId: string,
   priorityUrls: string[],
   priorityPrefixes: string[],
   domain: string
@@ -79,34 +91,47 @@ export function isPriorityPage(
     return false;
   }
 
-  // Extract path from entity_id (could be full URL or just path)
-  let path = pagePath;
-  try {
-    if (pagePath.startsWith("http")) {
-      const url = new URL(pagePath);
-      path = url.pathname;
+  if (!entityId) return false;
+
+  // Normalize the entity_id (remove 'page_' prefix if present)
+  const normalizedEntityId = entityId.replace(/^page_/, '').toLowerCase();
+
+  // Check against priority URLs - normalize both sides for comparison
+  for (const url of priorityUrls) {
+    try {
+      // Extract path from URL
+      let urlPath = url;
+      if (url.startsWith("http")) {
+        const parsed = new URL(url);
+        urlPath = parsed.pathname;
+      }
+      
+      // Normalize the URL path
+      const normalizedUrlPath = normalizePathToEntityId(urlPath);
+      
+      // Check if normalized versions match
+      if (normalizedEntityId === normalizedUrlPath) {
+        return true;
+      }
+      
+      // Also check if entity_id contains the normalized path
+      if (normalizedEntityId.includes(normalizedUrlPath) || normalizedUrlPath.includes(normalizedEntityId)) {
+        return true;
+      }
+    } catch {
+      // Skip invalid URLs
     }
-  } catch {
-    // Keep original path if URL parsing fails
   }
 
-  // Construct full URL for comparison
-  const fullUrl = domain.startsWith("http")
-    ? `${domain}${path}`
-    : `https://${domain}${path}`;
-
-  // Check if exact URL is in priority list
-  if (priorityUrls.includes(fullUrl)) {
-    return true;
+  // Check against prefixes
+  for (const prefix of priorityPrefixes) {
+    const normalizedPrefix = normalizePathToEntityId(prefix);
+    if (normalizedEntityId.startsWith(normalizedPrefix)) {
+      return true;
+    }
   }
 
-  // Also check if the pagePath itself is in priority URLs (for full URL entity_ids)
-  if (priorityUrls.includes(pagePath)) {
-    return true;
-  }
-
-  // Check if page path matches any prefix
-  return priorityPrefixes.some((prefix) => path.startsWith(prefix));
+  return false;
 }
 
 /**
