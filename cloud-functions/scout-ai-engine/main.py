@@ -190,7 +190,16 @@ def run_scout_ai(request):
     {
       "organizationId": "SBjucW1ztDyFYWBz7ZLE",
       "sendSlackNotification": true,  // optional
-      "productType": "saas"  // optional: saas, ecommerce, content, b2b
+      "productType": "saas",  // optional: saas, ecommerce, content, b2b
+      "lookbackDays": {  // optional: lookback period per category
+        "seo": 30,
+        "email": 30,
+        "advertising": 30,
+        "pages": 30,
+        "traffic": 30,
+        "revenue": 30,
+        "content": 30
+      }
     }
     """
     
@@ -201,10 +210,13 @@ def run_scout_ai(request):
     organization_id = request_json['organizationId']
     send_slack = request_json.get('sendSlackNotification', False)
     product_type = request_json.get('productType', None)
+    lookback_days = request_json.get('lookbackDays', {})
     
     logger.info(f"🤖 Starting Scout AI v3 (Priority Pages Only) for {organization_id}")
     if product_type:
         logger.info(f"   Product type: {product_type}")
+    if lookback_days:
+        logger.info(f"   Lookback periods: {lookback_days}")
     logger.info(f"   💡 DataForSEO only crawls priority pages - no filtering needed")
     
     try:
@@ -228,7 +240,8 @@ def run_scout_ai(request):
         
         for category in enabled_categories:
             icon = category_icons.get(category, '📊')
-            logger.info(f"{icon} Running {category.title()} detectors...")
+            category_lookback = lookback_days.get(category, 30)  # Default to 30 days
+            logger.info(f"{icon} Running {category.title()} detectors (lookback: {category_lookback} days)...")
             
             # Dynamically load detectors for this category
             detectors = load_detectors_for_category(category)
@@ -238,8 +251,12 @@ def run_scout_ai(request):
                 try:
                     logger.info(f"   Running {detector_func.__name__}...")
                     
-                    # Run detector (no filtering needed - DataForSEO only crawls priority pages now)
-                    opportunities = detector_func(organization_id)
+                    # Check if detector accepts lookback_days parameter
+                    sig = inspect.signature(detector_func)
+                    if 'lookback_days' in sig.parameters:
+                        opportunities = detector_func(organization_id, lookback_days=category_lookback)
+                    else:
+                        opportunities = detector_func(organization_id)
                     
                     all_opportunities.extend(opportunities)
                     if opportunities:

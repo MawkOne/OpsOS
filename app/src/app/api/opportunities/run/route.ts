@@ -3,9 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Trigger Scout AI to run and detect opportunities
  * POST /api/opportunities/run
+ * 
+ * Body:
+ * - organizationId: string (required)
+ * - lookbackDays: object (optional) - lookback period per category
+ *   { seo: 30, email: 30, advertising: 30, pages: 30, traffic: 30, revenue: 30, content: 30 }
  */
 export async function POST(request: NextRequest) {
-  const { organizationId } = await request.json();
+  const { organizationId, lookbackDays } = await request.json();
 
   if (!organizationId) {
     return NextResponse.json(
@@ -15,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Call Scout AI Cloud Function
+    // Call Scout AI Cloud Function with lookback periods
     const response = await fetch(
       'https://us-central1-opsos-864a1.cloudfunctions.net/scout-ai-engine',
       {
@@ -23,7 +28,10 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ organizationId }),
+        body: JSON.stringify({ 
+          organizationId,
+          lookbackDays: lookbackDays || {}
+        }),
       }
     );
 

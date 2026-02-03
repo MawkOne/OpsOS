@@ -19,17 +19,22 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 
-def detect_email_engagement_drop(organization_id: str) -> list:
+def detect_email_engagement_drop(organization_id: str, lookback_days: int = 30) -> list:
     bq_client = bigquery.Client()
     """
     Detect: Email campaigns with declining engagement
+    
+    Args:
+        organization_id: Organization ID
+        lookback_days: Number of days to look back (default 30)
     """
-    logger.info("🔍 Running Email Engagement Drop detector...")
+    logger.info(f"🔍 Running Email Engagement Drop detector (lookback: {lookback_days} days)...")
     
     opportunities = []
+    comparison_days = lookback_days * 2  # Compare to double the period before
     
     query = f"""
-    WITH last_30_days AS (
+    WITH last_period AS (
       SELECT 
         canonical_entity_id,
         AVG(open_rate) as avg_open_rate,
@@ -37,20 +42,20 @@ def detect_email_engagement_drop(organization_id: str) -> list:
         SUM(sends) as total_sends
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY)
         AND date < CURRENT_DATE()
         AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     ),
-    previous_30_days AS (
+    previous_period AS (
       SELECT 
         canonical_entity_id,
         AVG(open_rate) as prev_open_rate,
         AVG(click_through_rate) as prev_ctr
       FROM `{PROJECT_ID}.{DATASET_ID}.daily_entity_metrics`
       WHERE organization_id = @org_id
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 60 DAY)
-        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL {comparison_days} DAY)
+        AND date < DATE_SUB(CURRENT_DATE(), INTERVAL {lookback_days} DAY)
         AND entity_type IN ('email', 'email_campaign')
       GROUP BY canonical_entity_id
     )
@@ -62,8 +67,8 @@ def detect_email_engagement_drop(organization_id: str) -> list:
       p.prev_ctr as previous_ctr,
       l.total_sends,
       SAFE_DIVIDE((l.avg_open_rate - p.prev_open_rate), p.prev_open_rate) * 100 as open_rate_change
-    FROM last_30_days l
-    JOIN previous_30_days p ON l.canonical_entity_id = p.canonical_entity_id
+    FROM last_period l
+    JOIN previous_period p ON l.canonical_entity_id = p.canonical_entity_id
     WHERE SAFE_DIVIDE((l.avg_open_rate - p.prev_open_rate), p.prev_open_rate) < -0.15
       AND l.total_sends > 100
     ORDER BY open_rate_change ASC

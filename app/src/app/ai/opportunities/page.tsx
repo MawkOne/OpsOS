@@ -7,8 +7,27 @@ import Card from "@/components/Card";
 import { 
   Target, Search, Mail, 
   Zap, RefreshCw, FileText, DollarSign,
-  BarChart3, Megaphone
+  BarChart3, Megaphone, ChevronDown
 } from "lucide-react";
+
+// Lookback period options
+const LOOKBACK_OPTIONS = [
+  { value: 7, label: "7 days" },
+  { value: 14, label: "14 days" },
+  { value: 30, label: "30 days" },
+  { value: 60, label: "60 days" },
+  { value: 90, label: "90 days" },
+];
+
+type CategoryLookbacks = {
+  seo: number;
+  email: number;
+  advertising: number;
+  pages: number;
+  traffic: number;
+  revenue: number;
+  content: number;
+};
 
 interface Opportunity {
   id: string;
@@ -37,6 +56,19 @@ export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [lookbacks, setLookbacks] = useState<CategoryLookbacks>({
+    seo: 30,
+    email: 30,
+    advertising: 30,
+    pages: 30,
+    traffic: 30,
+    revenue: 30,
+    content: 30,
+  });
+
+  const updateLookback = (category: keyof CategoryLookbacks, value: number) => {
+    setLookbacks(prev => ({ ...prev, [category]: value }));
+  };
 
   useEffect(() => {
     if (currentOrg) {
@@ -69,7 +101,10 @@ export default function OpportunitiesPage() {
       const response = await fetch("/api/opportunities/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId: currentOrg.id })
+        body: JSON.stringify({ 
+          organizationId: currentOrg.id,
+          lookbackDays: lookbacks
+        })
       });
 
       const result = await response.json();
@@ -159,6 +194,7 @@ export default function OpportunitiesPage() {
   const channels = [
     {
       id: 'seo',
+      lookbackKey: 'seo' as keyof CategoryLookbacks,
       name: 'SEO',
       icon: <Search className="w-6 h-6" />,
       color: 'bg-blue-500',
@@ -167,6 +203,7 @@ export default function OpportunitiesPage() {
     },
     {
       id: 'traffic',
+      lookbackKey: 'traffic' as keyof CategoryLookbacks,
       name: 'Traffic',
       icon: <BarChart3 className="w-6 h-6" />,
       color: 'bg-cyan-500',
@@ -175,6 +212,7 @@ export default function OpportunitiesPage() {
     },
     {
       id: 'pages',
+      lookbackKey: 'pages' as keyof CategoryLookbacks,
       name: 'Pages',
       icon: <FileText className="w-6 h-6" />,
       color: 'bg-purple-500',
@@ -183,6 +221,7 @@ export default function OpportunitiesPage() {
     },
     {
       id: 'ads',
+      lookbackKey: 'advertising' as keyof CategoryLookbacks,
       name: 'Advertising',
       icon: <Megaphone className="w-6 h-6" />,
       color: 'bg-green-500',
@@ -191,6 +230,7 @@ export default function OpportunitiesPage() {
     },
     {
       id: 'revenue',
+      lookbackKey: 'revenue' as keyof CategoryLookbacks,
       name: 'Revenue',
       icon: <DollarSign className="w-6 h-6" />,
       color: 'bg-emerald-500',
@@ -199,6 +239,7 @@ export default function OpportunitiesPage() {
     },
     {
       id: 'email',
+      lookbackKey: 'email' as keyof CategoryLookbacks,
       name: 'Email',
       icon: <Mail className="w-6 h-6" />,
       color: 'bg-orange-500',
@@ -292,6 +333,27 @@ export default function OpportunitiesPage() {
                         <h3 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{channel.name}</h3>
                         <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>{channel.description}</p>
                       </div>
+                    </div>
+                    {/* Lookback Selector */}
+                    <div className="relative">
+                      <select
+                        value={lookbacks[channel.lookbackKey]}
+                        onChange={(e) => updateLookback(channel.lookbackKey, Number(e.target.value))}
+                        className="appearance-none px-3 py-1.5 pr-8 rounded-lg text-sm font-medium cursor-pointer transition-all"
+                        style={{
+                          background: "var(--background-tertiary)",
+                          color: "var(--foreground-muted)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        {LOOKBACK_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown 
+                        className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" 
+                        style={{ color: "var(--foreground-subtle)" }}
+                      />
                     </div>
                   </div>
 
