@@ -44,12 +44,12 @@ export default function AdvertisingPage() {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
       
+      // Filter for advertising-related opportunities
       const adsOpps = (data.opportunities || []).filter((opp: Opportunity) => 
         opp.entity_type === 'campaign' || 
-        opp.category === 'cost_inefficiency' ||
-        opp.title?.toLowerCase().includes('ad') ||
-        opp.title?.toLowerCase().includes('campaign') ||
-        opp.title?.toLowerCase().includes('paid')
+        opp.entity_type === 'ad_campaign' ||
+        opp.category?.startsWith('advertising') ||
+        opp.category === 'cost_inefficiency'
       );
       
       setOpportunities(adsOpps);

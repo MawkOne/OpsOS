@@ -41,8 +41,13 @@ export default function PagesConversionPage() {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
       
+      // Filter for page-related opportunities
       const filtered = (data.opportunities || []).filter((opp: Opportunity) => 
-        opp.entity_type === 'page' || opp.title?.toLowerCase().includes('page') || opp.title?.toLowerCase().includes('conversion')
+        opp.entity_type === 'page' && (
+          opp.category?.startsWith('page') ||
+          opp.category === 'scale_winner' ||
+          opp.category === 'fix_loser'
+        )
       );
       
       setOpportunities(filtered);

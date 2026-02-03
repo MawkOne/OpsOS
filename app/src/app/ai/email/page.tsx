@@ -58,9 +58,8 @@ export default function EmailPage() {
       // Filter for email-related opportunities
       const emailOpps = (data.opportunities || []).filter((opp: Opportunity) => 
         opp.entity_type === 'email' || 
-        opp.category === 'email_issues' ||
-        (opp.title?.toLowerCase().includes('email')) ||
-        (opp.description?.toLowerCase().includes('email'))
+        opp.entity_type === 'email_campaign' ||
+        opp.category?.startsWith('email')
       );
       
       setOpportunities(emailOpps);

@@ -48,16 +48,10 @@ export default function SEOPage() {
       // Filter for SEO-related opportunities
       const seoOpps = (data.opportunities || []).filter((opp: Opportunity) => 
         opp.entity_type === 'keyword' || 
-        opp.category === 'seo_issues' ||
-        opp.title?.toLowerCase().includes('seo') ||
-        opp.title?.toLowerCase().includes('rank') ||
-        opp.title?.toLowerCase().includes('keyword') ||
-        opp.title?.toLowerCase().includes('search')
+        opp.entity_type === 'seo_keyword' ||
+        opp.category?.startsWith('seo') ||
+        opp.category === 'content_decay'
       );
-      
-      console.log('[SEO Page] Total SEO opportunities:', seoOpps.length);
-      console.log('[SEO Page] Entity IDs (first 10):', seoOpps.slice(0, 10).map((o: Opportunity) => o.entity_id || 'no entity_id'));
-      console.log('[SEO Page] Categories:', [...new Set(seoOpps.map((o: Opportunity) => o.category))]);
       
       setOpportunities(seoOpps);
     } catch (error) {

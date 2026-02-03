@@ -41,8 +41,11 @@ export default function RevenueGrowthPage() {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
       
+      // Filter for revenue-related opportunities
       const filtered = (data.opportunities || []).filter((opp: Opportunity) => 
-        opp.title?.toLowerCase().includes('revenue') || opp.title?.toLowerCase().includes('mrr') || opp.title?.toLowerCase().includes('arr') || opp.title?.toLowerCase().includes('refund')
+        opp.entity_type === 'revenue' ||
+        opp.entity_type === 'aggregate' ||
+        opp.category?.startsWith('revenue')
       );
       
       setOpportunities(filtered);

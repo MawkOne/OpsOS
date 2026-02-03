@@ -41,8 +41,10 @@ export default function ContentPerformancePage() {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
       
+      // Filter for content-related opportunities
       const filtered = (data.opportunities || []).filter((opp: Opportunity) => 
-        opp.title?.toLowerCase().includes('content') || opp.title?.toLowerCase().includes('publish') || opp.title?.toLowerCase().includes('freshness')
+        opp.category?.startsWith('content') ||
+        opp.category === 'declining_performer'
       );
       
       setOpportunities(filtered);

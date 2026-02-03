@@ -41,8 +41,13 @@ export default function TrafficChannelsPage() {
       const response = await fetch(`/api/opportunities?organizationId=${currentOrg.id}&status=new`);
       const data = await response.json();
       
+      // Filter for traffic-related opportunities
       const filtered = (data.opportunities || []).filter((opp: Opportunity) => 
-        opp.title?.toLowerCase().includes('traffic') || opp.title?.toLowerCase().includes('source') || opp.title?.toLowerCase().includes('channel')
+        opp.entity_type === 'traffic_source' ||
+        opp.entity_type === 'traffic_channel' ||
+        opp.entity_type === 'traffic_balance' ||
+        opp.entity_type === 'traffic_trend' ||
+        opp.category?.startsWith('traffic')
       );
       
       setOpportunities(filtered);
