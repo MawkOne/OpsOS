@@ -29,12 +29,17 @@ interface Opportunity {
     total_sessions?: number;
     conversion_rate?: number;
     bounce_rate?: number;
+    site_avg_cvr?: number;
+    traffic_percentile?: number;
+    current_exit_rate?: number;
+    exit_rate_increase_pct?: number;
     [key: string]: unknown;
   };
   metrics?: {
     current_sessions?: number;
     [key: string]: unknown;
   };
+  hypothesis?: string;
 }
 
 /**
@@ -378,11 +383,13 @@ export default function PagesConversionPage() {
             <div className="space-y-4">
               {filteredOpportunities.map((opp) => {
                 const timeframe = getTimeframeBadge(opp);
+                const sessions = getSessionsCount(opp);
                 return (
-                  <div key={opp.id} className="border border-white/10 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                  <div key={opp.id} className="border border-white/10 rounded-lg overflow-hidden">
+                    {/* Header */}
+                    <div className="p-4 border-b border-white/10 bg-white/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
                             {opp.priority.toUpperCase()}
                           </span>
@@ -390,7 +397,7 @@ export default function PagesConversionPage() {
                             {timeframe.label}
                           </span>
                         </div>
-                        <h3 className="font-semibold mb-1">
+                        <h3 className="font-semibold">
                           {extractActionType(opp.title)}:{' '}
                           <a 
                             href={buildPageUrl(opp.entity_id, domain)} 
@@ -401,35 +408,89 @@ export default function PagesConversionPage() {
                             {formatPageName(opp.entity_id)}
                           </a>
                         </h3>
-                        <p className="text-sm text-gray-400 mb-3">{opp.description}</p>
-                        
-                        {opp.recommended_actions && opp.recommended_actions.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs font-semibold text-gray-400 mb-2">Recommended Actions:</p>
-                            <ul className="space-y-1">
-                              {opp.recommended_actions.slice(0, 3).map((action, idx) => (
-                                <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                                  <span className="text-indigo-400 mt-1">•</span>
-                                  {action}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                      </div>
+                    </div>
+                    
+                    {/* Two Column Layout */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
+                      {/* Left Side - Evidence Data */}
+                      <div className="p-4">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          Evidence Data
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {sessions && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Sessions</p>
+                              <p className="text-lg font-bold">{formatNumber(sessions)}</p>
+                            </div>
+                          )}
+                          {opp.evidence?.conversion_rate !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Conversion Rate</p>
+                              <p className="text-lg font-bold">{opp.evidence.conversion_rate.toFixed(2)}%</p>
+                            </div>
+                          )}
+                          {opp.evidence?.bounce_rate !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Bounce Rate</p>
+                              <p className="text-lg font-bold">{opp.evidence.bounce_rate.toFixed(1)}%</p>
+                            </div>
+                          )}
+                          {opp.evidence?.site_avg_cvr !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Site Avg CVR</p>
+                              <p className="text-lg font-bold">{(opp.evidence.site_avg_cvr as number).toFixed(2)}%</p>
+                            </div>
+                          )}
+                          {opp.evidence?.traffic_percentile !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Traffic Rank</p>
+                              <p className="text-lg font-bold">Top {(100 - (opp.evidence.traffic_percentile as number) * 100).toFixed(0)}%</p>
+                            </div>
+                          )}
+                          {opp.evidence?.current_exit_rate !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Exit Rate</p>
+                              <p className="text-lg font-bold">{(opp.evidence.current_exit_rate as number).toFixed(1)}%</p>
+                            </div>
+                          )}
+                          {opp.evidence?.exit_rate_increase_pct !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Exit Rate Change</p>
+                              <p className="text-lg font-bold text-red-400">+{(opp.evidence.exit_rate_increase_pct as number).toFixed(1)}%</p>
+                            </div>
+                          )}
+                          {opp.potential_impact_score !== undefined && (
+                            <div className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400 mb-1">Impact Score</p>
+                              <p className="text-lg font-bold text-indigo-400">{opp.potential_impact_score}</p>
+                            </div>
+                          )}
+                        </div>
+                        {opp.hypothesis && (
+                          <p className="text-sm text-gray-400 mt-3 italic">{opp.hypothesis}</p>
                         )}
                       </div>
                       
-                      <div className="flex flex-col items-end gap-2 ml-4">
-                        <div className="text-right">
-                          <p className="text-xs text-gray-400">Sessions</p>
-                          <p className="text-sm font-semibold">
-                            {getSessionsCount(opp) ? formatNumber(getSessionsCount(opp)!) : '—'}
-                          </p>
-                        </div>
-                        {opp.evidence?.conversion_rate !== undefined && (
-                          <div className="text-right">
-                            <p className="text-xs text-gray-400">CVR</p>
-                            <p className="text-sm font-semibold">{opp.evidence.conversion_rate.toFixed(1)}%</p>
-                          </div>
+                      {/* Right Side - AI Suggested Actions */}
+                      <div className="p-4 bg-indigo-500/5">
+                        <h4 className="text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <Zap className="w-3.5 h-3.5" />
+                          AI Suggested Actions
+                        </h4>
+                        {opp.recommended_actions && opp.recommended_actions.length > 0 ? (
+                          <ul className="space-y-2">
+                            {opp.recommended_actions.slice(0, 5).map((action, idx) => (
+                              <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
+                                <span className="text-indigo-400 mt-0.5 font-bold">{idx + 1}.</span>
+                                {action}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-400">No specific actions suggested.</p>
                         )}
                       </div>
                     </div>
