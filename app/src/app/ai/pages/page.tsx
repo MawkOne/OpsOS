@@ -24,6 +24,17 @@ interface Opportunity {
   detector_name?: string;
   detected_at?: string;
   data_period_end?: string;
+  evidence?: {
+    sessions?: number;
+    total_sessions?: number;
+    conversion_rate?: number;
+    bounce_rate?: number;
+    [key: string]: unknown;
+  };
+  metrics?: {
+    current_sessions?: number;
+    [key: string]: unknown;
+  };
 }
 
 /**
@@ -81,6 +92,25 @@ function extractActionType(title: string): string {
     return title.substring(0, colonIndex).trim();
   }
   return title;
+}
+
+/**
+ * Get sessions count from opportunity evidence or metrics
+ */
+function getSessionsCount(opp: Opportunity): number | null {
+  // Try evidence first (most common)
+  if (opp.evidence?.total_sessions) return opp.evidence.total_sessions;
+  if (opp.evidence?.sessions) return opp.evidence.sessions;
+  // Try metrics
+  if (opp.metrics?.current_sessions) return opp.metrics.current_sessions;
+  return null;
+}
+
+/**
+ * Format number with commas
+ */
+function formatNumber(num: number): string {
+  return num.toLocaleString();
 }
 
 export default function PagesConversionPage() {
@@ -356,9 +386,17 @@ export default function PagesConversionPage() {
                       
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">Data through</p>
-                          <p className="text-sm font-semibold">{formatDataDate(opp.data_period_end)}</p>
+                          <p className="text-xs text-gray-400">Sessions</p>
+                          <p className="text-sm font-semibold">
+                            {getSessionsCount(opp) ? formatNumber(getSessionsCount(opp)!) : '—'}
+                          </p>
                         </div>
+                        {opp.evidence?.conversion_rate !== undefined && (
+                          <div className="text-right">
+                            <p className="text-xs text-gray-400">CVR</p>
+                            <p className="text-sm font-semibold">{opp.evidence.conversion_rate.toFixed(1)}%</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
