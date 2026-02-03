@@ -103,7 +103,7 @@ export default function PagesConversionPage() {
     return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
   };
 
-  const getTimeAgo = (dateString: string) => {
+  const getTimeAgo = (dateString: string | undefined) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
     const now = new Date();
