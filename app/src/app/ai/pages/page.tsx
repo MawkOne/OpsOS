@@ -26,6 +26,63 @@ interface Opportunity {
   data_period_end?: string;
 }
 
+/**
+ * Extract a cleaner page name from entity_id and build a link
+ * e.g., "page_hirebestremotevideoeditorsfordocumentary1" → "hire-best-remote-video-editors..."
+ */
+function formatPageName(entityId: string | undefined): string {
+  if (!entityId) return "Unknown Page";
+  
+  // Remove page_ prefix
+  let name = entityId.replace(/^page_/, '');
+  
+  // Try to add spaces/hyphens at word boundaries (before capitals or numbers)
+  name = name
+    .replace(/([a-z])([A-Z])/g, '$1-$2')  // camelCase
+    .replace(/([a-zA-Z])(\d)/g, '$1-$2')   // letters before numbers
+    .replace(/(\d)([a-zA-Z])/g, '$1-$2')   // numbers before letters
+    .toLowerCase();
+  
+  // Truncate if too long
+  if (name.length > 50) {
+    name = name.substring(0, 47) + '...';
+  }
+  
+  return '/' + name;
+}
+
+/**
+ * Build full URL for the page
+ */
+function buildPageUrl(entityId: string | undefined, domain: string): string {
+  if (!entityId || !domain) return '#';
+  
+  // Remove page_ prefix
+  let path = entityId.replace(/^page_/, '');
+  
+  // Try to reconstruct a path-like format
+  path = path
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .replace(/([a-zA-Z])(\d)/g, '$1-$2')
+    .replace(/(\d)([a-zA-Z])/g, '$1-$2')
+    .toLowerCase();
+  
+  // Build full URL
+  const cleanDomain = domain.replace(/\/$/, '');
+  return `https://${cleanDomain}/${path}`;
+}
+
+/**
+ * Extract action type from title (e.g., "Scale Winner" from "Scale Winner: page_xyz")
+ */
+function extractActionType(title: string): string {
+  const colonIndex = title.indexOf(':');
+  if (colonIndex > 0) {
+    return title.substring(0, colonIndex).trim();
+  }
+  return title;
+}
+
 export default function PagesConversionPage() {
   const { currentOrg } = useOrganization();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -269,7 +326,17 @@ export default function PagesConversionPage() {
                             {timeframe.label}
                           </span>
                         </div>
-                        <h3 className="font-semibold mb-1">{opp.title}</h3>
+                        <h3 className="font-semibold mb-1">
+                          {extractActionType(opp.title)}:{' '}
+                          <a 
+                            href={buildPageUrl(opp.entity_id, domain)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-indigo-400 hover:text-indigo-300 hover:underline"
+                          >
+                            {formatPageName(opp.entity_id)}
+                          </a>
+                        </h3>
                         <p className="text-sm text-gray-400 mb-3">{opp.description}</p>
                         
                         {opp.recommended_actions && opp.recommended_actions.length > 0 && (
