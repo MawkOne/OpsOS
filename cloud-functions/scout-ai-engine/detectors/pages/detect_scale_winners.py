@@ -94,9 +94,10 @@ def detect_scale_winners(organization_id: str, priority_pages: Optional[Dict] = 
             else:
                 priority = 'low'
             
-            # Impact based on potential: if traffic doubled, how much would revenue increase?
+            # Impact based on CVR potential (scale winners have low traffic but high CVR)
             potential_additional_revenue = sessions * (conv_rate / 100) * 50  # Assume $50 avg value
-            impact_score = calculate_impact_score(sessions, improvement_factor=conv_rate / 2)
+            # Use conversion percentile for impact since traffic is intentionally low
+            impact_score = calculate_impact_score(sessions, conv_pct, improvement_factor=conv_rate / 3)
             
             opportunities.append({
                 'id': str(uuid.uuid4()),

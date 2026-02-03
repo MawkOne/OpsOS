@@ -59,18 +59,20 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
         AND entity_type = 'page'
         {priority_filter}
       GROUP BY canonical_entity_id
+    ),
+    ranked AS (
+      SELECT 
+        r.*,
+        h.baseline_exit_rate,
+        SAFE_DIVIDE((r.avg_exit_rate - h.baseline_exit_rate), h.baseline_exit_rate) * 100 as exit_rate_increase_pct,
+        PERCENT_RANK() OVER (ORDER BY r.total_sessions) as traffic_percentile
+      FROM recent_performance r
+      LEFT JOIN historical_performance h USING (canonical_entity_id)
+      WHERE h.baseline_exit_rate > 0
     )
-    SELECT 
-      canonical_entity_id,
-      avg_exit_rate,
-      baseline_exit_rate,
-      total_sessions,
-      avg_conversion_rate,
-      SAFE_DIVIDE((avg_exit_rate - baseline_exit_rate), baseline_exit_rate) * 100 as exit_rate_increase_pct
-    FROM recent_performance r
-    LEFT JOIN historical_performance h USING (canonical_entity_id)
-    WHERE baseline_exit_rate > 0
-      AND avg_exit_rate > baseline_exit_rate * 1.2  -- 20%+ increase
+    SELECT *
+    FROM ranked
+    WHERE avg_exit_rate > baseline_exit_rate * 1.2  -- 20%+ increase
       AND total_sessions > 100
     ORDER BY exit_rate_increase_pct DESC
     LIMIT 10
@@ -89,12 +91,12 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
         for row in results:
             sessions = int(row.total_sessions)
             exit_increase = float(row.exit_rate_increase_pct)
+            traffic_pct = float(row.traffic_percentile)
             
-            # Priority based on TRAFFIC first, then severity of issue
-            # High traffic pages with exit issues = highest priority
-            traffic_priority = calculate_traffic_priority(sessions)
+            # Priority based on traffic distribution from last 3 months
+            traffic_priority = calculate_traffic_priority(sessions, traffic_pct)
             
-            # Boost priority if exit rate increase is severe
+            # Boost priority if exit rate increase is severe (>50% increase)
             if traffic_priority == 'medium' and exit_increase > 50:
                 priority = 'high'
             elif traffic_priority == 'low' and exit_increase > 75:
@@ -102,9 +104,9 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
             else:
                 priority = traffic_priority
             
-            # Impact = sessions × exit rate increase (more sessions exiting = higher impact)
+            # Impact based on traffic percentile × severity
             exiting_sessions = int(sessions * (row.avg_exit_rate / 100))
-            impact_score = calculate_impact_score(sessions, improvement_factor=exit_increase / 25)
+            impact_score = calculate_impact_score(sessions, traffic_pct, improvement_factor=min(exit_increase / 30, 1.4))
             
             opportunities.append({
                 "id": str(uuid.uuid4()),

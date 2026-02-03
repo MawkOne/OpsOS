@@ -13,55 +13,62 @@ logger = logging.getLogger(__name__)
 
 def calculate_traffic_priority(sessions: int, traffic_percentile: float = None) -> str:
     """
-    Calculate priority based on traffic volume.
-    Traffic is the primary factor - higher traffic = higher priority.
+    Calculate priority based on traffic distribution (percentile rank).
+    Uses the page's relative traffic rank compared to all other pages
+    from the last 3 months - NOT absolute session counts.
     
-    Thresholds:
-    - HIGH: 1,000+ sessions OR top 20% traffic
-    - MEDIUM: 200-999 sessions OR top 50% traffic  
-    - LOW: <200 sessions
+    Thresholds (based on distribution):
+    - HIGH: Top 20% of traffic (percentile >= 0.80)
+    - MEDIUM: Top 50% of traffic (percentile >= 0.50)
+    - LOW: Bottom 50% of traffic (percentile < 0.50)
     
     Args:
-        sessions: Total sessions for the page
-        traffic_percentile: Optional percentile rank (0-1, where 1 = highest traffic)
+        sessions: Total sessions for the page (used as fallback only)
+        traffic_percentile: Percentile rank (0-1, where 1 = highest traffic)
     
     Returns:
         'high', 'medium', or 'low'
     """
-    # Use absolute thresholds as primary
-    if sessions >= 1000:
-        return 'high'
-    elif sessions >= 200:
-        return 'medium'
-    elif sessions < 200:
-        # If we have percentile data, use it for borderline cases
-        if traffic_percentile is not None:
-            if traffic_percentile >= 0.8:  # Top 20%
-                return 'high'
-            elif traffic_percentile >= 0.5:  # Top 50%
-                return 'medium'
-        return 'low'
+    # Primary: Use percentile from last 3 months distribution
+    if traffic_percentile is not None:
+        if traffic_percentile >= 0.80:  # Top 20%
+            return 'high'
+        elif traffic_percentile >= 0.50:  # Top 50%
+            return 'medium'
+        else:  # Bottom 50%
+            return 'low'
     
-    return 'medium'  # Default fallback
+    # Fallback if no percentile data (shouldn't happen with proper queries)
+    # Use conservative absolute thresholds
+    if sessions >= 500:
+        return 'medium'
+    return 'low'
 
 
-def calculate_impact_score(sessions: int, improvement_factor: float = 1.0) -> int:
+def calculate_impact_score(sessions: int, traffic_percentile: float = None, improvement_factor: float = 1.0) -> int:
     """
-    Calculate impact score (0-100) based on traffic and potential improvement.
+    Calculate impact score (0-100) based on traffic percentile and potential improvement.
     
     Args:
-        sessions: Total sessions for the page
+        sessions: Total sessions for the page (used for secondary calculation)
+        traffic_percentile: Percentile rank (0-1, where 1 = highest traffic)
         improvement_factor: Multiplier for improvement potential (e.g., CVR gap)
     
     Returns:
         Impact score 0-100
     """
-    # Base score from sessions (log scale to avoid huge pages dominating)
     import math
-    base_score = min(70, math.log10(max(sessions, 1)) * 20)
     
-    # Apply improvement factor
-    adjusted_score = base_score * improvement_factor
+    # Primary: Use percentile for base score (0-70 range)
+    if traffic_percentile is not None:
+        # Top 1% = 70, Top 10% = 63, Top 50% = 35, Bottom 10% = 7
+        base_score = traffic_percentile * 70
+    else:
+        # Fallback: Use log scale of sessions
+        base_score = min(70, math.log10(max(sessions, 1)) * 20)
+    
+    # Apply improvement factor (caps at ~1.4x to reach 100)
+    adjusted_score = base_score * min(improvement_factor, 1.5)
     
     return min(100, max(0, int(adjusted_score)))
 

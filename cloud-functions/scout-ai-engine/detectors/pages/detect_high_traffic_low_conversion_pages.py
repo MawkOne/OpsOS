@@ -89,12 +89,12 @@ def detect_high_traffic_low_conversion_pages(organization_id: str, priority_page
             site_avg = row['site_avg_cvr']
             traffic_pct = row['traffic_percentile']
             
-            # Calculate priority based on traffic - these are already high-traffic pages
+            # Calculate priority based on traffic distribution - top traffic pages = highest priority
             priority = calculate_traffic_priority(sessions, traffic_pct)
             
-            # Impact = traffic × CVR gap (bigger gap on higher traffic = bigger impact)
+            # Impact = traffic percentile × CVR gap (bigger gap on higher traffic = bigger impact)
             cvr_gap_factor = max(1, (site_avg - cvr) / max(cvr, 0.01))
-            impact_score = calculate_impact_score(sessions, improvement_factor=cvr_gap_factor)
+            impact_score = calculate_impact_score(sessions, traffic_pct, improvement_factor=min(cvr_gap_factor, 1.4))
             
             # Potential additional conversions if CVR matched site avg
             potential_conversions = sessions * (site_avg / 100) - row['total_conversions']

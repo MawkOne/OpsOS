@@ -85,9 +85,9 @@ def detect_fix_losers(organization_id: str, priority_pages: Optional[Dict] = Non
             cost = row['total_cost']
             traffic_pct = row['traffic_percentile']
             
-            # Calculate priority based on traffic - more traffic = higher priority
+            # Calculate priority based on traffic distribution - top pages = higher priority
             priority = calculate_traffic_priority(sessions, traffic_pct)
-            impact_score = calculate_impact_score(sessions, improvement_factor=1.5)  # 1.5x for fix opportunities
+            impact_score = calculate_impact_score(sessions, traffic_pct, improvement_factor=1.3)
             
             opportunities.append({
                 'id': str(uuid.uuid4()),
