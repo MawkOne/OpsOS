@@ -125,65 +125,22 @@ const moduleOrder: Module[] = ["ai", "leadership", "revenue", "expenses", "metri
 const getNavigationByModule = (oppCount: number, detectorStats?: { total: number; byCategory: Record<string, number> }): Record<Module, NavSection[]> => ({
   ai: [
     {
-      title: "Overview",
+      title: "Scout AI",
       items: [
         { label: "Dashboard", href: "/ai/opportunities", icon: <LayoutDashboard className="w-4 h-4" />, badge: oppCount > 0 ? String(oppCount) : undefined },
         { label: "All Detectors", href: "/ai/detectors", icon: <Brain className="w-4 h-4" />, badge: detectorStats?.total ? String(detectorStats.total) : undefined },
       ],
     },
     {
-      title: `📧 Email (${detectorStats?.byCategory?.email || 0} detectors)`,
+      title: "Categories",
       items: [
-        { label: "Email Overview", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
-        { label: "Engagement & Volume", href: "/ai/email/engagement", icon: <Activity className="w-4 h-4" /> },
-        { label: "Revenue Attribution", href: "/ai/email/revenue", icon: <DollarSign className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `🔍 SEO (${detectorStats?.byCategory?.seo || 0} detectors)`,
-      items: [
-        { label: "SEO Overview", href: "/ai/seo", icon: <Search className="w-4 h-4" /> },
-        { label: "Rankings & Keywords", href: "/ai/seo/rankings", icon: <TrendingUp className="w-4 h-4" /> },
-        { label: "Technical Health", href: "/ai/seo/technical", icon: <Wrench className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `💰 Advertising (${detectorStats?.byCategory?.advertising || 0} detectors)`,
-      items: [
-        { label: "Ads Overview", href: "/ai/advertising", icon: <Megaphone className="w-4 h-4" /> },
-        { label: "Campaign Performance", href: "/ai/advertising/campaigns", icon: <BarChart3 className="w-4 h-4" /> },
-        { label: "Budget & Efficiency", href: "/ai/advertising/efficiency", icon: <DollarSign className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `📄 Pages (${detectorStats?.byCategory?.pages || 0} detectors)`,
-      items: [
-        { label: "Pages Overview", href: "/ai/pages", icon: <Layers className="w-4 h-4" /> },
-        { label: "Conversion Optimization", href: "/ai/pages/conversion", icon: <Target className="w-4 h-4" /> },
-        { label: "Mobile vs Desktop", href: "/ai/pages/devices", icon: <Activity className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `✍️ Content (${detectorStats?.byCategory?.content || 0} detectors)`,
-      items: [
-        { label: "Content Overview", href: "/ai/content", icon: <Lightbulb className="w-4 h-4" /> },
-        { label: "Publishing & Performance", href: "/ai/content/publishing", icon: <TrendingUp className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `🚦 Traffic (${detectorStats?.byCategory?.traffic || 0} detectors)`,
-      items: [
-        { label: "Traffic Overview", href: "/ai/traffic", icon: <Network className="w-4 h-4" /> },
-        { label: "Source Analysis", href: "/ai/traffic/sources", icon: <Link2 className="w-4 h-4" /> },
-        { label: "Channel Mix & CAC", href: "/ai/traffic/channels", icon: <PieChart className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: `💵 Revenue (${detectorStats?.byCategory?.revenue || 0} detectors)`,
-      items: [
-        { label: "Revenue Overview", href: "/ai/revenue", icon: <DollarSign className="w-4 h-4" /> },
-        { label: "Anomalies & Forecasts", href: "/ai/revenue/forecasts", icon: <LineChart className="w-4 h-4" /> },
-        { label: "Unit Economics", href: "/ai/revenue/economics", icon: <Percent className="w-4 h-4" /> },
+        { label: "Email", href: "/ai/email", icon: <Mail className="w-4 h-4" /> },
+        { label: "SEO", href: "/ai/seo", icon: <Search className="w-4 h-4" /> },
+        { label: "Advertising", href: "/ai/advertising", icon: <Megaphone className="w-4 h-4" /> },
+        { label: "Pages", href: "/ai/pages", icon: <Layers className="w-4 h-4" /> },
+        { label: "Content", href: "/ai/content", icon: <Lightbulb className="w-4 h-4" /> },
+        { label: "Traffic", href: "/ai/traffic", icon: <Network className="w-4 h-4" /> },
+        { label: "Revenue", href: "/ai/revenue", icon: <DollarSign className="w-4 h-4" /> },
       ],
     },
   ],
