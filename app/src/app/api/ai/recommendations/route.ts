@@ -50,10 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Gemini API key from environment
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'GEMINI_API_KEY not configured' },
+        { error: 'GEMINI_API not configured' },
         { status: 500 }
       );
     }
