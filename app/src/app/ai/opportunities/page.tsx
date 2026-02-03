@@ -132,12 +132,15 @@ export default function OpportunitiesPage() {
   // Group opportunities by channel
   const groupByChannel = () => {
     // Filter pages opportunities based on priority toggle
+    // Categories from detectors: pages_scale_winner, pages_fix_loser, engagement_optimization, etc.
     const pagesOpps = opportunities.filter(o => 
-      (o.entity_type === 'page' && (
-        o.category.startsWith('page') ||
-        o.category === 'scale_winner' ||
-        o.category === 'fix_loser'
-      ))
+      o.entity_type === 'page' || (
+        o.category?.startsWith('page') ||
+        o.category?.includes('scale_winner') ||
+        o.category?.includes('fix_loser') ||
+        o.category === 'engagement_optimization' ||
+        o.category === 'high_traffic_low_conversion'
+      )
     );
     
     // Apply priority pages filter if enabled

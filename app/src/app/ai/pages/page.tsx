@@ -52,11 +52,14 @@ export default function PagesConversionPage() {
       const data = await response.json();
       
       // Filter for page-related opportunities
+      // Categories from detectors: pages_scale_winner, pages_fix_loser, engagement_optimization, etc.
       const filtered = (data.opportunities || []).filter((opp: Opportunity) => 
-        opp.entity_type === 'page' && (
+        opp.entity_type === 'page' || (
           opp.category?.startsWith('page') ||
-          opp.category === 'scale_winner' ||
-          opp.category === 'fix_loser'
+          opp.category?.includes('scale_winner') ||
+          opp.category?.includes('fix_loser') ||
+          opp.category === 'engagement_optimization' ||
+          opp.category === 'high_traffic_low_conversion'
         )
       );
       
