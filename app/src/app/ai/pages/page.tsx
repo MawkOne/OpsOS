@@ -118,6 +118,64 @@ function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
+/**
+ * Get detector display info - what we checked and why it was flagged
+ */
+function getDetectorInfo(opp: Opportunity): { check: string; reason: string; color: string } {
+  const category = opp.category || '';
+  const evidence = opp.evidence || {};
+  
+  if (category.includes('fix_loser') || category.includes('high_traffic_low_conversion')) {
+    const cvr = evidence.conversion_rate;
+    const siteAvg = evidence.site_avg_cvr as number | undefined;
+    return {
+      check: 'Low Conversion Rate',
+      reason: cvr !== undefined 
+        ? `CVR is ${cvr.toFixed(2)}%${siteAvg ? ` vs site avg ${siteAvg.toFixed(2)}%` : ''}`
+        : 'Converting below potential',
+      color: 'text-red-400'
+    };
+  }
+  
+  if (category.includes('scale_winner')) {
+    const cvr = evidence.conversion_rate;
+    return {
+      check: 'High CVR, Low Traffic',
+      reason: cvr !== undefined 
+        ? `CVR is ${cvr.toFixed(2)}% - scale this page`
+        : 'Strong conversion, needs more traffic',
+      color: 'text-green-400'
+    };
+  }
+  
+  if (category.includes('engagement') || category.includes('exit_rate')) {
+    const exitRate = evidence.current_exit_rate as number | undefined;
+    const increase = evidence.exit_rate_increase_pct as number | undefined;
+    return {
+      check: 'Exit Rate Issue',
+      reason: exitRate !== undefined 
+        ? `Exit rate at ${exitRate.toFixed(1)}%${increase ? ` (+${increase.toFixed(1)}% increase)` : ''}`
+        : 'Users leaving without converting',
+      color: 'text-orange-400'
+    };
+  }
+  
+  if (category.includes('optimization')) {
+    return {
+      check: 'Optimization Opportunity',
+      reason: opp.hypothesis || 'Room for improvement identified',
+      color: 'text-blue-400'
+    };
+  }
+  
+  // Default
+  return {
+    check: extractActionType(opp.title),
+    reason: opp.hypothesis || opp.description || 'Opportunity detected',
+    color: 'text-gray-400'
+  };
+}
+
 type SortOption = 'priority' | 'sessions' | 'impact';
 
 export default function PagesConversionPage() {
@@ -172,22 +230,48 @@ export default function PagesConversionPage() {
     ? opportunities.filter(opp => isPriorityPage(opp.entity_id || '', priorityUrls, priorityPrefixes, domain, excludePatterns))
     : opportunities;
 
-  // Sort opportunities
-  const filteredOpportunities = [...filteredByPriority].sort((a, b) => {
+  // Group opportunities by page (entity_id)
+  const groupedByPage = filteredByPriority.reduce((acc, opp) => {
+    const pageId = opp.entity_id || 'unknown';
+    if (!acc[pageId]) {
+      acc[pageId] = {
+        entity_id: pageId,
+        opportunities: [],
+        maxSessions: 0,
+        highestPriority: 'low' as string,
+      };
+    }
+    acc[pageId].opportunities.push(opp);
+    const sessions = getSessionsCount(opp) || 0;
+    if (sessions > acc[pageId].maxSessions) {
+      acc[pageId].maxSessions = sessions;
+    }
+    // Track highest priority
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    const currentPriorityRank = priorityOrder[acc[pageId].highestPriority as keyof typeof priorityOrder] ?? 2;
+    const newPriorityRank = priorityOrder[opp.priority as keyof typeof priorityOrder] ?? 2;
+    if (newPriorityRank < currentPriorityRank) {
+      acc[pageId].highestPriority = opp.priority;
+    }
+    return acc;
+  }, {} as Record<string, { entity_id: string; opportunities: Opportunity[]; maxSessions: number; highestPriority: string }>);
+
+  // Convert to array and sort
+  const groupedPages = Object.values(groupedByPage).sort((a, b) => {
     if (sortBy === 'priority') {
       const priorityOrder = { high: 0, medium: 1, low: 2 };
-      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
-      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
+      const aPriority = priorityOrder[a.highestPriority as keyof typeof priorityOrder] ?? 3;
+      const bPriority = priorityOrder[b.highestPriority as keyof typeof priorityOrder] ?? 3;
       if (aPriority !== bPriority) return aPriority - bPriority;
-      // Secondary sort by sessions
-      return (getSessionsCount(b) || 0) - (getSessionsCount(a) || 0);
+      return b.maxSessions - a.maxSessions;
     } else if (sortBy === 'sessions') {
-      return (getSessionsCount(b) || 0) - (getSessionsCount(a) || 0);
-    } else if (sortBy === 'impact') {
-      return (b.potential_impact_score || 0) - (a.potential_impact_score || 0);
+      return b.maxSessions - a.maxSessions;
     }
-    return 0;
+    return b.maxSessions - a.maxSessions;
   });
+
+  // Flatten for count
+  const filteredOpportunities = filteredByPriority;
 
   const handleRunScoutAI = async () => {
     if (!currentOrg) return;
@@ -320,14 +404,12 @@ export default function PagesConversionPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-400 mb-1">
-                  {priorityPagesOnly ? 'Priority Page Opportunities' : 'Total Opportunities'}
+                  {priorityPagesOnly ? 'Priority Pages' : 'Pages with Issues'}
                 </p>
-                <p className="text-2xl font-bold">{filteredOpportunities.length}</p>
-                {priorityPagesOnly && opportunities.length !== filteredOpportunities.length && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {opportunities.length} total, {filteredOpportunities.length} on priority pages
-                  </p>
-                )}
+                <p className="text-2xl font-bold">{groupedPages.length}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {filteredOpportunities.length} total findings
+                </p>
               </div>
               <Target className="w-8 h-8 text-indigo-400" />
             </div>
@@ -381,118 +463,62 @@ export default function PagesConversionPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredOpportunities.map((opp) => {
-                const timeframe = getTimeframeBadge(opp);
-                const sessions = getSessionsCount(opp);
+              {groupedPages.map((pageGroup) => {
                 return (
-                  <div key={opp.id} className="border border-white/10 rounded-lg overflow-hidden">
-                    {/* Header */}
+                  <div key={pageGroup.entity_id} className="border border-white/10 rounded-lg overflow-hidden">
+                    {/* Page Header - URL and Sessions */}
                     <div className="p-4 border-b border-white/10 bg-white/5">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(opp.priority)}`}>
-                            {opp.priority.toUpperCase()}
-                          </span>
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${timeframe.color}`}>
-                            {timeframe.label}
-                          </span>
-                        </div>
-                        <h3 className="font-semibold">
-                          {extractActionType(opp.title)}:{' '}
+                        <div className="flex items-center gap-3">
                           <a 
-                            href={buildPageUrl(opp.entity_id, domain)} 
+                            href={buildPageUrl(pageGroup.entity_id, domain)} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-indigo-400 hover:text-indigo-300 hover:underline"
+                            className="text-lg font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
                           >
-                            {formatPageName(opp.entity_id)}
+                            {formatPageName(pageGroup.entity_id)}
                           </a>
-                        </h3>
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(pageGroup.highestPriority)}`}>
+                            {pageGroup.highestPriority.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold">{formatNumber(pageGroup.maxSessions)}</p>
+                          <p className="text-xs text-gray-400">sessions</p>
+                        </div>
                       </div>
                     </div>
                     
-                    {/* Two Column Layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
-                      {/* Left Side - Evidence Data */}
-                      <div className="p-4">
-                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          Evidence Data
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {sessions && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Sessions</p>
-                              <p className="text-lg font-bold">{formatNumber(sessions)}</p>
+                    {/* Detections List */}
+                    <div className="divide-y divide-white/5">
+                      {pageGroup.opportunities.map((opp) => {
+                        const detectorInfo = getDetectorInfo(opp);
+                        return (
+                          <div key={opp.id} className="p-4 hover:bg-white/5 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`font-medium ${detectorInfo.color}`}>
+                                    {detectorInfo.check}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-400">{detectorInfo.reason}</p>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-gray-500">
+                                {opp.evidence?.conversion_rate !== undefined && (
+                                  <span>CVR: {opp.evidence.conversion_rate.toFixed(2)}%</span>
+                                )}
+                                {opp.evidence?.bounce_rate !== undefined && (
+                                  <span>Bounce: {opp.evidence.bounce_rate.toFixed(1)}%</span>
+                                )}
+                                {opp.evidence?.current_exit_rate !== undefined && (
+                                  <span>Exit: {(opp.evidence.current_exit_rate as number).toFixed(1)}%</span>
+                                )}
+                              </div>
                             </div>
-                          )}
-                          {opp.evidence?.conversion_rate !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Conversion Rate</p>
-                              <p className="text-lg font-bold">{opp.evidence.conversion_rate.toFixed(2)}%</p>
-                            </div>
-                          )}
-                          {opp.evidence?.bounce_rate !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Bounce Rate</p>
-                              <p className="text-lg font-bold">{opp.evidence.bounce_rate.toFixed(1)}%</p>
-                            </div>
-                          )}
-                          {opp.evidence?.site_avg_cvr !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Site Avg CVR</p>
-                              <p className="text-lg font-bold">{(opp.evidence.site_avg_cvr as number).toFixed(2)}%</p>
-                            </div>
-                          )}
-                          {opp.evidence?.traffic_percentile !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Traffic Rank</p>
-                              <p className="text-lg font-bold">Top {(100 - (opp.evidence.traffic_percentile as number) * 100).toFixed(0)}%</p>
-                            </div>
-                          )}
-                          {opp.evidence?.current_exit_rate !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Exit Rate</p>
-                              <p className="text-lg font-bold">{(opp.evidence.current_exit_rate as number).toFixed(1)}%</p>
-                            </div>
-                          )}
-                          {opp.evidence?.exit_rate_increase_pct !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Exit Rate Change</p>
-                              <p className="text-lg font-bold text-red-400">+{(opp.evidence.exit_rate_increase_pct as number).toFixed(1)}%</p>
-                            </div>
-                          )}
-                          {opp.potential_impact_score !== undefined && (
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xs text-gray-400 mb-1">Impact Score</p>
-                              <p className="text-lg font-bold text-indigo-400">{opp.potential_impact_score}</p>
-                            </div>
-                          )}
-                        </div>
-                        {opp.hypothesis && (
-                          <p className="text-sm text-gray-400 mt-3 italic">{opp.hypothesis}</p>
-                        )}
-                      </div>
-                      
-                      {/* Right Side - AI Suggested Actions */}
-                      <div className="p-4 bg-indigo-500/5">
-                        <h4 className="text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-                          <Zap className="w-3.5 h-3.5" />
-                          AI Suggested Actions
-                        </h4>
-                        {opp.recommended_actions && opp.recommended_actions.length > 0 ? (
-                          <ul className="space-y-2">
-                            {opp.recommended_actions.slice(0, 5).map((action, idx) => (
-                              <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                                <span className="text-indigo-400 mt-0.5 font-bold">{idx + 1}.</span>
-                                {action}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-gray-400">No specific actions suggested.</p>
-                        )}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
