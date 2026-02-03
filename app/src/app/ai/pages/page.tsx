@@ -19,6 +19,7 @@ interface Opportunity {
   entity_type: string;
   category: string;
   detector_name?: string;
+  detected_at?: string;
 }
 
 export default function PagesConversionPage() {
@@ -100,6 +101,22 @@ export default function PagesConversionPage() {
       low: "bg-blue-500/10 text-blue-400 border-blue-500/20"
     };
     return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    if (!dateString) return 'Unknown';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -209,12 +226,8 @@ export default function PagesConversionPage() {
                       
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">Impact</p>
-                          <p className="text-lg font-bold text-indigo-400">{opp.potential_impact_score}/10</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-400">Confidence</p>
-                          <p className="text-sm font-semibold">{Math.round(opp.confidence_score * 100)}%</p>
+                          <p className="text-xs text-gray-400">Detected</p>
+                          <p className="text-sm font-semibold">{getTimeAgo(opp.detected_at)}</p>
                         </div>
                       </div>
                     </div>
