@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Optional, Dict
 
-from .priority_filter import get_priority_pages_where_clause
+from .priority_filter import get_priority_pages_where_clause, calculate_traffic_priority, calculate_impact_score
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,11 @@ def detect_fix_losers(organization_id: str, priority_pages: Optional[Dict] = Non
             bounce_rate = row['avg_bounce_rate']
             sessions = row['total_sessions']
             cost = row['total_cost']
+            traffic_pct = row['traffic_percentile']
+            
+            # Calculate priority based on traffic - more traffic = higher priority
+            priority = calculate_traffic_priority(sessions, traffic_pct)
+            impact_score = calculate_impact_score(sessions, improvement_factor=1.5)  # 1.5x for fix opportunities
             
             opportunities.append({
                 'id': str(uuid.uuid4()),
@@ -91,28 +96,28 @@ def detect_fix_losers(organization_id: str, priority_pages: Optional[Dict] = Non
                 'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'pages_fix_loser',
                 'type': 'high_traffic_low_conversion',
-                'priority': 'high',
+                'priority': priority,
                 'status': 'new',
                 'entity_id': entity_id,
                 'entity_type': entity_type,
                 'title': f"🔧 Fix Opportunity: {entity_id}",
-                'description': f"This {entity_type} gets {sessions} sessions but only {conv_rate:.1f}% conversion rate. Small improvements here could have huge impact.",
+                'description': f"This {entity_type} gets {sessions:,} sessions but only {conv_rate:.1f}% conversion rate. Small improvements here could have huge impact.",
                 'evidence': {
                     'conversion_rate': conv_rate,
                     'bounce_rate': bounce_rate,
                     'sessions': sessions,
                     'cost': cost,
-                    'traffic_percentile': row['traffic_percentile']
+                    'traffic_percentile': traffic_pct
                 },
                 'metrics': {
                     'current_conversion_rate': conv_rate,
                     'current_bounce_rate': bounce_rate,
                     'current_sessions': sessions
                 },
-                'hypothesis': f"With {sessions} sessions, even a 1% improvement in conversion could generate significant additional revenue. High bounce rate ({bounce_rate:.1f}%) suggests UX or messaging issues.",
+                'hypothesis': f"With {sessions:,} sessions, even a 1% improvement in conversion could generate significant additional revenue. High bounce rate ({bounce_rate:.1f}%) suggests UX or messaging issues.",
                 'confidence_score': 0.90,
-                'potential_impact_score': min(100, (sessions / 10)),
-                'urgency_score': 80,
+                'potential_impact_score': impact_score,
+                'urgency_score': 85 if priority == 'high' else (70 if priority == 'medium' else 50),
                 'recommended_actions': [
                     'A/B test different headlines and CTAs',
                     'Improve page load speed',

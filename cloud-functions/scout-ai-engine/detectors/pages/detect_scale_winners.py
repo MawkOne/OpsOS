@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Optional, Dict
 
-from .priority_filter import get_priority_pages_where_clause
+from .priority_filter import get_priority_pages_where_clause, calculate_impact_score
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,20 @@ def detect_scale_winners(organization_id: str, priority_pages: Optional[Dict] = 
             conv_rate = row['avg_conversion_rate']
             sessions = row['total_sessions']
             revenue = row['total_revenue']
+            conv_pct = row['conversion_percentile']
+            
+            # For scale winners, priority is based on CVR (higher CVR = more valuable to scale)
+            # They already have low traffic, so the value is in their conversion potential
+            if conv_rate >= 5.0 or conv_pct >= 0.9:  # Top 10% CVR or 5%+ CVR
+                priority = 'high'
+            elif conv_rate >= 3.0 or conv_pct >= 0.8:  # Top 20% CVR or 3%+ CVR
+                priority = 'medium'
+            else:
+                priority = 'low'
+            
+            # Impact based on potential: if traffic doubled, how much would revenue increase?
+            potential_additional_revenue = sessions * (conv_rate / 100) * 50  # Assume $50 avg value
+            impact_score = calculate_impact_score(sessions, improvement_factor=conv_rate / 2)
             
             opportunities.append({
                 'id': str(uuid.uuid4()),
@@ -91,17 +105,17 @@ def detect_scale_winners(organization_id: str, priority_pages: Optional[Dict] = 
                 'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'pages_scale_winner',
                 'type': 'high_conversion_low_traffic',
-                'priority': 'high',
+                'priority': priority,
                 'status': 'new',
                 'entity_id': entity_id,
                 'entity_type': entity_type,
                 'title': f"🚀 Scale Winner: {entity_id}",
-                'description': f"This {entity_type} has {conv_rate:.1f}% conversion rate (top 30%) but only {sessions} sessions (bottom 30%). Increasing traffic could significantly boost revenue.",
+                'description': f"This {entity_type} has {conv_rate:.1f}% conversion rate (top 30%) but only {sessions:,} sessions (bottom 30%). Increasing traffic could significantly boost revenue.",
                 'evidence': {
                     'conversion_rate': conv_rate,
                     'sessions': sessions,
                     'revenue': revenue,
-                    'conversion_percentile': row['conversion_percentile'],
+                    'conversion_percentile': conv_pct,
                     'traffic_percentile': row['traffic_percentile']
                 },
                 'metrics': {
@@ -109,10 +123,10 @@ def detect_scale_winners(organization_id: str, priority_pages: Optional[Dict] = 
                     'current_sessions': sessions,
                     'current_revenue': revenue
                 },
-                'hypothesis': f"This {entity_type} converts well but gets little traffic. Directing more qualified traffic here could multiply revenue with minimal additional effort.",
+                'hypothesis': f"This {entity_type} converts at {conv_rate:.1f}% but gets little traffic. Doubling traffic could add ~${potential_additional_revenue:,.0f} in revenue.",
                 'confidence_score': 0.85,
-                'potential_impact_score': min(100, (conv_rate * 10)),
-                'urgency_score': 70,
+                'potential_impact_score': impact_score,
+                'urgency_score': 75 if priority == 'high' else (60 if priority == 'medium' else 45),
                 'recommended_actions': [
                     'Increase paid ad budget for this target',
                     'Create more content linking to this page',

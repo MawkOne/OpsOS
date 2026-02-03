@@ -1,6 +1,7 @@
 """
 Priority Pages Filter Helper
 Generates SQL WHERE clause to filter by priority pages (include) and exclude patterns
+Also provides traffic-based priority calculation
 """
 
 from typing import Optional, Dict, List
@@ -8,6 +9,61 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_traffic_priority(sessions: int, traffic_percentile: float = None) -> str:
+    """
+    Calculate priority based on traffic volume.
+    Traffic is the primary factor - higher traffic = higher priority.
+    
+    Thresholds:
+    - HIGH: 1,000+ sessions OR top 20% traffic
+    - MEDIUM: 200-999 sessions OR top 50% traffic  
+    - LOW: <200 sessions
+    
+    Args:
+        sessions: Total sessions for the page
+        traffic_percentile: Optional percentile rank (0-1, where 1 = highest traffic)
+    
+    Returns:
+        'high', 'medium', or 'low'
+    """
+    # Use absolute thresholds as primary
+    if sessions >= 1000:
+        return 'high'
+    elif sessions >= 200:
+        return 'medium'
+    elif sessions < 200:
+        # If we have percentile data, use it for borderline cases
+        if traffic_percentile is not None:
+            if traffic_percentile >= 0.8:  # Top 20%
+                return 'high'
+            elif traffic_percentile >= 0.5:  # Top 50%
+                return 'medium'
+        return 'low'
+    
+    return 'medium'  # Default fallback
+
+
+def calculate_impact_score(sessions: int, improvement_factor: float = 1.0) -> int:
+    """
+    Calculate impact score (0-100) based on traffic and potential improvement.
+    
+    Args:
+        sessions: Total sessions for the page
+        improvement_factor: Multiplier for improvement potential (e.g., CVR gap)
+    
+    Returns:
+        Impact score 0-100
+    """
+    # Base score from sessions (log scale to avoid huge pages dominating)
+    import math
+    base_score = min(70, math.log10(max(sessions, 1)) * 20)
+    
+    # Apply improvement factor
+    adjusted_score = base_score * improvement_factor
+    
+    return min(100, max(0, int(adjusted_score)))
 
 
 def normalize_path_to_entity_id(path: str) -> str:

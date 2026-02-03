@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Optional, Dict
 
-from .priority_filter import get_priority_pages_where_clause
+from .priority_filter import get_priority_pages_where_clause, calculate_traffic_priority, calculate_impact_score
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,24 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
         results = query_job.result()
         
         for row in results:
-            priority = "high" if row.exit_rate_increase_pct > 50 else "medium"
+            sessions = int(row.total_sessions)
+            exit_increase = float(row.exit_rate_increase_pct)
+            
+            # Priority based on TRAFFIC first, then severity of issue
+            # High traffic pages with exit issues = highest priority
+            traffic_priority = calculate_traffic_priority(sessions)
+            
+            # Boost priority if exit rate increase is severe
+            if traffic_priority == 'medium' and exit_increase > 50:
+                priority = 'high'
+            elif traffic_priority == 'low' and exit_increase > 75:
+                priority = 'medium'
+            else:
+                priority = traffic_priority
+            
+            # Impact = sessions × exit rate increase (more sessions exiting = higher impact)
+            exiting_sessions = int(sessions * (row.avg_exit_rate / 100))
+            impact_score = calculate_impact_score(sessions, improvement_factor=exit_increase / 25)
             
             opportunities.append({
                 "id": str(uuid.uuid4()),
@@ -100,22 +117,22 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
                 "status": "new",
                 "entity_id": row.canonical_entity_id,
                 "entity_type": "page",
-                "title": f"Exit Rate Increasing: {row.avg_exit_rate:.1f}% (+{row.exit_rate_increase_pct:.1f}%)",
-                "description": f"Exit rate up to {row.avg_exit_rate:.1f}% from {row.baseline_exit_rate:.1f}%",
+                "title": f"Exit Rate Increasing: {row.avg_exit_rate:.1f}% (+{exit_increase:.1f}%)",
+                "description": f"Exit rate up to {row.avg_exit_rate:.1f}% from {row.baseline_exit_rate:.1f}% on page with {sessions:,} sessions",
                 "evidence": {
                     "current_exit_rate": float(row.avg_exit_rate),
                     "baseline_exit_rate": float(row.baseline_exit_rate),
-                    "exit_rate_increase_pct": float(row.exit_rate_increase_pct),
-                    "total_sessions": int(row.total_sessions),
+                    "exit_rate_increase_pct": exit_increase,
+                    "total_sessions": sessions,
                     "conversion_rate": float(row.avg_conversion_rate),
                 },
                 "metrics": {
                     "exit_rate": float(row.avg_exit_rate),
                 },
-                "hypothesis": "Missing next steps, broken links, or content not meeting user intent",
+                "hypothesis": f"{exiting_sessions:,} sessions are exiting this page. Missing next steps, broken links, or content not meeting user intent.",
                 "confidence_score": 0.80,
-                "potential_impact_score": min(100, row.exit_rate_increase_pct * 0.8),
-                "urgency_score": 75 if row.exit_rate_increase_pct > 50 else 60,
+                "potential_impact_score": impact_score,
+                "urgency_score": 85 if priority == 'high' else (70 if priority == 'medium' else 55),
                 "recommended_actions": [
                     "Add clear next steps and CTAs",
                     "Check for broken internal links",
@@ -123,7 +140,7 @@ def detect_page_exit_rate_increase(organization_id: str, priority_pages: Optiona
                     "Review page intent vs actual content",
                     "Test different CTA placements",
                     "Add exit-intent popups with offers",
-                    f"{int(row.total_sessions * (row.avg_exit_rate / 100))} sessions exiting - keep them engaged"
+                    f"{exiting_sessions:,} sessions exiting - keep them engaged"
                 ],
                 "estimated_effort": "low",
                 "estimated_timeline": "3-5 days",
