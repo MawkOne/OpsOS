@@ -34,8 +34,8 @@ export default function PagesConversionPage() {
   const [priorityPagesOnly, setPriorityPagesOnly] = useState(false);
 
   // Fetch priority pages for filtering
-  const { priorityUrls, priorityPrefixes, domain } = usePriorityPages(currentOrg?.id);
-  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0;
+  const { priorityUrls, priorityPrefixes, excludePatterns, domain } = usePriorityPages(currentOrg?.id);
+  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0 || excludePatterns.length > 0;
 
   useEffect(() => {
     if (currentOrg) {
@@ -74,7 +74,7 @@ export default function PagesConversionPage() {
 
   // Apply priority pages filter to opportunities
   const filteredOpportunities = priorityPagesOnly && hasPriorityPages
-    ? opportunities.filter(opp => isPriorityPage(opp.entity_id || '', priorityUrls, priorityPrefixes, domain))
+    ? opportunities.filter(opp => isPriorityPage(opp.entity_id || '', priorityUrls, priorityPrefixes, domain, excludePatterns))
     : opportunities;
 
   const handleRunScoutAI = async () => {
@@ -89,6 +89,7 @@ export default function PagesConversionPage() {
         requestBody.priorityPages = {
           urls: priorityUrls,
           prefixes: priorityPrefixes,
+          excludePatterns: excludePatterns,
           domain: domain
         };
       }

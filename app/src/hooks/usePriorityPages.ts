@@ -7,6 +7,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 interface PriorityPagesData {
   priorityUrls: string[];
   priorityPrefixes: string[];
+  excludePatterns: string[];
   domain: string;
   loading: boolean;
   error: string | null;
@@ -19,6 +20,7 @@ interface PriorityPagesData {
 export function usePriorityPages(organizationId: string | undefined): PriorityPagesData {
   const [priorityUrls, setPriorityUrls] = useState<string[]>([]);
   const [priorityPrefixes, setPriorityPrefixes] = useState<string[]>([]);
+  const [excludePatterns, setExcludePatterns] = useState<string[]>([]);
   const [domain, setDomain] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +42,12 @@ export function usePriorityPages(organizationId: string | undefined): PriorityPa
           const data = docSnap.data();
           setPriorityUrls(data.priorityUrls || []);
           setPriorityPrefixes(data.priorityPrefixes || []);
+          setExcludePatterns(data.excludePatterns || []);
           setDomain(data.domain || "");
         } else {
           setPriorityUrls([]);
           setPriorityPrefixes([]);
+          setExcludePatterns([]);
           setDomain("");
         }
         setLoading(false);
@@ -58,7 +62,7 @@ export function usePriorityPages(organizationId: string | undefined): PriorityPa
     return () => unsubscribe();
   }, [organizationId]);
 
-  return { priorityUrls, priorityPrefixes, domain, loading, error };
+  return { priorityUrls, priorityPrefixes, excludePatterns, domain, loading, error };
 }
 
 /**
@@ -74,24 +78,58 @@ function normalizePathToEntityId(path: string): string {
 }
 
 /**
- * Check if a page matches priority criteria
- * @param entityId - The entity_id from opportunities (e.g., "page_talentsearchallcategories" or "/blog/article")
- * @param priorityUrls - Array of full priority URLs
- * @param priorityPrefixes - Array of URL prefixes
+ * Check if a page should be EXCLUDED based on exclude patterns
+ * @param entityId - The entity_id from opportunities
+ * @param excludePatterns - Array of URL prefixes to exclude
+ */
+export function isExcludedPage(
+  entityId: string,
+  excludePatterns: string[]
+): boolean {
+  if (!entityId || excludePatterns.length === 0) return false;
+
+  // Normalize the entity_id
+  const normalizedEntityId = entityId.replace(/^page_/, '').toLowerCase();
+
+  // Check against exclude patterns
+  for (const pattern of excludePatterns) {
+    const normalizedPattern = normalizePathToEntityId(pattern);
+    if (normalizedEntityId.startsWith(normalizedPattern)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if a page should be INCLUDED (not excluded, and optionally matches include criteria)
+ * @param entityId - The entity_id from opportunities (e.g., "page_talentsearchallcategories")
+ * @param priorityUrls - Array of full priority URLs (include list)
+ * @param priorityPrefixes - Array of URL prefixes (include list)
+ * @param excludePatterns - Array of URL prefixes to exclude
  * @param domain - The domain to construct full URLs
  */
 export function isPriorityPage(
   entityId: string,
   priorityUrls: string[],
   priorityPrefixes: string[],
-  domain: string
+  domain: string,
+  excludePatterns: string[] = []
 ): boolean {
-  // If no priority pages configured, return false
-  if (priorityUrls.length === 0 && priorityPrefixes.length === 0) {
+  if (!entityId) return false;
+
+  // First check if excluded - excluded pages are never priority
+  if (isExcludedPage(entityId, excludePatterns)) {
     return false;
   }
 
-  if (!entityId) return false;
+  // If no include criteria, all non-excluded pages are included
+  const hasIncludeCriteria = priorityUrls.length > 0 || priorityPrefixes.length > 0;
+  if (!hasIncludeCriteria) {
+    // No include list = include all (except excluded)
+    return true;
+  }
 
   // Normalize the entity_id (remove 'page_' prefix if present)
   const normalizedEntityId = entityId.replace(/^page_/, '').toLowerCase();

@@ -16,6 +16,7 @@ import {
   Search,
   Folder,
   XCircle,
+  Ban,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -42,11 +43,13 @@ export default function PriorityPagesPage() {
   const [pages, setPages] = useState<PageWithStats[]>([]);
   const [priorityUrls, setPriorityUrls] = useState<string[]>([]);
   const [priorityPrefixes, setPriorityPrefixes] = useState<string[]>([]);
+  const [excludePatterns, setExcludePatterns] = useState<string[]>([]);
   const [domain, setDomain] = useState<string>("");
   const [pageLimit, setPageLimit] = useState(200);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrefix, setNewPrefix] = useState("");
+  const [newExcludePattern, setNewExcludePattern] = useState("");
 
   // Load priority URLs and domain from Firestore
   useEffect(() => {
@@ -61,6 +64,9 @@ export default function PriorityPagesPage() {
         }
         if (data.priorityPrefixes) {
           setPriorityPrefixes(data.priorityPrefixes);
+        }
+        if (data.excludePatterns) {
+          setExcludePatterns(data.excludePatterns);
         }
         if (data.domain) {
           setDomain(data.domain);
@@ -287,6 +293,71 @@ export default function PriorityPagesPage() {
     }
   };
 
+  const handleAddExcludePattern = async () => {
+    if (!currentOrg?.id || !newExcludePattern.trim()) return;
+    
+    // Validate pattern starts with /
+    let pattern = newExcludePattern.trim();
+    if (!pattern.startsWith('/')) {
+      pattern = '/' + pattern;
+    }
+    
+    // Check if pattern already exists
+    if (excludePatterns.includes(pattern)) {
+      setError("This exclude pattern already exists");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    
+    const updatedPatterns = [...excludePatterns, pattern];
+    setExcludePatterns(updatedPatterns);
+    setNewExcludePattern("");
+    
+    // Save to Firestore
+    setSaving(true);
+    try {
+      const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
+      await setDoc(connectionRef, {
+        excludePatterns: updatedPatterns,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error saving exclude pattern:", err);
+      setError("Failed to save exclude pattern");
+      setExcludePatterns(excludePatterns);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveExcludePattern = async (patternToRemove: string) => {
+    if (!currentOrg?.id) return;
+    
+    const updatedPatterns = excludePatterns.filter(p => p !== patternToRemove);
+    setExcludePatterns(updatedPatterns);
+    
+    // Save to Firestore
+    setSaving(true);
+    try {
+      const connectionRef = doc(db, "dataforseo_connections", currentOrg.id);
+      await setDoc(connectionRef, {
+        excludePatterns: updatedPatterns,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error saving exclude patterns:", err);
+      setError("Failed to remove exclude pattern");
+      setExcludePatterns([...excludePatterns, patternToRemove]);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Check if page is excluded
+  const isExcludedPage = (pagePath: string) => {
+    return excludePatterns.some(pattern => pagePath.startsWith(pattern));
+  };
+
   return (
     <AppLayout 
       title="Priority Pages"
@@ -425,6 +496,109 @@ export default function PriorityPagesPage() {
                   </button>
                 </motion.div>
               ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Exclude Patterns */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.075 }}
+          className="rounded-2xl p-6 mb-6"
+          style={{ background: "var(--background-secondary)", border: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <Ban className="w-5 h-5 text-red-400" />
+                Exclude Patterns
+              </h2>
+              <p className="text-sm mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Exclude pages matching these patterns from analysis. Useful for filtering out user profiles, individual listings, etc.
+              </p>
+            </div>
+          </div>
+
+          {/* Add Exclude Pattern Input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newExcludePattern}
+              onChange={(e) => setNewExcludePattern(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAddExcludePattern();
+                }
+              }}
+              placeholder="/talent-profile, /job, /redirect"
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-red-500/50"
+              style={{
+                background: "var(--background-tertiary)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground)",
+              }}
+            />
+            <button
+              onClick={handleAddExcludePattern}
+              disabled={!newExcludePattern.trim() || saving}
+              className="px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ 
+                background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+                color: "white"
+              }}
+            >
+              Add Exclude
+            </button>
+          </div>
+
+          {/* Exclude Pattern List */}
+          {excludePatterns.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-xs px-3 py-2 rounded" style={{ 
+                background: "rgba(239, 68, 68, 0.05)", 
+                color: "var(--foreground-secondary)",
+                border: "1px solid rgba(239, 68, 68, 0.1)"
+              }}>
+                🚫 Pages matching these patterns will be <strong>excluded</strong> from Scout AI analysis.
+              </div>
+              {excludePatterns.map((pattern, index) => (
+                <motion.div
+                  key={pattern}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="flex items-center justify-between p-3 rounded-lg"
+                  style={{ background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Ban className="w-4 h-4 text-red-400" />
+                    <code className="text-sm font-mono" style={{ color: "var(--foreground)" }}>
+                      {pattern}
+                    </code>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ 
+                      background: "rgba(239, 68, 68, 0.1)", 
+                      color: "#ef4444" 
+                    }}>
+                      {pages.filter(p => p.name.startsWith(pattern)).length} pages excluded
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveExcludePattern(pattern)}
+                    disabled={saving}
+                    className="p-1.5 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    title="Remove"
+                  >
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
+          
+          {excludePatterns.length === 0 && (
+            <div className="text-center py-6 text-sm" style={{ color: "var(--foreground-muted)" }}>
+              No exclude patterns configured. Add patterns like <code className="px-1 py-0.5 rounded" style={{ background: "var(--background-tertiary)" }}>/talent-profile</code> to exclude matching pages.
             </div>
           )}
         </motion.div>

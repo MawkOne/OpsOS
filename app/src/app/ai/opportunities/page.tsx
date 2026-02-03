@@ -69,8 +69,8 @@ export default function OpportunitiesPage() {
   const [priorityPagesOnly, setPriorityPagesOnly] = useState(false);
 
   // Fetch priority pages for filtering
-  const { priorityUrls, priorityPrefixes, domain, loading: priorityLoading } = usePriorityPages(currentOrg?.id);
-  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0;
+  const { priorityUrls, priorityPrefixes, excludePatterns, domain, loading: priorityLoading } = usePriorityPages(currentOrg?.id);
+  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0 || excludePatterns.length > 0;
 
   const updateLookback = (category: keyof CategoryLookbacks, value: number) => {
     setLookbacks(prev => ({ ...prev, [category]: value }));
@@ -145,7 +145,7 @@ export default function OpportunitiesPage() {
     
     // Apply priority pages filter if enabled
     const filteredPagesOpps = priorityPagesOnly && hasPriorityPages
-      ? pagesOpps.filter(o => isPriorityPage(o.entity_id, priorityUrls, priorityPrefixes, domain))
+      ? pagesOpps.filter(o => isPriorityPage(o.entity_id, priorityUrls, priorityPrefixes, domain, excludePatterns))
       : pagesOpps;
 
     return {
