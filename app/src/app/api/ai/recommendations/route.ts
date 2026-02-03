@@ -52,14 +52,19 @@ export async function POST(request: NextRequest) {
     // Get Gemini API key from environment
     const apiKey = process.env.GEMINI_API;
     if (!apiKey) {
+      console.error('GEMINI_API env var is missing');
       return NextResponse.json(
-        { error: 'GEMINI_API not configured' },
+        { error: 'GEMINI_API not configured. Please add GEMINI_API to environment variables.' },
         { status: 500 }
       );
     }
 
+    console.log('Gemini API key found, length:', apiKey.length);
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    console.log('Sending request to Gemini with', opportunities.length, 'opportunities');
 
     // Prepare the prompt
     const opportunitiesSummary = opportunities.map((opp: Opportunity) => ({
@@ -154,10 +159,24 @@ Respond ONLY with valid JSON, no additional text or markdown.`;
 
   } catch (error: any) {
     console.error('AI Recommendations error:', error);
+    console.error('Error name:', error?.name);
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    
+    // Check for specific Gemini errors
+    let errorMessage = 'Failed to generate AI recommendations';
+    if (error?.message?.includes('API_KEY')) {
+      errorMessage = 'Invalid Gemini API key. Please check your GEMINI_API environment variable.';
+    } else if (error?.message?.includes('quota')) {
+      errorMessage = 'Gemini API quota exceeded. Please try again later.';
+    } else if (error?.message?.includes('blocked')) {
+      errorMessage = 'Content was blocked by Gemini safety filters.';
+    }
+    
     return NextResponse.json(
       { 
-        error: 'Failed to generate AI recommendations',
-        details: error.message
+        error: errorMessage,
+        details: error?.message || 'Unknown error'
       },
       { status: 500 }
     );
