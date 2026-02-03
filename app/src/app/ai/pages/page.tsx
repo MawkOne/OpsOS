@@ -18,6 +18,7 @@ interface Opportunity {
   urgency_score: number;
   recommended_actions: string[];
   entity_type: string;
+  entity_id?: string;
   category: string;
   detector_name?: string;
   detected_at?: string;
