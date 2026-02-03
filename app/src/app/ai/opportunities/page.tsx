@@ -7,8 +7,9 @@ import Card from "@/components/Card";
 import { 
   Target, Search, Mail, 
   Zap, RefreshCw, FileText, DollarSign,
-  BarChart3, Megaphone, ChevronDown
+  BarChart3, Megaphone, ChevronDown, Star
 } from "lucide-react";
+import { usePriorityPages, isPriorityPage, countPriorityOpportunities } from "@/hooks/usePriorityPages";
 
 // Lookback period options
 const LOOKBACK_OPTIONS = [
@@ -65,6 +66,11 @@ export default function OpportunitiesPage() {
     revenue: 30,
     content: 30,
   });
+  const [priorityPagesOnly, setPriorityPagesOnly] = useState(false);
+
+  // Fetch priority pages for filtering
+  const { priorityUrls, priorityPrefixes, domain, loading: priorityLoading } = usePriorityPages(currentOrg?.id);
+  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0;
 
   const updateLookback = (category: keyof CategoryLookbacks, value: number) => {
     setLookbacks(prev => ({ ...prev, [category]: value }));
@@ -125,6 +131,20 @@ export default function OpportunitiesPage() {
 
   // Group opportunities by channel
   const groupByChannel = () => {
+    // Filter pages opportunities based on priority toggle
+    const pagesOpps = opportunities.filter(o => 
+      (o.entity_type === 'page' && (
+        o.category.startsWith('page') ||
+        o.category === 'scale_winner' ||
+        o.category === 'fix_loser'
+      ))
+    );
+    
+    // Apply priority pages filter if enabled
+    const filteredPagesOpps = priorityPagesOnly && hasPriorityPages
+      ? pagesOpps.filter(o => isPriorityPage(o.entity_id, priorityUrls, priorityPrefixes, domain))
+      : pagesOpps;
+
     return {
       seo: opportunities.filter(o => 
         o.entity_type === 'keyword' || 
@@ -143,13 +163,7 @@ export default function OpportunitiesPage() {
         o.category.startsWith('advertising') ||
         o.category === 'cost_inefficiency'
       ),
-      pages: opportunities.filter(o => 
-        (o.entity_type === 'page' && (
-          o.category.startsWith('page') ||
-          o.category === 'scale_winner' ||
-          o.category === 'fix_loser'
-        ))
-      ),
+      pages: filteredPagesOpps,
       traffic: opportunities.filter(o =>
         o.entity_type === 'traffic_source' ||
         o.entity_type === 'traffic_channel' ||
@@ -332,6 +346,24 @@ export default function OpportunitiesPage() {
                       <div>
                         <h3 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{channel.name}</h3>
                         <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>{channel.description}</p>
+                        {/* Priority Pages Toggle - Only for Pages channel */}
+                        {channel.id === 'pages' && hasPriorityPages && (
+                          <button
+                            onClick={() => setPriorityPagesOnly(!priorityPagesOnly)}
+                            className={`mt-2 flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                              priorityPagesOnly 
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                                : 'hover:bg-white/5'
+                            }`}
+                            style={!priorityPagesOnly ? { 
+                              color: "var(--foreground-muted)",
+                              border: "1px solid var(--border)"
+                            } : {}}
+                          >
+                            <Star className={`w-3 h-3 ${priorityPagesOnly ? 'fill-amber-400' : ''}`} />
+                            Priority Pages Only
+                          </button>
+                        )}
                       </div>
                     </div>
                     {/* Lookback Selector */}

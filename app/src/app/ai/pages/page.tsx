@@ -5,7 +5,8 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import AppLayout from "@/components/AppLayout";
 import Card from "@/components/Card";
 import Link from "next/link";
-import { Layers, Target, TrendingUp, Wrench, RefreshCw, Zap, ChevronRight, AlertCircle } from "lucide-react";
+import { Layers, Target, TrendingUp, Wrench, RefreshCw, Zap, ChevronRight, AlertCircle, Star } from "lucide-react";
+import { usePriorityPages, isPriorityPage } from "@/hooks/usePriorityPages";
 
 interface Opportunity {
   id: string;
@@ -28,6 +29,11 @@ export default function PagesConversionPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [priorityPagesOnly, setPriorityPagesOnly] = useState(false);
+
+  // Fetch priority pages for filtering
+  const { priorityUrls, priorityPrefixes, domain } = usePriorityPages(currentOrg?.id);
+  const hasPriorityPages = priorityUrls.length > 0 || priorityPrefixes.length > 0;
 
   useEffect(() => {
     if (currentOrg) {
@@ -60,6 +66,11 @@ export default function PagesConversionPage() {
       setLoading(false);
     }
   };
+
+  // Apply priority pages filter to opportunities
+  const filteredOpportunities = priorityPagesOnly && hasPriorityPages
+    ? opportunities.filter(opp => isPriorityPage(opp.entity_id || '', priorityUrls, priorityPrefixes, domain))
+    : opportunities;
 
   const handleRunScoutAI = async () => {
     if (!currentOrg) return;
@@ -125,31 +136,54 @@ export default function PagesConversionPage() {
               5 detectors monitoring page performance and conversion optimization
             </p>
           </div>
-          <button
-            onClick={handleRunScoutAI}
-            disabled={running}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            {running ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                Run Scout AI
-              </>
+          <div className="flex items-center gap-3">
+            {/* Priority Pages Toggle */}
+            {hasPriorityPages && (
+              <button
+                onClick={() => setPriorityPagesOnly(!priorityPagesOnly)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  priorityPagesOnly 
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                    : 'bg-gray-700/50 hover:bg-gray-700 text-gray-300 border border-gray-600'
+                }`}
+              >
+                <Star className={`w-4 h-4 ${priorityPagesOnly ? 'fill-amber-400' : ''}`} />
+                Priority Pages Only
+              </button>
             )}
-          </button>
+            <button
+              onClick={handleRunScoutAI}
+              disabled={running}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              {running ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Run Scout AI
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Total Opportunities</p>
-                <p className="text-2xl font-bold">{opportunities.length}</p>
+                <p className="text-sm text-gray-400 mb-1">
+                  {priorityPagesOnly ? 'Priority Page Opportunities' : 'Total Opportunities'}
+                </p>
+                <p className="text-2xl font-bold">{filteredOpportunities.length}</p>
+                {priorityPagesOnly && opportunities.length !== filteredOpportunities.length && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {opportunities.length} total, {filteredOpportunities.length} on priority pages
+                  </p>
+                )}
               </div>
               <Target className="w-8 h-8 text-indigo-400" />
             </div>
@@ -176,14 +210,25 @@ export default function PagesConversionPage() {
               <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
               Loading...
             </div>
-          ) : opportunities.length === 0 ? (
+          ) : filteredOpportunities.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No opportunities found</p>
+              <p>{priorityPagesOnly ? 'No opportunities on priority pages' : 'No opportunities found'}</p>
+              {priorityPagesOnly && opportunities.length > 0 && (
+                <p className="text-sm mt-2">
+                  {opportunities.length} opportunities on other pages.{' '}
+                  <button 
+                    onClick={() => setPriorityPagesOnly(false)}
+                    className="text-indigo-400 hover:text-indigo-300 underline"
+                  >
+                    Show all pages
+                  </button>
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
-              {opportunities.map((opp) => {
+              {filteredOpportunities.map((opp) => {
                 const timeframe = getTimeframeBadge(opp);
                 return (
                   <div key={opp.id} className="border border-white/10 rounded-lg p-4">
