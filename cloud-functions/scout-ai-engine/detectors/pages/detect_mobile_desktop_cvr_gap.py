@@ -1,6 +1,6 @@
 """Mobile vs Desktop CVR Gap Detector"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
@@ -74,6 +74,7 @@ def detect_mobile_desktop_cvr_gap(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "page_optimization",
                 "type": "mobile_cvr_gap",
                 "priority": priority,

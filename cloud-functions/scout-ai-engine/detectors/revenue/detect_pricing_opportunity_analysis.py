@@ -1,6 +1,6 @@
 """pricing_opportunity_analysis Detector"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'

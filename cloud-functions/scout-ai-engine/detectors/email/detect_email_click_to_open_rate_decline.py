@@ -11,7 +11,7 @@ All detection layers (Fast, Trend, Strategic) for email marketing
 from google.cloud import bigquery
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ def detect_email_click_to_open_rate_decline(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "email_engagement",
                 "type": "click_to_open_decline",
                 "priority": "medium",

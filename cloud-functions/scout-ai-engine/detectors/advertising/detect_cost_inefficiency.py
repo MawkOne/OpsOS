@@ -10,7 +10,7 @@ ADVERTISING Detectors\nAll detection layers (Fast, Trend, Strategic) for paid ad
 from google.cloud import bigquery
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,7 @@ def detect_cost_inefficiency(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'advertising_cost_inefficiency',
                 'type': 'negative_roi',
                 'priority': 'high',

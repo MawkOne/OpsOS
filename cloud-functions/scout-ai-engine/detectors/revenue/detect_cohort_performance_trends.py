@@ -1,6 +1,6 @@
 """Cohort Performance Trends Detector - Tracks revenue by customer cohort"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
@@ -30,6 +30,7 @@ def detect_cohort_performance_trends(organization_id: str) -> list:
     try:
         for row in bq_client.query(query, job_config=job_config).result():
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "revenue_growth", "type": "cohort_performance", "priority": "high", "status": "new", "entity_id": "aggregate", "entity_type": "revenue",
                 "title": f"Recent Cohort Underperforming: {row.avg_cohort_value/row.overall_avg*100:.0f}% of average",
                 "description": f"Cohort from {row.cohort_month.strftime('%B %Y')} generating ${row.avg_cohort_value:.0f} vs ${row.overall_avg:.0f} org average",

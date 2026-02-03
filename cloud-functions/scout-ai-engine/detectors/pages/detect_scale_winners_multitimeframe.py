@@ -10,7 +10,7 @@ PAGES Detectors\nAll detection layers (Fast, Trend, Strategic) for landing pages
 from google.cloud import bigquery
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -135,6 +135,7 @@ def detect_scale_winners_multitimeframe(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'pages_scale_winner',
                 'type': f'high_cvr_low_traffic_{momentum.lower()}',
                 'priority': priority,

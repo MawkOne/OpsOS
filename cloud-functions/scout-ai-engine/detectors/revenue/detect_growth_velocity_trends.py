@@ -5,7 +5,7 @@ Tracks revenue growth acceleration or deceleration
 """
 
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import uuid
 import os
@@ -47,6 +47,7 @@ def detect_growth_velocity_trends(organization_id: str) -> list:
         for row in results:
             opportunities.append({
                 "id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "revenue_growth", "type": "growth_velocity", "priority": "high", "status": "new",
                 "entity_id": "aggregate", "entity_type": "revenue",
                 "title": f"Growth Slowing: {row.mom_growth:.1f}% vs {row.prev_month_growth:.1f}% prior month",

@@ -90,6 +90,7 @@ def detect_device_client_performance_gap(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "email_optimization",
                 "type": "device_client_performance_gap",
                 "priority": priority,

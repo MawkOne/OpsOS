@@ -6,7 +6,7 @@ Detects: Significant changes in traffic channel proportions
 
 from google.cloud import bigquery
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -96,6 +96,7 @@ def detect_channel_mix_shift(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'traffic_channel_mix',
                 'type': 'channel_share_increase' if is_growing else 'channel_share_decrease',
                 'priority': 'medium',

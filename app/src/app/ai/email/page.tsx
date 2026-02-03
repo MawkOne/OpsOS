@@ -31,6 +31,7 @@ interface Opportunity {
   estimated_effort: string;
   estimated_timeline: string;
   detected_at: string;
+  data_period_end?: string;
   detector_name?: string;
   timeframe?: string;
 }
@@ -120,20 +121,10 @@ export default function EmailPage() {
     return colors[priority as keyof typeof colors] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
   };
 
-  const getTimeAgo = (dateString: string | undefined) => {
+  const formatDataDate = (dateString: string | undefined) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   // Group opportunities by sub-category
@@ -312,8 +303,8 @@ export default function EmailPage() {
                       
                       <div className="flex flex-col items-end gap-2 ml-4">
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">Detected</p>
-                          <p className="text-sm font-semibold">{getTimeAgo(opp.detected_at)}</p>
+                          <p className="text-xs text-gray-400">Data through</p>
+                          <p className="text-sm font-semibold">{formatDataDate(opp.data_period_end)}</p>
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 """'ab_test_opportunities' Detector"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
@@ -22,6 +22,7 @@ def detect_ab_test_opportunities(organization_id: str) -> list:
     try:
         for row in bq_client.query(query, job_config=job_config).result():
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "page_optimization", "type": "ab_test_opportunities", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "page",
                 "title": f"Optimization opportunity: 'ab_test_opportunities'", "description": f"Page '{row.canonical_entity_id}' ready for 'ab_test_opportunities' analysis",

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `opsos-864a1.marketing_ai.opportunities` (
   id STRING NOT NULL,
   organization_id STRING NOT NULL,
   detected_at TIMESTAMP NOT NULL,
+  data_period_end DATE,              -- End date of the data period being analyzed
   
   -- Opportunity Classification
   category STRING NOT NULL,        -- scale_winner, fix_loser, cross_channel, etc.

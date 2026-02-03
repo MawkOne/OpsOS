@@ -6,7 +6,7 @@ Detects: Unhealthy reliance on paid vs organic traffic
 
 from google.cloud import bigquery
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -97,6 +97,7 @@ def detect_organic_paid_balance(organization_id: str) -> list:
                     'id': str(uuid.uuid4()),
                     'organization_id': organization_id,
                     'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                     'category': 'traffic_channel_balance',
                     'type': 'channel_over_reliance',
                     'priority': 'high',
@@ -141,6 +142,7 @@ def detect_organic_paid_balance(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'traffic_channel_balance',
                 'type': 'paid_organic_imbalance',
                 'priority': 'medium',

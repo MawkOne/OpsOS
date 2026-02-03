@@ -6,7 +6,7 @@ Detects: Emerging traffic sources with high conversion potential
 
 from google.cloud import bigquery
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ def detect_new_traffic_opportunities(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'traffic_opportunity',
                 'type': 'emerging_traffic_source',
                 'priority': 'medium',

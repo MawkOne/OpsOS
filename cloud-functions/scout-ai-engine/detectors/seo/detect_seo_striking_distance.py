@@ -10,7 +10,7 @@ SEO Detectors\nAll detection layers (Fast, Trend, Strategic) for SEO & organic s
 from google.cloud import bigquery
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,6 +85,7 @@ def detect_seo_striking_distance(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'seo_opportunity',
                 'type': 'striking_distance' if on_page_1 else 'page_2_opportunity',
                 'priority': 'high' if on_page_1 else 'medium',

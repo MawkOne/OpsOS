@@ -89,6 +89,7 @@ def detect_transaction_refund_anomalies(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "revenue_anomaly",
                 "type": "refund_anomaly",
                 "priority": priority,

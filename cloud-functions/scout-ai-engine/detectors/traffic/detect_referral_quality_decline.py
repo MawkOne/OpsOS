@@ -6,7 +6,7 @@ Detects: Declining quality metrics from referral traffic sources
 
 from google.cloud import bigquery
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ def detect_referral_quality_decline(organization_id: str) -> list:
                 'id': str(uuid.uuid4()),
                 'organization_id': organization_id,
                 'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 'category': 'traffic_quality',
                 'type': 'referral_quality_decline',
                 'priority': 'medium',

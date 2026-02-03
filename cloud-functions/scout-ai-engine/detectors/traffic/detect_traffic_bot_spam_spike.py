@@ -10,7 +10,7 @@ TRAFFIC Detectors\nAll detection layers (Fast, Trend, Strategic) for traffic sou
 from google.cloud import bigquery
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ def detect_traffic_bot_spam_spike(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "traffic_quality",
                 "type": "bot_spam_spike",
                 "priority": priority,

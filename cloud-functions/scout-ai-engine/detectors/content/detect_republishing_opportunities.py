@@ -7,7 +7,7 @@ Category: content
 Data Source: Content age + performance history
 """
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import uuid
 import os
@@ -128,6 +128,7 @@ def detect_republishing_opportunities(organization_id: str) -> list:
                 "id": str(uuid.uuid4()),
                 "organization_id": organization_id,
                 "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "content_opportunity",
                 "type": "republishing_opportunities",
                 "priority": priority,

@@ -1,6 +1,6 @@
 """'revenue_by_channel_attribution' Detector"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
@@ -21,6 +21,7 @@ def detect_revenue_by_channel_attribution(organization_id: str) -> list:
     try:
         for row in bq_client.query(query, job_config=job_config).result():
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "traffic_optimization", "type": "revenue_by_channel_attribution", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "traffic_source",
                 "title": f"Traffic opportunity: 'revenue_by_channel_attribution'", "description": f"Source '{row.canonical_entity_id}' detected for 'revenue_by_channel_attribution' analysis",

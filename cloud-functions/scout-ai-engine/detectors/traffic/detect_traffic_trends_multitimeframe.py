@@ -6,7 +6,7 @@ Detects: Long-term traffic trends across 1mo, 3mo, 6mo periods
 
 from google.cloud import bigquery
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,7 @@ def detect_traffic_trends_multitimeframe(organization_id: str) -> list:
                     'id': str(uuid.uuid4()),
                     'organization_id': organization_id,
                     'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                     'category': 'traffic_trend',
                     'type': 'traffic_declining_trend',
                     'priority': 'high',
@@ -147,6 +148,7 @@ def detect_traffic_trends_multitimeframe(organization_id: str) -> list:
                     'id': str(uuid.uuid4()),
                     'organization_id': organization_id,
                     'detected_at': datetime.utcnow().isoformat(),
+                'data_period_end': (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                     'category': 'traffic_trend',
                     'type': 'traffic_growing_trend',
                     'priority': 'low',

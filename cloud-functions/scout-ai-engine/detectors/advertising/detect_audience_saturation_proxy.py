@@ -1,6 +1,6 @@
 """'audience_saturation_proxy' Detector"""
 from google.cloud import bigquery
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging, uuid, os
 logger = logging.getLogger(__name__)
 PROJECT_ID, DATASET_ID = os.environ.get('GCP_PROJECT', 'opsos-864a1'), 'marketing_ai'
@@ -22,6 +22,7 @@ def detect_audience_saturation_proxy(organization_id: str) -> list:
     try:
         for row in bq_client.query(query, job_config=job_config).result():
             opportunities.append({"id": str(uuid.uuid4()), "organization_id": organization_id, "detected_at": datetime.utcnow().isoformat(),
+                "data_period_end": (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d'),
                 "category": "advertising_optimization", "type": "audience_saturation_proxy", "priority": "medium", "status": "new",
                 "entity_id": row.canonical_entity_id, "entity_type": "ad_campaign",
                 "title": f"Ad opportunity: 'audience_saturation_proxy'", "description": f"Campaign '{row.canonical_entity_id}' detected for 'audience_saturation_proxy' optimization",
