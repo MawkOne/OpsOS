@@ -60,11 +60,9 @@ export default function LeadershipMetricsPage() {
       .finally(() => setLoading(false));
   }, [granularity]);
 
-  const periodKey = granularity === "daily" ? "date" : granularity === "weekly" ? "week_start" : "month_start";
-  const periodLabel = (row: ReportingRow) => {
-    if (granularity === "daily") return row.date ?? "";
-    if (granularity === "weekly") return row.week_num ?? row.week_start ?? "";
-    return row.month_num ?? row.month_start ?? "";
+  const periodLabel = (row: ReportingRow): string => {
+    const val = granularity === "daily" ? row.date : granularity === "weekly" ? (row.week_num ?? row.week_start) : (row.month_num ?? row.month_start);
+    return val != null ? String(val) : "";
   };
 
   const chartData = useMemo(() => {
@@ -78,6 +76,11 @@ export default function LeadershipMetricsPage() {
       purchases: Number(row.purchases) || 0,
     }));
   }, [rows, granularity]);
+
+  const tableKey = (row: ReportingRow, idx: number) => {
+    const p = periodLabel(row);
+    return p ? `period-${p}` : `row-${idx}`;
+  };
 
   return (
     <AppLayout title="Leadership Metrics" subtitle="Master metrics by day, week, or month">
@@ -128,7 +131,7 @@ export default function LeadershipMetricsPage() {
           </div>
         </Card>
 
-        {/* Chart */}
+        {/* Chart - fixed size container so ResponsiveContainer gets valid dimensions */}
         {chartData.length > 0 && (
           <Card>
             <CardHeader
@@ -136,8 +139,8 @@ export default function LeadershipMetricsPage() {
               subtitle={`${granularity} trend`}
               icon={<LineChart className="w-5 h-5" />}
             />
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: "100%", minWidth: 0, height: 320 }}>
+              <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
@@ -174,14 +177,24 @@ export default function LeadershipMetricsPage() {
                       borderRadius: "8px",
                       color: "var(--foreground)",
                     }}
-                    formatter={(value: number | undefined, name?: string) => {
-                      const n = name ?? "";
-                      return [
-                        n === "stripe_revenue" ? `$${Number(value ?? 0).toLocaleString()}` : Number(value ?? 0).toLocaleString(),
-                        n === "stripe_revenue" ? "Revenue" : n === "sessions" ? "Sessions" : n,
-                      ];
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length || label == null) return null;
+                      return (
+                        <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                          <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>Period: {String(label)}</p>
+                          {payload.map((entry) => {
+                            const val = entry.value != null ? Number(entry.value) : 0;
+                            const display = entry.dataKey === "stripe_revenue" ? `$${val.toLocaleString()}` : val.toLocaleString();
+                            const name = entry.dataKey === "stripe_revenue" ? "Revenue" : entry.dataKey === "sessions" ? "Sessions" : String(entry.dataKey ?? "");
+                            return (
+                              <p key={entry.dataKey} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                {name}: {display}
+                              </p>
+                            );
+                          })}
+                        </div>
+                      );
                     }}
-                    labelFormatter={(label) => `Period: ${label}`}
                   />
                   <Area
                     yAxisId="left"
@@ -279,7 +292,7 @@ export default function LeadershipMetricsPage() {
                 <tbody>
                   {rows.map((row, idx) => (
                     <motion.tr
-                      key={row[periodKey] ?? idx}
+                      key={tableKey(row, idx)}
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: Math.min(idx * 0.02, 0.3) }}
