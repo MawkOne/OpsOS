@@ -174,10 +174,13 @@ export default function LeadershipMetricsPage() {
                       borderRadius: "8px",
                       color: "var(--foreground)",
                     }}
-                    formatter={(value: number | undefined, name: string) => [
-                      name === "stripe_revenue" ? `$${Number(value ?? 0).toLocaleString()}` : Number(value ?? 0).toLocaleString(),
-                      name === "stripe_revenue" ? "Revenue" : name === "sessions" ? "Sessions" : name,
-                    ]}
+                    formatter={(value: number | undefined, name?: string) => {
+                      const n = name ?? "";
+                      return [
+                        n === "stripe_revenue" ? `$${Number(value ?? 0).toLocaleString()}` : Number(value ?? 0).toLocaleString(),
+                        n === "stripe_revenue" ? "Revenue" : n === "sessions" ? "Sessions" : n,
+                      ];
+                    }}
                     labelFormatter={(label) => `Period: ${label}`}
                   />
                   <Area
