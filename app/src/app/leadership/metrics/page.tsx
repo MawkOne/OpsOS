@@ -174,8 +174,8 @@ export default function LeadershipMetricsPage() {
                       borderRadius: "8px",
                       color: "var(--foreground)",
                     }}
-                    formatter={(value: number, name: string) => [
-                      name === "stripe_revenue" ? `$${Number(value).toLocaleString()}` : Number(value).toLocaleString(),
+                    formatter={(value: number | undefined, name: string) => [
+                      name === "stripe_revenue" ? `$${Number(value ?? 0).toLocaleString()}` : Number(value ?? 0).toLocaleString(),
                       name === "stripe_revenue" ? "Revenue" : name === "sessions" ? "Sessions" : name,
                     ]}
                     labelFormatter={(label) => `Period: ${label}`}
