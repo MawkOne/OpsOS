@@ -250,7 +250,19 @@ export default function LeadershipMetricsPage() {
   }, [granularity, startDate, endDate]);
 
   const periodLabel = (row: ReportingRow): string => {
-    const val = granularity === "daily" ? row.date : granularity === "weekly" ? (row.week_num ?? row.week_start) : (row.month_num ?? row.month_start);
+    let val: any;
+    if (granularity === "daily") {
+      val = row.date;
+    } else if (granularity === "weekly") {
+      val = row.week_num ?? row.week_start;
+    } else {
+      val = row.month_num ?? row.month_start;
+    }
+    
+    // BigQuery returns dates as objects like { value: "2026-01-31" }
+    if (val && typeof val === "object" && "value" in val) {
+      return String(val.value);
+    }
     return val != null ? String(val) : "";
   };
 
