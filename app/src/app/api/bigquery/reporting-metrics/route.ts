@@ -12,6 +12,7 @@ function isValidDateOnly(s: string | null): s is string {
 
 interface CompanySnapshot {
   traffic: number;
+  new_visitors: number;
   talent_signups: number;
   talent_conv_rate: number;
   company_signups: number;
@@ -30,6 +31,7 @@ function calculateSnapshot(rows: any[]): CompanySnapshot {
   if (!rows || rows.length === 0) {
     return {
       traffic: 0,
+      new_visitors: 0,
       talent_signups: 0,
       talent_conv_rate: 0,
       company_signups: 0,
@@ -49,6 +51,7 @@ function calculateSnapshot(rows: any[]): CompanySnapshot {
   const totals = rows.reduce(
     (acc, row) => ({
       sessions: acc.sessions + (Number(row.sessions) || 0),
+      new_users: acc.new_users + (Number(row.new_users) || 0),
       talent_signups: acc.talent_signups + (Number(row.talent_signups) || 0),
       company_signups: acc.company_signups + (Number(row.company_signups) || 0),
       jobs_posted: acc.jobs_posted + (Number(row.jobs_posted) || 0),
@@ -59,6 +62,7 @@ function calculateSnapshot(rows: any[]): CompanySnapshot {
     }),
     {
       sessions: 0,
+      new_users: 0,
       talent_signups: 0,
       company_signups: 0,
       jobs_posted: 0,
@@ -69,13 +73,16 @@ function calculateSnapshot(rows: any[]): CompanySnapshot {
     }
   );
 
-  // Calculate rates (weighted averages)
-  const talent_conv_rate = totals.sessions > 0 
-    ? (totals.talent_signups / totals.sessions) * 100 
+  // Calculate conversion rates (excluding the other signup type from denominator)
+  const talent_potential_visitors = totals.new_users - totals.company_signups;
+  const company_potential_visitors = totals.new_users - totals.talent_signups;
+  
+  const talent_conv_rate = talent_potential_visitors > 0 
+    ? (totals.talent_signups / talent_potential_visitors) * 100 
     : 0;
   
-  const company_conv_rate = totals.sessions > 0 
-    ? (totals.company_signups / totals.sessions) * 100 
+  const company_conv_rate = company_potential_visitors > 0 
+    ? (totals.company_signups / company_potential_visitors) * 100 
     : 0;
   
   const applications_per_job = totals.jobs_posted > 0 
@@ -88,6 +95,7 @@ function calculateSnapshot(rows: any[]): CompanySnapshot {
 
   return {
     traffic: totals.sessions,
+    new_visitors: totals.new_users,
     talent_signups: totals.talent_signups,
     talent_conv_rate: Math.round(talent_conv_rate * 100) / 100, // 2 decimal places
     company_signups: totals.company_signups,

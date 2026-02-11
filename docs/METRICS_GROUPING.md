@@ -14,10 +14,11 @@ This document maps all metrics from the `reporting-metrics` API endpoint organiz
   "granularity": "daily",
   "company_snapshot": {
     "traffic": 125000,
+    "new_visitors": 42000,
     "talent_signups": 450,
-    "talent_conv_rate": 0.36,
+    "talent_conv_rate": 1.08,
     "company_signups": 120,
-    "company_conv_rate": 0.096,
+    "company_conv_rate": 0.29,
     "new_job_posts": 85,
     "revenue": 12500.00,
     "live_jobs": null,
@@ -37,10 +38,11 @@ The `company_snapshot` object aggregates key metrics across the selected date ra
 | Field | Description | Calculation |
 |-------|-------------|-------------|
 | `traffic` | Total sessions | Sum of `sessions` |
+| `new_visitors` | Total new visitors | Sum of `new_users` (first-time visitors from GA4) |
 | `talent_signups` | Total talent registrations | Sum of `talent_signups` |
-| `talent_conv_rate` | Talent conversion rate (%) | (Total talent signups / Total sessions) × 100 |
+| `talent_conv_rate` | Talent conversion rate (%) | (Total talent signups / (Total new visitors − Total company signups)) × 100 |
 | `company_signups` | Total company registrations | Sum of `company_signups` |
-| `company_conv_rate` | Company conversion rate (%) | (Total company signups / Total sessions) × 100 |
+| `company_conv_rate` | Company conversion rate (%) | (Total company signups / (Total new visitors − Total talent signups)) × 100 |
 | `new_job_posts` | Total jobs posted | Sum of `jobs_posted` |
 | `revenue` | Total revenue | Sum of `stripe_revenue` |
 | `live_jobs` | Active job listings | **TODO:** Needs to be added to reporting table |
@@ -50,7 +52,10 @@ The `company_snapshot` object aggregates key metrics across the selected date ra
 | `hires` | Total hires | Sum of `hires` |
 | `hire_rate` | Hire rate (%) | (Total hires / Total applications) × 100 |
 
-**Note:** All rates are calculated as weighted averages across the period (sum of numerators / sum of denominators) rather than averaging daily rates.
+**Note on Conversion Rates:**
+- **Talent conversion rate** excludes visitors who signed up as companies (they're not potential talent signups)
+- **Company conversion rate** excludes visitors who signed up as talent (they're not potential company signups)
+- This gives a more accurate measure of conversion for each user type by only considering their potential audience
 
 ---
 
@@ -129,6 +134,7 @@ _Note: Blog/Forum metrics need to be added to the reporting table if not present
 | Metric Key | Label | Format | Description |
 |------------|-------|--------|-------------|
 | `sessions` | Total Sessions | number | All website sessions |
+| `new_users` | New Visitors | number | First-time visitors (GA4) - used for signup conversion rates |
 | `engaged_sessions` | Engaged Sessions | number | Sessions with engagement |
 | `engagement_rate_pct` | Engagement Rate % | percent | Overall engagement rate |
 | `video_sessions` | Video Sessions | number | Sessions from video sources |
