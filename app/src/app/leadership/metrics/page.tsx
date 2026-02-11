@@ -423,7 +423,7 @@ export default function LeadershipMetricsPage() {
                       <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>Funnel (latest period):</span>
                       {section.funnelSteps!.map((step, i) => {
                         const v = Number(latestRow[step.key]) || 0;
-                        const prev = i > 0 ? Number(latestRow[section.funnelSteps![i - 1].key]) || 0;
+                        const prev = i > 0 ? (Number(latestRow[section.funnelSteps![i - 1].key]) || 0) : 0;
                         const pct = prev > 0 ? ((v / prev) * 100).toFixed(1) : null;
                         return (
                           <span key={step.key} className="flex items-center gap-2 text-sm">
