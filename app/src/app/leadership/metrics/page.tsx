@@ -361,50 +361,6 @@ export default function LeadershipMetricsPage() {
           </div>
         </Card>
 
-        {/* Company Snapshot */}
-        {!loading && !error && dateColumns.length > 0 && (
-          <Card>
-            <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
-                      KPI
-                    </th>
-                    {dateColumns.map((d) => (
-                      <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
-                        {d}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {SNAPSHOT_KPIS.map((kpi, idx) => (
-                    <motion.tr
-                      key={kpi.key}
-                      initial={{ opacity: 0, y: 2 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(idx * 0.02, 0.25) }}
-                      style={{ borderBottom: "1px solid var(--border)" }}
-                      className="hover:bg-[var(--background-tertiary)] transition-colors"
-                    >
-                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
-                        {kpi.label}
-                      </td>
-                      {dateColumns.map((d) => (
-                        <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                          {formatValue(byPeriod.get(d)?.[kpi.key], kpi.format)}
-                        </td>
-                      ))}
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
-
         {/* Overview chart */}
         {chartData.length > 0 && (
           <Card>
@@ -470,6 +426,50 @@ export default function LeadershipMetricsPage() {
                   ))}
                 </RechartsLineChart>
               </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+
+        {/* Company Snapshot */}
+        {!loading && !error && dateColumns.length > 0 && (
+          <Card>
+            <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                      KPI
+                    </th>
+                    {dateColumns.map((d) => (
+                      <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
+                        {d}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SNAPSHOT_KPIS.map((kpi, idx) => (
+                    <motion.tr
+                      key={kpi.key}
+                      initial={{ opacity: 0, y: 2 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                      className="hover:bg-[var(--background-tertiary)] transition-colors"
+                    >
+                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
+                        {kpi.label}
+                      </td>
+                      {dateColumns.map((d) => (
+                        <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                          {formatValue(byPeriod.get(d)?.[kpi.key], kpi.format)}
+                        </td>
+                      ))}
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </Card>
         )}
