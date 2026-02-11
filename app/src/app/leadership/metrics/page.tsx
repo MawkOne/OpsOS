@@ -13,8 +13,10 @@ import {
   CartesianGrid,
   Tooltip,
   Line,
+  LineChart as RechartsLineChart,
+  Legend,
 } from "recharts";
-import { LineChart } from "lucide-react";
+import { LineChart, Megaphone, Search, Share2, Mail, Users, Building2, Briefcase, DollarSign } from "lucide-react";
 
 type Granularity = "daily" | "weekly" | "monthly";
 
@@ -24,18 +26,190 @@ interface ReportingRow {
   week_start?: string;
   month_num?: string;
   month_start?: string;
-  sessions?: number;
-  stripe_revenue?: number;
-  talent_signups?: number;
-  company_signups?: number;
-  purchases?: number;
-  applications?: number;
-  jobs_posted?: number;
   [key: string]: unknown;
+}
+
+type MetricFormat = "number" | "currency" | "pct";
+
+interface MetricConfig {
+  key: string;
+  label: string;
+  format?: MetricFormat;
+}
+
+interface SectionConfig {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  metrics: MetricConfig[];
+  funnelSteps?: { key: string; label: string }[];
+}
+
+const CHART_COLORS = ["#3b82f6", "#00d4aa", "#f59e0b", "#8b5cf6", "#ec4899"];
+
+const SECTIONS: SectionConfig[] = [
+  {
+    id: "paid",
+    title: "Paid channels",
+    subtitle: "Google Ads (Search, PMax) and paid traffic",
+    icon: <Megaphone className="w-5 h-5" />,
+    metrics: [
+      { key: "paid_search_sessions", label: "Paid search", format: "number" },
+      { key: "paid_pmax_sessions", label: "PMax", format: "number" },
+      { key: "total_paid_sessions", label: "Total paid", format: "number" },
+      { key: "paid_pct", label: "Paid %", format: "pct" },
+      { key: "gads_sessions", label: "GAds sessions", format: "number" },
+      { key: "gads_conversions", label: "GAds conversions", format: "number" },
+      { key: "gads_revenue", label: "GAds revenue", format: "currency" },
+      { key: "gads_pmax_sessions", label: "GAds PMax", format: "number" },
+      { key: "gads_search_sessions", label: "GAds search", format: "number" },
+    ],
+  },
+  {
+    id: "organic",
+    title: "Organic / SEO & content",
+    subtitle: "Organic search and direct",
+    icon: <Search className="w-5 h-5" />,
+    metrics: [
+      { key: "organic_sessions", label: "Organic sessions", format: "number" },
+      { key: "organic_pct", label: "Organic %", format: "pct" },
+      { key: "organic_engaged_sessions", label: "Organic engaged", format: "number" },
+      { key: "organic_engagement_rate", label: "Organic eng. rate %", format: "pct" },
+      { key: "direct_sessions", label: "Direct", format: "number" },
+      { key: "direct_pct", label: "Direct %", format: "pct" },
+    ],
+  },
+  {
+    id: "social",
+    title: "Social",
+    subtitle: "Social media traffic",
+    icon: <Share2 className="w-5 h-5" />,
+    metrics: [
+      { key: "social_sessions", label: "Social sessions", format: "number" },
+    ],
+  },
+  {
+    id: "referral",
+    title: "Referral / collaborative",
+    subtitle: "Referral and affiliate traffic",
+    icon: <Share2 className="w-5 h-5" />,
+    metrics: [
+      { key: "referral_sessions", label: "Referral sessions", format: "number" },
+      { key: "referral_pct", label: "Referral %", format: "pct" },
+    ],
+  },
+  {
+    id: "email",
+    title: "Email marketing",
+    subtitle: "Email traffic and campaign activity",
+    icon: <Mail className="w-5 h-5" />,
+    metrics: [
+      { key: "email_traffic_sessions", label: "Email traffic", format: "number" },
+      { key: "email_daily_opens", label: "Opens", format: "number" },
+      { key: "email_daily_clicks", label: "Clicks", format: "number" },
+      { key: "email_daily_unique_openers", label: "Unique openers", format: "number" },
+      { key: "campaigns_launched", label: "Campaigns launched", format: "number" },
+    ],
+  },
+  {
+    id: "talent",
+    title: "Talent funnel",
+    subtitle: "Supply side: signups → applications → hires",
+    icon: <Users className="w-5 h-5" />,
+    metrics: [
+      { key: "talent_signups", label: "Talent signups", format: "number" },
+      { key: "talent_signup_rate_pct", label: "Signup rate %", format: "pct" },
+      { key: "applications", label: "Applications", format: "number" },
+      { key: "profile_views", label: "Profile views", format: "number" },
+      { key: "reviews", label: "Reviews", format: "number" },
+      { key: "hires", label: "Hires", format: "number" },
+      { key: "app_to_hire_pct", label: "App→hire %", format: "pct" },
+      { key: "match_rate_pct", label: "Match rate %", format: "pct" },
+    ],
+    funnelSteps: [
+      { key: "talent_signups", label: "Signups" },
+      { key: "applications", label: "Applications" },
+      { key: "hires", label: "Hires" },
+    ],
+  },
+  {
+    id: "company",
+    title: "Company funnel",
+    subtitle: "Demand side: signups → purchases",
+    icon: <Building2 className="w-5 h-5" />,
+    metrics: [
+      { key: "company_signups", label: "Company signups", format: "number" },
+      { key: "company_signup_rate_pct", label: "Signup rate %", format: "pct" },
+      { key: "cumulative_company_signups", label: "Cum. companies", format: "number" },
+      { key: "purchases", label: "Purchases", format: "number" },
+      { key: "company_purchase_conversion_pct", label: "Purchase conv. %", format: "pct" },
+      { key: "purchasing_customers", label: "Purchasing customers", format: "number" },
+      { key: "avg_purchases_per_company", label: "Avg purchases/company", format: "number" },
+    ],
+    funnelSteps: [
+      { key: "company_signups", label: "Signups" },
+      { key: "purchases", label: "Purchases" },
+    ],
+  },
+  {
+    id: "jobs",
+    title: "Jobs / marketplace",
+    subtitle: "Job posts, views, applications per job",
+    icon: <Briefcase className="w-5 h-5" />,
+    metrics: [
+      { key: "jobs_posted", label: "Jobs posted", format: "number" },
+      { key: "job_views", label: "Job views", format: "number" },
+      { key: "applications", label: "Applications", format: "number" },
+      { key: "apps_per_job", label: "Apps per job", format: "number" },
+    ],
+  },
+  {
+    id: "revenue",
+    title: "Revenue",
+    subtitle: "Stripe revenue, purchases, subscriptions",
+    icon: <DollarSign className="w-5 h-5" />,
+    metrics: [
+      { key: "stripe_revenue", label: "Stripe revenue", format: "currency" },
+      { key: "revenue", label: "Revenue", format: "currency" },
+      { key: "purchases", label: "Purchases", format: "number" },
+      { key: "ga4_revenue", label: "GA4 revenue", format: "currency" },
+      { key: "mrr", label: "MRR", format: "currency" },
+      { key: "arr", label: "ARR", format: "currency" },
+      { key: "active_subscriptions", label: "Active subs", format: "number" },
+      { key: "churned_subscriptions", label: "Churned subs", format: "number" },
+      { key: "churn_rate_pct", label: "Churn %", format: "pct" },
+    ],
+    funnelSteps: [
+      { key: "sessions", label: "Sessions" },
+      { key: "purchases", label: "Purchases" },
+      { key: "stripe_revenue", label: "Revenue" },
+    ],
+  },
+];
+
+function formatValue(val: unknown, format?: MetricFormat): string {
+  const n = Number(val);
+  if (Number.isNaN(n)) return "—";
+  if (format === "currency") return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (format === "pct") return `${n.toFixed(1)}%`;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function todayISO(): string {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function daysAgoISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function LeadershipMetricsPage() {
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
+  const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +217,12 @@ export default function LeadershipMetricsPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/bigquery/reporting-metrics?granularity=${granularity}`)
+    const params = new URLSearchParams({ granularity, startDate, endDate });
+    fetch(`/api/bigquery/reporting-metrics?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.error && data.rows?.length === 0) {
-          setError(data.error);
-        } else {
-          setError(null);
-        }
+        if (data.error && data.rows?.length === 0) setError(data.error);
+        else setError(null);
         setRows(Array.isArray(data.rows) ? data.rows : []);
       })
       .catch((err) => {
@@ -58,7 +230,7 @@ export default function LeadershipMetricsPage() {
         setRows([]);
       })
       .finally(() => setLoading(false));
-  }, [granularity]);
+  }, [granularity, startDate, endDate]);
 
   const periodLabel = (row: ReportingRow): string => {
     const val = granularity === "daily" ? row.date : granularity === "weekly" ? (row.week_num ?? row.week_start) : (row.month_num ?? row.month_start);
@@ -71,74 +243,109 @@ export default function LeadershipMetricsPage() {
       period: periodLabel(row),
       sessions: Number(row.sessions) || 0,
       stripe_revenue: Number(row.stripe_revenue) || 0,
-      talent_signups: Number(row.talent_signups) || 0,
-      company_signups: Number(row.company_signups) || 0,
-      purchases: Number(row.purchases) || 0,
     }));
   }, [rows, granularity]);
 
-  const tableKey = (row: ReportingRow, idx: number) => {
-    const p = periodLabel(row);
-    return p ? `period-${p}` : `row-${idx}`;
-  };
+  // Pivot: columns = dates (chronological), rows = KPIs
+  const { dateColumns, byPeriod } = useMemo(() => {
+    const chronological = [...rows].reverse();
+    const cols = chronological.map((r) => periodLabel(r)).filter(Boolean);
+    const map = new Map<string, ReportingRow>();
+    rows.forEach((r) => {
+      const p = periodLabel(r);
+      if (p) map.set(p, r);
+    });
+    return { dateColumns: cols, byPeriod: map };
+  }, [rows, granularity]);
 
   return (
-    <AppLayout title="Leadership Metrics" subtitle="Master metrics by day, week, or month">
+    <AppLayout title="Leadership Metrics" subtitle="Metrics by area: marketing first, then funnels and revenue">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Granularity toggle - same pattern as marketing metrics */}
+        {/* Granularity + date range */}
         <Card>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
-              <div
-                className="flex items-center rounded-lg p-0.5"
-                style={{ background: "var(--background-tertiary)" }}
-              >
-                <button
-                  onClick={() => setGranularity("daily")}
-                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                  style={{
-                    background: granularity === "daily" ? "var(--accent)" : "transparent",
-                    color: granularity === "daily" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                >
-                  Daily
-                </button>
-                <button
-                  onClick={() => setGranularity("weekly")}
-                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                  style={{
-                    background: granularity === "weekly" ? "var(--accent)" : "transparent",
-                    color: granularity === "weekly" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                >
-                  Weekly
-                </button>
-                <button
-                  onClick={() => setGranularity("monthly")}
-                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                  style={{
-                    background: granularity === "monthly" ? "var(--accent)" : "transparent",
-                    color: granularity === "monthly" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                >
-                  Monthly
-                </button>
+              <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+                {(["daily", "weekly", "monthly"] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGranularity(g)}
+                    className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                    style={{
+                      background: granularity === g ? "var(--accent)" : "transparent",
+                      color: granularity === g ? "var(--background)" : "var(--foreground-muted)",
+                    }}
+                  >
+                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                  </button>
+                ))}
               </div>
               <div className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                {granularity === "daily" ? "Daily metrics" : granularity === "weekly" ? "Weekly metrics" : "Monthly metrics"}
+                {granularity === "daily" ? "Daily" : granularity === "weekly" ? "Weekly" : "Monthly"} metrics
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium mr-1" style={{ color: "var(--foreground-muted)" }}>Quick:</span>
+              <button
+                onClick={() => {
+                  setEndDate(todayISO());
+                  setStartDate(daysAgoISO(30));
+                }}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
+              >
+                Last 30
+              </button>
+              <button
+                onClick={() => {
+                  setEndDate(todayISO());
+                  setStartDate(daysAgoISO(90));
+                }}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
+              >
+                Last 90
+              </button>
+              <button
+                onClick={() => {
+                  setEndDate(todayISO());
+                  setStartDate(daysAgoISO(365));
+                }}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
+              >
+                Last 12M
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                From
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="rounded-md border px-2.5 py-1.5 text-sm tabular-nums"
+                  style={{ borderColor: "var(--border)", background: "var(--background-secondary)", color: "var(--foreground)" }}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
+                To
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="rounded-md border px-2.5 py-1.5 text-sm tabular-nums"
+                  style={{ borderColor: "var(--border)", background: "var(--background-secondary)", color: "var(--foreground)" }}
+                />
+              </label>
             </div>
           </div>
         </Card>
 
-        {/* Chart - fixed size container so ResponsiveContainer gets valid dimensions */}
+        {/* Overview chart */}
         {chartData.length > 0 && (
           <Card>
-            <CardHeader
-              title="Sessions & Revenue"
-              subtitle={`${granularity} trend`}
-              icon={<LineChart className="w-5 h-5" />}
-            />
+            <CardHeader title="Sessions & Revenue" subtitle={`${granularity} trend`} icon={<LineChart className="w-5 h-5" />} />
             <div style={{ width: "100%", minWidth: 0, height: 320 }}>
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={chartData}>
@@ -147,36 +354,13 @@ export default function LeadershipMetricsPage() {
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#00d4aa" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#00d4aa" stopOpacity={0} />
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis
-                    dataKey="period"
-                    stroke="var(--foreground-muted)"
-                    tick={{ fill: "var(--foreground-muted)", fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    stroke="var(--foreground-muted)"
-                    tick={{ fill: "var(--foreground-muted)", fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    stroke="var(--foreground-muted)"
-                    tick={{ fill: "var(--foreground-muted)", fontSize: 11 }}
-                    tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`}
-                  />
+                  <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
+                  <YAxis yAxisId="left" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`} />
                   <Tooltip
-                    contentStyle={{
-                      background: "var(--background-secondary)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      color: "var(--foreground)",
-                    }}
+                    contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length || label == null) return null;
                       return (
@@ -187,149 +371,160 @@ export default function LeadershipMetricsPage() {
                             const display = entry.dataKey === "stripe_revenue" ? `$${val.toLocaleString()}` : val.toLocaleString();
                             const name = entry.dataKey === "stripe_revenue" ? "Revenue" : entry.dataKey === "sessions" ? "Sessions" : String(entry.dataKey ?? "");
                             return (
-                              <p key={entry.dataKey} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
-                                {name}: {display}
-                              </p>
+                              <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>{name}: {display}</p>
                             );
                           })}
                         </div>
                       );
                     }}
                   />
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="sessions"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    fill="url(#colorSessions)"
-                    name="sessions"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="stripe_revenue"
-                    stroke="#00d4aa"
-                    strokeWidth={2}
-                    dot={false}
-                    name="stripe_revenue"
-                  />
+                  <Area yAxisId="left" type="monotone" dataKey="sessions" stroke="#3b82f6" strokeWidth={2} fill="url(#colorSessions)" name="sessions" />
+                  <Line yAxisId="right" type="monotone" dataKey="stripe_revenue" stroke="#00d4aa" strokeWidth={2} dot={false} name="stripe_revenue" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </Card>
         )}
 
-        {/* Table */}
-        <Card>
-          <CardHeader
-            title="Metrics table"
-            subtitle={`${granularity} data from reporting dataset`}
-          />
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div
-                className="animate-spin w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full"
-              />
-            </div>
-          ) : error ? (
-            <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-              {error}
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-              No data for this period.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th
-                      className="text-left py-3 px-4 text-sm font-semibold sticky left-0"
-                      style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}
-                    >
-                      {granularity === "daily" ? "Date" : granularity === "weekly" ? "Week" : "Month"}
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[90px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Sessions
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[90px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Revenue
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Talent
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Companies
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Purchases
-                    </th>
-                    <th
-                      className="text-right py-3 px-3 text-sm font-semibold min-w-[80px]"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      Applications
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, idx) => (
-                    <motion.tr
-                      key={tableKey(row, idx)}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(idx * 0.02, 0.3) }}
-                      style={{ borderBottom: "1px solid var(--border)" }}
-                      className="hover:bg-[var(--background-tertiary)] transition-colors"
-                    >
-                      <td
-                        className="py-3 px-4 text-sm font-medium sticky left-0"
-                        style={{ color: "var(--foreground)", background: "inherit" }}
-                      >
-                        {periodLabel(row)}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {Number(row.sessions ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        ${Number(row.stripe_revenue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {Number(row.talent_signups ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {Number(row.company_signups ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {Number(row.purchases ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                        {Number(row.applications ?? 0).toLocaleString()}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+        {/* Grouped sections: marketing first, then funnels & revenue */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
+          </div>
+        ) : error ? (
+          <Card>
+            <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>{error}</div>
+          </Card>
+        ) : (
+          SECTIONS.map((section, sectionIdx) => {
+            const latestRow = rows[0];
+            const hasFunnel = section.funnelSteps && section.funnelSteps.length > 0 && latestRow;
+            const chartMetrics = section.metrics.slice(0, 5);
+            const sectionChartData = dateColumns.map((period) => {
+              const row = byPeriod.get(period);
+              const point: Record<string, string | number> = { period };
+              chartMetrics.forEach((m) => {
+                point[m.key] = Number(row?.[m.key]) || 0;
+              });
+              return point;
+            });
+
+            return (
+              <motion.div
+                key={section.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: sectionIdx * 0.05 }}
+              >
+                <Card>
+                  <CardHeader title={section.title} subtitle={section.subtitle} icon={section.icon} />
+                  {hasFunnel && (
+                    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg py-3 px-4" style={{ background: "var(--background-tertiary)" }}>
+                      <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>Funnel (latest period):</span>
+                      {section.funnelSteps!.map((step, i) => {
+                        const v = Number(latestRow[step.key]) || 0;
+                        const prev = i > 0 ? Number(latestRow[section.funnelSteps![i - 1].key]) || 0;
+                        const pct = prev > 0 ? ((v / prev) * 100).toFixed(1) : null;
+                        return (
+                          <span key={step.key} className="flex items-center gap-2 text-sm">
+                            {i > 0 && <span style={{ color: "var(--foreground-muted)" }}>→</span>}
+                            <span style={{ color: "var(--foreground)" }}>{step.label}: <strong>{v.toLocaleString()}</strong></span>
+                            {pct != null && i > 0 && <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>({pct}%)</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {sectionChartData.length > 0 && chartMetrics.length > 0 && (
+                    <div className="mb-4" style={{ width: "100%", minWidth: 0, height: 220 }}>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <RechartsLineChart data={sectionChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                          <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                          <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                          <Tooltip
+                            contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length || label == null) return null;
+                              const metricByKey = new Map(section.metrics.map((m) => [m.key, m]));
+                              return (
+                                <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                                  <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>{String(label)}</p>
+                                  {payload.map((entry) => {
+                                    const m = metricByKey.get(String(entry.dataKey));
+                                    const display = formatValue(entry.value, m?.format);
+                                    return (
+                                      <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                        {m?.label ?? entry.dataKey}: {display}
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            }}
+                          />
+                          <Legend formatter={(value) => section.metrics.find((m) => m.key === value)?.label ?? value} />
+                          {chartMetrics.map((m, i) => (
+                            <Line
+                              key={m.key}
+                              type="monotone"
+                              dataKey={m.key}
+                              stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                              strokeWidth={2}
+                              dot={false}
+                              name={m.label}
+                            />
+                          ))}
+                        </RechartsLineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                            KPI
+                          </th>
+                          {dateColumns.map((d) => (
+                            <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
+                              {d}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dateColumns.length === 0 ? (
+                          <tr><td colSpan={dateColumns.length + 1} className="py-6 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>No data</td></tr>
+                        ) : (
+                          section.metrics.map((m, idx) => (
+                            <motion.tr
+                              key={m.key}
+                              initial={{ opacity: 0, y: 2 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                              style={{ borderBottom: "1px solid var(--border)" }}
+                              className="hover:bg-[var(--background-tertiary)] transition-colors"
+                            >
+                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
+                                {m.label}
+                              </td>
+                              {dateColumns.map((d) => (
+                                <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                                  {formatValue(byPeriod.get(d)?.[m.key], m.format)}
+                                </td>
+                              ))}
+                            </motion.tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })
+        )}
       </div>
     </AppLayout>
   );
