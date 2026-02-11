@@ -52,12 +52,16 @@ const SNAPSHOT_KPIS = [
   { key: "sessions", label: "Traffic", format: "number" as MetricFormat },
   { key: "new_users", label: "New Visitors", format: "number" as MetricFormat },
   { key: "talent_signups", label: "Talent Signups", format: "number" as MetricFormat },
+  { key: "talent_signup_rate_pct", label: "Talent Conv Rate", format: "pct" as MetricFormat },
   { key: "company_signups", label: "Company Signups", format: "number" as MetricFormat },
+  { key: "company_signup_rate_pct", label: "Company Conv Rate", format: "pct" as MetricFormat },
   { key: "jobs_posted", label: "New Job Posts", format: "number" as MetricFormat },
   { key: "stripe_revenue", label: "Revenue", format: "currency" as MetricFormat },
   { key: "job_views", label: "Job Views", format: "number" as MetricFormat },
   { key: "applications", label: "Applications", format: "number" as MetricFormat },
+  { key: "apps_per_job", label: "Applications per Job", format: "number" as MetricFormat },
   { key: "hires", label: "Hires", format: "number" as MetricFormat },
+  { key: "app_to_hire_pct", label: "Hire Rate", format: "pct" as MetricFormat },
 ];
 
 const SECTIONS: SectionConfig[] = [
@@ -218,29 +222,11 @@ function daysAgoISO(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-interface CompanySnapshot {
-  traffic: number;
-  new_visitors: number;
-  talent_signups: number;
-  talent_conv_rate: number;
-  company_signups: number;
-  company_conv_rate: number;
-  new_job_posts: number;
-  revenue: number;
-  live_jobs: number | null;
-  job_views: number;
-  applications: number;
-  applications_per_job: number;
-  hires: number;
-  hire_rate: number;
-}
-
 export default function LeadershipMetricsPage() {
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const [startDate, setStartDate] = useState(() => daysAgoISO(30));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
-  const [snapshot, setSnapshot] = useState<CompanySnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["sessions", "stripe_revenue"]));
@@ -255,12 +241,10 @@ export default function LeadershipMetricsPage() {
         if (data.error && data.rows?.length === 0) setError(data.error);
         else setError(null);
         setRows(Array.isArray(data.rows) ? data.rows : []);
-        setSnapshot(data.company_snapshot || null);
       })
       .catch((err) => {
         setError(err.message || "Failed to load metrics");
         setRows([]);
-        setSnapshot(null);
       })
       .finally(() => setLoading(false));
   }, [granularity, startDate, endDate]);
@@ -378,100 +362,43 @@ export default function LeadershipMetricsPage() {
         </Card>
 
         {/* Company Snapshot */}
-        {snapshot && !loading && (
+        {!loading && !error && dateColumns.length > 0 && (
           <Card>
-            <CardHeader title="Company Snapshot" subtitle={`High-level KPIs for selected period (${startDate} to ${endDate})`} icon={<LineChart className="w-5 h-5" />} />
+            <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
                       KPI
                     </th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      Value
-                    </th>
+                    {dateColumns.map((d) => (
+                      <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
+                        {d}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Traffic</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.traffic.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>New Visitors</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.new_visitors.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Talent Signups</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.talent_signups.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Talent Conv Rate</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.talent_conv_rate.toFixed(2)}%
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Company Signups</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.company_signups.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Company Conv Rate</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.company_conv_rate.toFixed(2)}%
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>New Job Posts</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.new_job_posts.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Revenue</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      ${snapshot.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Job Views</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.job_views.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Applications</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.applications.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Applications per Job</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.applications_per_job.toFixed(2)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Hires</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.hires.toLocaleString()}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
-                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Hire Rate</td>
-                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
-                      {snapshot.hire_rate.toFixed(2)}%
-                    </td>
-                  </tr>
+                  {SNAPSHOT_KPIS.map((kpi, idx) => (
+                    <motion.tr
+                      key={kpi.key}
+                      initial={{ opacity: 0, y: 2 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                      className="hover:bg-[var(--background-tertiary)] transition-colors"
+                    >
+                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
+                        {kpi.label}
+                      </td>
+                      {dateColumns.map((d) => (
+                        <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                          {formatValue(byPeriod.get(d)?.[kpi.key], kpi.format)}
+                        </td>
+                      ))}
+                    </motion.tr>
+                  ))}
                 </tbody>
               </table>
             </div>
