@@ -10,52 +10,44 @@ This document maps all metrics from the `reporting-metrics` API endpoint organiz
 
 ```json
 {
-  "rows": [ /* array of metric rows */ ],
-  "granularity": "daily",
-  "company_snapshot": {
-    "traffic": 125000,
-    "new_visitors": 42000,
-    "talent_signups": 450,
-    "talent_conv_rate": 1.08,
-    "company_signups": 120,
-    "company_conv_rate": 0.29,
-    "new_job_posts": 85,
-    "revenue": 12500.00,
-    "live_jobs": null,
-    "job_views": 15000,
-    "applications": 2200,
-    "applications_per_job": 25.88,
-    "hires": 12,
-    "hire_rate": 0.55
-  }
+  "rows": [
+    {
+      "date": "2026-01-31",
+      "sessions": 1234,
+      "new_users": 450,
+      "talent_signups": 15,
+      "talent_signup_rate_pct": 3.33,
+      "company_signups": 4,
+      "company_signup_rate_pct": 0.89,
+      "jobs_posted": 8,
+      "stripe_revenue": 2500.00,
+      "job_views": 850,
+      "applications": 120,
+      "apps_per_job": 15.0,
+      "hires": 2,
+      "app_to_hire_pct": 1.67,
+      ...
+    },
+    ...
+  ],
+  "granularity": "daily"
 }
 ```
 
-### Company Snapshot (High-Level KPIs)
+### Response Fields
 
-The `company_snapshot` object aggregates key metrics across the selected date range:
+- **`rows`**: Array of metric objects, one per period (day/week/month based on granularity)
+- **`granularity`**: The time period for each row (`daily`, `weekly`, or `monthly`)
 
-| Field | Description | Calculation |
-|-------|-------------|-------------|
-| `traffic` | Total sessions | Sum of `sessions` |
-| `new_visitors` | Total new visitors | Sum of `new_users` (first-time visitors from GA4) |
-| `talent_signups` | Total talent registrations | Sum of `talent_signups` |
-| `talent_conv_rate` | Talent conversion rate (%) | (Total talent signups / (Total new visitors − Total company signups)) × 100 |
-| `company_signups` | Total company registrations | Sum of `company_signups` |
-| `company_conv_rate` | Company conversion rate (%) | (Total company signups / (Total new visitors − Total talent signups)) × 100 |
-| `new_job_posts` | Total jobs posted | Sum of `jobs_posted` |
-| `revenue` | Total revenue | Sum of `stripe_revenue` |
-| `live_jobs` | Active job listings | **TODO:** Needs to be added to reporting table |
-| `job_views` | Total job views | Sum of `job_views` |
-| `applications` | Total applications | Sum of `applications` |
-| `applications_per_job` | Avg applications per job | Total applications / Total jobs posted |
-| `hires` | Total hires | Sum of `hires` |
-| `hire_rate` | Hire rate (%) | (Total hires / Total applications) × 100 |
+### Key Metrics in Each Row
 
-**Note on Conversion Rates:**
-- **Talent conversion rate** excludes visitors who signed up as companies (they're not potential talent signups)
-- **Company conversion rate** excludes visitors who signed up as talent (they're not potential company signups)
-- This gives a more accurate measure of conversion for each user type by only considering their potential audience
+Each row contains all metrics for that period, including:
+- Traffic metrics (`sessions`, `new_users`, `engaged_sessions`, etc.)
+- Signup metrics (`talent_signups`, `company_signups`, conversion rates)
+- Job metrics (`jobs_posted`, `job_views`, `applications`, `apps_per_job`)
+- Revenue metrics (`stripe_revenue`, `revenue`, `mrr`, `arr`)
+- Hiring metrics (`hires`, `app_to_hire_pct`, `match_rate_pct`)
+- Marketing channel breakdowns (organic, paid, social, email, etc.)
 
 ---
 
