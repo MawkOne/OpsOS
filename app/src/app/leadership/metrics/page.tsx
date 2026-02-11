@@ -46,7 +46,19 @@ interface SectionConfig {
   funnelSteps?: { key: string; label: string }[];
 }
 
-const CHART_COLORS = ["#3b82f6", "#00d4aa", "#f59e0b", "#8b5cf6", "#ec4899"];
+const CHART_COLORS = ["#3b82f6", "#00d4aa", "#f59e0b", "#8b5cf6", "#ec4899", "#f43f5e", "#14b8a6", "#f97316"];
+
+const SNAPSHOT_KPIS = [
+  { key: "sessions", label: "Traffic", format: "number" as MetricFormat },
+  { key: "new_users", label: "New Visitors", format: "number" as MetricFormat },
+  { key: "talent_signups", label: "Talent Signups", format: "number" as MetricFormat },
+  { key: "company_signups", label: "Company Signups", format: "number" as MetricFormat },
+  { key: "jobs_posted", label: "New Job Posts", format: "number" as MetricFormat },
+  { key: "stripe_revenue", label: "Revenue", format: "currency" as MetricFormat },
+  { key: "job_views", label: "Job Views", format: "number" as MetricFormat },
+  { key: "applications", label: "Applications", format: "number" as MetricFormat },
+  { key: "hires", label: "Hires", format: "number" as MetricFormat },
+];
 
 const SECTIONS: SectionConfig[] = [
   {
@@ -206,13 +218,32 @@ function daysAgoISO(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+interface CompanySnapshot {
+  traffic: number;
+  new_visitors: number;
+  talent_signups: number;
+  talent_conv_rate: number;
+  company_signups: number;
+  company_conv_rate: number;
+  new_job_posts: number;
+  revenue: number;
+  live_jobs: number | null;
+  job_views: number;
+  applications: number;
+  applications_per_job: number;
+  hires: number;
+  hire_rate: number;
+}
+
 export default function LeadershipMetricsPage() {
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const [startDate, setStartDate] = useState(() => daysAgoISO(30));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
+  const [snapshot, setSnapshot] = useState<CompanySnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["sessions", "stripe_revenue"]));
 
   useEffect(() => {
     setLoading(true);
@@ -224,10 +255,12 @@ export default function LeadershipMetricsPage() {
         if (data.error && data.rows?.length === 0) setError(data.error);
         else setError(null);
         setRows(Array.isArray(data.rows) ? data.rows : []);
+        setSnapshot(data.company_snapshot || null);
       })
       .catch((err) => {
         setError(err.message || "Failed to load metrics");
         setRows([]);
+        setSnapshot(null);
       })
       .finally(() => setLoading(false));
   }, [granularity, startDate, endDate]);
@@ -239,12 +272,14 @@ export default function LeadershipMetricsPage() {
 
   const chartData = useMemo(() => {
     const ordered = [...rows].reverse();
-    return ordered.map((row) => ({
-      period: periodLabel(row),
-      sessions: Number(row.sessions) || 0,
-      stripe_revenue: Number(row.stripe_revenue) || 0,
-    }));
-  }, [rows, granularity]);
+    return ordered.map((row) => {
+      const point: Record<string, string | number> = { period: periodLabel(row) };
+      selectedKPIs.forEach((key) => {
+        point[key] = Number(row[key]) || 0;
+      });
+      return point;
+    });
+  }, [rows, granularity, selectedKPIs]);
 
   // Pivot: columns = dates (chronological), rows = KPIs
   const { dateColumns, byPeriod } = useMemo(() => {
@@ -342,23 +377,137 @@ export default function LeadershipMetricsPage() {
           </div>
         </Card>
 
+        {/* Company Snapshot */}
+        {snapshot && !loading && (
+          <Card>
+            <CardHeader title="Company Snapshot" subtitle={`High-level KPIs for selected period (${startDate} to ${endDate})`} icon={<LineChart className="w-5 h-5" />} />
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      KPI
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      Value
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Traffic</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.traffic.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>New Visitors</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.new_visitors.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Talent Signups</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.talent_signups.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Talent Conv Rate</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.talent_conv_rate.toFixed(2)}%
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Company Signups</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.company_signups.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Company Conv Rate</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.company_conv_rate.toFixed(2)}%
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>New Job Posts</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.new_job_posts.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Revenue</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      ${snapshot.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Job Views</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.job_views.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Applications</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.applications.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Applications per Job</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.applications_per_job.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Hires</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.hires.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--background-tertiary)] transition-colors">
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--foreground-muted)" }}>Hire Rate</td>
+                    <td className="py-3 px-4 text-sm text-right tabular-nums font-medium" style={{ color: "var(--foreground)" }}>
+                      {snapshot.hire_rate.toFixed(2)}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
         {/* Overview chart */}
         {chartData.length > 0 && (
           <Card>
-            <CardHeader title="Sessions & Revenue" subtitle={`${granularity} trend`} icon={<LineChart className="w-5 h-5" />} />
+            <CardHeader title="KPI Trends" subtitle={`Select KPIs to plot (${granularity})`} icon={<LineChart className="w-5 h-5" />} />
+            <div className="mb-4 flex flex-wrap gap-2">
+              {SNAPSHOT_KPIS.map((kpi) => (
+                <button
+                  key={kpi.key}
+                  onClick={() => {
+                    const newSet = new Set(selectedKPIs);
+                    if (newSet.has(kpi.key)) newSet.delete(kpi.key);
+                    else newSet.add(kpi.key);
+                    setSelectedKPIs(newSet);
+                  }}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={{
+                    background: selectedKPIs.has(kpi.key) ? "var(--accent)" : "var(--background-tertiary)",
+                    color: selectedKPIs.has(kpi.key) ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  {kpi.label}
+                </button>
+              ))}
+            </div>
             <div style={{ width: "100%", minWidth: 0, height: 320 }}>
               <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
-                  <YAxis yAxisId="left" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 11 }} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`} />
+                  <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                  <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
                     content={({ active, payload, label }) => {
@@ -367,20 +516,32 @@ export default function LeadershipMetricsPage() {
                         <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
                           <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>Period: {String(label)}</p>
                           {payload.map((entry) => {
+                            const kpi = SNAPSHOT_KPIS.find((k) => k.key === entry.dataKey);
                             const val = entry.value != null ? Number(entry.value) : 0;
-                            const display = entry.dataKey === "stripe_revenue" ? `$${val.toLocaleString()}` : val.toLocaleString();
-                            const name = entry.dataKey === "stripe_revenue" ? "Revenue" : entry.dataKey === "sessions" ? "Sessions" : String(entry.dataKey ?? "");
+                            const display = kpi?.format === "currency" ? `$${val.toLocaleString()}` : val.toLocaleString();
                             return (
-                              <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>{name}: {display}</p>
+                              <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                {kpi?.label ?? entry.dataKey}: {display}
+                              </p>
                             );
                           })}
                         </div>
                       );
                     }}
                   />
-                  <Area yAxisId="left" type="monotone" dataKey="sessions" stroke="#3b82f6" strokeWidth={2} fill="url(#colorSessions)" name="sessions" />
-                  <Line yAxisId="right" type="monotone" dataKey="stripe_revenue" stroke="#00d4aa" strokeWidth={2} dot={false} name="stripe_revenue" />
-                </AreaChart>
+                  <Legend formatter={(value) => SNAPSHOT_KPIS.find((k) => k.key === value)?.label ?? value} />
+                  {Array.from(selectedKPIs).map((key, i) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      name={key}
+                    />
+                  ))}
+                </RechartsLineChart>
               </ResponsiveContainer>
             </div>
           </Card>
