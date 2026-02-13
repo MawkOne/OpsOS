@@ -35,7 +35,7 @@ interface MonthlyTotal {
   bySource: Record<string, number>;
 }
 
-type ViewMode = "ttm" | "year" | "all";
+type ViewMode = "daily" | "weekly" | "monthly" | "ttm" | "year" | "all";
 
 type GroupBy = "type" | "plan" | "price";
 
@@ -54,7 +54,7 @@ export default function SalesPage() {
   const [revenueData, setRevenueData] = useState<RevenueRow[]>([]); // Product/Plan data
   const [priceData, setPriceData] = useState<RevenueRow[]>([]); // Price data
   const [typedData, setTypedData] = useState<TypedRevenueRow[]>([]); // Type data
-  const [viewMode, setViewMode] = useState<ViewMode>("ttm");
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [groupBy, setGroupBy] = useState<GroupBy>("type"); // "type", "plan", or "price"
   const [planFilter, setPlanFilter] = useState<string>("all"); // Filter for specific plan
@@ -63,7 +63,57 @@ export default function SalesPage() {
 
   // Generate months based on view mode
   const { months, monthLabels, isAllTime } = useMemo(() => {
-    if (viewMode === "all") {
+    const now = new Date();
+    
+    if (viewMode === "daily") {
+      // Last 30 days
+      const dailyPeriods: string[] = [];
+      const dailyLabels: string[] = [];
+      
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        dailyPeriods.push(dateKey);
+        dailyLabels.push(label);
+      }
+      
+      return { months: dailyPeriods, monthLabels: dailyLabels, isAllTime: false };
+    } else if (viewMode === "weekly") {
+      // Last 12 weeks
+      const weeklyPeriods: string[] = [];
+      const weeklyLabels: string[] = [];
+      
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - (i * 7));
+        // Get Monday of that week
+        const dayOfWeek = d.getDay();
+        const diff = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const monday = new Date(d.setDate(diff));
+        const weekKey = `${monday.getFullYear()}-W${(Math.ceil((monday.getDate()) / 7)).toString().padStart(2, "0")}`;
+        const label = monday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        weeklyPeriods.push(weekKey);
+        weeklyLabels.push(label);
+      }
+      
+      return { months: weeklyPeriods, monthLabels: weeklyLabels, isAllTime: false };
+    } else if (viewMode === "monthly") {
+      // Last 12 months
+      const monthlyPeriods: string[] = [];
+      const monthlyLabels: string[] = [];
+      
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+        const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        monthlyPeriods.push(monthKey);
+        monthlyLabels.push(label);
+      }
+      
+      return { months: monthlyPeriods, monthLabels: monthlyLabels, isAllTime: false };
+    } else if (viewMode === "all") {
       // All time - generate years from 2018 to current year
       const currentYear = new Date().getFullYear();
       const allYears: string[] = [];
@@ -77,7 +127,6 @@ export default function SalesPage() {
       return { months: allYears, monthLabels: allLabels, isAllTime: true };
     } else if (viewMode === "ttm") {
       // Trailing 12 COMPLETE months (excluding current partial month)
-      const now = new Date();
       const ttmMonths: string[] = [];
       const ttmLabels: string[] = [];
       
@@ -174,10 +223,22 @@ export default function SalesPage() {
         if (invoice.status !== 'paid') return;
         
         const invoiceDate = invoice.created?.toDate?.() || new Date();
-        // For all time view, use year as key; otherwise use YYYY-MM
-        const periodKey = isAllTime 
-          ? invoiceDate.getFullYear().toString()
-          : `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        // Generate period key based on view mode
+        let periodKey: string;
+        if (viewMode === "all" || isAllTime) {
+          periodKey = invoiceDate.getFullYear().toString();
+        } else if (viewMode === "daily") {
+          periodKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}-${invoiceDate.getDate().toString().padStart(2, "0")}`;
+        } else if (viewMode === "weekly") {
+          const dayOfWeek = invoiceDate.getDay();
+          const diff = invoiceDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+          const monday = new Date(invoiceDate);
+          monday.setDate(diff);
+          periodKey = `${monday.getFullYear()}-W${(Math.ceil((monday.getDate()) / 7)).toString().padStart(2, "0")}`;
+        } else {
+          // monthly, ttm, year
+          periodKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
         
         if (!monthsSet.has(periodKey)) return;
         
@@ -340,9 +401,22 @@ export default function SalesPage() {
         }
         
         const paymentDate = payment.created?.toDate?.() || new Date();
-        const periodKey = isAllTime 
-          ? paymentDate.getFullYear().toString()
-          : `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        // Generate period key based on view mode
+        let periodKey: string;
+        if (viewMode === "all" || isAllTime) {
+          periodKey = paymentDate.getFullYear().toString();
+        } else if (viewMode === "daily") {
+          periodKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}-${paymentDate.getDate().toString().padStart(2, "0")}`;
+        } else if (viewMode === "weekly") {
+          const dayOfWeek = paymentDate.getDay();
+          const diff = paymentDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+          const monday = new Date(paymentDate);
+          monday.setDate(diff);
+          periodKey = `${monday.getFullYear()}-W${(Math.ceil((monday.getDate()) / 7)).toString().padStart(2, "0")}`;
+        } else {
+          // monthly, ttm, year
+          periodKey = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
         
         if (!monthsSet.has(periodKey)) return;
         
@@ -579,9 +653,22 @@ export default function SalesPage() {
       qbInvoicesSnap.docs.forEach(doc => {
         const invoice = doc.data();
         const invoiceDate = invoice.txnDate?.toDate?.() || invoice.created?.toDate?.() || new Date();
-        const periodKey = isAllTime 
-          ? invoiceDate.getFullYear().toString()
-          : `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        // Generate period key based on view mode
+        let periodKey: string;
+        if (viewMode === "all" || isAllTime) {
+          periodKey = invoiceDate.getFullYear().toString();
+        } else if (viewMode === "daily") {
+          periodKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}-${invoiceDate.getDate().toString().padStart(2, "0")}`;
+        } else if (viewMode === "weekly") {
+          const dayOfWeek = invoiceDate.getDay();
+          const diff = invoiceDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+          const monday = new Date(invoiceDate);
+          monday.setDate(diff);
+          periodKey = `${monday.getFullYear()}-W${(Math.ceil((monday.getDate()) / 7)).toString().padStart(2, "0")}`;
+        } else {
+          // monthly, ttm, year
+          periodKey = `${invoiceDate.getFullYear()}-${(invoiceDate.getMonth() + 1).toString().padStart(2, "0")}`;
+        }
         
         if (!monthsSet.has(periodKey)) return;
         
@@ -722,14 +809,19 @@ export default function SalesPage() {
   };
 
   return (
-    <AppLayout title="Sales" subtitle="Monthly revenue breakdown by product and source">
+    <AppLayout title="Sales (Stripe - Source of Truth)" subtitle="Revenue breakdown by product, plan, and pricing - sourced from Stripe">
       <div className="max-w-full mx-auto space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm" style={{ color: "var(--foreground-muted)" }}>
-                {viewMode === "all" ? "All Time Revenue" : viewMode === "ttm" ? "TTM Revenue" : `${selectedYear} Revenue`}
+                {viewMode === "all" ? "All Time Revenue" : 
+                 viewMode === "ttm" ? "TTM Revenue" : 
+                 viewMode === "daily" ? "Last 30 Days Revenue" :
+                 viewMode === "weekly" ? "Last 12 Weeks Revenue" :
+                 viewMode === "monthly" ? "Last 12 Months Revenue" :
+                 `${selectedYear} Revenue`}
               </span>
               <DollarSign className="w-4 h-4" style={{ color: "#10b981" }} />
             </div>
@@ -782,14 +874,34 @@ export default function SalesPage() {
               {/* View Mode Toggle */}
               <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
                 <button
-                  onClick={() => setViewMode("all")}
+                  onClick={() => setViewMode("daily")}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
                   style={{
-                    background: viewMode === "all" ? "var(--accent)" : "transparent",
-                    color: viewMode === "all" ? "var(--background)" : "var(--foreground-muted)",
+                    background: viewMode === "daily" ? "var(--accent)" : "transparent",
+                    color: viewMode === "daily" ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
-                  All Time
+                  Daily
+                </button>
+                <button
+                  onClick={() => setViewMode("weekly")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: viewMode === "weekly" ? "var(--accent)" : "transparent",
+                    color: viewMode === "weekly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setViewMode("monthly")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: viewMode === "monthly" ? "var(--accent)" : "transparent",
+                    color: viewMode === "monthly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Monthly
                 </button>
                 <button
                   onClick={() => setViewMode("ttm")}
@@ -810,6 +922,16 @@ export default function SalesPage() {
                   }}
                 >
                   Year
+                </button>
+                <button
+                  onClick={() => setViewMode("all")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: viewMode === "all" ? "var(--accent)" : "transparent",
+                    color: viewMode === "all" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  All Time
                 </button>
               </div>
 
