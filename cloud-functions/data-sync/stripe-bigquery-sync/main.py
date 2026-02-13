@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ID = "opsos-864a1"
 DATASET_ID = "marketing_ai"
 TABLE_ID = "daily_entity_metrics"
+RAW_TABLE_ID = "raw_stripe"
 
 # Get Stripe platform secret from environment
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
@@ -71,13 +72,20 @@ def sync_stripe_to_bigquery(request):
     organization_id = request_json['organizationId']
     sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    # Set days_back based on mode
+    # Support explicit date range OR days_back
+    explicit_start = request_json.get('startDate')  # Format: 'YYYY-MM-DD'
+    explicit_end = request_json.get('endDate')      # Format: 'YYYY-MM-DD'
+    
+    # Set days_back based on mode (only used if no explicit dates)
     if sync_mode == 'full':
         days_back = request_json.get('daysBack', 730)  # 2 years for full resync
     else:
         days_back = request_json.get('daysBack', 30)  # 30 days for incremental
     
-    logger.info(f"Starting Stripe → BigQuery sync for org: {organization_id} (mode={sync_mode}, days={days_back})")
+    if explicit_start and explicit_end:
+        logger.info(f"Starting Stripe → BigQuery sync for org: {organization_id} (explicit range: {explicit_start} to {explicit_end})")
+    else:
+        logger.info(f"Starting Stripe → BigQuery sync for org: {organization_id} (mode={sync_mode}, days={days_back})")
     
     try:
         db = firestore.Client()
@@ -105,14 +113,24 @@ def sync_stripe_to_bigquery(request):
             'charges_processed': 0,
             'subscriptions_processed': 0,
             'customers_processed': 0,
+            'products_processed': 0,
             'rows_inserted': 0,
         }
         
         rows = []
+        raw_rows = []  # For storing raw API responses
         now_iso = datetime.utcnow().isoformat()
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=days_back)
+        
+        # Use explicit dates if provided, otherwise calculate from days_back
+        if explicit_start and explicit_end:
+            start_date = datetime.strptime(explicit_start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(explicit_end, '%Y-%m-%d').date()
+        else:
+            end_date = datetime.utcnow().date()
+            start_date = end_date - timedelta(days=days_back)
+        
         start_timestamp = int(datetime.combine(start_date, datetime.min.time()).timestamp())
+        end_timestamp = int(datetime.combine(end_date + timedelta(days=1), datetime.min.time()).timestamp())  # Include end date
         
         # ============================================
         # 1. FETCH CHARGES DIRECTLY FROM STRIPE API
@@ -127,13 +145,16 @@ def sync_stripe_to_bigquery(request):
         })
         
         try:
-            # Paginate through all charges
-            charges = client.charges.list(
-                params={
-                    'limit': 100,
-                    'created': {'gte': start_timestamp},
-                }
-            )
+            # Paginate through all charges with date range filter
+            charge_filter = {
+                'limit': 100,
+                'created': {'gte': start_timestamp},
+            }
+            # Add end filter if explicit dates provided
+            if explicit_start and explicit_end:
+                charge_filter['created']['lt'] = end_timestamp
+            
+            charges = client.charges.list(params=charge_filter)
             
             for charge in charges.auto_paging_iter():
                 results['charges_processed'] += 1
@@ -141,6 +162,10 @@ def sync_stripe_to_bigquery(request):
                 # Get date from charge
                 charge_date = datetime.fromtimestamp(charge.created).date()
                 date_str = charge_date.isoformat()
+                
+                # Skip if outside date range (safety check)
+                if charge_date < start_date or charge_date > end_date:
+                    continue
                 
                 if charge.status == 'succeeded':
                     amount = charge.amount / 100  # Convert from cents
@@ -151,6 +176,26 @@ def sync_stripe_to_bigquery(request):
                 if charge.refunded:
                     refund_amount = charge.amount_refunded / 100
                     daily_revenue[date_str]['refund_amount'] += refund_amount
+                
+                # Store raw charge data
+                raw_rows.append({
+                    'organization_id': organization_id,
+                    'date': date_str,
+                    'data_type': 'charge',
+                    'api_response': json.dumps({
+                        'id': charge.id,
+                        'amount': charge.amount,
+                        'currency': charge.currency,
+                        'status': charge.status,
+                        'created': charge.created,
+                        'customer': charge.customer,
+                        'refunded': charge.refunded,
+                        'amount_refunded': charge.amount_refunded,
+                        'payment_method': charge.payment_method,
+                        'description': charge.description,
+                    }),
+                    'created_at': now_iso,
+                })
                     
         except Exception as e:
             logger.error(f"Error fetching charges: {e}")
@@ -201,33 +246,171 @@ def sync_stripe_to_bigquery(request):
             logger.error(f"Error fetching subscriptions: {e}")
         
         # ============================================
-        # 3. FETCH CUSTOMER COUNT
+        # 3. FETCH CUSTOMERS WITH DETAILS
         # ============================================
         logger.info("Fetching customers from Stripe API...")
         
         total_customers = 0
         new_customers_by_day = defaultdict(int)
+        customer_details = []  # Store individual customer data
         
         try:
-            customers = client.customers.list(
-                params={
-                    'limit': 100,
-                    'created': {'gte': start_timestamp},
-                }
-            )
+            customer_filter = {
+                'limit': 100,
+                'created': {'gte': start_timestamp},
+            }
+            if explicit_start and explicit_end:
+                customer_filter['created']['lt'] = end_timestamp
+            
+            customers = client.customers.list(params=customer_filter)
             
             for customer in customers.auto_paging_iter():
                 results['customers_processed'] += 1
                 total_customers += 1
                 
                 customer_date = datetime.fromtimestamp(customer.created).date()
+                if customer_date < start_date or customer_date > end_date:
+                    continue
+                    
                 new_customers_by_day[customer_date.isoformat()] += 1
+                
+                # Store individual customer details
+                customer_details.append({
+                    'id': customer.id,
+                    'email': customer.email or '',
+                    'name': customer.name or '',
+                    'created': customer_date.isoformat(),
+                    'currency': customer.currency or 'usd',
+                    'delinquent': customer.delinquent,
+                })
+                
+                # Store raw customer data
+                raw_rows.append({
+                    'organization_id': organization_id,
+                    'date': customer_date.isoformat(),
+                    'data_type': 'customer',
+                    'api_response': json.dumps({
+                        'id': customer.id,
+                        'email': customer.email,
+                        'name': customer.name,
+                        'created': customer.created,
+                        'currency': customer.currency,
+                        'delinquent': customer.delinquent,
+                        'description': customer.description,
+                        'phone': customer.phone,
+                        'address': dict(customer.address) if customer.address else None,
+                        'metadata': dict(customer.metadata) if customer.metadata else {},
+                    }),
+                    'created_at': now_iso,
+                })
                 
         except Exception as e:
             logger.error(f"Error fetching customers: {e}")
         
         # ============================================
-        # 4. BUILD BIGQUERY ROWS
+        # 4. FETCH PRODUCTS
+        # ============================================
+        logger.info("Fetching products from Stripe API...")
+        
+        products_data = []
+        
+        try:
+            products = client.products.list(params={'limit': 100, 'active': True})
+            
+            for product in products.auto_paging_iter():
+                results['products_processed'] += 1
+                
+                products_data.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'description': product.description or '',
+                    'active': product.active,
+                    'created': datetime.fromtimestamp(product.created).date().isoformat(),
+                    'default_price': product.default_price if hasattr(product, 'default_price') else None,
+                    'metadata': dict(product.metadata) if product.metadata else {},
+                })
+                
+        except Exception as e:
+            logger.error(f"Error fetching products: {e}")
+        
+        # ============================================
+        # 5. FETCH INDIVIDUAL SUBSCRIPTIONS WITH DETAILS
+        # ============================================
+        logger.info("Fetching subscription details from Stripe API...")
+        
+        subscription_details = []
+        
+        try:
+            subs = client.subscriptions.list(params={'limit': 100, 'status': 'all', 'expand': ['data.items.data.price.product']})
+            
+            for sub in subs.auto_paging_iter():
+                sub_created = datetime.fromtimestamp(sub.created).date()
+                
+                # Get product info from first subscription item
+                product_id = None
+                product_name = None
+                price_amount = 0
+                price_interval = 'month'
+                
+                try:
+                    items = sub.items.data if hasattr(sub.items, 'data') else []
+                    if items:
+                        first_item = items[0]
+                        price = first_item.price
+                        price_amount = (price.unit_amount or 0) / 100
+                        price_interval = price.recurring.interval if price.recurring else 'month'
+                        
+                        if hasattr(price, 'product'):
+                            if isinstance(price.product, str):
+                                product_id = price.product
+                            else:
+                                product_id = price.product.id
+                                product_name = price.product.name
+                except Exception as e:
+                    logger.warning(f"Error getting subscription product: {e}")
+                
+                subscription_details.append({
+                    'id': sub.id,
+                    'customer_id': sub.customer,
+                    'status': sub.status,
+                    'product_id': product_id,
+                    'product_name': product_name,
+                    'price_amount': price_amount,
+                    'price_interval': price_interval,
+                    'created': sub_created.isoformat(),
+                    'current_period_start': datetime.fromtimestamp(sub.current_period_start).date().isoformat() if sub.current_period_start else None,
+                    'current_period_end': datetime.fromtimestamp(sub.current_period_end).date().isoformat() if sub.current_period_end else None,
+                    'cancel_at_period_end': sub.cancel_at_period_end,
+                })
+                
+                # Store raw subscription data
+                raw_rows.append({
+                    'organization_id': organization_id,
+                    'date': sub_created.isoformat(),
+                    'data_type': 'subscription',
+                    'api_response': json.dumps({
+                        'id': sub.id,
+                        'customer': sub.customer,
+                        'status': sub.status,
+                        'created': sub.created,
+                        'current_period_start': sub.current_period_start,
+                        'current_period_end': sub.current_period_end,
+                        'cancel_at_period_end': sub.cancel_at_period_end,
+                        'canceled_at': sub.canceled_at,
+                        'ended_at': sub.ended_at,
+                        'product_id': product_id,
+                        'product_name': product_name,
+                        'price_amount': price_amount,
+                        'price_interval': price_interval,
+                    }),
+                    'created_at': now_iso,
+                })
+                
+        except Exception as e:
+            logger.error(f"Error fetching subscription details: {e}")
+        
+        # ============================================
+        # 6. BUILD BIGQUERY ROWS
         # ============================================
         logger.info("Building BigQuery rows...")
         
@@ -242,12 +425,11 @@ def sync_stripe_to_bigquery(request):
                 'entity_type': 'revenue',
                 
                 'revenue': metrics['total_revenue'],
-                'payment_count': metrics['payment_count'],
-                'refund_amount': metrics['refund_amount'],
-                'net_revenue': metrics['total_revenue'] - metrics['refund_amount'],
-                
                 'source_breakdown': json.dumps({
                     'currencies': list(metrics['currencies']),
+                    'payment_count': metrics['payment_count'],
+                    'refund_amount': metrics['refund_amount'],
+                    'net_revenue': metrics['total_revenue'] - metrics['refund_amount'],
                 }),
                 
                 'created_at': now_iso,
@@ -255,42 +437,115 @@ def sync_stripe_to_bigquery(request):
             }
             rows.append(row)
         
-        # Subscription metrics snapshot
-        subscription_row = {
+        # Subscription aggregate metrics snapshot
+        subscription_agg_row = {
             'organization_id': organization_id,
             'date': today_str,
             'canonical_entity_id': 'stripe_subscription_metrics',
-            'entity_type': 'subscription',
+            'entity_type': 'subscription_summary',
             
-            'mrr': total_mrr,
-            'arr': total_mrr * 12,
-            'active_subscriptions': active_subscriptions,
-            'churned_subscriptions': churned_subscriptions,
-            'churn_rate': (churned_subscriptions / (active_subscriptions + churned_subscriptions) * 100) if (active_subscriptions + churned_subscriptions) > 0 else 0,
+            'revenue': total_mrr,  # Use revenue field for MRR
+            'source_breakdown': json.dumps({
+                'mrr': total_mrr,
+                'arr': total_mrr * 12,
+                'active_subscriptions': active_subscriptions,
+                'churned_subscriptions': churned_subscriptions,
+                'churn_rate': (churned_subscriptions / (active_subscriptions + churned_subscriptions) * 100) if (active_subscriptions + churned_subscriptions) > 0 else 0,
+            }),
             
             'created_at': now_iso,
             'updated_at': now_iso,
         }
-        rows.append(subscription_row)
+        rows.append(subscription_agg_row)
         
-        # Customer metrics snapshot
-        customer_row = {
+        # Individual subscription rows
+        for sub in subscription_details:
+            sub_row = {
+                'organization_id': organization_id,
+                'date': today_str,
+                'canonical_entity_id': f"stripe_sub_{sub['id']}",
+                'entity_type': 'subscription',
+                
+                'revenue': sub['price_amount'],  # Monthly price
+                'source_breakdown': json.dumps({
+                    'subscription_id': sub['id'],
+                    'customer_id': sub['customer_id'],
+                    'status': sub['status'],
+                    'product_id': sub['product_id'],
+                    'product_name': sub['product_name'],
+                    'price_interval': sub['price_interval'],
+                    'created': sub['created'],
+                    'current_period_start': sub['current_period_start'],
+                    'current_period_end': sub['current_period_end'],
+                    'cancel_at_period_end': sub['cancel_at_period_end'],
+                }),
+                
+                'created_at': now_iso,
+                'updated_at': now_iso,
+            }
+            rows.append(sub_row)
+        
+        # Customer aggregate metrics snapshot
+        customer_agg_row = {
             'organization_id': organization_id,
             'date': today_str,
             'canonical_entity_id': 'stripe_customer_metrics',
-            'entity_type': 'customer',
+            'entity_type': 'customer_summary',
             
-            'total_customers': total_customers,
-            'new_customers_today': new_customers_by_day.get(today_str, 0),
-            
+            'users': total_customers,  # Use users field for customer count
             'source_breakdown': json.dumps({
+                'total_customers': total_customers,
                 'new_customers_by_day': dict(new_customers_by_day),
             }),
             
             'created_at': now_iso,
             'updated_at': now_iso,
         }
-        rows.append(customer_row)
+        rows.append(customer_agg_row)
+        
+        # Individual customer rows
+        for cust in customer_details:
+            cust_row = {
+                'organization_id': organization_id,
+                'date': cust['created'],  # Use customer creation date
+                'canonical_entity_id': f"stripe_customer_{cust['id']}",
+                'entity_type': 'customer',
+                
+                'source_breakdown': json.dumps({
+                    'customer_id': cust['id'],
+                    'email': cust['email'],
+                    'name': cust['name'],
+                    'currency': cust['currency'],
+                    'delinquent': cust['delinquent'],
+                }),
+                
+                'created_at': now_iso,
+                'updated_at': now_iso,
+            }
+            rows.append(cust_row)
+        
+        # Product rows
+        for prod in products_data:
+            prod_row = {
+                'organization_id': organization_id,
+                'date': today_str,
+                'canonical_entity_id': f"stripe_product_{prod['id']}",
+                'entity_type': 'product',
+                
+                'source_breakdown': json.dumps({
+                    'product_id': prod['id'],
+                    'name': prod['name'],
+                    'description': prod['description'],
+                    'active': prod['active'],
+                    'created': prod['created'],
+                    'default_price': prod['default_price'],
+                    'metadata': prod['metadata'],
+                }),
+                
+                'created_at': now_iso,
+                'updated_at': now_iso,
+            }
+            rows.append(prod_row)
         
         # ============================================
         # 5. WRITE DIRECTLY TO BIGQUERY
@@ -305,7 +560,7 @@ def sync_stripe_to_bigquery(request):
                 delete_query = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('revenue', 'subscription', 'customer')
+                  AND entity_type IN ('revenue', 'subscription', 'subscription_summary', 'customer', 'customer_summary', 'product')
                 """
                 
                 try:
@@ -383,7 +638,7 @@ def sync_stripe_to_bigquery(request):
                     delete_query = f"""
                     DELETE FROM `{table_ref}`
                     WHERE organization_id = '{organization_id}'
-                      AND entity_type IN ('revenue', 'subscription', 'customer')
+                      AND entity_type IN ('revenue', 'subscription', 'subscription_summary', 'customer', 'customer_summary', 'product')
                       AND date >= '{start_date.isoformat()}'
                     """
                     try:
@@ -395,6 +650,37 @@ def sync_stripe_to_bigquery(request):
                     if not errors:
                         results['rows_inserted'] = len(rows)
         
+        # ============================================
+        # 7. WRITE RAW DATA TO BIGQUERY WITH UPSERT
+        # ============================================
+        if raw_rows:
+            logger.info(f"Writing {len(raw_rows)} raw records to BigQuery...")
+            raw_table_ref = f"{PROJECT_ID}.{DATASET_ID}.{RAW_TABLE_ID}"
+            
+            # ALWAYS delete existing raw data for date range to avoid duplicates
+            delete_raw_query = f"""
+            DELETE FROM `{raw_table_ref}`
+            WHERE organization_id = '{organization_id}'
+              AND date BETWEEN '{start_date.isoformat()}' AND '{end_date.isoformat()}'
+            """
+            try:
+                bq.query(delete_raw_query).result()
+                logger.info(f"Deleted existing raw data for {start_date} to {end_date}")
+            except Exception as e:
+                logger.warning(f"Raw delete warning: {e}")
+            
+            # Insert raw rows in batches
+            BATCH_SIZE = 500
+            raw_inserted = 0
+            for i in range(0, len(raw_rows), BATCH_SIZE):
+                batch = raw_rows[i:i + BATCH_SIZE]
+                errors = bq.insert_rows_json(raw_table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                if not errors:
+                    raw_inserted += len(batch)
+            
+            results['raw_records_inserted'] = raw_inserted
+            logger.info(f"Inserted {raw_inserted} raw records")
+        
         # Update connection status (minimal Firestore update)
         connection_ref.update({
             'status': 'connected',
@@ -403,6 +689,7 @@ def sync_stripe_to_bigquery(request):
                 'charges': results['charges_processed'],
                 'subscriptions': results['subscriptions_processed'],
                 'customers': results['customers_processed'],
+                'products': results['products_processed'],
                 'bigqueryRows': results['rows_inserted'],
             },
             'updatedAt': firestore.SERVER_TIMESTAMP,

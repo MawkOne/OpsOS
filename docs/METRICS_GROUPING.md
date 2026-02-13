@@ -145,7 +145,7 @@ Converting visitors to registered users (two-sided marketplace).
 |------------|-------|--------|-------------|
 | `talent_signups` | Talent Signups | number | New talent registrations (period) |
 | `cumulative_talent_signups` | Cumulative Talent | number | Total talent signed up (all-time) |
-| `talent_signup_rate_pct` | Talent Signup Rate % | percent | Talent signups / sessions |
+| `talent_signup_rate_pct` | Talent Signup Rate % | percent | Talent signups / (new_users - company_signups) * 100 |
 
 _Note: `cumulative_talent_signups` needs to be added to the reporting table if not present._
 
@@ -154,13 +154,13 @@ _Note: `cumulative_talent_signups` needs to be added to the reporting table if n
 |------------|-------|--------|-------------|
 | `company_signups` | Company Signups | number | New company registrations (period) |
 | `cumulative_company_signups` | Cumulative Companies | number | Total companies signed up (all-time) |
-| `company_signup_rate_pct` | Company Signup Rate % | percent | Company signups / sessions |
+| `company_signup_rate_pct` | Company Signup Rate % | percent | Company signups / (new_users - talent_signups) * 100 |
 
 ### Combined Metrics
 | Metric Key | Label | Format | Description |
 |------------|-------|--------|-------------|
 | `total_signups` | Total Signups | number | All new signups (talent + company) |
-| `overall_signup_rate_pct` | Overall Signup Rate % | percent | Total signups / sessions |
+| `overall_signup_rate_pct` | Overall Signup Rate % | percent | Total signups / new_users * 100 |
 
 ---
 
