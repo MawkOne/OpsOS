@@ -121,14 +121,15 @@ const SECTIONS: SectionConfig[] = [
   {
     id: "email",
     title: "Email marketing",
-    subtitle: "Email traffic and campaign activity",
+    subtitle: "Campaign performance (lifetime totals)",
     icon: <Mail className="w-5 h-5" />,
     metrics: [
-      { key: "email_traffic_sessions", label: "Email traffic", format: "number" },
-      { key: "email_daily_opens", label: "Opens", format: "number" },
-      { key: "email_daily_clicks", label: "Clicks", format: "number" },
-      { key: "email_daily_unique_openers", label: "Unique openers", format: "number" },
       { key: "campaigns_launched", label: "Campaigns launched", format: "number" },
+      { key: "campaign_lifetime_sends", label: "Total sends (lifetime)", format: "number" },
+      { key: "campaign_lifetime_opens", label: "Total opens (lifetime)", format: "number" },
+      { key: "campaign_lifetime_clicks", label: "Total clicks (lifetime)", format: "number" },
+      { key: "campaign_avg_open_rate", label: "Avg open rate %", format: "pct" },
+      { key: "email_traffic_sessions", label: "Email referral traffic", format: "number" },
     ],
   },
   {
