@@ -41,51 +41,32 @@ def refresh_reporting_tables(request):
         bq = bigquery.Client()
         results = {}
         
-        # 1. Update daily_metrics from master view
+        # 1. Update daily_metrics from master view (DELETE + INSERT for simplicity)
         logger.info("📅 Refreshing daily_metrics...")
-        daily_merge_query = f"""
-        MERGE `{PROJECT_ID}.reporting.daily_metrics` AS target
-        USING `{PROJECT_ID}.marketing_ai.v_master_daily_metrics` AS source
-        ON target.date = source.date
-        WHEN MATCHED AND source.date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days_back} DAY) THEN
-          UPDATE SET 
-            target.new_users = source.new_users,
-            target.sessions = source.sessions,
-            target.talent_signups = source.talent_signups,
-            target.company_signups = source.company_signups,
-            target.total_signups = source.total_signups,
-            target.jobs_posted = source.jobs_posted,
-            target.applications = source.applications,
-            target.hires = source.hires,
-            target.stripe_revenue = source.stripe_revenue,
-            target.revenue = source.revenue,
-            target.purchases = source.purchases,
-            target.purchasing_customers = source.purchasing_customers,
-            target.failed_transactions = source.failed_transactions,
-            target.talent_signup_rate_pct = source.talent_signup_rate_pct,
-            target.company_signup_rate_pct = source.company_signup_rate_pct,
-            target.overall_signup_rate_pct = source.overall_signup_rate_pct
-        WHEN NOT MATCHED AND source.date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days_back} DAY) THEN
-          INSERT (
-            date, new_users, sessions, talent_signups, company_signups, total_signups,
-            jobs_posted, applications, hires, stripe_revenue, revenue, purchases,
-            purchasing_customers, failed_transactions, talent_signup_rate_pct,
-            company_signup_rate_pct, overall_signup_rate_pct
-          )
-          VALUES (
-            source.date, source.new_users, source.sessions, source.talent_signups, 
-            source.company_signups, source.total_signups, source.jobs_posted, 
-            source.applications, source.hires, source.stripe_revenue, source.revenue, 
-            source.purchases, source.purchasing_customers, source.failed_transactions,
-            source.talent_signup_rate_pct, source.company_signup_rate_pct, 
-            source.overall_signup_rate_pct
-          )
+        
+        # Delete existing rows for the date range
+        delete_query = f"""
+        DELETE FROM `{PROJECT_ID}.reporting.daily_metrics`
+        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days_back} DAY)
         """
         
-        job = bq.query(daily_merge_query)
-        job.result()
-        results['daily_rows_updated'] = job.num_dml_affected_rows or 0
-        logger.info(f"✅ Updated {results['daily_rows_updated']} rows in daily_metrics")
+        delete_job = bq.query(delete_query)
+        delete_job.result()
+        deleted_rows = delete_job.num_dml_affected_rows or 0
+        logger.info(f"🗑️ Deleted {deleted_rows} existing rows")
+        
+        # Insert fresh data from master view (all columns)
+        insert_query = f"""
+        INSERT INTO `{PROJECT_ID}.reporting.daily_metrics`
+        SELECT * FROM `{PROJECT_ID}.marketing_ai.v_master_daily_metrics`
+        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days_back} DAY)
+        """
+        
+        insert_job = bq.query(insert_query)
+        insert_job.result()
+        inserted_rows = insert_job.num_dml_affected_rows or 0
+        results['daily_rows_updated'] = inserted_rows
+        logger.info(f"✅ Inserted {inserted_rows} rows into daily_metrics")
         
         # 2. Update weekly_metrics from daily_metrics
         logger.info("📊 Refreshing weekly_metrics...")
