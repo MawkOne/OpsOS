@@ -98,6 +98,7 @@ def refresh_reporting_tables(request):
             FORMAT_DATE('%G-W%V', DATE_TRUNC(date, WEEK(MONDAY))) as week_num,
             EXTRACT(ISOWEEK FROM DATE_TRUNC(date, WEEK(MONDAY))) as week,
             COUNT(DISTINCT date) as days_in_week,
+            SUM(new_users) as new_users,
             SUM(talent_signups) as talent_signups,
             SUM(company_signups) as company_signups,
             SUM(total_signups) as total_signups,
@@ -124,6 +125,7 @@ def refresh_reporting_tables(request):
         ON target.week_start = source.week_start
         WHEN MATCHED THEN
           UPDATE SET
+            target.new_users = source.new_users,
             target.talent_signups = source.talent_signups,
             target.company_signups = source.company_signups,
             target.total_signups = source.total_signups,
@@ -149,7 +151,7 @@ def refresh_reporting_tables(request):
             target.days_in_week = source.days_in_week
         WHEN NOT MATCHED THEN
           INSERT (week_num, year, week, week_start, week_end, days_in_week,
-                  talent_signups, company_signups, total_signups,
+                  new_users, talent_signups, company_signups, total_signups,
                   talent_signups_daily_avg, company_signups_daily_avg,
                   jobs_posted, applications, hires,
                   stripe_revenue, stripe_revenue_daily_avg, purchases,
@@ -158,7 +160,7 @@ def refresh_reporting_tables(request):
                   sessions, revenue, revenue_daily_avg)
           VALUES (source.week_num, source.year, source.week, source.week_start,
                   DATE_ADD(source.week_start, INTERVAL 6 DAY), source.days_in_week,
-                  source.talent_signups, source.company_signups, source.total_signups,
+                  source.new_users, source.talent_signups, source.company_signups, source.total_signups,
                   source.talent_signups_daily_avg, source.company_signups_daily_avg,
                   source.jobs_posted, source.applications, source.hires,
                   source.stripe_revenue, source.stripe_revenue_daily_avg, source.purchases,
@@ -181,6 +183,7 @@ def refresh_reporting_tables(request):
             DATE_TRUNC(date, MONTH) as month_start,
             EXTRACT(YEAR FROM date) as year,
             EXTRACT(MONTH FROM date) as month,
+            SUM(new_users) as new_users,
             SUM(talent_signups) as talent_signups,
             SUM(company_signups) as company_signups,
             SUM(total_signups) as total_signups,
@@ -202,6 +205,7 @@ def refresh_reporting_tables(request):
         ON target.month_start = source.month_start
         WHEN MATCHED THEN
           UPDATE SET
+            target.new_users = source.new_users,
             target.talent_signups = source.talent_signups,
             target.company_signups = source.company_signups,
             target.total_signups = source.total_signups,
@@ -219,11 +223,11 @@ def refresh_reporting_tables(request):
             target.year = source.year,
             target.month = source.month
         WHEN NOT MATCHED THEN
-          INSERT (month_start, year, month, talent_signups, company_signups, total_signups,
+          INSERT (month_start, year, month, new_users, talent_signups, company_signups, total_signups,
                   jobs_posted, applications, hires, revenue, purchases, purchasing_customers,
                   stripe_revenue, sessions, talent_signup_rate_pct, company_signup_rate_pct,
                   overall_signup_rate_pct)
-          VALUES (source.month_start, source.year, source.month, source.talent_signups,
+          VALUES (source.month_start, source.year, source.month, source.new_users, source.talent_signups,
                   source.company_signups, source.total_signups, source.jobs_posted,
                   source.applications, source.hires, source.revenue, source.purchases,
                   source.purchasing_customers, source.stripe_revenue, source.sessions,
