@@ -471,7 +471,7 @@ export default function LeadershipMetricsPage() {
                       style={{ borderBottom: "1px solid var(--border)" }}
                       className="hover:bg-[var(--background-tertiary)] transition-colors"
                     >
-                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
+                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
                         {kpi.label}
                       </td>
                       {dateColumns.map((d) => (
@@ -607,7 +607,7 @@ export default function LeadershipMetricsPage() {
                               style={{ borderBottom: "1px solid var(--border)" }}
                               className="hover:bg-[var(--background-tertiary)] transition-colors"
                             >
-                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "inherit" }}>
+                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
                                 {m.label}
                               </td>
                               {dateColumns.map((d) => (
