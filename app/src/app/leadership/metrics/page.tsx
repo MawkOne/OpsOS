@@ -623,47 +623,87 @@ export default function LeadershipMetricsPage() {
                   {sectionChartData.length > 0 && chartMetrics.length > 0 && (
                     <div className="mb-4" style={{ width: "100%", minWidth: 0, height: 220 }}>
                       <ResponsiveContainer width="100%" height={220}>
-                        <RechartsLineChart data={sectionChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                          <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
-                          <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
-                          <Tooltip
-                            contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
-                            content={({ active, payload, label }) => {
-                              if (!active || !payload?.length || label == null) return null;
-                              const metricByKey = new Map(section.metrics.map((m) => [m.key, m]));
-                              return (
-                                <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
-                                  <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>{String(label)}</p>
-                                  {payload.map((entry) => {
-                                    const m = metricByKey.get(String(entry.dataKey));
-                                    const display = formatValue(entry.value, m?.format);
-                                    return (
-                                      <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
-                                        {m?.label ?? entry.dataKey}: {display}
-                                      </p>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            }}
-                          />
-                          <Legend formatter={(value) => section.metrics.find((m) => m.key === value)?.label ?? value} />
-                          {chartMetrics.map((m, i) => (
-                            <Line
-                              key={m.key}
-                              type="linear"
-                              dataKey={m.key}
-                              stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                              strokeWidth={2}
-                              dot={false}
-                              name={m.label}
+                        {chartType === "line" ? (
+                          <RechartsLineChart data={sectionChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                            <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                            <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                            <Tooltip
+                              contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length || label == null) return null;
+                                const metricByKey = new Map(section.metrics.map((m) => [m.key, m]));
+                                return (
+                                  <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                                    <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>{String(label)}</p>
+                                    {payload.map((entry) => {
+                                      const m = metricByKey.get(String(entry.dataKey));
+                                      const display = formatValue(entry.value, m?.format);
+                                      return (
+                                        <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                          {m?.label ?? entry.dataKey}: {display}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }}
                             />
-                          ))}
-                        </RechartsLineChart>
+                            <Legend formatter={(value) => section.metrics.find((m) => m.key === value)?.label ?? value} />
+                            {chartMetrics.map((m, i) => (
+                              <Line
+                                key={m.key}
+                                type="linear"
+                                dataKey={m.key}
+                                stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                                strokeWidth={2}
+                                dot={false}
+                                name={m.label}
+                              />
+                            ))}
+                          </RechartsLineChart>
+                        ) : (
+                          <RechartsBarChart data={sectionChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                            <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                            <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                            <Tooltip
+                              contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length || label == null) return null;
+                                const metricByKey = new Map(section.metrics.map((m) => [m.key, m]));
+                                return (
+                                  <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                                    <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>{String(label)}</p>
+                                    {payload.map((entry) => {
+                                      const m = metricByKey.get(String(entry.dataKey));
+                                      const display = formatValue(entry.value, m?.format);
+                                      return (
+                                        <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                          {m?.label ?? entry.dataKey}: {display}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Legend formatter={(value) => section.metrics.find((m) => m.key === value)?.label ?? value} />
+                            {chartMetrics.map((m, i) => (
+                              <Bar
+                                key={m.key}
+                                dataKey={m.key}
+                                fill={CHART_COLORS[i % CHART_COLORS.length]}
+                                name={m.label}
+                              />
+                            ))}
+                          </RechartsBarChart>
+                        )}
                       </ResponsiveContainer>
                     </div>
                   )}
+... 47 lines not shown ...</output>
+</result>
                   <div 
                     ref={(el) => {
                       if (el) sectionScrollRefs.current.set(section.id, el);
