@@ -469,9 +469,9 @@ export default function LeadershipMetricsPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: Math.min(idx * 0.02, 0.25) }}
                       style={{ borderBottom: "1px solid var(--border)" }}
-                      className="hover:bg-[var(--background-tertiary)] transition-colors"
+                      className="group hover:bg-[var(--background-tertiary)] transition-colors"
                     >
-                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 bg-[var(--background-secondary)] group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)" }}>
                         {kpi.label}
                       </td>
                       {dateColumns.map((d) => (
@@ -605,9 +605,9 @@ export default function LeadershipMetricsPage() {
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: Math.min(idx * 0.02, 0.25) }}
                               style={{ borderBottom: "1px solid var(--border)" }}
-                              className="hover:bg-[var(--background-tertiary)] transition-colors"
+                              className="group hover:bg-[var(--background-tertiary)] transition-colors"
                             >
-                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 bg-[var(--background-secondary)] group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)" }}>
                                 {m.label}
                               </td>
                               {dateColumns.map((d) => (
