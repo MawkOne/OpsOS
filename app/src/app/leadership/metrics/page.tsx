@@ -15,8 +15,10 @@ import {
   Line,
   LineChart as RechartsLineChart,
   Legend,
+  BarChart as RechartsBarChart,
+  Bar,
 } from "recharts";
-import { LineChart, Megaphone, Search, Share2, Mail, Users, Building2, Briefcase, DollarSign } from "lucide-react";
+import { LineChart, BarChart3, Megaphone, Search, Share2, Mail, Users, Building2, Briefcase, DollarSign } from "lucide-react";
 
 type Granularity = "daily" | "weekly" | "monthly";
 
@@ -231,6 +233,7 @@ export default function LeadershipMetricsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["sessions", "stripe_revenue"]));
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
   const snapshotScrollRef = useRef<HTMLDivElement>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -334,6 +337,30 @@ export default function LeadershipMetricsPage() {
               <div className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
                 {granularity === "daily" ? "Daily" : granularity === "weekly" ? "Weekly" : "Monthly"} metrics
               </div>
+              <div className="flex items-center gap-2 ml-4">
+                <button
+                  onClick={() => setChartType("line")}
+                  className="p-1.5 rounded-md transition-all"
+                  style={{
+                    background: chartType === "line" ? "var(--accent)" : "var(--background-tertiary)",
+                    color: chartType === "line" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                  title="Line chart"
+                >
+                  <LineChart className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setChartType("bar")}
+                  className="p-1.5 rounded-md transition-all"
+                  style={{
+                    background: chartType === "bar" ? "var(--accent)" : "var(--background-tertiary)",
+                    color: chartType === "bar" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                  title="Bar chart"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium mr-1" style={{ color: "var(--foreground-muted)" }}>Quick:</span>
@@ -419,44 +446,82 @@ export default function LeadershipMetricsPage() {
             </div>
             <div style={{ width: "100%", minWidth: 0, height: 320 }}>
               <ResponsiveContainer width="100%" height={320}>
-                <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
-                  <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length || label == null) return null;
-                      return (
-                        <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
-                          <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>Period: {String(label)}</p>
-                          {payload.map((entry) => {
-                            const kpi = SNAPSHOT_KPIS.find((k) => k.key === entry.dataKey);
-                            const val = entry.value != null ? Number(entry.value) : 0;
-                            const display = kpi?.format === "currency" ? `$${val.toLocaleString()}` : val.toLocaleString();
-                            return (
-                              <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
-                                {kpi?.label ?? entry.dataKey}: {display}
-                              </p>
-                            );
-                          })}
-                        </div>
-                      );
-                    }}
-                  />
-                  <Legend formatter={(value) => SNAPSHOT_KPIS.find((k) => k.key === value)?.label ?? value} />
-                  {Array.from(selectedKPIs).map((key, i) => (
-                    <Line
-                      key={key}
-                      type="linear"
-                      dataKey={key}
-                      stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                      strokeWidth={2}
-                      dot={false}
-                      name={key}
+                {chartType === "line" ? (
+                  <RechartsLineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                    <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length || label == null) return null;
+                        return (
+                          <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                            <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>Period: {String(label)}</p>
+                            {payload.map((entry) => {
+                              const kpi = SNAPSHOT_KPIS.find((k) => k.key === entry.dataKey);
+                              const val = entry.value != null ? Number(entry.value) : 0;
+                              const display = kpi?.format === "currency" ? `$${val.toLocaleString()}` : val.toLocaleString();
+                              return (
+                                <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                  {kpi?.label ?? entry.dataKey}: {display}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        );
+                      }}
                     />
-                  ))}
-                </RechartsLineChart>
+                    <Legend formatter={(value) => SNAPSHOT_KPIS.find((k) => k.key === value)?.label ?? value} />
+                    {Array.from(selectedKPIs).map((key, i) => (
+                      <Line
+                        key={key}
+                        type="linear"
+                        dataKey={key}
+                        stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                        strokeWidth={2}
+                        dot={false}
+                        name={key}
+                      />
+                    ))}
+                  </RechartsLineChart>
+                ) : (
+                  <RechartsBarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="period" stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                    <YAxis stroke="var(--foreground-muted)" tick={{ fill: "var(--foreground-muted)", fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ background: "var(--background-secondary)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--foreground)" }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length || label == null) return null;
+                        return (
+                          <div className="rounded-lg border p-3 shadow" style={{ background: "var(--background-secondary)", borderColor: "var(--border)" }}>
+                            <p className="text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>Period: {String(label)}</p>
+                            {payload.map((entry) => {
+                              const kpi = SNAPSHOT_KPIS.find((k) => k.key === entry.dataKey);
+                              const val = entry.value != null ? Number(entry.value) : 0;
+                              const display = kpi?.format === "currency" ? `$${val.toLocaleString()}` : val.toLocaleString();
+                              return (
+                                <p key={String(entry.dataKey)} className="text-sm tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                                  {kpi?.label ?? entry.dataKey}: {display}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend formatter={(value) => SNAPSHOT_KPIS.find((k) => k.key === value)?.label ?? value} />
+                    {Array.from(selectedKPIs).map((key, i) => (
+                      <Bar
+                        key={key}
+                        dataKey={key}
+                        fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        name={key}
+                      />
+                    ))}
+                  </RechartsBarChart>
+                )}
               </ResponsiveContainer>
             </div>
           </Card>
