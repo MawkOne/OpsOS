@@ -429,7 +429,7 @@ export default function LeadershipMetricsPage() {
                   {Array.from(selectedKPIs).map((key, i) => (
                     <Line
                       key={key}
-                      type="monotone"
+                      type="linear"
                       dataKey={key}
                       stroke={CHART_COLORS[i % CHART_COLORS.length]}
                       strokeWidth={2}
@@ -568,7 +568,7 @@ export default function LeadershipMetricsPage() {
                           {chartMetrics.map((m, i) => (
                             <Line
                               key={m.key}
-                              type="monotone"
+                              type="linear"
                               dataKey={m.key}
                               stroke={CHART_COLORS[i % CHART_COLORS.length]}
                               strokeWidth={2}
