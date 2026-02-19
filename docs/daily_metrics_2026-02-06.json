@@ -1,0 +1,171 @@
+{
+  "2026-02-06": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 7378,
+      "sessions_7d_avg": 13845.57,
+      "sessions_dod": -6838,
+      "sessions_wow_pct": -48.08,
+      "engaged_sessions": 3912,
+      "engagement_rate_pct": 53.02,
+      "events_per_session": 8.99,
+      "total_events": 67704,
+      "key_events": 418
+    },
+    
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel for this date",
+      "direct_sessions": 2020,
+      "direct_pct": 27.38,
+      "organic_sessions": 1199,
+      "organic_pct": 16.25,
+      "organic_engaged_sessions": 771,
+      "organic_engagement_rate": 64.30,
+      "referral_sessions": 2022,
+      "referral_pct": 27.41,
+      "email_traffic_sessions": 405,
+      "social_sessions": 482,
+      "video_sessions": 60,
+      "paid_search_sessions": 147,
+      "paid_search_engaged_sessions": 106,
+      "paid_pmax_sessions": 467,
+      "paid_pmax_engaged_sessions": 327,
+      "total_paid_sessions": 614,
+      "paid_pct": 8.32,
+      "paid_engagement_rate": 70.52
+    },
+    
+    "google_ads": {
+      "_description": "Google Ads campaign performance from GA4 Data API (daily, no cost data)",
+      "_source": "marketing_ai.daily_entity_metrics (entity_type=google_ads_campaign)",
+      "total_sessions": 1242,
+      "total_users": 1023,
+      "total_conversions": 268,
+      "total_revenue": 495.0,
+      "pmax_campaigns": {
+        "sessions": 1010,
+        "users": 817,
+        "conversions": 201,
+        "campaigns": [
+          {"name": "Channel - PMax - Hire editor - 5 - (worldwide - G=verified)", "sessions": 723, "users": 580, "conversions": 142},
+          {"name": "Channel - PMax - Hire editor - 4 - (US-CA - G=verified)", "sessions": 197, "users": 157, "conversions": 49, "revenue": 495.0},
+          {"name": "Talent - PMax - 2 - (US-CA)", "sessions": 90, "users": 80, "conversions": 10}
+        ]
+      },
+      "search_campaigns": {
+        "sessions": 232,
+        "users": 206,
+        "conversions": 67,
+        "campaigns": [
+          {"name": "Channel - Search - Hire-writer - 6 - (G=verified)", "sessions": 123, "users": 114, "conversions": 22},
+          {"name": "Channel - Search - Hire-designer - 7 - (G=verified)", "sessions": 71, "users": 57, "conversions": 21},
+          {"name": "Channel - Search - Hire-editor - 3 - (G=verified)", "sessions": 31, "users": 29, "conversions": 19},
+          {"name": "Channel - Search - Hire-editor - 2 - (G=Purch.)", "sessions": 7, "users": 6, "conversions": 5}
+        ]
+      }
+    },
+    
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative/lifetime stats across ALL campaigns (not daily)",
+      "campaigns_launched": 5,
+      "campaign_lifetime_sends": 534469,
+      "campaign_lifetime_opens": 170655,
+      "campaign_lifetime_clicks": 36385,
+      "campaign_avg_open_rate": 34.91,
+      "campaign_avg_ctr": 8.48,
+      "campaign_click_to_open_pct": 21.32,
+      "email_contacts_total": 0,
+      "email_list_subscribers_total": 0
+    },
+    
+    "email_daily_activity": {
+      "_description": "Email opens/clicks that occurred ON this date (from any campaign sent previously)",
+      "sends": 0,
+      "opens": 118,
+      "unique_openers": 44,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics for this date",
+      "talent_signups": 371,
+      "talent_signups_7d_avg": 413.14,
+      "talent_signups_dod": 0,
+      "talent_signups_wow_pct": -12.5,
+      "talent_signup_rate_pct": 5.03,
+      "applications": 1567,
+      "applications_7d_avg": 1594.71,
+      "applications_dod": -98,
+      "profile_views": 24599,
+      "reviews": 126,
+      "hires": 0,
+      "app_to_hire_pct": 0.0,
+      "match_rate_pct": 0.0
+    },
+    
+    "company_funnel": {
+      "_description": "Company/employer metrics for this date",
+      "company_signups": 140,
+      "company_signups_7d_avg": 136.71,
+      "company_signups_dod": -16,
+      "company_signup_rate_pct": 1.90,
+      "cumulative_company_signups": 43494,
+      "purchases": 12,
+      "purchases_7d_avg": 11.43,
+      "purchases_dod": 0,
+      "company_purchase_conversion_pct": 8.57,
+      "_purchase_note": "Purchases now sourced from Stripe - see stripe_revenue section for breakdown"
+    },
+    
+    "jobs": {
+      "_description": "Job posting metrics for this date",
+      "jobs_posted": 47,
+      "job_views": 15334,
+      "apps_per_job": 33.34
+    },
+    
+    "signups_combined": {
+      "_description": "Combined signup metrics (talent + company)",
+      "total_signups": 511,
+      "overall_signup_rate_pct": 6.93
+    },
+    
+    "stripe_revenue": {
+      "_description": "Actual payment revenue from Stripe (source of truth for revenue)",
+      "_source": "marketing_ai.raw_stripe (data_type=charge, status=succeeded)",
+      "daily_revenue": 1485.0,
+      "daily_revenue_7d_avg": 1735.0,
+      "daily_revenue_dod": -9.0,
+      "successful_transactions": 12,
+      "failed_transactions": 1,
+      "revenue_per_session": 0.20,
+      "revenue_per_talent_signup": 4.00,
+      "transactions_by_price": {
+        "$199": 1,
+        "$198": 1,
+        "$149": 3,
+        "$148": 2,
+        "$99": 2,
+        "$49": 3
+      }
+    },
+    
+    "stripe_subscriptions": {
+      "_description": "Recurring subscription metrics from Stripe (snapshot at sync time)",
+      "_source": "marketing_ai.daily_entity_metrics (entity_type=subscription_summary)",
+      "mrr": 8234.0,
+      "arr": 98808.0,
+      "active_subscriptions": 29,
+      "churned_subscriptions": 114,
+      "churn_rate_pct": 79.72
+    },
+    
+    "ga4_ecommerce": {
+      "_description": "GA4 attributed e-commerce revenue (campaign attribution, may differ from Stripe)",
+      "_source": "marketing_ai.daily_entity_metrics (entity_type=website_traffic)",
+      "attributed_revenue": 2572.0,
+      "_note": "GA4 revenue is based on conversion attribution and may differ from actual Stripe payments"
+    }
+  }
+}

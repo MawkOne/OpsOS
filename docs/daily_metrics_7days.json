@@ -1,0 +1,655 @@
+{
+  "2026-02-06": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 7378,
+      "sessions_7d_avg": 13845.57,
+      "sessions_dod": -6838,
+      "sessions_wow_pct": -48.08,
+      "engaged_sessions": 3912,
+      "engagement_rate_pct": 53.02,
+      "events_per_session": 8.99,
+      "total_events": 67704,
+      "key_events": 418
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 2020,
+      "direct_pct": 27.38,
+      "organic_sessions": 1199,
+      "organic_pct": 16.25,
+      "organic_engaged_sessions": 771,
+      "organic_engagement_rate": 64.30,
+      "referral_sessions": 2022,
+      "referral_pct": 27.41,
+      "email_traffic_sessions": 405,
+      "social_sessions": 482,
+      "video_sessions": 60,
+      "total_paid_sessions": 614,
+      "paid_pct": 8.32,
+      "paid_engagement_rate": 70.52
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 5,
+      "campaign_lifetime_sends": 534469,
+      "campaign_lifetime_opens": 170655,
+      "campaign_lifetime_clicks": 36385,
+      "campaign_avg_open_rate": 34.91,
+      "campaign_avg_ctr": 8.48
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": 118,
+      "unique_openers": 44,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 371,
+      "talent_signups_7d_avg": 413.14,
+      "talent_signups_dod": 0,
+      "talent_signup_rate_pct": 5.03,
+      "applications": 1567,
+      "applications_7d_avg": 1594.71,
+      "applications_dod": -98,
+      "profile_views": 24599,
+      "reviews": 126,
+      "hires": 0,
+      "app_to_hire_pct": 0.0
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 140,
+      "company_signups_7d_avg": 136.71,
+      "company_signups_dod": -16,
+      "company_signup_rate_pct": 1.90,
+      "cumulative_company_signups": 43494,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 47,
+      "job_views": 15334,
+      "apps_per_job": 33.34
+    },
+    "signups_combined": {
+      "total_signups": 511,
+      "overall_signup_rate_pct": 6.93
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 3459.0,
+      "revenue_7d_avg": 3955.0,
+      "revenue_dod": -395.0,
+      "revenue_wow_pct": 15.96,
+      "revenue_per_session": 0.47,
+      "ga4_revenue": 645.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-02-05": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 14216,
+      "sessions_7d_avg": 14821.71,
+      "sessions_dod": -703,
+      "sessions_wow_pct": -13.71,
+      "engaged_sessions": 8145,
+      "engagement_rate_pct": 57.29,
+      "events_per_session": 8.04,
+      "total_events": 137602,
+      "key_events": 953
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 3415,
+      "direct_pct": 24.02,
+      "organic_sessions": 2455,
+      "organic_pct": 17.27,
+      "organic_engaged_sessions": 1635,
+      "organic_engagement_rate": 66.60,
+      "referral_sessions": 4062,
+      "referral_pct": 28.57,
+      "email_traffic_sessions": 866,
+      "social_sessions": 1002,
+      "video_sessions": 139,
+      "total_paid_sessions": 1378,
+      "paid_pct": 9.69,
+      "paid_engagement_rate": 71.77
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 5,
+      "campaign_lifetime_sends": 534366,
+      "campaign_lifetime_opens": 170634,
+      "campaign_lifetime_clicks": 36383,
+      "campaign_avg_open_rate": 34.93,
+      "campaign_avg_ctr": 8.49
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": 162,
+      "unique_openers": 65,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 371,
+      "talent_signups_7d_avg": 420.71,
+      "talent_signups_dod": -114,
+      "talent_signup_rate_pct": 2.61,
+      "applications": 1665,
+      "applications_7d_avg": 1560.43,
+      "applications_dod": -36,
+      "profile_views": 24613,
+      "reviews": 108,
+      "hires": 0,
+      "app_to_hire_pct": 0.0
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 156,
+      "company_signups_7d_avg": 134.57,
+      "company_signups_dod": 22,
+      "company_signup_rate_pct": 1.10,
+      "cumulative_company_signups": 43354,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 61,
+      "job_views": 15604,
+      "apps_per_job": 27.30
+    },
+    "signups_combined": {
+      "total_signups": 527,
+      "overall_signup_rate_pct": 3.71
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 3854.0,
+      "revenue_7d_avg": 3887.0,
+      "revenue_dod": -1104.0,
+      "revenue_wow_pct": -27.79,
+      "revenue_per_session": 0.27,
+      "ga4_revenue": 1188.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-02-04": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 14919,
+      "sessions_7d_avg": 15144.43,
+      "sessions_dod": 129,
+      "sessions_wow_pct": -11.77,
+      "engaged_sessions": 8852,
+      "engagement_rate_pct": 59.33,
+      "events_per_session": 10.59,
+      "total_events": 152795,
+      "key_events": 1217
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 3153,
+      "direct_pct": 21.13,
+      "organic_sessions": 2593,
+      "organic_pct": 17.38,
+      "organic_engaged_sessions": 1748,
+      "organic_engagement_rate": 67.41,
+      "referral_sessions": 4383,
+      "referral_pct": 29.38,
+      "email_traffic_sessions": 919,
+      "social_sessions": 1312,
+      "video_sessions": 150,
+      "total_paid_sessions": 1429,
+      "paid_pct": 9.58,
+      "paid_engagement_rate": 71.87
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 0,
+      "campaign_lifetime_sends": 0,
+      "campaign_lifetime_opens": 0,
+      "campaign_lifetime_clicks": 0,
+      "campaign_avg_open_rate": null,
+      "campaign_avg_ctr": null
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": 304,
+      "unique_openers": 124,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 485,
+      "talent_signups_7d_avg": 429.57,
+      "talent_signups_dod": 40,
+      "talent_signup_rate_pct": 3.25,
+      "applications": 1701,
+      "applications_7d_avg": 1554.86,
+      "applications_dod": -118,
+      "profile_views": 27307,
+      "reviews": 145,
+      "hires": 0,
+      "app_to_hire_pct": 0.0
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 134,
+      "company_signups_7d_avg": 130.43,
+      "company_signups_dod": -28,
+      "company_signup_rate_pct": 0.90,
+      "cumulative_company_signups": 43198,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 43,
+      "job_views": 16600,
+      "apps_per_job": 39.56
+    },
+    "signups_combined": {
+      "total_signups": 619,
+      "overall_signup_rate_pct": 4.15
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 4958.0,
+      "revenue_7d_avg": 4098.86,
+      "revenue_dod": 480.0,
+      "revenue_wow_pct": -8.84,
+      "revenue_per_session": 0.33,
+      "ga4_revenue": 1535.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-02-03": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 14790,
+      "sessions_7d_avg": 15428.71,
+      "sessions_dod": -3097,
+      "sessions_wow_pct": -12.96,
+      "engaged_sessions": 8586,
+      "engagement_rate_pct": 58.05,
+      "events_per_session": 9.76,
+      "total_events": 144301,
+      "key_events": 1147
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 3195,
+      "direct_pct": 21.60,
+      "organic_sessions": 2661,
+      "organic_pct": 17.99,
+      "organic_engaged_sessions": 1763,
+      "organic_engagement_rate": 66.26,
+      "referral_sessions": 4479,
+      "referral_pct": 30.28,
+      "email_traffic_sessions": 866,
+      "social_sessions": 1095,
+      "video_sessions": 130,
+      "total_paid_sessions": 1413,
+      "paid_pct": 9.55,
+      "paid_engagement_rate": 71.69
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 0,
+      "campaign_lifetime_sends": 0,
+      "campaign_lifetime_opens": 0,
+      "campaign_lifetime_clicks": 0,
+      "campaign_avg_open_rate": null,
+      "campaign_avg_ctr": null
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": 1727,
+      "unique_openers": 611,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 445,
+      "talent_signups_7d_avg": 433.86,
+      "talent_signups_dod": -38,
+      "talent_signup_rate_pct": 3.01,
+      "applications": 1819,
+      "applications_7d_avg": 1550.43,
+      "applications_dod": -363,
+      "profile_views": 25685,
+      "reviews": 176,
+      "hires": 0,
+      "app_to_hire_pct": 0.0
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 162,
+      "company_signups_7d_avg": 128.14,
+      "company_signups_dod": 33,
+      "company_signup_rate_pct": 1.10,
+      "cumulative_company_signups": 43064,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 50,
+      "job_views": 17200,
+      "apps_per_job": 36.38
+    },
+    "signups_combined": {
+      "total_signups": 607,
+      "overall_signup_rate_pct": 4.10
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 4478.0,
+      "revenue_7d_avg": 4167.57,
+      "revenue_dod": 125.0,
+      "revenue_wow_pct": -30.85,
+      "revenue_per_session": 0.30,
+      "ga4_revenue": 1205.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-02-02": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 17887,
+      "sessions_7d_avg": 15743.43,
+      "sessions_dod": 3170,
+      "sessions_wow_pct": 9.25,
+      "engaged_sessions": 9088,
+      "engagement_rate_pct": 50.81,
+      "events_per_session": 8.80,
+      "total_events": 167037,
+      "key_events": 1221
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 6011,
+      "direct_pct": 33.61,
+      "organic_sessions": 2682,
+      "organic_pct": 14.99,
+      "organic_engaged_sessions": 1833,
+      "organic_engagement_rate": 68.34,
+      "referral_sessions": 4474,
+      "referral_pct": 25.01,
+      "email_traffic_sessions": 973,
+      "social_sessions": 1093,
+      "video_sessions": 157,
+      "total_paid_sessions": 1392,
+      "paid_pct": 7.78,
+      "paid_engagement_rate": 72.56
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 2,
+      "campaign_lifetime_sends": 32572,
+      "campaign_lifetime_opens": 5319,
+      "campaign_lifetime_clicks": 1224,
+      "campaign_avg_open_rate": 28.17,
+      "campaign_avg_ctr": 3.82
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 41544,
+      "opens": 4956,
+      "unique_openers": 1584,
+      "clicks": 0,
+      "unique_clickers": 0
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 483,
+      "talent_signups_7d_avg": 442.29,
+      "talent_signups_dod": 101,
+      "talent_signup_rate_pct": 2.70,
+      "applications": 2182,
+      "applications_7d_avg": 1519.29,
+      "applications_dod": 1000,
+      "profile_views": 23698,
+      "reviews": 110,
+      "hires": 1,
+      "app_to_hire_pct": 0.05
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 129,
+      "company_signups_7d_avg": 131.0,
+      "company_signups_dod": 4,
+      "company_signup_rate_pct": 0.72,
+      "cumulative_company_signups": 42902,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 42,
+      "job_views": 17053,
+      "apps_per_job": 51.95
+    },
+    "signups_combined": {
+      "total_signups": 612,
+      "overall_signup_rate_pct": 3.42
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 4353.0,
+      "revenue_7d_avg": 4453.0,
+      "revenue_dod": 736.0,
+      "revenue_wow_pct": -2.40,
+      "revenue_per_session": 0.24,
+      "revenue_per_hire": 4353.0,
+      "ga4_revenue": 1436.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-02-01": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 14717,
+      "sessions_7d_avg": 15527.14,
+      "sessions_dod": 1705,
+      "sessions_wow_pct": 10.56,
+      "engaged_sessions": 7220,
+      "engagement_rate_pct": 49.06,
+      "events_per_session": 9.37,
+      "total_events": 133805,
+      "key_events": 1039
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 4914,
+      "direct_pct": 33.39,
+      "organic_sessions": 2112,
+      "organic_pct": 14.35,
+      "organic_engaged_sessions": 1381,
+      "organic_engagement_rate": 65.39,
+      "referral_sessions": 3660,
+      "referral_pct": 24.87,
+      "email_traffic_sessions": 743,
+      "social_sessions": 1052,
+      "video_sessions": 139,
+      "total_paid_sessions": 1264,
+      "paid_pct": 8.59,
+      "paid_engagement_rate": 72.31
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 0,
+      "campaign_lifetime_sends": 0,
+      "campaign_lifetime_opens": 0,
+      "campaign_lifetime_clicks": 0,
+      "campaign_avg_open_rate": null,
+      "campaign_avg_ctr": null
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": null,
+      "unique_openers": null,
+      "clicks": null,
+      "unique_clickers": null
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 382,
+      "talent_signups_7d_avg": 446.71,
+      "talent_signups_dod": 27,
+      "talent_signup_rate_pct": 2.60,
+      "applications": 1182,
+      "applications_7d_avg": 1422.14,
+      "applications_dod": 135,
+      "profile_views": 21058,
+      "reviews": 89,
+      "hires": 1,
+      "app_to_hire_pct": 0.08
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 125,
+      "company_signups_7d_avg": 137.43,
+      "company_signups_dod": 14,
+      "company_signup_rate_pct": 0.85,
+      "cumulative_company_signups": 42773,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 39,
+      "job_views": 13480,
+      "apps_per_job": 30.31
+    },
+    "signups_combined": {
+      "total_signups": 507,
+      "overall_signup_rate_pct": 3.44
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 3617.0,
+      "revenue_7d_avg": 4468.29,
+      "revenue_dod": 651.0,
+      "revenue_wow_pct": -49.55,
+      "revenue_per_session": 0.25,
+      "revenue_per_hire": 3617.0,
+      "ga4_revenue": 1335.0,
+      "stripe_revenue": 0.0
+    }
+  },
+
+  "2026-01-31": {
+    "website_traffic": {
+      "_description": "GA4 session and engagement metrics for this date",
+      "sessions": 13012,
+      "sessions_7d_avg": 15326.29,
+      "sessions_dod": -1199,
+      "sessions_wow_pct": 0.08,
+      "engaged_sessions": 6864,
+      "engagement_rate_pct": 52.75,
+      "events_per_session": 9.94,
+      "total_events": 117945,
+      "key_events": 909
+    },
+    "traffic_sources": {
+      "_description": "GA4 traffic breakdown by channel",
+      "direct_sessions": 3602,
+      "direct_pct": 27.68,
+      "organic_sessions": 2048,
+      "organic_pct": 15.74,
+      "organic_engaged_sessions": 1293,
+      "organic_engagement_rate": 63.13,
+      "referral_sessions": 3577,
+      "referral_pct": 27.49,
+      "email_traffic_sessions": 766,
+      "social_sessions": 924,
+      "video_sessions": 154,
+      "total_paid_sessions": 1136,
+      "paid_pct": 8.73,
+      "paid_engagement_rate": 68.31
+    },
+    "email_campaign_totals": {
+      "_description": "ActiveCampaign cumulative stats across ALL campaigns (not daily)",
+      "campaigns_launched": 0,
+      "campaign_lifetime_sends": 0,
+      "campaign_lifetime_opens": 0,
+      "campaign_lifetime_clicks": 0,
+      "campaign_avg_open_rate": null,
+      "campaign_avg_ctr": null
+    },
+    "email_daily_activity": {
+      "_description": "Email activity that occurred ON this date (from any campaign)",
+      "sends": 0,
+      "opens": null,
+      "unique_openers": null,
+      "clicks": null,
+      "unique_clickers": null
+    },
+    "talent_funnel": {
+      "_description": "Talent/job seeker metrics",
+      "talent_signups": 355,
+      "talent_signups_7d_avg": 452.86,
+      "talent_signups_dod": -69,
+      "talent_signup_rate_pct": 2.73,
+      "applications": 1047,
+      "applications_7d_avg": 1414.0,
+      "applications_dod": -280,
+      "profile_views": 23956,
+      "reviews": 86,
+      "hires": 4,
+      "app_to_hire_pct": 0.38
+    },
+    "company_funnel": {
+      "_description": "Company/employer metrics",
+      "company_signups": 111,
+      "company_signups_7d_avg": 141.43,
+      "company_signups_dod": -14,
+      "company_signup_rate_pct": 0.85,
+      "cumulative_company_signups": 42648,
+      "purchases": 0,
+      "purchasing_customers": 0
+    },
+    "jobs": {
+      "_description": "Job posting metrics",
+      "jobs_posted": 31,
+      "job_views": 12848,
+      "apps_per_job": 33.77
+    },
+    "signups_combined": {
+      "total_signups": 466,
+      "overall_signup_rate_pct": 3.58
+    },
+    "revenue": {
+      "_description": "Revenue from GA4 and Stripe",
+      "revenue": 2966.0,
+      "revenue_7d_avg": 4975.86,
+      "revenue_dod": -17.0,
+      "revenue_wow_pct": -35.59,
+      "revenue_per_session": 0.23,
+      "revenue_per_hire": 741.5,
+      "ga4_revenue": 741.0,
+      "stripe_revenue": 0.0
+    }
+  }
+}

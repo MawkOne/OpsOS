@@ -133,7 +133,7 @@ root_agent = LlmAgent(
         'Provides actionable insights about marketing performance, event tracking, '
         'traffic quality, and conversion optimization.'
     ),
-    sub_agents=[],
+    sub_agents=[my_agent_google_search_agent, my_agent_url_context_agent],
     instruction=(
         'You are a Marketing Intelligence AI for OpsOS. '
         'You have access to real-time marketing data through custom tools. '
@@ -150,6 +150,10 @@ root_agent = LlmAgent(
         '   - "What should I focus on?"\n'
         '   - "Organic vs paid performance"\n'
         '   - "Traffic quality analysis"\n'
+        '\n'
+        '3. External Research Tools - Use when asked to:\n'
+        '   - Search Google for broader context\n'
+        '   - Read content from specific URLs\n'
         '\n\n'
         'RESPONSE FORMAT:\n'
         '- Always cite specific numbers from the data\n'

@@ -155,16 +155,29 @@ def sync_ga4_to_bigquery(request):
     organization_id = request_json['organizationId']
     sync_mode = request_json.get('mode', 'update')  # 'update' (incremental) or 'full' (complete resync)
     
-    logger.info(f"🔍 RECEIVED: mode={sync_mode}, raw request={request_json}")
+    # Support explicit date range (like Stripe sync)
+    explicit_start = request_json.get('startDate')  # e.g., "2025-01-01"
+    explicit_end = request_json.get('endDate')      # e.g., "2025-01-31"
     
-    # Update sync: last 30 days, uses MERGE to avoid duplicates
-    # Full sync: all historical data (5 years), deletes and rewrites
-    if sync_mode == 'full':
-        days_back = request_json.get('daysBack', 1825)  # 5 years for full resync
+    logger.info(f"🔍 RECEIVED: mode={sync_mode}, startDate={explicit_start}, endDate={explicit_end}, raw request={request_json}")
+    
+    # Use explicit dates if provided, otherwise calculate from days_back
+    if explicit_start and explicit_end:
+        start_date = datetime.strptime(explicit_start, '%Y-%m-%d').date()
+        end_date = datetime.strptime(explicit_end, '%Y-%m-%d').date()
+        days_back = (datetime.utcnow().date() - start_date).days
+        logger.info(f"🚀 Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({start_date} to {end_date})")
     else:
-        days_back = request_json.get('daysBack', 30)  # 30 days for incremental update
-    
-    logger.info(f"🚀 Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({days_back} days)")
+        # Update sync: last 30 days, uses MERGE to avoid duplicates
+        # Full sync: all historical data (5 years), deletes and rewrites
+        if sync_mode == 'full':
+            days_back = request_json.get('daysBack', 1825)  # 5 years for full resync
+        else:
+            days_back = request_json.get('daysBack', 30)  # 30 days for incremental update
+        
+        end_date = datetime.utcnow().date()
+        start_date = end_date - timedelta(days=days_back)
+        logger.info(f"🚀 Starting GA4 → BigQuery {sync_mode.upper()} sync for org: {organization_id} ({days_back} days)")
     
     try:
         db = firestore.Client()
@@ -201,8 +214,6 @@ def sync_ga4_to_bigquery(request):
         
         rows = []
         now_iso = datetime.utcnow().isoformat()
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=days_back)
         
         # ============================================
         # 1. FETCH DAILY METRICS FROM GA4
@@ -250,6 +261,9 @@ def sync_ga4_to_bigquery(request):
                 # Calculate conversion_rate
                 conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
                 
+                # Calculate pages_per_session
+                pages_per_session = (pageviews / sessions) if sessions > 0 else 0
+                
                 bq_row = {
                     'organization_id': organization_id,
                     'date': date_str,
@@ -266,6 +280,8 @@ def sync_ga4_to_bigquery(request):
                     'avg_session_duration': avg_session_duration,
                     'bounce_rate': bounce_rate,
                     'engagement_rate': engagement_rate,
+                    'pages_per_session': pages_per_session,
+                    'dwell_time': avg_session_duration,  # Use session duration as dwell time proxy
                     
                     'created_at': now_iso,
                     'updated_at': now_iso,
@@ -276,15 +292,16 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching daily metrics: {e}")
         
         # ============================================
-        # 2. FETCH TRAFFIC SOURCES (ALL - with pagination)
+        # 2. FETCH TRAFFIC SOURCES BY DAY (for daily tracking)
         # ============================================
-        logger.info("Fetching ALL traffic sources from GA4 API...")
+        logger.info("Fetching traffic sources by day from GA4 API...")
         
         try:
-            # Fetch ALL traffic sources (no limit)
+            # Fetch traffic sources with date dimension for daily tracking
             source_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
+                    {'name': 'date'},
                     {'name': 'sessionDefaultChannelGroup'},
                     {'name': 'sessionSourceMedium'},
                 ],
@@ -293,30 +310,34 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'activeUsers'},
                     {'name': 'conversions'},
                     {'name': 'totalRevenue'},
+                    {'name': 'bounceRate'},
+                    {'name': 'engagementRate'},
                 ],
             })
-            
-            today_str = end_date.isoformat()
             
             for row in source_rows:
                 results['traffic_sources'] += 1
                 
-                channel = row['dimensionValues'][0]['value']
-                source_medium = row['dimensionValues'][1]['value']
+                date_val = row['dimensionValues'][0]['value']
+                date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                channel = row['dimensionValues'][1]['value']
+                source_medium = row['dimensionValues'][2]['value']
                 metrics = row['metricValues']
                 
                 sessions = int(metrics[0]['value'])
                 users = int(metrics[1]['value'])
                 conversions = int(metrics[2]['value'])
                 revenue = float(metrics[3]['value'])
+                bounce_rate = float(metrics[4]['value'])
+                engagement_rate = float(metrics[5]['value'])
                 
                 # Calculate conversion_rate
                 conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
                 
                 bq_row = {
                     'organization_id': organization_id,
-                    'date': today_str,
-                    'canonical_entity_id': f"ga4_source_{channel}_{source_medium}".replace(' ', '_').replace('/', '_'),
+                    'date': date_str,
+                    'canonical_entity_id': f"ga4_source_{date_str}_{channel}_{source_medium}".replace(' ', '_').replace('/', '_'),
                     'entity_type': 'traffic_source',
                     
                     # Core metrics needed by detectors
@@ -325,6 +346,8 @@ def sync_ga4_to_bigquery(request):
                     'conversions': conversions,
                     'conversion_rate': conversion_rate,
                     'revenue': revenue,
+                    'bounce_rate': bounce_rate,
+                    'engagement_rate': engagement_rate,
                     
                     'source_breakdown': json.dumps({
                         'channel': channel,
@@ -341,17 +364,18 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching traffic sources: {e}")
         
         # ============================================
-        # 3. FETCH TOP PAGES (with sessions, conversions for detectors)
+        # 3. FETCH TOP PAGES BY DAY (for daily tracking)
         # ============================================
-        logger.info("Fetching top pages from GA4 API...")
+        logger.info("Fetching top pages by day from GA4 API...")
         
         try:
-            # Fetch ALL pages with full metrics needed for detectors
+            # Fetch pages with date dimension for daily tracking
+            # Limit to top 100 pages per day to avoid massive row counts
             pages_rows = ga4_run_report_paginated(access_token, property_id, {
                 'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
                 'dimensions': [
+                    {'name': 'date'},
                     {'name': 'pagePath'},
-                    {'name': 'pageTitle'},
                 ],
                 'metrics': [
                     {'name': 'screenPageViews'},
@@ -363,16 +387,18 @@ def sync_ga4_to_bigquery(request):
                     {'name': 'totalRevenue'},
                     {'name': 'engagementRate'},
                 ],
-                'orderBys': [{'metric': {'metricName': 'screenPageViews'}, 'desc': True}],
-            })
-            
-            today_str = end_date.isoformat()
+                'orderBys': [
+                    {'dimension': {'dimensionName': 'date'}, 'desc': True},
+                    {'metric': {'metricName': 'screenPageViews'}, 'desc': True},
+                ],
+            }, max_rows=50000)  # Limit total rows to prevent timeout
             
             for row in pages_rows:
                 results['pages_processed'] += 1
                 
-                page_path = row['dimensionValues'][0]['value']
-                page_title = row['dimensionValues'][1]['value']
+                date_val = row['dimensionValues'][0]['value']
+                date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                page_path = row['dimensionValues'][1]['value']
                 metrics = row['metricValues']
                 
                 pageviews = int(metrics[0]['value'])
@@ -384,13 +410,13 @@ def sync_ga4_to_bigquery(request):
                 revenue = float(metrics[6]['value'])
                 engagement_rate = float(metrics[7]['value'])
                 
-                # Calculate conversion_rate
+                # Calculate conversion_rate and pages_per_session
                 conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
                 
                 bq_row = {
                     'organization_id': organization_id,
-                    'date': today_str,
-                    'canonical_entity_id': page_path[:200],  # Page path as entity ID
+                    'date': date_str,
+                    'canonical_entity_id': f"page_{date_str}_{page_path[:150]}",  # Include date in entity ID
                     'entity_type': 'page',
                     
                     # Core metrics needed by detectors
@@ -403,11 +429,11 @@ def sync_ga4_to_bigquery(request):
                     'avg_session_duration': avg_session_duration,
                     'bounce_rate': bounce_rate,
                     'engagement_rate': engagement_rate,
+                    'dwell_time': avg_session_duration,  # Use session duration as dwell time
                     
-                    # Store page title in source_breakdown JSON
+                    # Store page path in source_breakdown JSON
                     'source_breakdown': json.dumps({
                         'page_path': page_path,
-                        'page_title': page_title[:200] if page_title else page_path[:200],
                     }),
                     
                     'created_at': now_iso,
@@ -419,7 +445,198 @@ def sync_ga4_to_bigquery(request):
             logger.error(f"Error fetching pages: {e}")
         
         # ============================================
-        # 4. WRITE DIRECTLY TO BIGQUERY (in batches)
+        # 4. FETCH GOOGLE ADS CAMPAIGNS BY DAY
+        # ============================================
+        logger.info("Fetching Google Ads campaigns by day from GA4 API...")
+        results['google_ads_campaigns'] = 0
+        
+        try:
+            # Fetch Google Ads campaign data with detailed dimensions
+            campaign_rows = ga4_run_report_paginated(access_token, property_id, {
+                'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
+                'dimensions': [
+                    {'name': 'date'},
+                    {'name': 'sessionGoogleAdsCampaignName'},
+                    {'name': 'sessionGoogleAdsCampaignId'},
+                    {'name': 'sessionGoogleAdsCampaignType'},
+                    {'name': 'sessionGoogleAdsAdNetworkType'},
+                ],
+                'metrics': [
+                    {'name': 'sessions'},
+                    {'name': 'activeUsers'},
+                    {'name': 'engagedSessions'},
+                    {'name': 'conversions'},
+                    {'name': 'totalRevenue'},
+                    {'name': 'engagementRate'},
+                    {'name': 'bounceRate'},
+                ],
+                'dimensionFilter': {
+                    'filter': {
+                        'fieldName': 'sessionGoogleAdsCampaignName',
+                        'stringFilter': {
+                            'matchType': 'FULL_REGEXP',
+                            'value': '.+',  # Non-empty campaign names only
+                        }
+                    }
+                },
+                'orderBys': [
+                    {'dimension': {'dimensionName': 'date'}, 'desc': True},
+                    {'metric': {'metricName': 'sessions'}, 'desc': True},
+                ],
+            }, max_rows=10000)
+            
+            for row in campaign_rows:
+                results['google_ads_campaigns'] += 1
+                
+                date_val = row['dimensionValues'][0]['value']
+                date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                campaign_name = row['dimensionValues'][1]['value']
+                campaign_id = row['dimensionValues'][2]['value']
+                campaign_type = row['dimensionValues'][3]['value']
+                ad_network = row['dimensionValues'][4]['value']
+                metrics = row['metricValues']
+                
+                sessions = int(metrics[0]['value'])
+                users = int(metrics[1]['value'])
+                engaged_sessions = int(metrics[2]['value'])
+                conversions = int(metrics[3]['value'])
+                revenue = float(metrics[4]['value'])
+                engagement_rate = float(metrics[5]['value'])
+                bounce_rate = float(metrics[6]['value'])
+                
+                # Calculate conversion_rate
+                conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
+                
+                # Create safe entity ID
+                safe_campaign_name = campaign_name[:100].replace(' ', '_').replace('/', '_').replace('-', '_')
+                
+                bq_row = {
+                    'organization_id': organization_id,
+                    'date': date_str,
+                    'canonical_entity_id': f"gads_campaign_{date_str}_{campaign_id}_{safe_campaign_name}",
+                    'entity_type': 'google_ads_campaign',
+                    
+                    # Core metrics
+                    'sessions': sessions,
+                    'users': users,
+                    'conversions': conversions,
+                    'conversion_rate': conversion_rate,
+                    'revenue': revenue,
+                    'bounce_rate': bounce_rate,
+                    'engagement_rate': engagement_rate,
+                    
+                    # Store campaign details in source_breakdown JSON
+                    'source_breakdown': json.dumps({
+                        'campaign_name': campaign_name,
+                        'campaign_id': campaign_id,
+                        'campaign_type': campaign_type,
+                        'ad_network': ad_network,
+                        'engaged_sessions': engaged_sessions,
+                    }),
+                    
+                    'created_at': now_iso,
+                    'updated_at': now_iso,
+                }
+                rows.append(bq_row)
+            
+            logger.info(f"Fetched {results['google_ads_campaigns']} Google Ads campaign rows")
+                
+        except Exception as e:
+            logger.error(f"Error fetching Google Ads campaigns: {e}")
+        
+        # ============================================
+        # 5. FETCH GOOGLE ADS AD GROUPS BY DAY (more granular)
+        # ============================================
+        logger.info("Fetching Google Ads ad groups by day from GA4 API...")
+        results['google_ads_adgroups'] = 0
+        
+        try:
+            # Fetch Google Ads ad group data
+            adgroup_rows = ga4_run_report_paginated(access_token, property_id, {
+                'dateRanges': [{'startDate': start_date.isoformat(), 'endDate': end_date.isoformat()}],
+                'dimensions': [
+                    {'name': 'date'},
+                    {'name': 'sessionGoogleAdsCampaignName'},
+                    {'name': 'sessionGoogleAdsAdGroupName'},
+                    {'name': 'sessionGoogleAdsAdGroupId'},
+                ],
+                'metrics': [
+                    {'name': 'sessions'},
+                    {'name': 'activeUsers'},
+                    {'name': 'engagedSessions'},
+                    {'name': 'conversions'},
+                    {'name': 'totalRevenue'},
+                ],
+                'dimensionFilter': {
+                    'filter': {
+                        'fieldName': 'sessionGoogleAdsAdGroupName',
+                        'stringFilter': {
+                            'matchType': 'FULL_REGEXP',
+                            'value': '.+',  # Non-empty ad group names only
+                        }
+                    }
+                },
+                'orderBys': [
+                    {'dimension': {'dimensionName': 'date'}, 'desc': True},
+                    {'metric': {'metricName': 'sessions'}, 'desc': True},
+                ],
+            }, max_rows=20000)
+            
+            for row in adgroup_rows:
+                results['google_ads_adgroups'] += 1
+                
+                date_val = row['dimensionValues'][0]['value']
+                date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                campaign_name = row['dimensionValues'][1]['value']
+                adgroup_name = row['dimensionValues'][2]['value']
+                adgroup_id = row['dimensionValues'][3]['value']
+                metrics = row['metricValues']
+                
+                sessions = int(metrics[0]['value'])
+                users = int(metrics[1]['value'])
+                engaged_sessions = int(metrics[2]['value'])
+                conversions = int(metrics[3]['value'])
+                revenue = float(metrics[4]['value'])
+                
+                # Calculate conversion_rate
+                conversion_rate = (conversions / sessions * 100) if sessions > 0 else 0
+                
+                # Create safe entity ID
+                safe_adgroup_name = adgroup_name[:80].replace(' ', '_').replace('/', '_').replace('-', '_')
+                
+                bq_row = {
+                    'organization_id': organization_id,
+                    'date': date_str,
+                    'canonical_entity_id': f"gads_adgroup_{date_str}_{adgroup_id}_{safe_adgroup_name}",
+                    'entity_type': 'google_ads_adgroup',
+                    
+                    # Core metrics
+                    'sessions': sessions,
+                    'users': users,
+                    'conversions': conversions,
+                    'conversion_rate': conversion_rate,
+                    'revenue': revenue,
+                    
+                    # Store ad group details in source_breakdown JSON
+                    'source_breakdown': json.dumps({
+                        'campaign_name': campaign_name,
+                        'adgroup_name': adgroup_name,
+                        'adgroup_id': adgroup_id,
+                        'engaged_sessions': engaged_sessions,
+                    }),
+                    
+                    'created_at': now_iso,
+                    'updated_at': now_iso,
+                }
+                rows.append(bq_row)
+            
+            logger.info(f"Fetched {results['google_ads_adgroups']} Google Ads ad group rows")
+                
+        except Exception as e:
+            logger.error(f"Error fetching Google Ads ad groups: {e}")
+        
+        # ============================================
+        # 6. WRITE DIRECTLY TO BIGQUERY (in batches)
         # ============================================
         if rows:
             logger.info(f"Writing {len(rows)} rows to BigQuery ({sync_mode} mode)...")
@@ -432,7 +649,7 @@ def sync_ga4_to_bigquery(request):
                 delete_query = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('website_traffic', 'traffic_source', 'page')
+                  AND entity_type IN ('website_traffic', 'traffic_source', 'page', 'google_ads_campaign', 'google_ads_adgroup')
                   AND date >= '{start_date.isoformat()}'
                 """
                 
@@ -554,6 +771,8 @@ def sync_ga4_to_bigquery(request):
                 'dailyRecords': results['daily_records'],
                 'trafficSources': results['traffic_sources'],
                 'pages': results['pages_processed'],
+                'googleAdsCampaigns': results.get('google_ads_campaigns', 0),
+                'googleAdsAdgroups': results.get('google_ads_adgroups', 0),
                 'bigqueryRows': results['rows_inserted'],
             },
             'updatedAt': firestore.SERVER_TIMESTAMP,

@@ -307,7 +307,7 @@ def sync_dataforseo_to_bigquery(request):
                 row = {
                     'organization_id': organization_id,
                     'date': today_str,
-                    'canonical_entity_id': f"{target_domain}_backlinks",
+                    'canonical_entity_id': f"{target_domain}_backlinks_{today_str}",  # Include date for history
                     'entity_type': 'backlinks',
                     
                     'backlinks_total': result.get('backlinks', 0),
@@ -339,32 +339,56 @@ def sync_dataforseo_to_bigquery(request):
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
             if sync_mode == 'full':
-                # FULL RESYNC: Delete ALL existing DataForSEO data for this org
+                # FULL RESYNC: Delete keywords and domain (but KEEP backlinks history)
                 delete_query = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('domain', 'keyword', 'backlinks')
+                  AND entity_type IN ('domain', 'keyword')
                 """
                 
                 try:
                     bq.query(delete_query).result()
-                    logger.info("Deleted all existing DataForSEO data for full resync")
+                    logger.info("Deleted existing DataForSEO domain/keyword data (preserving backlinks history)")
                 except Exception as e:
                     logger.warning(f"Delete query warning: {e}")
+                
+                # Only delete TODAY's backlinks (allow re-run same day, but keep history)
+                delete_backlinks_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type = 'backlinks'
+                  AND date = '{today_str}'
+                """
+                try:
+                    bq.query(delete_backlinks_query).result()
+                except Exception as e:
+                    logger.warning(f"Delete backlinks warning: {e}")
             else:
-                # UPDATE SYNC: Only delete today's keyword/backlinks data (domain history is preserved)
+                # UPDATE SYNC: Only delete today's keyword data (preserve all history)
                 delete_query = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('keyword', 'backlinks')
+                  AND entity_type = 'keyword'
                   AND date = '{today_str}'
                 """
                 
                 try:
                     bq.query(delete_query).result()
-                    logger.info(f"Deleted today's DataForSEO keyword/backlinks data for update")
+                    logger.info(f"Deleted today's DataForSEO keyword data for update")
                 except Exception as e:
                     logger.warning(f"Delete query warning: {e}")
+                
+                # Only delete TODAY's backlinks (allow re-run, keep history)
+                delete_backlinks_query = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type = 'backlinks'
+                  AND date = '{today_str}'
+                """
+                try:
+                    bq.query(delete_backlinks_query).result()
+                except Exception as e:
+                    logger.warning(f"Delete backlinks warning: {e}")
             
             # Insert new rows
             errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
