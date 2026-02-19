@@ -278,10 +278,10 @@ export default function LeadershipMetricsPage() {
     });
   }, [rows, granularity, selectedKPIs]);
 
-  // Pivot: columns = dates (chronological), rows = KPIs
+  // Pivot: columns = dates (newest first), rows = KPIs
   const { dateColumns, byPeriod } = useMemo(() => {
-    const chronological = [...rows].reverse();
-    const cols = chronological.map((r) => periodLabel(r)).filter(Boolean);
+    // Keep rows in API order (newest first) so rightmost columns show recent data
+    const cols = rows.map((r) => periodLabel(r)).filter(Boolean);
     const map = new Map<string, ReportingRow>();
     rows.forEach((r) => {
       const p = periodLabel(r);
