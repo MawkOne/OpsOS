@@ -702,8 +702,6 @@ export default function LeadershipMetricsPage() {
                       </ResponsiveContainer>
                     </div>
                   )}
-... 47 lines not shown ...</output>
-</result>
                   <div 
                     ref={(el) => {
                       if (el) sectionScrollRefs.current.set(section.id, el);
