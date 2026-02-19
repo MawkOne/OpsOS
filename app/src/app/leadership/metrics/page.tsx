@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import Card, { CardHeader } from "@/components/Card";
 import { motion } from "framer-motion";
@@ -231,6 +231,8 @@ export default function LeadershipMetricsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["sessions", "stripe_revenue"]));
+  const snapshotScrollRef = useRef<HTMLDivElement>(null);
+  const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     setLoading(true);
@@ -249,6 +251,22 @@ export default function LeadershipMetricsPage() {
       })
       .finally(() => setLoading(false));
   }, [granularity, startDate, endDate]);
+
+  // Auto-scroll tables to right to show newest data first
+  useEffect(() => {
+    if (!loading && rows.length > 0) {
+      setTimeout(() => {
+        // Scroll snapshot table
+        if (snapshotScrollRef.current) {
+          snapshotScrollRef.current.scrollLeft = snapshotScrollRef.current.scrollWidth;
+        }
+        // Scroll all section tables
+        sectionScrollRefs.current.forEach((el) => {
+          if (el) el.scrollLeft = el.scrollWidth;
+        });
+      }, 100);
+    }
+  }, [loading, rows.length]);
 
   const periodLabel = (row: ReportingRow): string => {
     let val: any;
@@ -448,7 +466,7 @@ export default function LeadershipMetricsPage() {
         {!loading && !error && dateColumns.length > 0 && (
           <Card>
             <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
-            <div className="overflow-x-auto">
+            <div ref={snapshotScrollRef} className="overflow-x-auto">
               <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -581,7 +599,12 @@ export default function LeadershipMetricsPage() {
                       </ResponsiveContainer>
                     </div>
                   )}
-                  <div className="overflow-x-auto">
+                  <div 
+                    ref={(el) => {
+                      if (el) sectionScrollRefs.current.set(section.id, el);
+                    }}
+                    className="overflow-x-auto"
+                  >
                     <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid var(--border)" }}>
