@@ -131,21 +131,21 @@ export default function PaidChannelsPage() {
     if (granularity === "weekly") {
       const val = r.week_start;
       if (val && typeof val === "object" && "value" in val) {
-        return String(val.value);
+        return String((val as any).value);
       }
       return val != null ? String(val) : "";
     }
     if (granularity === "monthly") {
       const val = r.month_start;
       if (val && typeof val === "object" && "value" in val) {
-        return String(val.value);
+        return String((val as any).value);
       }
       return val != null ? String(val) : "";
     }
     
     const val = r.date;
     if (val && typeof val === "object" && "value" in val) {
-      return String(val.value);
+      return String((val as any).value);
     }
     return val != null ? String(val) : "";
   };
