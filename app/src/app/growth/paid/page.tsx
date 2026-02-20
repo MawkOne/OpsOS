@@ -183,46 +183,77 @@ export default function PaidChannelsPage() {
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              {/* Granularity selector */}
+              <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+                <button
+                  onClick={() => setGranularity("daily")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: granularity === "daily" ? "var(--accent)" : "transparent",
+                    color: granularity === "daily" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Daily
+                </button>
+                <button
+                  onClick={() => setGranularity("weekly")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: granularity === "weekly" ? "var(--accent)" : "transparent",
+                    color: granularity === "weekly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setGranularity("monthly")}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: granularity === "monthly" ? "var(--accent)" : "transparent",
+                    color: granularity === "monthly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Monthly
+                </button>
+              </div>
+
               {/* Date range buttons */}
               <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
                 <button
                   onClick={() => {
-                    setGranularity("daily");
                     setStartDate(daysAgoISO(30));
                     setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "daily" && startDate === daysAgoISO(30) ? "var(--accent)" : "transparent",
-                    color: granularity === "daily" && startDate === daysAgoISO(30) ? "var(--background)" : "var(--foreground-muted)",
+                    background: startDate === daysAgoISO(30) ? "var(--accent)" : "transparent",
+                    color: startDate === daysAgoISO(30) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 30d
                 </button>
                 <button
                   onClick={() => {
-                    setGranularity("daily");
                     setStartDate(daysAgoISO(90));
                     setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "daily" && startDate === daysAgoISO(90) ? "var(--accent)" : "transparent",
-                    color: granularity === "daily" && startDate === daysAgoISO(90) ? "var(--background)" : "var(--foreground-muted)",
+                    background: startDate === daysAgoISO(90) ? "var(--accent)" : "transparent",
+                    color: startDate === daysAgoISO(90) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 90d
                 </button>
                 <button
                   onClick={() => {
-                    setGranularity("daily");
                     setStartDate(daysAgoISO(365));
                     setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "daily" && startDate === daysAgoISO(365) ? "var(--accent)" : "transparent",
-                    color: granularity === "daily" && startDate === daysAgoISO(365) ? "var(--background)" : "var(--foreground-muted)",
+                    background: startDate === daysAgoISO(365) ? "var(--accent)" : "transparent",
+                    color: startDate === daysAgoISO(365) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 12M
