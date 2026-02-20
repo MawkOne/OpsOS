@@ -177,6 +177,31 @@ export default function EmailMarketingPage() {
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              {/* Tabs */}
+              <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+                <button
+                  onClick={() => setActiveTab("campaigns")}
+                  className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: activeTab === "campaigns" ? "var(--accent)" : "transparent",
+                    color: activeTab === "campaigns" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Campaigns
+                </button>
+                <button
+                  onClick={() => setActiveTab("automations")}
+                  className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: activeTab === "automations" ? "var(--accent)" : "transparent",
+                    color: activeTab === "automations" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Automations
+                </button>
+              </div>
+
+              {/* Date range buttons */}
               <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
                 <button
                   onClick={() => {
@@ -244,32 +269,6 @@ export default function EmailMarketingPage() {
                 <BarChart3 className="w-4 h-4" />
               </button>
             </div>
-          </div>
-        </Card>
-
-        {/* Tabs */}
-        <Card>
-          <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
-            <button
-              onClick={() => setActiveTab("campaigns")}
-              className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
-              style={{
-                background: activeTab === "campaigns" ? "var(--accent)" : "transparent",
-                color: activeTab === "campaigns" ? "var(--background)" : "var(--foreground-muted)",
-              }}
-            >
-              Campaigns
-            </button>
-            <button
-              onClick={() => setActiveTab("automations")}
-              className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
-              style={{
-                background: activeTab === "automations" ? "var(--accent)" : "transparent",
-                color: activeTab === "automations" ? "var(--background)" : "var(--foreground-muted)",
-              }}
-            >
-              Automations
-            </button>
           </div>
         </Card>
 
