@@ -108,7 +108,7 @@ function daysAgoISO(days: number): string {
 }
 
 export default function EmailMarketingPage() {
-  const [activeTab, setActiveTab] = useState<"campaigns" | "automations" | "lists">("campaigns");
+  const [activeTab, setActiveTab] = useState<"campaigns" | "automations" | "lists">("automations");
   const [granularity, setGranularity] = useState<Granularity>("weekly");
   const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate, setEndDate] = useState(todayISO);
@@ -190,16 +190,6 @@ export default function EmailMarketingPage() {
               {/* Tabs */}
               <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
                 <button
-                  onClick={() => setActiveTab("campaigns")}
-                  className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
-                  style={{
-                    background: activeTab === "campaigns" ? "var(--accent)" : "transparent",
-                    color: activeTab === "campaigns" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                >
-                  Campaigns
-                </button>
-                <button
                   onClick={() => setActiveTab("automations")}
                   className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
@@ -208,6 +198,16 @@ export default function EmailMarketingPage() {
                   }}
                 >
                   Automations
+                </button>
+                <button
+                  onClick={() => setActiveTab("campaigns")}
+                  className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: activeTab === "campaigns" ? "var(--accent)" : "transparent",
+                    color: activeTab === "campaigns" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Campaigns
                 </button>
                 <button
                   onClick={() => setActiveTab("lists")}
