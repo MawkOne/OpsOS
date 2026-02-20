@@ -420,7 +420,7 @@ def sync_activecampaign_to_bigquery(request):
                 
                 campaign_date_str = campaign_date.isoformat() if campaign_date else today_str
                 
-                # Store raw campaign data
+                # Store raw campaign data (all types)
                 raw_rows.append({
                     'organization_id': organization_id,
                     'date': campaign_date_str,
@@ -429,6 +429,11 @@ def sync_activecampaign_to_bigquery(request):
                     'created_at': now_iso,
                 })
                 
+                # Get campaign status and automation ID
+                campaign_status = campaign.get('status', '0')
+                automation_id = campaign.get('automation')
+                
+                # Count all campaigns in totals
                 total_sent += send_amt
                 total_opens += opens
                 total_clicks += clicks
@@ -436,10 +441,18 @@ def sync_activecampaign_to_bigquery(request):
                 total_unsubscribes += unsubscribes
                 total_complaints += complaints
                 
-                # Add individual campaign as entity
+                # Add individual campaign as entity with type classification
                 if send_amt > 0:
                     campaign_name = campaign.get('name', 'Unnamed Campaign')
                     campaign_id = campaign.get('id', 'unknown')
+                    
+                    # Determine campaign type
+                    if campaign_status == '5' and not automation_id:
+                        campaign_type = 'marketing'  # Manual broadcast
+                    elif campaign_status == '1' and automation_id:
+                        campaign_type = 'automation'  # Automated/transactional
+                    else:
+                        campaign_type = 'other'  # Draft, sending, etc.
                     
                     # Calculate rates
                     open_rate = (opens / send_amt * 100) if send_amt > 0 else 0
@@ -453,7 +466,7 @@ def sync_activecampaign_to_bigquery(request):
                         'organization_id': organization_id,
                         'date': campaign_date_str,  # Use actual send date
                         'canonical_entity_id': f"ac_campaign_{campaign_id}",
-                        'entity_type': 'email_campaign',
+                        'entity_type': f'email_campaign_{campaign_type}',  # Separate entity types
                         
                         'entity_name': campaign_name,
                         
@@ -470,9 +483,11 @@ def sync_activecampaign_to_bigquery(request):
                         # Store campaign details
                         'source_breakdown': json.dumps({
                             'campaign_id': campaign_id,
+                            'campaign_type': campaign_type,  # Add type to breakdown
                             'send_date': send_date_str,
                             'type': campaign.get('type', 'unknown'),
                             'status': campaign.get('status', 'unknown'),
+                            'automation_id': automation_id,
                             'bounces': bounces,
                             'hard_bounces': hard_bounces,
                             'soft_bounces': soft_bounces,
@@ -692,7 +707,7 @@ def sync_activecampaign_to_bigquery(request):
                 delete_campaigns = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type = 'email_campaign'
+                  AND entity_type LIKE 'email_campaign%'
                 """
                 
                 delete_summaries = f"""
