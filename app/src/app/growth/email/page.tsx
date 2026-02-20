@@ -614,22 +614,19 @@ export default function EmailMarketingPage() {
             ) : (
               <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                        <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                          List Name
-                        </th>
-                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          Subscribers
-                        </th>
-                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          Days Active
-                        </th>
-                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          Last Updated
-                        </th>
-                      </tr>
-                    </thead>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                        List Name
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Subscribers
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Last Updated
+                      </th>
+                    </tr>
+                  </thead>
                     <tbody>
                       {lists.map((list, idx) => (
                         <motion.tr
@@ -640,20 +637,17 @@ export default function EmailMarketingPage() {
                           style={{ borderBottom: "1px solid var(--border)" }}
                           className="group hover:bg-[var(--background-tertiary)] transition-colors"
                         >
-                          <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                            {list.list_name || `List ${list.list_id}`}
-                          </td>
-                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                            {formatValue(list.subscriber_count, "number")}
-                          </td>
-                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                            {formatValue(list.days_active, "number")}
-                          </td>
-                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
-                            {typeof list.last_updated === 'object' && list.last_updated?.value 
-                              ? list.last_updated.value 
-                              : list.last_updated || '—'}
-                          </td>
+                        <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                          {list.list_name || `List ${list.list_id}`}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(list.subscriber_count, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
+                          {typeof list.last_updated === 'object' && list.last_updated?.value 
+                            ? list.last_updated.value 
+                            : list.last_updated || '—'}
+                        </td>
                         </motion.tr>
                       ))}
                   </tbody>
