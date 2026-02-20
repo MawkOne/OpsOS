@@ -110,6 +110,7 @@ export default function EmailMarketingPage() {
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [lists, setLists] = useState<any[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
+  const [listsError, setListsError] = useState<string | null>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -155,18 +156,29 @@ export default function EmailMarketingPage() {
   useEffect(() => {
     if (activeTab !== "lists") {
       setLists([]);
+      setListsError(null);
       return;
     }
     
     setListsLoading(true);
+    setListsError(null);
     const params = new URLSearchParams({ startDate, endDate });
+    console.log('[Lists] Fetching:', `/api/bigquery/email-lists?${params}`);
     fetch(`/api/bigquery/email-lists?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        setLists(Array.isArray(data.lists) ? data.lists : []);
+        console.log('[Lists] Response:', data);
+        if (data.error) {
+          console.error('[Lists] API Error:', data.error);
+          setListsError(data.error);
+          setLists([]);
+        } else {
+          setLists(Array.isArray(data.lists) ? data.lists : []);
+        }
       })
       .catch((err) => {
         console.error("Failed to load lists:", err);
+        setListsError(err.message || "Failed to load lists");
         setLists([]);
       })
       .finally(() => setListsLoading(false));
@@ -591,6 +603,12 @@ export default function EmailMarketingPage() {
             {listsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
+              </div>
+            ) : listsError ? (
+              <div className="py-8 text-center">
+                <div className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  Error loading lists: {listsError}
+                </div>
               </div>
             ) : lists.length === 0 ? (
               <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
