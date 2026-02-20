@@ -429,10 +429,6 @@ def sync_activecampaign_to_bigquery(request):
                     'created_at': now_iso,
                 })
                 
-                # Get campaign status and automation ID
-                campaign_status = campaign.get('status', '0')
-                automation_id = campaign.get('automation')
-                
                 # Count all campaigns in totals
                 total_sent += send_amt
                 total_opens += opens
@@ -446,6 +442,10 @@ def sync_activecampaign_to_bigquery(request):
                     campaign_name = campaign.get('name', 'Unnamed Campaign')
                     campaign_id = campaign.get('id', 'unknown')
                     
+                    # Get campaign status and automation ID HERE (inside the block)
+                    campaign_status = str(campaign.get('status', '0'))
+                    automation_id = campaign.get('automation')
+                    
                     # Determine campaign type
                     # Marketing: status='5' (Sent - one-time broadcasts)
                     # Automation: status='1' (Automation - triggered/recurring)
@@ -456,6 +456,8 @@ def sync_activecampaign_to_bigquery(request):
                         campaign_type = 'automation'  # Automated/transactional
                     else:
                         campaign_type = 'other'  # Draft, sending, etc.
+                    
+                    logger.info(f"Campaign {campaign_id}: status={campaign_status}, type={campaign_type}")
                     
                     # Calculate rates
                     open_rate = (opens / send_amt * 100) if send_amt > 0 else 0
