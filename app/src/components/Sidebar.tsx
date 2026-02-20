@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-type Module = "ai" | "initiatives" | "planning" | "resources" | "sources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
+type Module = "growth" | "ai" | "initiatives" | "planning" | "resources" | "sources" | "leadership" | "revenue" | "expenses" | "metrics" | "marketing";
 
 interface NavItem {
   label: string;
@@ -56,6 +56,12 @@ interface NavSection {
 }
 
 const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color: string; href: string }> = {
+  growth: { 
+    label: "Growth", 
+    icon: <TrendingUp className="w-4 h-4" />, 
+    color: "#00d4aa",
+    href: "/growth/metrics",
+  },
   ai: { 
     label: "AI", 
     icon: <Brain className="w-4 h-4" />, 
@@ -119,10 +125,18 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 };
 
 // Define the order for module selector dropdown
-const moduleOrder: Module[] = ["ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
+const moduleOrder: Module[] = ["growth", "ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
 
 // Create navigation function to make it dynamic
 const getNavigationByModule = (oppCount: number, detectorStats?: { total: number; byCategory: Record<string, number> }): Record<Module, NavSection[]> => ({
+  growth: [
+    {
+      title: "Overview",
+      items: [
+        { label: "Metrics Dashboard", href: "/growth/metrics", icon: <LineChart className="w-4 h-4" /> },
+      ],
+    },
+  ],
   ai: [
     {
       title: "Scout AI",
@@ -333,6 +347,7 @@ export default function Sidebar() {
 
   // Determine current module from URL path
   const getCurrentModule = (): Module => {
+    if (pathname.startsWith("/growth")) return "growth";
     if (pathname.startsWith("/ai")) return "ai";
     if (pathname.startsWith("/planning")) return "planning";
     if (pathname.startsWith("/resources")) return "resources";
