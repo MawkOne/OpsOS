@@ -4,10 +4,10 @@ import AppLayout from "@/components/AppLayout";
 import Card, { CardHeader } from "@/components/Card";
 import { Share2, Users, Building2, FileText, TrendingUp } from "lucide-react";
 
-export default function SocialSharePage() {
+export default function SharesPage() {
   return (
     <AppLayout 
-      title="Social Share" 
+      title="Shares" 
       subtitle="Track organic sharing across talent profiles, reviews, and company pages"
     >
       <div className="max-w-7xl mx-auto space-y-6">
@@ -59,7 +59,7 @@ export default function SocialSharePage() {
 
         <Card>
           <CardHeader 
-            title="Social Share Channels" 
+            title="Share Channels" 
             subtitle="Organic content sharing by users"
             icon={<Share2 className="w-5 h-5" />}
           />

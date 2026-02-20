@@ -4,10 +4,10 @@ import AppLayout from "@/components/AppLayout";
 import Card, { CardHeader } from "@/components/Card";
 import { Network, Users, Gift, TrendingUp, DollarSign } from "lucide-react";
 
-export default function CollaborativePage() {
+export default function PartnershipsPage() {
   return (
     <AppLayout 
-      title="Collaborative Marketing" 
+      title="Partnerships" 
       subtitle="Track affiliate partnerships and referral programs"
     >
       <div className="max-w-7xl mx-auto space-y-6">
@@ -59,7 +59,7 @@ export default function CollaborativePage() {
 
         <Card>
           <CardHeader 
-            title="Collaborative Channels" 
+            title="Partnership Channels" 
             subtitle="Affiliate and referral marketing programs"
             icon={<Network className="w-5 h-5" />}
           />
