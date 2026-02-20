@@ -50,30 +50,30 @@ const CHART_COLORS = ["#3b82f6", "#00d4aa", "#f59e0b", "#8b5cf6", "#ec4899", "#f
 const EMAIL_SECTIONS: SectionConfig[] = [
   {
     id: "email_marketing",
-    title: "Email - Marketing Campaigns",
-    subtitle: "Manual broadcast emails (status=5)",
+    title: "Campaign Performance",
+    subtitle: "Marketing broadcasts and promotional emails",
     icon: <Mail className="w-5 h-5" />,
     metrics: [
       { key: "marketing_campaigns_launched", label: "Campaigns launched", format: "number" },
-      { key: "marketing_sends", label: "Daily sends", format: "number" },
-      { key: "marketing_opens", label: "Daily opens", format: "number" },
-      { key: "marketing_clicks", label: "Daily clicks", format: "number" },
-      { key: "marketing_avg_open_rate", label: "Avg open rate %", format: "pct" },
-      { key: "marketing_avg_ctr", label: "Avg click rate %", format: "pct" },
+      { key: "marketing_sends", label: "Sends", format: "number" },
+      { key: "marketing_opens", label: "Opens", format: "number" },
+      { key: "marketing_clicks", label: "Clicks", format: "number" },
+      { key: "marketing_avg_open_rate", label: "Open rate %", format: "pct" },
+      { key: "marketing_avg_ctr", label: "Click rate %", format: "pct" },
     ],
   },
   {
     id: "email_automation",
-    title: "Email - Automation",
-    subtitle: "Triggered & transactional emails (status=1)",
+    title: "Automation Performance",
+    subtitle: "Triggered sequences and transactional emails",
     icon: <Mail className="w-5 h-5" />,
     metrics: [
-      { key: "automation_campaigns_launched", label: "Campaigns launched", format: "number" },
-      { key: "automation_sends", label: "Daily sends", format: "number" },
-      { key: "automation_opens", label: "Daily opens", format: "number" },
-      { key: "automation_clicks", label: "Daily clicks", format: "number" },
-      { key: "automation_avg_open_rate", label: "Avg open rate %", format: "pct" },
-      { key: "automation_avg_ctr", label: "Avg click rate %", format: "pct" },
+      { key: "automation_campaigns_launched", label: "Automations active", format: "number" },
+      { key: "automation_sends", label: "Sends", format: "number" },
+      { key: "automation_opens", label: "Opens", format: "number" },
+      { key: "automation_clicks", label: "Clicks", format: "number" },
+      { key: "automation_avg_open_rate", label: "Open rate %", format: "pct" },
+      { key: "automation_avg_ctr", label: "Click rate %", format: "pct" },
       { key: "email_traffic_sessions", label: "Email referral traffic", format: "number" },
     ],
   },
@@ -98,6 +98,7 @@ function daysAgoISO(days: number): string {
 }
 
 export default function EmailMarketingPage() {
+  const [activeTab, setActiveTab] = useState<"campaigns" | "automations">("campaigns");
   const [granularity, setGranularity] = useState<Granularity>("weekly");
   const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate, setEndDate] = useState(todayISO);
@@ -246,6 +247,32 @@ export default function EmailMarketingPage() {
           </div>
         </Card>
 
+        {/* Tabs */}
+        <Card>
+          <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+            <button
+              onClick={() => setActiveTab("campaigns")}
+              className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+              style={{
+                background: activeTab === "campaigns" ? "var(--accent)" : "transparent",
+                color: activeTab === "campaigns" ? "var(--background)" : "var(--foreground-muted)",
+              }}
+            >
+              Campaigns
+            </button>
+            <button
+              onClick={() => setActiveTab("automations")}
+              className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+              style={{
+                background: activeTab === "automations" ? "var(--accent)" : "transparent",
+                color: activeTab === "automations" ? "var(--background)" : "var(--foreground-muted)",
+              }}
+            >
+              Automations
+            </button>
+          </div>
+        </Card>
+
         {/* Email sections */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -256,7 +283,9 @@ export default function EmailMarketingPage() {
             <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>{error}</div>
           </Card>
         ) : (
-          EMAIL_SECTIONS.map((section, sectionIdx) => {
+          EMAIL_SECTIONS.filter(section => 
+            activeTab === "campaigns" ? section.id === "email_marketing" : section.id === "email_automation"
+          ).map((section, sectionIdx) => {
             const chartMetrics = section.metrics.slice(0, 5);
             const sectionChartData = dateColumns.map((period) => {
               const row = byPeriod.get(period);
