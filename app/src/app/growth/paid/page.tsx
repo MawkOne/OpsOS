@@ -364,9 +364,6 @@ export default function PaidChannelsPage() {
                       if (el) sectionScrollRefs.current.set(section.id, el);
                     }}
                     className="overflow-x-auto"
-                    style={{
-                      minWidth: Math.max(dateColumns.length * 100 + 200, 800),
-                    }}
                   >
                     <table className="w-full">
                       <thead>
