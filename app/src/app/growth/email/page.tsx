@@ -99,8 +99,8 @@ function daysAgoISO(days: number): string {
 
 export default function EmailMarketingPage() {
   const [activeTab, setActiveTab] = useState<"campaigns" | "automations" | "lists">("automations");
-  const [granularity, setGranularity] = useState<Granularity>("weekly");
-  const [startDate, setStartDate] = useState(() => daysAgoISO(90));
+  const [granularity, setGranularity] = useState<Granularity>("daily");
+  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -272,37 +272,40 @@ export default function EmailMarketingPage() {
                   onClick={() => {
                     setGranularity("daily");
                     setStartDate(daysAgoISO(30));
+                    setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "daily" ? "var(--accent)" : "transparent",
-                    color: granularity === "daily" ? "var(--background)" : "var(--foreground-muted)",
+                    background: granularity === "daily" && startDate === daysAgoISO(30) ? "var(--accent)" : "transparent",
+                    color: granularity === "daily" && startDate === daysAgoISO(30) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 30d
                 </button>
                 <button
                   onClick={() => {
-                    setGranularity("weekly");
+                    setGranularity("daily");
                     setStartDate(daysAgoISO(90));
+                    setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "weekly" ? "var(--accent)" : "transparent",
-                    color: granularity === "weekly" ? "var(--background)" : "var(--foreground-muted)",
+                    background: granularity === "daily" && startDate === daysAgoISO(90) ? "var(--accent)" : "transparent",
+                    color: granularity === "daily" && startDate === daysAgoISO(90) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 90d
                 </button>
                 <button
                   onClick={() => {
-                    setGranularity("monthly");
+                    setGranularity("daily");
                     setStartDate(daysAgoISO(365));
+                    setEndDate(todayISO());
                   }}
                   className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
                   style={{
-                    background: granularity === "monthly" ? "var(--accent)" : "transparent",
-                    color: granularity === "monthly" ? "var(--background)" : "var(--foreground-muted)",
+                    background: granularity === "daily" && startDate === daysAgoISO(365) ? "var(--accent)" : "transparent",
+                    color: granularity === "daily" && startDate === daysAgoISO(365) ? "var(--background)" : "var(--foreground-muted)",
                   }}
                 >
                   Last 12M
