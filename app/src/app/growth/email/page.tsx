@@ -141,9 +141,9 @@ export default function EmailMarketingPage() {
     if (granularity === "daily") {
       val = row.date;
     } else if (granularity === "weekly") {
-      val = row.week_num ?? row.week_start;
+      val = row.week_start ?? row.week_num;
     } else {
-      val = row.month_num ?? row.month_start;
+      val = row.month_start ?? row.month_num;
     }
     
     // BigQuery returns dates as objects like { value: "2026-01-31" }
@@ -385,14 +385,14 @@ export default function EmailMarketingPage() {
                     }}
                     className="overflow-x-auto"
                   >
-                    <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
+                    <table className="w-full" style={{ minWidth: Math.max(dateColumns.length * 100 + 200, 800) }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                          <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                          <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)", minWidth: 200 }}>
                             KPI
                           </th>
                           {dateColumns.map((d) => (
-                            <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
+                            <th key={d} className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground-muted)", minWidth: 100 }}>
                               {d}
                             </th>
                           ))}
@@ -411,11 +411,11 @@ export default function EmailMarketingPage() {
                               style={{ borderBottom: "1px solid var(--border)" }}
                               className="group hover:bg-[var(--background-tertiary)] transition-colors"
                             >
-                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 bg-[var(--background-secondary)] group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)" }}>
+                              <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
                                 {m.label}
                               </td>
                               {dateColumns.map((d) => (
-                                <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                                <td key={d} className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
                                   {formatValue(byPeriod.get(d)?.[m.key], m.format)}
                                 </td>
                               ))}
