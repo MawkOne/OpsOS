@@ -139,12 +139,12 @@ const getNavigationByModule = (oppCount: number, detectorStats?: { total: number
     {
       title: "Marketing Channels",
       items: [
+        { label: "Community", href: "/growth/community", icon: <Link2 className="w-4 h-4" /> },
         { label: "Content", href: "/growth/content", icon: <Lightbulb className="w-4 h-4" /> },
         { label: "Email Marketing", href: "/growth/email", icon: <Mail className="w-4 h-4" /> },
         { label: "Paid Channels", href: "/growth/paid", icon: <Megaphone className="w-4 h-4" /> },
         { label: "Partnerships", href: "/growth/partnerships", icon: <Network className="w-4 h-4" /> },
         { label: "SEO", href: "/growth/seo", icon: <Search className="w-4 h-4" /> },
-        { label: "Shares", href: "/growth/shares", icon: <Link2 className="w-4 h-4" /> },
         { label: "Social Media", href: "/growth/social", icon: <Users className="w-4 h-4" /> },
       ],
     },
