@@ -612,54 +612,61 @@ export default function EmailMarketingPage() {
               </div>
             ) : lists.length === 0 ? (
               <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-                No email lists found
+                No email lists found (Debug: lists array is empty)
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                        List Name
-                      </th>
-                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                        Subscribers
-                      </th>
-                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                        Days Active
-                      </th>
-                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                        Last Updated
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lists.map((list, idx) => (
-                      <motion.tr
-                        key={list.list_id}
-                        initial={{ opacity: 0, y: 2 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(idx * 0.02, 0.25) }}
-                        style={{ borderBottom: "1px solid var(--border)" }}
-                        className="group hover:bg-[var(--background-tertiary)] transition-colors"
-                      >
-                        <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                          {list.list_name || `List ${list.list_id}`}
-                        </td>
-                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          {formatValue(list.subscriber_count, "number")}
-                        </td>
-                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-                          {formatValue(list.days_active, "number")}
-                        </td>
-                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
-                          {list.last_updated?.value || list.last_updated || '—'}
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="px-4 py-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  Showing {lists.length} lists
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                          List Name
+                        </th>
+                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          Subscribers
+                        </th>
+                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          Days Active
+                        </th>
+                        <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          Last Updated
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lists.map((list, idx) => (
+                        <motion.tr
+                          key={list.list_id}
+                          initial={{ opacity: 0, y: 2 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                          style={{ borderBottom: "1px solid var(--border)" }}
+                          className="group hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                            {list.list_name || `List ${list.list_id}`}
+                          </td>
+                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                            {formatValue(list.subscriber_count, "number")}
+                          </td>
+                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                            {formatValue(list.days_active, "number")}
+                          </td>
+                          <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
+                            {typeof list.last_updated === 'object' && list.last_updated?.value 
+                              ? list.last_updated.value 
+                              : list.last_updated || '—'}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </Card>
         )}
