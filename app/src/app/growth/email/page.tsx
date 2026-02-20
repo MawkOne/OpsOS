@@ -163,13 +163,10 @@ export default function EmailMarketingPage() {
     setListsLoading(true);
     setListsError(null);
     const params = new URLSearchParams({ startDate, endDate });
-    console.log('[Lists] Fetching:', `/api/bigquery/email-lists?${params}`);
     fetch(`/api/bigquery/email-lists?${params}`)
       .then((res) => res.json())
       .then((data) => {
-        console.log('[Lists] Response:', data);
         if (data.error) {
-          console.error('[Lists] API Error:', data.error);
           setListsError(data.error);
           setLists([]);
         } else {
@@ -612,14 +609,10 @@ export default function EmailMarketingPage() {
               </div>
             ) : lists.length === 0 ? (
               <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-                No email lists found (Debug: lists array is empty)
+                No email lists found
               </div>
             ) : (
-              <>
-                <div className="px-4 py-2 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                  Showing {lists.length} lists
-                </div>
-                <div className="overflow-x-auto">
+              <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -663,10 +656,9 @@ export default function EmailMarketingPage() {
                           </td>
                         </motion.tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
         )}
