@@ -687,17 +687,26 @@ def sync_activecampaign_to_bigquery(request):
                 except Exception as e:
                     logger.warning(f"Delete query warning: {e}")
             else:
-                # UPDATE SYNC: Only delete today's data (will be replaced with fresh snapshot)
-                delete_query = f"""
+                # UPDATE SYNC: Delete all campaigns (they use send date, not today)
+                # and today's summaries (they use today's date)
+                delete_campaigns = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('contact_summary', 'deal_summary', 'email_campaign', 'email_summary', 'email_list', 'email_daily_activity')
+                  AND entity_type = 'email_campaign'
+                """
+                
+                delete_summaries = f"""
+                DELETE FROM `{table_ref}`
+                WHERE organization_id = '{organization_id}'
+                  AND entity_type IN ('contact_summary', 'deal_summary', 'email_summary', 'email_list', 'email_daily_activity')
                   AND date = '{today_str}'
                 """
                 
                 try:
-                    bq.query(delete_query).result()
-                    logger.info("Deleted today's ActiveCampaign data for update")
+                    bq.query(delete_campaigns).result()
+                    logger.info("Deleted all email_campaign entities for update")
+                    bq.query(delete_summaries).result()
+                    logger.info("Deleted today's ActiveCampaign summary data for update")
                 except Exception as e:
                     logger.warning(f"Delete query warning: {e}")
             
