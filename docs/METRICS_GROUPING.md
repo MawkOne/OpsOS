@@ -277,46 +277,51 @@ These metrics show change over time and rolling averages:
 **3. Social**
 - Social Sessions
 
-**4. Email Marketing**
-- Email Sessions, Campaigns, Opens, Clicks, Rates
+**4. Email Marketing - Campaigns**
+- Marketing Campaigns (manual broadcasts, status=5)
+- Campaigns Launched, Daily Sends, Opens, Clicks, Avg Open Rate, Avg CTR
 
-**5. Referral & Direct**
+**5. Email Marketing - Automation**
+- Automation Emails (triggered/transactional, status=1)
+- Campaigns Launched, Daily Sends, Opens, Clicks, Avg Open Rate, Avg CTR
+
+**6. Referral & Direct**
 - Referral Sessions, Direct Sessions, Percentages
 
-**6. Content (Marketing Pages)**
+**7. Content (Marketing Pages)**
 - Blog Pageviews, Forum Pageviews
 
-**7. Overall Traffic**
+**8. Overall Traffic**
 - Total Sessions, Engaged Sessions, Engagement Rate, Events
 
 ### Stage 2: Signup — 2 Cards
 
-**8. Talent (Supply)**
+**9. Talent (Supply)**
 - Signups, Cumulative, Signup Rate
 
-**9. Companies (Demand)**
+**10. Companies (Demand)**
 - Signups, Cumulative, Signup Rate
 
 ### Stage 3: Engage (Marketplace) — 3 Cards
 
-**10. Jobs**
+**11. Jobs**
 - Jobs Posted, Job Views
 
-**11. Applications**
+**12. Applications**
 - Applications, Apps per Job, Profile Views
 
-**12. Hires & Matches**
+**13. Hires & Matches**
 - Hires, Match Rate, App-to-Hire Rate, Reviews
 
 ### Stage 4: Purchase (Revenue) — 3 Cards
 
-**13. Transactions**
+**14. Transactions**
 - Purchases, Customers, Failed, Cumulative Count & Amount
 
-**14. Revenue**
+**15. Revenue**
 - Stripe Revenue, Revenue per Session/Signup/Hire
 
-**15. Conversion**
+**16. Conversion**
 - Purchase Conversion %, Avg Purchases per Company
 
 ---
