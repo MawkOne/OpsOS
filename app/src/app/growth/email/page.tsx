@@ -98,8 +98,8 @@ function daysAgoISO(days: number): string {
 }
 
 export default function EmailMarketingPage() {
-  const [granularity, setGranularity] = useState<Granularity>("daily");
-  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
+  const [granularity, setGranularity] = useState<Granularity>("weekly");
+  const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +116,14 @@ export default function EmailMarketingPage() {
       .then((data) => {
         if (data.error && data.rows?.length === 0) setError(data.error);
         else setError(null);
-        setRows(Array.isArray(data.rows) ? data.rows : []);
+        const dataRows = Array.isArray(data.rows) ? data.rows : [];
+        setRows(dataRows);
+        
+        // Debug: Log first row to console to check available columns
+        if (dataRows.length > 0) {
+          console.log('[Email Marketing] Sample row:', dataRows[0]);
+          console.log('[Email Marketing] Available keys:', Object.keys(dataRows[0]));
+        }
       })
       .catch((err) => {
         setError(err.message || "Failed to load metrics");
@@ -223,23 +230,43 @@ export default function EmailMarketingPage() {
               <span className="text-sm font-medium mr-1" style={{ color: "var(--foreground-muted)" }}>Quick:</span>
               <button
                 onClick={() => {
+                  setGranularity("daily");
                   setEndDate(todayISO());
                   setStartDate(daysAgoISO(30));
                 }}
                 className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
                 style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
               >
-                Last 30
+                Last 30d
               </button>
               <button
                 onClick={() => {
+                  setGranularity("weekly");
                   setEndDate(todayISO());
                   setStartDate(daysAgoISO(90));
                 }}
                 className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                style={{ 
+                  background: granularity === "weekly" && startDate === daysAgoISO(90) && endDate === todayISO() 
+                    ? "var(--accent)" 
+                    : "var(--background-tertiary)", 
+                  color: granularity === "weekly" && startDate === daysAgoISO(90) && endDate === todayISO() 
+                    ? "var(--background)" 
+                    : "var(--foreground)" 
+                }}
+              >
+                Last 90d (Weekly)
+              </button>
+              <button
+                onClick={() => {
+                  setGranularity("monthly");
+                  setEndDate(todayISO());
+                  setStartDate(daysAgoISO(365));
+                }}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
                 style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
               >
-                Last 90
+                Last 12M
               </button>
             </div>
             <div className="flex items-center gap-3">
@@ -266,6 +293,24 @@ export default function EmailMarketingPage() {
             </div>
           </div>
         </Card>
+
+        {/* Debug info */}
+        {!loading && rows.length > 0 && (
+          <Card>
+            <div className="p-4">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                Debug: Data Summary
+              </h3>
+              <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                Rows loaded: {rows.length} | Granularity: {granularity}
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Sample marketing_sends: {rows[0]?.marketing_sends ?? 'undefined'} | 
+                Sample automation_sends: {rows[0]?.automation_sends ?? 'undefined'}
+              </p>
+            </div>
+          </Card>
+        )}
 
         {/* Email sections */}
         {loading ? (
