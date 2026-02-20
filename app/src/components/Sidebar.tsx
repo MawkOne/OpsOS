@@ -136,6 +136,18 @@ const getNavigationByModule = (oppCount: number, detectorStats?: { total: number
         { label: "Metrics Dashboard", href: "/growth/metrics", icon: <LineChart className="w-4 h-4" /> },
       ],
     },
+    {
+      title: "Marketing Channels",
+      items: [
+        { label: "Content", href: "/growth/content", icon: <Lightbulb className="w-4 h-4" /> },
+        { label: "Social Media", href: "/growth/social", icon: <Users className="w-4 h-4" /> },
+        { label: "Email Marketing", href: "/growth/email", icon: <Mail className="w-4 h-4" /> },
+        { label: "Paid Channels", href: "/growth/paid", icon: <Megaphone className="w-4 h-4" /> },
+        { label: "SEO", href: "/growth/seo", icon: <Search className="w-4 h-4" /> },
+        { label: "Social Share", href: "/growth/social-share", icon: <Link2 className="w-4 h-4" /> },
+        { label: "Collaborative", href: "/growth/collaborative", icon: <Network className="w-4 h-4" /> },
+      ],
+    },
   ],
   ai: [
     {
