@@ -33,10 +33,9 @@ export async function GET(request: NextRequest) {
         ROUND(AVG(CAST(click_through_rate AS FLOAT64)), 2) as avg_ctr,
         MAX(date) as last_active_date
       FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
-      WHERE entity_type = 'email_campaign'
+      WHERE entity_type = 'email_campaign_automation'
         AND date >= @startDate
         AND date <= @endDate
-        AND JSON_EXTRACT_SCALAR(source_breakdown, '$.status') = '1'
       GROUP BY campaign_id
       ORDER BY total_sends DESC
       LIMIT 100
