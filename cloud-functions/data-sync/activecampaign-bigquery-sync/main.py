@@ -651,7 +651,8 @@ def sync_activecampaign_to_bigquery(request):
             for lst in lists:
                 list_name = lst.get('name', 'Unnamed List')
                 list_id = lst.get('id', 'unknown')
-                subscriber_count = int(lst.get('subscriber_count', 0) or 0)
+                # ActiveCampaign API returns 'active_subscribers' not 'subscriber_count'
+                subscriber_count = int(lst.get('active_subscribers', 0) or lst.get('non_deleted_subscribers', 0) or 0)
                 total_subscribers += subscriber_count
                 
                 # Store raw list data
