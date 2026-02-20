@@ -305,8 +305,8 @@ export default function EmailMarketingPage() {
                 Rows loaded: {rows.length} | Granularity: {granularity}
               </p>
               <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Sample marketing_sends: {rows[0]?.marketing_sends ?? 'undefined'} | 
-                Sample automation_sends: {rows[0]?.automation_sends ?? 'undefined'}
+                Sample marketing_sends: {String(rows[0]?.marketing_sends ?? 'undefined')} | 
+                Sample automation_sends: {String(rows[0]?.automation_sends ?? 'undefined')}
               </p>
             </div>
           </Card>
