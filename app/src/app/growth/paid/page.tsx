@@ -61,6 +61,7 @@ const PAID_SECTIONS: SectionConfig[] = [
       { key: "gads_sessions", label: "Google Ads sessions", format: "number" },
       { key: "gads_conversions", label: "Google Ads conversions", format: "number" },
       { key: "gads_revenue", label: "Google Ads revenue", format: "currency" },
+      { key: "gads_revenue_pct", label: "Google Ads % of total revenue", format: "pct" },
       { key: "gads_pmax_sessions", label: "Google Ads PMax", format: "number" },
       { key: "gads_search_sessions", label: "Google Ads Search", format: "number" },
     ],
@@ -106,7 +107,18 @@ export default function PaidChannelsPage() {
           setError(data.error);
           setRows([]);
         } else {
-          setRows(Array.isArray(data.rows) ? data.rows : []);
+          const rawRows = Array.isArray(data.rows) ? data.rows : [];
+          // Calculate Google Ads revenue as % of Stripe revenue
+          const enrichedRows = rawRows.map(row => {
+            const gadsRevenue = Number(row.gads_revenue) || 0;
+            const stripeRevenue = Number(row.stripe_revenue) || 0;
+            const gadsRevenuePct = stripeRevenue > 0 ? (gadsRevenue / stripeRevenue) * 100 : 0;
+            return {
+              ...row,
+              gads_revenue_pct: gadsRevenuePct
+            };
+          });
+          setRows(enrichedRows);
         }
       })
       .catch((err) => {
