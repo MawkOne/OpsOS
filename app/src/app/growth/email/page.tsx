@@ -116,6 +116,8 @@ export default function EmailMarketingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -135,6 +137,27 @@ export default function EmailMarketingPage() {
       })
       .finally(() => setLoading(false));
   }, [granularity, startDate, endDate]);
+
+  // Fetch campaign-level data for Automations tab
+  useEffect(() => {
+    if (activeTab !== "automations") {
+      setCampaigns([]);
+      return;
+    }
+    
+    setCampaignsLoading(true);
+    const params = new URLSearchParams({ startDate, endDate });
+    fetch(`/api/bigquery/automation-campaigns?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+      })
+      .catch((err) => {
+        console.error("Failed to load campaigns:", err);
+        setCampaigns([]);
+      })
+      .finally(() => setCampaignsLoading(false));
+  }, [activeTab, startDate, endDate]);
 
   // Auto-scroll tables to right to show newest data first
   useEffect(() => {
@@ -459,6 +482,90 @@ export default function EmailMarketingPage() {
               </motion.div>
             );
           })
+        )}
+
+        {/* Campaign-level breakdown for Automations */}
+        {activeTab === "automations" && !loading && !error && (
+          <Card>
+            <CardHeader 
+              title="Individual Automations" 
+              subtitle="Performance breakdown by automation campaign"
+              icon={<Mail className="w-5 h-5" />}
+            />
+            {campaignsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
+                No automation campaigns found
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                        Campaign
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Sends
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Opens
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Clicks
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Open Rate
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        CTR
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Last Active
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaigns.map((campaign, idx) => (
+                      <motion.tr
+                        key={campaign.campaign_id}
+                        initial={{ opacity: 0, y: 2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                        className="group hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                          {campaign.campaign_name || `Campaign ${campaign.campaign_id}`}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(campaign.total_sends, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(campaign.total_opens, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(campaign.total_clicks, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(campaign.avg_open_rate, "pct")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(campaign.avg_ctr, "pct")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
+                          {campaign.last_active_date?.value || campaign.last_active_date || '—'}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
         )}
       </div>
     </AppLayout>
