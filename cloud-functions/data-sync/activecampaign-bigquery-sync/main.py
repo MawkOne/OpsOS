@@ -447,9 +447,12 @@ def sync_activecampaign_to_bigquery(request):
                     campaign_id = campaign.get('id', 'unknown')
                     
                     # Determine campaign type
-                    if campaign_status == '5' and not automation_id:
+                    # Marketing: status='5' (Sent - one-time broadcasts)
+                    # Automation: status='1' (Automation - triggered/recurring)
+                    # Other: drafts, sending, etc.
+                    if campaign_status == '5':
                         campaign_type = 'marketing'  # Manual broadcast
-                    elif campaign_status == '1' and automation_id:
+                    elif campaign_status == '1':
                         campaign_type = 'automation'  # Automated/transactional
                     else:
                         campaign_type = 'other'  # Draft, sending, etc.
