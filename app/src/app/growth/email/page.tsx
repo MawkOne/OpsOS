@@ -77,16 +77,6 @@ const EMAIL_SECTIONS: SectionConfig[] = [
       { key: "email_traffic_sessions", label: "Email referral traffic", format: "number" },
     ],
   },
-  {
-    id: "email_lists",
-    title: "List Growth & Health",
-    subtitle: "Email list subscribers and contact management",
-    icon: <Mail className="w-5 h-5" />,
-    metrics: [
-      { key: "email_contacts_total", label: "Total contacts", format: "number" },
-      { key: "email_list_subscribers_total", label: "Total subscribers", format: "number" },
-    ],
-  },
 ];
 
 function formatValue(val: unknown, format?: MetricFormat): string {
@@ -118,6 +108,8 @@ export default function EmailMarketingPage() {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [lists, setLists] = useState<any[]>([]);
+  const [listsLoading, setListsLoading] = useState(false);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -157,6 +149,27 @@ export default function EmailMarketingPage() {
         setCampaigns([]);
       })
       .finally(() => setCampaignsLoading(false));
+  }, [activeTab, startDate, endDate]);
+
+  // Fetch list data for Lists tab
+  useEffect(() => {
+    if (activeTab !== "lists") {
+      setLists([]);
+      return;
+    }
+    
+    setListsLoading(true);
+    const params = new URLSearchParams({ startDate, endDate });
+    fetch(`/api/bigquery/email-lists?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setLists(Array.isArray(data.lists) ? data.lists : []);
+      })
+      .catch((err) => {
+        console.error("Failed to load lists:", err);
+        setLists([]);
+      })
+      .finally(() => setListsLoading(false));
   }, [activeTab, startDate, endDate]);
 
   // Auto-scroll tables to right to show newest data first
@@ -324,11 +337,10 @@ export default function EmailMarketingPage() {
           <Card>
             <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>{error}</div>
           </Card>
-        ) : (
+        ) : activeTab !== "lists" ? (
           EMAIL_SECTIONS.filter(section => {
             if (activeTab === "campaigns") return section.id === "email_marketing";
             if (activeTab === "automations") return section.id === "email_automation";
-            if (activeTab === "lists") return section.id === "email_lists";
             return false;
           }).map((section, sectionIdx) => {
             const chartMetrics = section.metrics.slice(0, 5);
@@ -482,7 +494,7 @@ export default function EmailMarketingPage() {
               </motion.div>
             );
           })
-        )}
+        ) : null}
 
         {/* Campaign-level breakdown for Automations */}
         {activeTab === "automations" && !loading && !error && (
@@ -558,6 +570,72 @@ export default function EmailMarketingPage() {
                         </td>
                         <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
                           {campaign.last_active_date?.value || campaign.last_active_date || '—'}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Lists breakdown for Lists tab */}
+        {activeTab === "lists" && !loading && !error && (
+          <Card>
+            <CardHeader 
+              title="Email Lists" 
+              subtitle="Subscriber lists and audience segments"
+              icon={<Mail className="w-5 h-5" />}
+            />
+            {listsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full" />
+              </div>
+            ) : lists.length === 0 ? (
+              <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
+                No email lists found
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-3 px-4 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                        List Name
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Subscribers
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Days Active
+                      </th>
+                      <th className="text-right py-3 px-3 text-sm font-semibold whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                        Last Updated
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lists.map((list, idx) => (
+                      <motion.tr
+                        key={list.list_id}
+                        initial={{ opacity: 0, y: 2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                        className="group hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <td className="py-2.5 px-4 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                          {list.list_name || `List ${list.list_id}`}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(list.subscriber_count, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground)" }}>
+                          {formatValue(list.days_active, "number")}
+                        </td>
+                        <td className="py-2.5 px-3 text-sm text-right whitespace-nowrap" style={{ color: "var(--foreground-muted)" }}>
+                          {list.last_updated?.value || list.last_updated || '—'}
                         </td>
                       </motion.tr>
                     ))}
