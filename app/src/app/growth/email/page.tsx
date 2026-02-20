@@ -116,14 +116,7 @@ export default function EmailMarketingPage() {
       .then((data) => {
         if (data.error && data.rows?.length === 0) setError(data.error);
         else setError(null);
-        const dataRows = Array.isArray(data.rows) ? data.rows : [];
-        setRows(dataRows);
-        
-        // Debug: Log first row to console to check available columns
-        if (dataRows.length > 0) {
-          console.log('[Email Marketing] Sample row:', dataRows[0]);
-          console.log('[Email Marketing] Available keys:', Object.keys(dataRows[0]));
-        }
+        setRows(Array.isArray(data.rows) ? data.rows : []);
       })
       .catch((err) => {
         setError(err.message || "Failed to load metrics");
@@ -179,138 +172,79 @@ export default function EmailMarketingPage() {
       subtitle="Track email campaigns, automation sequences, and engagement metrics"
     >
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Granularity + date range */}
+        {/* Controls */}
         <Card>
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
-                {(["daily", "weekly", "monthly"] as const).map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGranularity(g)}
-                    className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                    style={{
-                      background: granularity === g ? "var(--accent)" : "transparent",
-                      color: granularity === g ? "var(--background)" : "var(--foreground-muted)",
-                    }}
-                  >
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
-                  </button>
-                ))}
-              </div>
-              <div className="text-sm font-medium" style={{ color: "var(--foreground-muted)" }}>
-                {granularity === "daily" ? "Daily" : granularity === "weekly" ? "Weekly" : "Monthly"} metrics
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                <button
-                  onClick={() => setChartType("line")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{
-                    background: chartType === "line" ? "var(--accent)" : "var(--background-tertiary)",
-                    color: chartType === "line" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                  title="Line chart"
-                >
-                  <LineChart className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setChartType("bar")}
-                  className="p-1.5 rounded-md transition-all"
-                  style={{
-                    background: chartType === "bar" ? "var(--accent)" : "var(--background-tertiary)",
-                    color: chartType === "bar" ? "var(--background)" : "var(--foreground-muted)",
-                  }}
-                  title="Bar chart"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium mr-1" style={{ color: "var(--foreground-muted)" }}>Quick:</span>
-              <button
-                onClick={() => {
-                  setGranularity("daily");
-                  setEndDate(todayISO());
-                  setStartDate(daysAgoISO(30));
-                }}
-                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
-              >
-                Last 30d
-              </button>
-              <button
-                onClick={() => {
-                  setGranularity("weekly");
-                  setEndDate(todayISO());
-                  setStartDate(daysAgoISO(90));
-                }}
-                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                style={{ 
-                  background: granularity === "weekly" && startDate === daysAgoISO(90) && endDate === todayISO() 
-                    ? "var(--accent)" 
-                    : "var(--background-tertiary)", 
-                  color: granularity === "weekly" && startDate === daysAgoISO(90) && endDate === todayISO() 
-                    ? "var(--background)" 
-                    : "var(--foreground)" 
-                }}
-              >
-                Last 90d (Weekly)
-              </button>
-              <button
-                onClick={() => {
-                  setGranularity("monthly");
-                  setEndDate(todayISO());
-                  setStartDate(daysAgoISO(365));
-                }}
-                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
-                style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
-              >
-                Last 12M
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                From
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded-md border px-2.5 py-1.5 text-sm tabular-nums"
-                  style={{ borderColor: "var(--border)", background: "var(--background-secondary)", color: "var(--foreground)" }}
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm" style={{ color: "var(--foreground-muted)" }}>
-                To
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="rounded-md border px-2.5 py-1.5 text-sm tabular-nums"
-                  style={{ borderColor: "var(--border)", background: "var(--background-secondary)", color: "var(--foreground)" }}
-                />
-              </label>
+              <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--background-tertiary)" }}>
+                <button
+                  onClick={() => {
+                    setGranularity("daily");
+                    setStartDate(daysAgoISO(30));
+                  }}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: granularity === "daily" ? "var(--accent)" : "transparent",
+                    color: granularity === "daily" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Last 30d
+                </button>
+                <button
+                  onClick={() => {
+                    setGranularity("weekly");
+                    setStartDate(daysAgoISO(90));
+                  }}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: granularity === "weekly" ? "var(--accent)" : "transparent",
+                    color: granularity === "weekly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Last 90d
+                </button>
+                <button
+                  onClick={() => {
+                    setGranularity("monthly");
+                    setStartDate(daysAgoISO(365));
+                  }}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: granularity === "monthly" ? "var(--accent)" : "transparent",
+                    color: granularity === "monthly" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Last 12M
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setChartType("line")}
+                className="p-1.5 rounded-md transition-all"
+                style={{
+                  background: chartType === "line" ? "var(--accent)" : "var(--background-tertiary)",
+                  color: chartType === "line" ? "var(--background)" : "var(--foreground-muted)",
+                }}
+                title="Line chart"
+              >
+                <LineChart className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setChartType("bar")}
+                className="p-1.5 rounded-md transition-all"
+                style={{
+                  background: chartType === "bar" ? "var(--accent)" : "var(--background-tertiary)",
+                  color: chartType === "bar" ? "var(--background)" : "var(--foreground-muted)",
+                }}
+                title="Bar chart"
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </Card>
-
-        {/* Debug info */}
-        {!loading && rows.length > 0 && (
-          <Card>
-            <div className="p-4">
-              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-                Debug: Data Summary
-              </h3>
-              <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                Rows loaded: {rows.length} | Granularity: {granularity}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Sample marketing_sends: {String(rows[0]?.marketing_sends ?? 'undefined')} | 
-                Sample automation_sends: {String(rows[0]?.automation_sends ?? 'undefined')}
-              </p>
-            </div>
-          </Card>
-        )}
 
         {/* Email sections */}
         {loading ? (
