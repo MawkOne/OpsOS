@@ -77,6 +77,16 @@ const EMAIL_SECTIONS: SectionConfig[] = [
       { key: "email_traffic_sessions", label: "Email referral traffic", format: "number" },
     ],
   },
+  {
+    id: "email_lists",
+    title: "List Growth & Health",
+    subtitle: "Email list subscribers and contact management",
+    icon: <Mail className="w-5 h-5" />,
+    metrics: [
+      { key: "email_contacts_total", label: "Total contacts", format: "number" },
+      { key: "email_list_subscribers_total", label: "Total subscribers", format: "number" },
+    ],
+  },
 ];
 
 function formatValue(val: unknown, format?: MetricFormat): string {
@@ -98,7 +108,7 @@ function daysAgoISO(days: number): string {
 }
 
 export default function EmailMarketingPage() {
-  const [activeTab, setActiveTab] = useState<"campaigns" | "automations">("campaigns");
+  const [activeTab, setActiveTab] = useState<"campaigns" | "automations" | "lists">("campaigns");
   const [granularity, setGranularity] = useState<Granularity>("weekly");
   const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate, setEndDate] = useState(todayISO);
@@ -199,6 +209,16 @@ export default function EmailMarketingPage() {
                 >
                   Automations
                 </button>
+                <button
+                  onClick={() => setActiveTab("lists")}
+                  className="px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+                  style={{
+                    background: activeTab === "lists" ? "var(--accent)" : "transparent",
+                    color: activeTab === "lists" ? "var(--background)" : "var(--foreground-muted)",
+                  }}
+                >
+                  Lists
+                </button>
               </div>
 
               {/* Date range buttons */}
@@ -282,9 +302,12 @@ export default function EmailMarketingPage() {
             <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>{error}</div>
           </Card>
         ) : (
-          EMAIL_SECTIONS.filter(section => 
-            activeTab === "campaigns" ? section.id === "email_marketing" : section.id === "email_automation"
-          ).map((section, sectionIdx) => {
+          EMAIL_SECTIONS.filter(section => {
+            if (activeTab === "campaigns") return section.id === "email_marketing";
+            if (activeTab === "automations") return section.id === "email_automation";
+            if (activeTab === "lists") return section.id === "email_lists";
+            return false;
+          }).map((section, sectionIdx) => {
             const chartMetrics = section.metrics.slice(0, 5);
             const sectionChartData = dateColumns.map((period) => {
               const row = byPeriod.get(period);
