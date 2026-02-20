@@ -314,9 +314,10 @@ def sync_google_ads_to_bigquery(request):
             
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
-            # Get min date for deletion
+            # Get date range for deletion
             dates = [r['date'] for r in rows]
             min_date = min(dates) if dates else today_str
+            max_date = max(dates) if dates else today_str
             
             if sync_mode == 'full':
                 # FULL RESYNC: Delete ALL existing Google Ads data for this org
@@ -327,24 +328,31 @@ def sync_google_ads_to_bigquery(request):
                 """
                 
                 try:
-                    bq.query(delete_query).result()
-                    logger.info("Deleted all existing Google Ads data for full resync")
+                    query_job = bq.query(delete_query)
+                    query_job.result()  # Wait for completion
+                    deleted_rows = query_job.num_dml_affected_rows
+                    logger.info(f"Deleted {deleted_rows} existing Google Ads rows for full resync")
                 except Exception as e:
-                    logger.warning(f"Delete query warning: {e}")
+                    logger.error(f"Delete query failed: {e}")
+                    raise
             else:
-                # UPDATE SYNC: Only delete data in the date range being synced
+                # UPDATE SYNC: Delete data for EXACT date range being synced to prevent duplicates
                 delete_query = f"""
                 DELETE FROM `{table_ref}`
                 WHERE organization_id = '{organization_id}'
                   AND entity_type IN ('ad_account', 'campaign')
                   AND date >= '{min_date}'
+                  AND date <= '{max_date}'
                 """
                 
                 try:
-                    bq.query(delete_query).result()
-                    logger.info(f"Deleted Google Ads data since {min_date} for update")
+                    query_job = bq.query(delete_query)
+                    query_job.result()  # Wait for completion
+                    deleted_rows = query_job.num_dml_affected_rows
+                    logger.info(f"Deleted {deleted_rows} Google Ads rows from {min_date} to {max_date}")
                 except Exception as e:
-                    logger.warning(f"Delete query warning: {e}")
+                    logger.error(f"Delete query failed: {e}")
+                    raise
             
             # Insert new rows
             errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
