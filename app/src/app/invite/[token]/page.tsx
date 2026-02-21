@@ -93,7 +93,7 @@ export default function InviteAcceptPage() {
       
       // Redirect to the organization after a short delay
       setTimeout(() => {
-        router.push("/leadership");
+        router.push("/growth/metrics");
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to accept invite");
