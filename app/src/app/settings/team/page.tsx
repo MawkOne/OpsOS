@@ -70,14 +70,40 @@ export default function TeamSettingsPage() {
   const canManageMembers = currentMember?.accessLevel === "owner" || currentMember?.accessLevel === "admin";
 
   const fetchData = useCallback(async () => {
-    if (!organizationId) return;
+    if (!organizationId || !currentUserId || !user?.email) return;
 
     setLoading(true);
     try {
       // Fetch members
       const membersRes = await fetch(`/api/org/members?organizationId=${organizationId}`);
       const membersData = await membersRes.json();
-      if (membersData.members) {
+      
+      // If no members found, initialize the current user as owner
+      if (membersData.members && membersData.members.length === 0) {
+        try {
+          const initRes = await fetch("/api/org/initialize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: currentUserId,
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+              organizationId,
+            }),
+          });
+          
+          if (initRes.ok) {
+            // Refetch members after initialization
+            const newMembersRes = await fetch(`/api/org/members?organizationId=${organizationId}`);
+            const newMembersData = await newMembersRes.json();
+            if (newMembersData.members) {
+              setMembers(newMembersData.members);
+            }
+          }
+        } catch (initErr) {
+          console.error("Error initializing organization:", initErr);
+        }
+      } else if (membersData.members) {
         setMembers(membersData.members);
       }
 
@@ -92,7 +118,7 @@ export default function TeamSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, currentUserId, user]);
 
   useEffect(() => {
     fetchData();
