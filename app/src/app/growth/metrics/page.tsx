@@ -544,47 +544,55 @@ export default function GrowthMetricsPage() {
         )}
 
         {/* Company Snapshot */}
-        {!loading && !error && dateColumns.length > 0 && (
-          <Card>
-            <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
-            <div ref={snapshotScrollRef} className="overflow-x-auto">
-              <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
-                      KPI
-                    </th>
-                    {dateColumns.map((d) => (
-                      <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
-                        {d}
+        {!loading && !error && (
+          dateColumns.length > 0 ? (
+            <Card>
+              <CardHeader title="Company Snapshot" subtitle="High-level KPIs" icon={<LineChart className="w-5 h-5" />} />
+              <div ref={snapshotScrollRef} className="overflow-x-auto">
+                <table className="w-full table-fixed" style={{ minWidth: dateColumns.length * 90 + 180 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="text-left py-3 px-4 text-sm font-semibold sticky left-0 z-10 w-44 min-w-[180px]" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                        KPI
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {SNAPSHOT_KPIS.map((kpi, idx) => (
-                    <motion.tr
-                      key={kpi.key}
-                      initial={{ opacity: 0, y: 2 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(idx * 0.02, 0.25) }}
-                      style={{ borderBottom: "1px solid var(--border)" }}
-                      className="group hover:bg-[var(--background-tertiary)] transition-colors"
-                    >
-                      <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 bg-[var(--background-secondary)] group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)" }}>
-                        {kpi.label}
-                      </td>
                       {dateColumns.map((d) => (
-                        <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
-                          {formatValue(byPeriod.get(d)?.[kpi.key], kpi.format)}
-                        </td>
+                        <th key={d} className="text-right py-3 px-2 text-sm font-semibold tabular-nums" style={{ color: "var(--foreground-muted)", width: 90 }}>
+                          {d}
+                        </th>
                       ))}
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SNAPSHOT_KPIS.map((kpi, idx) => (
+                      <motion.tr
+                        key={kpi.key}
+                        initial={{ opacity: 0, y: 2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(idx * 0.02, 0.25) }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                        className="group hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <td className="py-2.5 px-4 text-sm font-medium sticky left-0 z-10 bg-[var(--background-secondary)] group-hover:bg-[var(--background-tertiary)]" style={{ color: "var(--foreground)" }}>
+                          {kpi.label}
+                        </td>
+                        {dateColumns.map((d) => (
+                          <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground)" }}>
+                            {formatValue(byPeriod.get(d)?.[kpi.key], kpi.format)}
+                          </td>
+                        ))}
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
+                No {granularity} data available for this date range
+              </div>
+            </Card>
+          )
         )}
 
         {/* Grouped sections: marketing first, then funnels & revenue */}
