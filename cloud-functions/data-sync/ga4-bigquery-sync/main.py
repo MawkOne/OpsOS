@@ -486,14 +486,19 @@ def sync_ga4_to_bigquery(request):
             }, max_rows=10000)
             
             for row in campaign_rows:
-                results['google_ads_campaigns'] += 1
-                
                 date_val = row['dimensionValues'][0]['value']
                 date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
                 campaign_name = row['dimensionValues'][1]['value']
                 campaign_id = row['dimensionValues'][2]['value']
                 campaign_type = row['dimensionValues'][3]['value']
                 ad_network = row['dimensionValues'][4]['value']
+                
+                # Skip (not set) campaigns - these are not real Google Ads traffic
+                if campaign_name == '(not set)':
+                    continue
+                
+                results['google_ads_campaigns'] += 1
+                
                 metrics = row['metricValues']
                 
                 sessions = int(metrics[0]['value'])
@@ -583,13 +588,18 @@ def sync_ga4_to_bigquery(request):
             }, max_rows=20000)
             
             for row in adgroup_rows:
-                results['google_ads_adgroups'] += 1
-                
                 date_val = row['dimensionValues'][0]['value']
                 date_str = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
                 campaign_name = row['dimensionValues'][1]['value']
                 adgroup_name = row['dimensionValues'][2]['value']
                 adgroup_id = row['dimensionValues'][3]['value']
+                
+                # Skip (not set) ad groups - these are not real Google Ads traffic
+                if adgroup_name == '(not set)' or campaign_name == '(not set)':
+                    continue
+                
+                results['google_ads_adgroups'] += 1
+                
                 metrics = row['metricValues']
                 
                 sessions = int(metrics[0]['value'])
