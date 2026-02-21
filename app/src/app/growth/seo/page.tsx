@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import Card from "@/components/Card";
-import CardHeader from "@/components/CardHeader";
+import Card, { CardHeader } from "@/components/Card";
 import { Search, TrendingUp, TrendingDown, Target, Minus, ArrowUp, ArrowDown, Link as LinkIcon } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
