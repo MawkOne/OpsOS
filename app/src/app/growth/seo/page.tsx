@@ -121,17 +121,8 @@ export default function SEOPage() {
   const losers = movers.filter(m => m.position_change > 0).slice(0, 5); // Positive is bad (higher position)
 
   return (
-    <AppLayout>
+    <AppLayout title="SEO Performance">
       <div className="p-6 max-w-[1600px] mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--foreground)" }}>
-            SEO Performance Dashboard
-          </h1>
-          <p style={{ color: "var(--foreground-muted)" }}>
-            Track keyword rankings, search visibility, and organic growth
-          </p>
-        </div>
 
         {/* Date Range Selector */}
         <Card>
