@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import Card, { CardHeader } from "@/components/Card";
+import Card, { CardHeader, StatCard } from "@/components/Card";
 import { Search, TrendingUp, TrendingDown, Target, Minus, ArrowUp, ArrowDown, Link as LinkIcon } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -164,41 +164,37 @@ export default function SEOPage() {
           <>
             {/* Overview KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-              <Card>
-                <CardHeader
-                  icon={<Search className="w-5 h-5" />}
-                  title="Total Keywords"
-                  value={formatNumber(stats?.total_keywords)}
-                  subtitle="Keywords tracked"
-                />
-              </Card>
+              <StatCard
+                icon={<Search className="w-5 h-5" />}
+                label="Total Keywords"
+                value={formatNumber(stats?.total_keywords)}
+                change="Keywords tracked"
+                changeType="neutral"
+              />
 
-              <Card>
-                <CardHeader
-                  icon={<Target className="w-5 h-5" />}
-                  title="Top 10 Rankings"
-                  value={formatNumber(stats?.keywords_top_10)}
-                  subtitle={`${stats?.keywords_top_3 || 0} in top 3`}
-                />
-              </Card>
+              <StatCard
+                icon={<Target className="w-5 h-5" />}
+                label="Top 10 Rankings"
+                value={formatNumber(stats?.keywords_top_10)}
+                change={`${stats?.keywords_top_3 || 0} in top 3`}
+                changeType="neutral"
+              />
 
-              <Card>
-                <CardHeader
-                  icon={<TrendingUp className="w-5 h-5" />}
-                  title="Avg Position"
-                  value={stats?.avg_position ? stats.avg_position.toFixed(1) : "0"}
-                  subtitle="Across all keywords"
-                />
-              </Card>
+              <StatCard
+                icon={<TrendingUp className="w-5 h-5" />}
+                label="Avg Position"
+                value={stats?.avg_position ? stats.avg_position.toFixed(1) : "0"}
+                change="Across all keywords"
+                changeType="neutral"
+              />
 
-              <Card>
-                <CardHeader
-                  icon={<LinkIcon className="w-5 h-5" />}
-                  title="Backlinks"
-                  value={formatNumber(backlinks[0]?.backlinks_total)}
-                  subtitle={`Domain rank: ${backlinks[0]?.domain_rank?.toFixed(0) || 0}`}
-                />
-              </Card>
+              <StatCard
+                icon={<LinkIcon className="w-5 h-5" />}
+                label="Backlinks"
+                value={formatNumber(backlinks[0]?.backlinks_total)}
+                change={`Domain rank: ${backlinks[0]?.domain_rank?.toFixed(0) || 0}`}
+                changeType="neutral"
+              />
             </div>
 
             {/* Top Rankings Table */}
