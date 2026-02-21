@@ -404,8 +404,15 @@ export default function SEOPage() {
                 <CardHeader
                   icon={<LinkIcon className="w-5 h-5" />}
                   title="Backlink Trend"
-                  subtitle={`${formatNumber(backlinks[0]?.backlinks_total)} total backlinks`}
+                  subtitle={`${formatNumber(backlinks[0]?.backlinks_total)} total backlinks (Domain rank: ${backlinks[0]?.domain_rank?.toFixed(0) || 0})`}
                 />
+                {backlinks.length < 7 && (
+                  <div className="mb-4 p-3 rounded" style={{ background: "var(--background-tertiary)" }}>
+                    <p className="text-sm" style={{ color: "var(--foreground-muted)" }}>
+                      ℹ️ Limited backlink history ({backlinks.length} days). Run DataForSEO backlink sync weekly for better trend analysis.
+                    </p>
+                  </div>
+                )}
                 <div style={{ height: "300px" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={[...backlinks].reverse()}>
@@ -418,6 +425,7 @@ export default function SEOPage() {
                       <YAxis
                         stroke="var(--foreground-muted)"
                         tick={{ fill: "var(--foreground-muted)" }}
+                        domain={['dataMin - 100', 'dataMax + 100']}
                       />
                       <Tooltip
                         contentStyle={{
@@ -431,7 +439,7 @@ export default function SEOPage() {
                         dataKey="backlinks_total"
                         stroke="var(--accent)"
                         strokeWidth={2}
-                        dot={{ fill: "var(--accent)" }}
+                        dot={{ fill: "var(--accent)", r: 4 }}
                         name="Backlinks"
                       />
                     </LineChart>

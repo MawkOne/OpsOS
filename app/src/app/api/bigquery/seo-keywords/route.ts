@@ -55,10 +55,16 @@ export async function GET(request: NextRequest) {
       LIMIT @limit
     `;
 
-    const [keywords] = await bq.query({
+    const [keywordsRaw] = await bq.query({
       query: keywordsQuery,
       params: { startDate, endDate, limit: parseInt(limit) },
     });
+
+    // Fix date formatting for keywords
+    const keywords = (keywordsRaw || []).map((row: any) => ({
+      ...row,
+      date: row.date?.value || row.date,
+    }));
 
     // Get position distribution
     const distributionQuery = `
@@ -145,10 +151,16 @@ export async function GET(request: NextRequest) {
       LIMIT 30
     `;
 
-    const [backlinks] = await bq.query({
+    const [backlinksRaw] = await bq.query({
       query: backlinksQuery,
       params: { startDate, endDate },
     });
+
+    // Fix date formatting for backlinks
+    const backlinks = (backlinksRaw || []).map((row: any) => ({
+      ...row,
+      date: row.date?.value || row.date,
+    }));
 
     // Get biggest movers (last 7 days)
     const moversQuery = `
