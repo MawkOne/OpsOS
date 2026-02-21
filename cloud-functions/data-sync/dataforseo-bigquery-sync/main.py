@@ -297,12 +297,20 @@ def sync_dataforseo_to_bigquery(request):
             )
             
             tasks = backlinks_response.get('tasks', [])
+            if not tasks:
+                logger.warning("DataForSEO backlinks API returned no tasks")
+            
             for task in tasks:
-                if task.get('status_code') != 20000:
+                status_code = task.get('status_code')
+                if status_code != 20000:
+                    logger.error(f"DataForSEO backlinks API error: status_code={status_code}, message={task.get('status_message')}")
                     continue
                 
                 result = task.get('result', [{}])[0]
                 results['backlinks_processed'] = result.get('backlinks', 0)
+                
+                if results['backlinks_processed'] == 0:
+                    logger.warning(f"DataForSEO backlinks API returned 0 backlinks for {target_domain}")
                 
                 row = {
                     'organization_id': organization_id,

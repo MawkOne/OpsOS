@@ -25,6 +25,7 @@ SYNC_FUNCTIONS = {
     'quickbooks_connections': 'https://us-central1-opsos-864a1.cloudfunctions.net/quickbooks-bigquery-sync',
     'google_ads_connections': 'https://us-central1-opsos-864a1.cloudfunctions.net/google-ads-bigquery-sync',
     'dataforseo_connections': 'https://us-central1-opsos-864a1.cloudfunctions.net/dataforseo-bigquery-sync',
+    'social_media_connections': 'https://us-central1-opsos-864a1.cloudfunctions.net/social-media-bigquery-sync',
 }
 
 # GA4 raw BigQuery sync - runs independently of Firestore connections
@@ -57,6 +58,7 @@ CONNECTION_COLLECTIONS = [
     'quickbooks_connections',
     'google_ads_connections',
     'dataforseo_connections',
+    'social_media_connections',
 ]
 
 
