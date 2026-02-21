@@ -125,7 +125,7 @@ const moduleConfig: Record<Module, { label: string; icon: React.ReactNode; color
 };
 
 // Define the order for module selector dropdown
-const moduleOrder: Module[] = ["growth", "ai", "leadership", "revenue", "expenses", "metrics", "marketing", "initiatives", "planning", "resources", "sources"];
+const moduleOrder: Module[] = ["growth", "ai", "planning", "sources"];
 
 // Create navigation function to make it dynamic
 const getNavigationByModule = (oppCount: number, detectorStats?: { total: number; byCategory: Record<string, number> }): Record<Module, NavSection[]> => ({
