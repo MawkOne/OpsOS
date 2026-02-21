@@ -28,7 +28,7 @@ export default function LoginPage() {
     if (!authLoading && !orgLoading && !isProcessingRedirect && user) {
       // User is logged in, redirect based on org status
       if (organizations.length > 0) {
-        window.location.href = "/leadership";
+        window.location.href = "/growth/metrics";
       } else {
         window.location.href = "/onboarding";
       }
@@ -36,12 +36,12 @@ export default function LoginPage() {
   }, [authLoading, orgLoading, isProcessingRedirect, user, organizations]);
 
   const redirectAfterAuth = () => {
-    // After auth, go to onboarding for new users (signup) or leadership for existing
+    // After auth, go to onboarding for new users (signup) or growth metrics for existing
     // The AppLayout will handle the org check and redirect if needed
     if (isSignUp) {
       window.location.href = "/onboarding";
     } else {
-      window.location.href = "/leadership";
+      window.location.href = "/growth/metrics";
     }
   };
 
