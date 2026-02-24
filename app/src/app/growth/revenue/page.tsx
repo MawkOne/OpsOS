@@ -469,7 +469,7 @@ export default function RevenueMetricsPage() {
         )}
 
         {/* Product Revenue Table */}
-        {!loading && productData.length > 0 && (
+        {!loading && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -478,9 +478,14 @@ export default function RevenueMetricsPage() {
             <Card>
               <CardHeader 
                 title="Revenue by Product" 
-                subtitle={`Product-level revenue breakdown (${productData.length} products)`} 
+                subtitle={productData.length > 0 ? `Product-level revenue breakdown (${productData.length} products)` : "Loading product data..."} 
                 icon={<DollarSign className="w-5 h-5" />} 
               />
+              {productData.length === 0 ? (
+                <div className="py-8 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
+                  No product data available for this date range
+                </div>
+              ) : (
               <div ref={productScrollRef} className="overflow-x-auto" style={{ maxHeight: "600px" }}>
                 <table className="w-full border-collapse">
                   <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background-secondary)" }}>
@@ -532,6 +537,7 @@ export default function RevenueMetricsPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </Card>
           </motion.div>
         )}
