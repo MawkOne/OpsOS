@@ -124,33 +124,6 @@ export default function RevenueMetricsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["stripe_revenue", "mrr", "purchases"]));
   const [chartType, setChartType] = useState<"line" | "bar">("line");
-function formatValue(val: unknown, format?: MetricFormat): string {
-  const n = Number(val);
-  if (Number.isNaN(n)) return "—";
-  if (format === "currency") return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  if (format === "pct") return `${n.toFixed(1)}%`;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-}
-
-function todayISO(): string {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
-}
-function daysAgoISO(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
-}
-
-export default function RevenueMetricsPage() {
-  const [granularity, setGranularity] = useState<Granularity>("weekly");
-  const [startDate, setStartDate] = useState(() => daysAgoISO(365));
-  const [endDate, setEndDate] = useState(todayISO);
-  const [rows, setRows] = useState<ReportingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["stripe_revenue", "mrr", "purchases"]));
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
   const snapshotScrollRef = useRef<HTMLDivElement>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
