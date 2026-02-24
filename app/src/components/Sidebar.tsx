@@ -134,6 +134,7 @@ const getNavigationByModule = (oppCount: number, detectorStats?: { total: number
       title: "Overview",
       items: [
         { label: "Metrics Dashboard", href: "/growth/metrics", icon: <LineChart className="w-4 h-4" /> },
+        { label: "Revenue Dashboard", href: "/growth/revenue", icon: <DollarSign className="w-4 h-4" /> },
       ],
     },
     {
