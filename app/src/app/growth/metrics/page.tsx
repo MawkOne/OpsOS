@@ -242,13 +242,13 @@ function daysAgoISO(days: number): string {
 }
 
 export default function GrowthMetricsPage() {
-  const [granularity, setGranularity] = useState<Granularity>("daily");
-  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
+  const [granularity, setGranularity] = useState<Granularity>("weekly");
+  const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["sessions", "stripe_revenue"]));
+  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["talent_signups", "company_signups", "jobs_posted"]));
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const snapshotScrollRef = useRef<HTMLDivElement>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
