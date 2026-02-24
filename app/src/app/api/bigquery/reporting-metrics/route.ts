@@ -118,11 +118,17 @@ export async function GET(request: NextRequest) {
             let dateKey: string;
             
             if (granularity === "weekly") {
-              const weekNum = getISOWeek(date);
-              dateKey = `W${weekNum}`;
+              // Calculate week start (Monday of the ISO week)
+              const d = new Date(date);
+              const day = d.getDay();
+              const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+              d.setDate(diff);
+              dateKey = d.toISOString().slice(0, 10);
             } else if (granularity === "monthly") {
-              const monthNum = date.getMonth() + 1;
-              dateKey = `M${monthNum}`;
+              // Get first day of the month
+              const d = new Date(date);
+              d.setDate(1);
+              dateKey = d.toISOString().slice(0, 10);
             } else {
               dateKey = typeof dateValue === 'string' ? dateValue : dateValue.toISOString().slice(0, 10);
             }
