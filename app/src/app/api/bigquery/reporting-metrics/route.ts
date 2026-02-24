@@ -78,9 +78,111 @@ export async function GET(request: NextRequest) {
 
     const [rows] = await bq.query(query);
     
+    // Also fetch product breakdown data
+    let productData: any[] = [];
+    let productDateColumns: string[] = [];
+    
+    if (useRange && startDate && endDate) {
+      try {
+        const productQuery = `
+          SELECT 
+            date,
+            source_breakdown
+          FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
+          WHERE organization_id = 'ytjobs'
+            AND entity_type = 'marketplace_revenue'
+            AND date >= @startDate
+            AND date <= @endDate
+          ORDER BY date
+        `;
+        
+        const [productRows] = await bq.query({
+          query: productQuery,
+          params: { startDate, endDate },
+          location: "northamerica-northeast1",
+        });
+        
+        // Parse and aggregate product data
+        const byDate: Record<string, Record<string, { revenue: number; purchases: number }>> = {};
+        
+        productRows.forEach((row: any) => {
+          try {
+            const breakdown = typeof row.source_breakdown === 'string' 
+              ? JSON.parse(row.source_breakdown) 
+              : row.source_breakdown;
+            
+            if (!breakdown?.by_product) return;
+            
+            const dateValue = row.date?.value || row.date;
+            const date = new Date(dateValue);
+            let dateKey: string;
+            
+            if (granularity === "weekly") {
+              const weekNum = getISOWeek(date);
+              dateKey = `W${weekNum}`;
+            } else if (granularity === "monthly") {
+              const monthNum = date.getMonth() + 1;
+              dateKey = `M${monthNum}`;
+            } else {
+              dateKey = typeof dateValue === 'string' ? dateValue : dateValue.toISOString().slice(0, 10);
+            }
+            
+            if (!byDate[dateKey]) {
+              byDate[dateKey] = {};
+            }
+            
+            Object.entries(breakdown.by_product).forEach(([productName, productDataItem]: [string, any]) => {
+              if (!byDate[dateKey][productName]) {
+                byDate[dateKey][productName] = { revenue: 0, purchases: 0 };
+              }
+              byDate[dateKey][productName].revenue += productDataItem.revenue || 0;
+              byDate[dateKey][productName].purchases += productDataItem.count || 0;
+            });
+          } catch (err) {
+            console.error("[reporting-metrics] Error processing product row:", err);
+          }
+        });
+        
+        // Transform to product rows
+        const allProducts = new Set<string>();
+        Object.values(byDate).forEach(dateData => {
+          Object.keys(dateData).forEach(product => allProducts.add(product));
+        });
+        
+        productData = Array.from(allProducts).map(product => {
+          const row: any = { product };
+          let totalRevenue = 0;
+          let totalPurchases = 0;
+          
+          Object.keys(byDate).forEach(dateKey => {
+            if (byDate[dateKey][product]) {
+              row[dateKey] = byDate[dateKey][product].revenue;
+              row[`${dateKey}_purchases`] = byDate[dateKey][product].purchases;
+              totalRevenue += byDate[dateKey][product].revenue;
+              totalPurchases += byDate[dateKey][product].purchases;
+            } else {
+              row[dateKey] = 0;
+              row[`${dateKey}_purchases`] = 0;
+            }
+          });
+          
+          row.totalRevenue = totalRevenue;
+          row.totalPurchases = totalPurchases;
+          return row;
+        });
+        
+        productData.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        productDateColumns = Object.keys(byDate).sort();
+      } catch (productErr) {
+        console.error("[reporting-metrics] Product data error:", productErr);
+      }
+    }
+    
     return NextResponse.json({ 
       rows: rows || [], 
-      granularity
+      granularity,
+      products: productData,
+      productDateColumns
     });
   } catch (err) {
     console.error("[reporting-metrics]", err);
@@ -89,4 +191,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper to get ISO week number
+function getISOWeek(date: Date): number {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }

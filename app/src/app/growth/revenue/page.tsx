@@ -115,21 +115,20 @@ export default function RevenueMetricsPage() {
     setError(null);
     const params = new URLSearchParams({ granularity, startDate, endDate });
     
-    // Fetch both aggregate metrics and product breakdown
-    Promise.all([
-      fetch(`/api/bigquery/reporting-metrics?${params}`).then(res => res.json()),
-      fetch(`/api/bigquery/product-revenue?${params}`).then(res => res.json()),
-    ])
-      .then(([metricsData, productsData]) => {
-        if (metricsData.error && metricsData.rows?.length === 0) setError(metricsData.error);
+    // Fetch metrics including product breakdown
+    fetch(`/api/bigquery/reporting-metrics?${params}`)
+      .then(res => res.json())
+      .then((data) => {
+        if (data.error && data.rows?.length === 0) setError(data.error);
         else setError(null);
-        setRows(Array.isArray(metricsData.rows) ? metricsData.rows : []);
+        setRows(Array.isArray(data.rows) ? data.rows : []);
         
-        console.log('[Revenue] Product data received:', productsData);
-        if (productsData.products) {
-          console.log('[Revenue] Setting product data, count:', productsData.products.length);
-          setProductData(productsData.products);
-          setProductDateColumns(productsData.dateColumns || []);
+        // Product data is now included in the same response
+        console.log('[Revenue] Product data received:', data.products);
+        if (data.products) {
+          console.log('[Revenue] Setting product data, count:', data.products.length);
+          setProductData(data.products);
+          setProductDateColumns(data.productDateColumns || []);
         }
       })
       .catch((err) => {
