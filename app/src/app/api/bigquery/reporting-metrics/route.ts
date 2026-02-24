@@ -119,7 +119,11 @@ export async function GET(request: NextRequest) {
         });
         
         // Parse and aggregate product data
-        const byDate: Record<string, Record<string, { revenue: number; purchases: number }>> = {};
+        // Store both label (for display) and date (for sorting)
+        const byDate: Record<string, { 
+          sortDate: string;
+          products: Record<string, { revenue: number; purchases: number }> 
+        }> = {};
         
         productRows.forEach((row: any) => {
           try {
@@ -129,20 +133,24 @@ export async function GET(request: NextRequest) {
             
             if (!breakdown?.by_product) return;
             
-            // Use the period_label from BigQuery for consistent formatting
+            // Use the period_label from BigQuery for display (e.g., "46" for week number)
             const labelValue = row.period_label?.value || row.period_label;
             const dateKey = typeof labelValue === 'string' ? labelValue : String(labelValue);
             
+            // Get the actual date for sorting
+            const dateValue = row.period_date?.value || row.period_date;
+            const sortDate = typeof dateValue === 'string' ? dateValue : new Date(dateValue).toISOString().slice(0, 10);
+            
             if (!byDate[dateKey]) {
-              byDate[dateKey] = {};
+              byDate[dateKey] = { sortDate, products: {} };
             }
             
             Object.entries(breakdown.by_product).forEach(([productName, productDataItem]: [string, any]) => {
-              if (!byDate[dateKey][productName]) {
-                byDate[dateKey][productName] = { revenue: 0, purchases: 0 };
+              if (!byDate[dateKey].products[productName]) {
+                byDate[dateKey].products[productName] = { revenue: 0, purchases: 0 };
               }
-              byDate[dateKey][productName].revenue += productDataItem.revenue || 0;
-              byDate[dateKey][productName].purchases += productDataItem.count || 0;
+              byDate[dateKey].products[productName].revenue += productDataItem.revenue || 0;
+              byDate[dateKey].products[productName].purchases += productDataItem.count || 0;
             });
           } catch (err) {
             console.error("[reporting-metrics] Error processing product row:", err);
@@ -152,7 +160,7 @@ export async function GET(request: NextRequest) {
         // Transform to product rows
         const allProducts = new Set<string>();
         Object.values(byDate).forEach(dateData => {
-          Object.keys(dateData).forEach(product => allProducts.add(product));
+          Object.keys(dateData.products).forEach(product => allProducts.add(product));
         });
         
         productData = Array.from(allProducts).map(product => {
@@ -161,11 +169,11 @@ export async function GET(request: NextRequest) {
           let totalPurchases = 0;
           
           Object.keys(byDate).forEach(dateKey => {
-            if (byDate[dateKey][product]) {
-              row[dateKey] = byDate[dateKey][product].revenue;
-              row[`${dateKey}_purchases`] = byDate[dateKey][product].purchases;
-              totalRevenue += byDate[dateKey][product].revenue;
-              totalPurchases += byDate[dateKey][product].purchases;
+            if (byDate[dateKey].products[product]) {
+              row[dateKey] = byDate[dateKey].products[product].revenue;
+              row[`${dateKey}_purchases`] = byDate[dateKey].products[product].purchases;
+              totalRevenue += byDate[dateKey].products[product].revenue;
+              totalPurchases += byDate[dateKey].products[product].purchases;
             } else {
               row[dateKey] = 0;
               row[`${dateKey}_purchases`] = 0;
@@ -179,14 +187,11 @@ export async function GET(request: NextRequest) {
         
         productData.sort((a, b) => b.totalRevenue - a.totalRevenue);
         
-        // Sort date columns numerically (for week/month numbers) or lexicographically (for dates)
+        // Sort date columns by actual date, not by display label
         productDateColumns = Object.keys(byDate).sort((a, b) => {
-          const numA = Number(a);
-          const numB = Number(b);
-          if (!isNaN(numA) && !isNaN(numB)) {
-            return numA - numB; // Numeric sort for week/month numbers
-          }
-          return a.localeCompare(b); // Lexicographic sort for date strings
+          const dateA = byDate[a].sortDate;
+          const dateB = byDate[b].sortDate;
+          return dateA.localeCompare(dateB); // Chronological sort by actual date
         });
       } catch (productErr) {
         console.error("[reporting-metrics] Product data error:", productErr);
