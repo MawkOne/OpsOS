@@ -84,19 +84,25 @@ export async function GET(request: NextRequest) {
     
     if (useRange && startDate && endDate) {
       try {
-        // Build date aggregation based on granularity
-        let dateAggregation: string;
+        // Build date aggregation and label based on granularity
+        let dateSelect: string;
         if (granularity === "weekly") {
-          dateAggregation = "DATE_TRUNC(date, WEEK(MONDAY))";
+          dateSelect = `
+            FORMAT_DATE('%G-W%V', DATE_TRUNC(date, WEEK(MONDAY))) as period_label,
+            DATE_TRUNC(date, WEEK(MONDAY)) as period_date
+          `;
         } else if (granularity === "monthly") {
-          dateAggregation = "DATE_TRUNC(date, MONTH)";
+          dateSelect = `
+            FORMAT_DATE('%Y-%m', DATE_TRUNC(date, MONTH)) as period_label,
+            DATE_TRUNC(date, MONTH) as period_date
+          `;
         } else {
-          dateAggregation = "date";
+          dateSelect = "date as period_label, date as period_date";
         }
         
         const productQuery = `
           SELECT 
-            ${dateAggregation} as period_date,
+            ${dateSelect},
             source_breakdown
           FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
           WHERE organization_id = 'ytjobs'
@@ -123,9 +129,9 @@ export async function GET(request: NextRequest) {
             
             if (!breakdown?.by_product) return;
             
-            // Use the period_date from BigQuery aggregation
-            const dateValue = row.period_date?.value || row.period_date;
-            const dateKey = typeof dateValue === 'string' ? dateValue : new Date(dateValue).toISOString().slice(0, 10);
+            // Use the period_label from BigQuery for consistent formatting
+            const labelValue = row.period_label?.value || row.period_label;
+            const dateKey = typeof labelValue === 'string' ? labelValue : String(labelValue);
             
             if (!byDate[dateKey]) {
               byDate[dateKey] = {};
