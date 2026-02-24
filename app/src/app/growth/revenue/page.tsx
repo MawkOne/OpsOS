@@ -54,12 +54,6 @@ const SNAPSHOT_KPIS = [
   { key: "stripe_revenue", label: "Total Revenue", format: "currency" as MetricFormat },
   { key: "purchases", label: "Purchases", format: "number" as MetricFormat },
   { key: "purchasing_customers", label: "Paying Customers", format: "number" as MetricFormat },
-  { key: "mrr", label: "MRR", format: "currency" as MetricFormat },
-  { key: "arr", label: "ARR", format: "currency" as MetricFormat },
-  { key: "active_subscriptions", label: "Active Subs", format: "number" as MetricFormat },
-  { key: "churned_subscriptions", label: "Churned Subs", format: "number" as MetricFormat },
-  { key: "churn_rate_pct", label: "Churn Rate", format: "pct" as MetricFormat },
-  { key: "failed_transactions", label: "Failed Transactions", format: "number" as MetricFormat },
   { key: "avg_purchase_value", label: "Avg Purchase Value", format: "currency" as MetricFormat },
 ];
 
@@ -73,26 +67,12 @@ const SECTIONS: SectionConfig[] = [
       { key: "stripe_revenue", label: "💰 Total Revenue", format: "currency" },
       { key: "purchases", label: "Total Purchases", format: "number" },
       { key: "purchasing_customers", label: "Paying Customers", format: "number" },
-      { key: "failed_transactions", label: "Failed Transactions", format: "number" },
       { key: "avg_purchase_value", label: "Avg Purchase Value", format: "currency" },
     ],
     funnelSteps: [
       { key: "sessions", label: "Sessions" },
       { key: "purchases", label: "Purchases" },
       { key: "stripe_revenue", label: "Revenue" },
-    ],
-  },
-  {
-    id: "subscriptions",
-    title: "Subscriptions",
-    subtitle: "Recurring revenue and subscription metrics",
-    icon: <Users className="w-5 h-5" />,
-    metrics: [
-      { key: "mrr", label: "MRR (Monthly Recurring)", format: "currency" },
-      { key: "arr", label: "ARR (Annual Recurring)", format: "currency" },
-      { key: "active_subscriptions", label: "Active Subscriptions", format: "number" },
-      { key: "churned_subscriptions", label: "Churned Subscriptions", format: "number" },
-      { key: "churn_rate_pct", label: "Churn Rate %", format: "pct" },
     ],
   },
 ];
@@ -124,7 +104,7 @@ export default function RevenueMetricsPage() {
   const [productDateColumns, setProductDateColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["stripe_revenue", "mrr", "purchases"]));
+  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["stripe_revenue", "purchases"]));
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const snapshotScrollRef = useRef<HTMLDivElement>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -145,7 +125,9 @@ export default function RevenueMetricsPage() {
         else setError(null);
         setRows(Array.isArray(metricsData.rows) ? metricsData.rows : []);
         
+        console.log('[Revenue] Product data received:', productsData);
         if (productsData.products) {
+          console.log('[Revenue] Setting product data, count:', productsData.products.length);
           setProductData(productsData.products);
           setProductDateColumns(productsData.dateColumns || []);
         }
@@ -486,6 +468,74 @@ export default function RevenueMetricsPage() {
           )
         )}
 
+        {/* Product Revenue Table */}
+        {!loading && productData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <Card>
+              <CardHeader 
+                title="Revenue by Product" 
+                subtitle={`Product-level revenue breakdown (${productData.length} products)`} 
+                icon={<DollarSign className="w-5 h-5" />} 
+              />
+              <div ref={productScrollRef} className="overflow-x-auto" style={{ maxHeight: "600px" }}>
+                <table className="w-full border-collapse">
+                  <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background-secondary)" }}>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="py-2.5 px-3 text-left text-xs font-semibold sticky left-0 z-20" style={{ color: "var(--foreground-muted)", background: "var(--background-secondary)", minWidth: "200px" }}>
+                        Product
+                      </th>
+                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "100px" }}>
+                        Total Revenue
+                      </th>
+                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "80px" }}>
+                        Total Purchases
+                      </th>
+                      {productDateColumns.map((d) => (
+                        <th key={d} className="py-2.5 px-2 text-right text-xs font-semibold whitespace-nowrap" style={{ color: "var(--foreground-muted)", minWidth: "90px" }}>
+                          {d}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productData.map((product, idx) => (
+                      <motion.tr
+                        key={product.product}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: idx * 0.02 }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                      >
+                        <td className="py-2.5 px-3 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                          {product.product}
+                        </td>
+                        <td className="py-2.5 px-2 text-sm text-right tabular-nums font-semibold" style={{ color: "var(--accent)" }}>
+                          ${(product.totalRevenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                          {(product.totalPurchases || 0).toLocaleString()}
+                        </td>
+                        {productDateColumns.map((d) => {
+                          const value = product[d] || 0;
+                          return (
+                            <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
+                              {value > 0 ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+                            </td>
+                          );
+                        })}
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Grouped sections: marketing first, then funnels & revenue */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -667,74 +717,6 @@ export default function RevenueMetricsPage() {
               </motion.div>
             );
           })
-        )}
-
-        {/* Product Revenue Table */}
-        {!loading && productData.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card>
-              <CardHeader 
-                title="Revenue by Product" 
-                subtitle={`Product-level revenue breakdown (${productData.length} products)`} 
-                icon={<DollarSign className="w-5 h-5" />} 
-              />
-              <div ref={productScrollRef} className="overflow-x-auto" style={{ maxHeight: "600px" }}>
-                <table className="w-full border-collapse">
-                  <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background-secondary)" }}>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      <th className="py-2.5 px-3 text-left text-xs font-semibold sticky left-0 z-20" style={{ color: "var(--foreground-muted)", background: "var(--background-secondary)", minWidth: "200px" }}>
-                        Product
-                      </th>
-                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "100px" }}>
-                        Total Revenue
-                      </th>
-                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "80px" }}>
-                        Total Purchases
-                      </th>
-                      {productDateColumns.map((d) => (
-                        <th key={d} className="py-2.5 px-2 text-right text-xs font-semibold whitespace-nowrap" style={{ color: "var(--foreground-muted)", minWidth: "90px" }}>
-                          {d}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productData.map((product, idx) => (
-                      <motion.tr
-                        key={product.product}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: idx * 0.02 }}
-                        style={{ borderBottom: "1px solid var(--border)" }}
-                      >
-                        <td className="py-2.5 px-3 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
-                          {product.product}
-                        </td>
-                        <td className="py-2.5 px-2 text-sm text-right tabular-nums font-semibold" style={{ color: "var(--accent)" }}>
-                          ${(product.totalRevenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground-muted)" }}>
-                          {(product.totalPurchases || 0).toLocaleString()}
-                        </td>
-                        {productDateColumns.map((d) => {
-                          const value = product[d] || 0;
-                          return (
-                            <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
-                              {value > 0 ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
-                            </td>
-                          );
-                        })}
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </motion.div>
         )}
       </div>
     </AppLayout>
