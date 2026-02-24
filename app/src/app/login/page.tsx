@@ -23,19 +23,36 @@ export default function LoginPage() {
     name: "",
   });
 
+  // Get redirect parameter from URL
+  const redirectPath = typeof window !== "undefined" 
+    ? new URLSearchParams(window.location.search).get("redirect") 
+    : null;
+
   // Redirect if already logged in (but wait for redirect processing to complete)
   useEffect(() => {
     if (!authLoading && !orgLoading && !isProcessingRedirect && user) {
-      // User is logged in, redirect based on org status
+      // If there's a redirect path (e.g., from invite link), go there
+      if (redirectPath) {
+        window.location.href = redirectPath;
+        return;
+      }
+      
+      // Otherwise, redirect based on org status
       if (organizations.length > 0) {
         window.location.href = "/growth/metrics";
       } else {
         window.location.href = "/onboarding";
       }
     }
-  }, [authLoading, orgLoading, isProcessingRedirect, user, organizations]);
+  }, [authLoading, orgLoading, isProcessingRedirect, user, organizations, redirectPath]);
 
   const redirectAfterAuth = () => {
+    // If there's a redirect path (e.g., from invite link), go there
+    if (redirectPath) {
+      window.location.href = redirectPath;
+      return;
+    }
+    
     // After auth, go to onboarding for new users (signup) or growth metrics for existing
     // The AppLayout will handle the org check and redirect if needed
     if (isSignUp) {
@@ -56,8 +73,28 @@ export default function LoginPage() {
         if (error) {
           setError(error);
         } else if (user) {
-          // New signup - always go to onboarding
-          window.location.href = "/onboarding";
+          // Create user document in Firestore
+          try {
+            await fetch("/api/users/create", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: user.uid,
+                email: user.email,
+                displayName: formData.name || user.email?.split("@")[0],
+              }),
+            });
+          } catch (err) {
+            console.error("Error creating user document:", err);
+          }
+          
+          // If there's a redirect (invite link), go there
+          if (redirectPath) {
+            window.location.href = redirectPath;
+          } else {
+            // New signup - go to onboarding
+            window.location.href = "/onboarding";
+          }
         }
       } else {
         const { user, error } = await signIn(formData.email, formData.password);

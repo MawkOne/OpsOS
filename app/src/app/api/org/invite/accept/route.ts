@@ -74,7 +74,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Add user as member
+    // Add user as member to org_memberships (used by OrganizationContext)
+    await setDoc(doc(collection(db, "org_memberships")), {
+      organizationId: invite.organizationId,
+      userId,
+      userEmail: userEmail.toLowerCase(),
+      userName: userName || userEmail.split("@")[0],
+      role: invite.accessLevel, // accessLevel maps to role
+      joinedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      status: "active",
+    });
+    
+    // Also add to org_members (used by /api/org/members endpoint)
     const memberId = `${invite.organizationId}_${userId}`;
     await setDoc(doc(db, "org_members", memberId), {
       id: memberId,
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
       acceptedByUserId: userId,
     });
 
-    // Also update the user's organizations list
+    // Create or update user document in Firestore
     const userDoc = await getDoc(doc(db, "users", userId));
     if (userDoc.exists()) {
       const userData = userDoc.data();
@@ -104,6 +116,14 @@ export async function POST(request: NextRequest) {
           organizationIds: [...orgIds, invite.organizationId],
         });
       }
+    } else {
+      // Create new user document if it doesn't exist
+      await setDoc(doc(db, "users", userId), {
+        email: userEmail.toLowerCase(),
+        displayName: userName || userEmail.split("@")[0],
+        organizationIds: [invite.organizationId],
+        createdAt: Timestamp.now(),
+      });
     }
 
     return NextResponse.json({
