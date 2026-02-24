@@ -178,7 +178,16 @@ export async function GET(request: NextRequest) {
         });
         
         productData.sort((a, b) => b.totalRevenue - a.totalRevenue);
-        productDateColumns = Object.keys(byDate).sort();
+        
+        // Sort date columns numerically (for week/month numbers) or lexicographically (for dates)
+        productDateColumns = Object.keys(byDate).sort((a, b) => {
+          const numA = Number(a);
+          const numB = Number(b);
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB; // Numeric sort for week/month numbers
+          }
+          return a.localeCompare(b); // Lexicographic sort for date strings
+        });
       } catch (productErr) {
         console.error("[reporting-metrics] Product data error:", productErr);
       }
