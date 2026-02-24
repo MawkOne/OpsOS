@@ -88,12 +88,12 @@ export async function GET(request: NextRequest) {
         let dateSelect: string;
         if (granularity === "weekly") {
           dateSelect = `
-            EXTRACT(ISOWEEK FROM DATE_TRUNC(date, WEEK(MONDAY))) as period_label,
+            FORMAT_DATE('%G-W%V', DATE_TRUNC(date, WEEK(MONDAY))) as period_label,
             DATE_TRUNC(date, WEEK(MONDAY)) as period_date
           `;
         } else if (granularity === "monthly") {
           dateSelect = `
-            EXTRACT(MONTH FROM DATE_TRUNC(date, MONTH)) as period_label,
+            FORMAT_DATE('%Y-%m', DATE_TRUNC(date, MONTH)) as period_label,
             DATE_TRUNC(date, MONTH) as period_date
           `;
         } else {

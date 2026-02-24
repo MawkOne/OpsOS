@@ -175,6 +175,20 @@ export default function RevenueMetricsPage() {
     }
     return val != null ? String(val) : "";
   };
+  
+  // Format product date column headers (extract just the week/month number)
+  const formatProductDateHeader = (dateKey: string): string => {
+    // Weekly format: "2025-W09" -> "9"
+    if (granularity === "weekly" && dateKey.includes('-W')) {
+      return dateKey.split('-W')[1].replace(/^0+/, ''); // Remove leading zeros
+    }
+    // Monthly format: "2025-01" -> "1"
+    if (granularity === "monthly" && dateKey.match(/^\d{4}-\d{2}$/)) {
+      return String(parseInt(dateKey.split('-')[1]));
+    }
+    // Daily: return as is
+    return dateKey;
+  };
 
   const chartData = useMemo(() => {
     const ordered = [...rows].reverse();
@@ -500,7 +514,7 @@ export default function RevenueMetricsPage() {
                       </th>
                       {productDateColumns.map((d) => (
                         <th key={d} className="py-2.5 px-2 text-right text-xs font-semibold whitespace-nowrap" style={{ color: "var(--foreground-muted)", minWidth: "90px" }}>
-                          {d}
+                          {formatProductDateHeader(d)}
                         </th>
                       ))}
                     </tr>
