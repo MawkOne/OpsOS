@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BigQuery } from "@google-cloud/bigquery";
 
-const bigquery = new BigQuery({
-  projectId: "opsos-864a1",
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-});
+const PROJECT_ID = "opsos-864a1";
 
 // Helper to get ISO week number
 function getISOWeek(date: Date): number {
@@ -29,6 +25,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const { BigQuery } = await import("@google-cloud/bigquery");
+    const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    
+    if (!credentials) {
+      return NextResponse.json(
+        { error: "BigQuery credentials not configured", products: [], dateColumns: [], granularity, totalProducts: 0 },
+        { status: 200 }
+      );
+    }
+
+    const bigquery = new BigQuery({
+      projectId: PROJECT_ID,
+      credentials: JSON.parse(credentials),
+    });
+
     let dateGroupBy: string;
     let dateSelect: string;
     
@@ -53,7 +64,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         date,
         source_breakdown
-      FROM \`opsos-864a1.marketing_ai.daily_entity_metrics\`
+      FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
       WHERE organization_id = 'ytjobs'
         AND entity_type = 'marketplace_revenue'
         AND date >= @startDate
@@ -73,37 +84,43 @@ export async function GET(request: NextRequest) {
     const byDate: Record<string, Record<string, { revenue: number; purchases: number }>> = {};
     
     rows.forEach((row: any) => {
-      const breakdown = typeof row.source_breakdown === 'string' 
-        ? JSON.parse(row.source_breakdown) 
-        : row.source_breakdown;
-      
-      if (!breakdown?.by_product) return;
-      
-      const date = new Date(row.date.value);
-      let dateKey: string;
-      
-      if (granularity === "weekly") {
-        const weekNum = getISOWeek(date);
-        dateKey = `W${weekNum}`;
-      } else if (granularity === "monthly") {
-        const monthNum = date.getMonth() + 1;
-        dateKey = `M${monthNum}`;
-      } else {
-        dateKey = row.date.value;
-      }
-      
-      if (!byDate[dateKey]) {
-        byDate[dateKey] = {};
-      }
-      
-      // Aggregate product data
-      Object.entries(breakdown.by_product).forEach(([productName, productData]: [string, any]) => {
-        if (!byDate[dateKey][productName]) {
-          byDate[dateKey][productName] = { revenue: 0, purchases: 0 };
+      try {
+        const breakdown = typeof row.source_breakdown === 'string' 
+          ? JSON.parse(row.source_breakdown) 
+          : row.source_breakdown;
+        
+        if (!breakdown?.by_product) return;
+        
+        // Handle date - it might be a string, Date object, or have a .value property
+        const dateValue = row.date?.value || row.date;
+        const date = new Date(dateValue);
+        let dateKey: string;
+        
+        if (granularity === "weekly") {
+          const weekNum = getISOWeek(date);
+          dateKey = `W${weekNum}`;
+        } else if (granularity === "monthly") {
+          const monthNum = date.getMonth() + 1;
+          dateKey = `M${monthNum}`;
+        } else {
+          dateKey = typeof dateValue === 'string' ? dateValue : dateValue.toISOString().slice(0, 10);
         }
-        byDate[dateKey][productName].revenue += productData.revenue || 0;
-        byDate[dateKey][productName].purchases += productData.count || 0;
-      });
+        
+        if (!byDate[dateKey]) {
+          byDate[dateKey] = {};
+        }
+        
+        // Aggregate product data
+        Object.entries(breakdown.by_product).forEach(([productName, productData]: [string, any]) => {
+          if (!byDate[dateKey][productName]) {
+            byDate[dateKey][productName] = { revenue: 0, purchases: 0 };
+          }
+          byDate[dateKey][productName].revenue += productData.revenue || 0;
+          byDate[dateKey][productName].purchases += productData.count || 0;
+        });
+      } catch (err) {
+        console.error("[product-revenue] Error processing row:", err, row);
+      }
     });
 
     // Get all unique products
