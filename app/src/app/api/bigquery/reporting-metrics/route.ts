@@ -84,9 +84,19 @@ export async function GET(request: NextRequest) {
     
     if (useRange && startDate && endDate) {
       try {
+        // Build date aggregation based on granularity
+        let dateAggregation: string;
+        if (granularity === "weekly") {
+          dateAggregation = "DATE_TRUNC(date, WEEK(MONDAY))";
+        } else if (granularity === "monthly") {
+          dateAggregation = "DATE_TRUNC(date, MONTH)";
+        } else {
+          dateAggregation = "date";
+        }
+        
         const productQuery = `
           SELECT 
-            date,
+            ${dateAggregation} as period_date,
             source_breakdown
           FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
           WHERE organization_id = 'ytjobs'
@@ -113,25 +123,9 @@ export async function GET(request: NextRequest) {
             
             if (!breakdown?.by_product) return;
             
-            const dateValue = row.date?.value || row.date;
-            const date = new Date(dateValue);
-            let dateKey: string;
-            
-            if (granularity === "weekly") {
-              // Calculate week start (Monday of the ISO week)
-              const d = new Date(date);
-              const day = d.getDay();
-              const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-              d.setDate(diff);
-              dateKey = d.toISOString().slice(0, 10);
-            } else if (granularity === "monthly") {
-              // Get first day of the month
-              const d = new Date(date);
-              d.setDate(1);
-              dateKey = d.toISOString().slice(0, 10);
-            } else {
-              dateKey = typeof dateValue === 'string' ? dateValue : dateValue.toISOString().slice(0, 10);
-            }
+            // Use the period_date from BigQuery aggregation
+            const dateValue = row.period_date?.value || row.period_date;
+            const dateKey = typeof dateValue === 'string' ? dateValue : new Date(dateValue).toISOString().slice(0, 10);
             
             if (!byDate[dateKey]) {
               byDate[dateKey] = {};
