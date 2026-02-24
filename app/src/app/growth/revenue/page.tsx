@@ -164,9 +164,9 @@ export default function RevenueMetricsPage() {
     if (granularity === "daily") {
       val = row.date;
     } else if (granularity === "weekly") {
-      val = row.week_num ?? row.week_start;
+      val = row.week_start ?? row.week_num;
     } else {
-      val = row.month_num ?? row.month_start;
+      val = row.month_start ?? row.month_num;
     }
     
     // BigQuery returns dates as objects like { value: "2026-01-31" }
