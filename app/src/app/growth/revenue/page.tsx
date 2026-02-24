@@ -120,27 +120,40 @@ export default function RevenueMetricsPage() {
   const [startDate, setStartDate] = useState(() => daysAgoISO(365));
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
+  const [productData, setProductData] = useState<any[]>([]);
+  const [productDateColumns, setProductDateColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set(["stripe_revenue", "mrr", "purchases"]));
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const snapshotScrollRef = useRef<HTMLDivElement>(null);
   const sectionScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const productScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ granularity, startDate, endDate });
-    fetch(`/api/bigquery/reporting-metrics?${params}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error && data.rows?.length === 0) setError(data.error);
+    
+    // Fetch both aggregate metrics and product breakdown
+    Promise.all([
+      fetch(`/api/bigquery/reporting-metrics?${params}`).then(res => res.json()),
+      fetch(`/api/bigquery/product-revenue?${params}`).then(res => res.json()),
+    ])
+      .then(([metricsData, productsData]) => {
+        if (metricsData.error && metricsData.rows?.length === 0) setError(metricsData.error);
         else setError(null);
-        setRows(Array.isArray(data.rows) ? data.rows : []);
+        setRows(Array.isArray(metricsData.rows) ? metricsData.rows : []);
+        
+        if (productsData.products) {
+          setProductData(productsData.products);
+          setProductDateColumns(productsData.dateColumns || []);
+        }
       })
       .catch((err) => {
         setError(err.message || "Failed to load metrics");
         setRows([]);
+        setProductData([]);
       })
       .finally(() => setLoading(false));
   }, [granularity, startDate, endDate]);
@@ -157,6 +170,10 @@ export default function RevenueMetricsPage() {
         sectionScrollRefs.current.forEach((el) => {
           if (el) el.scrollLeft = el.scrollWidth;
         });
+        // Scroll product table
+        if (productScrollRef.current) {
+          productScrollRef.current.scrollLeft = productScrollRef.current.scrollWidth;
+        }
       }, 100);
     }
   }, [loading, rows.length]);
@@ -650,6 +667,74 @@ export default function RevenueMetricsPage() {
               </motion.div>
             );
           })
+        )}
+
+        {/* Product Revenue Table */}
+        {!loading && productData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardHeader 
+                title="Revenue by Product" 
+                subtitle={`Product-level revenue breakdown (${productData.length} products)`} 
+                icon={<DollarSign className="w-5 h-5" />} 
+              />
+              <div ref={productScrollRef} className="overflow-x-auto" style={{ maxHeight: "600px" }}>
+                <table className="w-full border-collapse">
+                  <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--background-secondary)" }}>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th className="py-2.5 px-3 text-left text-xs font-semibold sticky left-0 z-20" style={{ color: "var(--foreground-muted)", background: "var(--background-secondary)", minWidth: "200px" }}>
+                        Product
+                      </th>
+                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "100px" }}>
+                        Total Revenue
+                      </th>
+                      <th className="py-2.5 px-2 text-right text-xs font-semibold" style={{ color: "var(--foreground-muted)", minWidth: "80px" }}>
+                        Total Purchases
+                      </th>
+                      {productDateColumns.map((d) => (
+                        <th key={d} className="py-2.5 px-2 text-right text-xs font-semibold whitespace-nowrap" style={{ color: "var(--foreground-muted)", minWidth: "90px" }}>
+                          {d}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productData.map((product, idx) => (
+                      <motion.tr
+                        key={product.product}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: idx * 0.02 }}
+                        style={{ borderBottom: "1px solid var(--border)" }}
+                      >
+                        <td className="py-2.5 px-3 text-sm font-medium sticky left-0 z-10" style={{ color: "var(--foreground)", background: "var(--background-secondary)" }}>
+                          {product.product}
+                        </td>
+                        <td className="py-2.5 px-2 text-sm text-right tabular-nums font-semibold" style={{ color: "var(--accent)" }}>
+                          ${(product.totalRevenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: "var(--foreground-muted)" }}>
+                          {(product.totalPurchases || 0).toLocaleString()}
+                        </td>
+                        {productDateColumns.map((d) => {
+                          const value = product[d] || 0;
+                          return (
+                            <td key={d} className="py-2.5 px-2 text-sm text-right tabular-nums" style={{ color: value > 0 ? "var(--foreground)" : "var(--foreground-subtle)" }}>
+                              {value > 0 ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+                            </td>
+                          );
+                        })}
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </motion.div>
         )}
       </div>
     </AppLayout>
