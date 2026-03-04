@@ -101,7 +101,7 @@ export default function EmailMarketingPage() {
   const [activeTab, setActiveTab] = useState<"campaigns" | "automations" | "lists">("automations");
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const [startDate, setStartDate] = useState(() => daysAgoISO(30));
-  const [endDate, setEndDate] = useState(todayISO);
+  const [endDate, setEndDate] = useState(() => todayISO());
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

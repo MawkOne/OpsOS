@@ -244,7 +244,7 @@ function daysAgoISO(days: number): string {
 export default function GrowthMetricsPage() {
   const [granularity, setGranularity] = useState<Granularity>("weekly");
   const [startDate, setStartDate] = useState(() => daysAgoISO(365));
-  const [endDate, setEndDate] = useState(todayISO);
+  const [endDate, setEndDate] = useState(() => todayISO());
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
