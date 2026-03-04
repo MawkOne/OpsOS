@@ -98,7 +98,7 @@ function daysAgoISO(days: number): string {
 export default function RevenueMetricsPage() {
   const [granularity, setGranularity] = useState<Granularity>("monthly");
   const [startDate, setStartDate] = useState("2025-01-01"); // Show all available data
-  const [endDate, setEndDate] = useState(todayISO);
+  const [endDate, setEndDate] = useState(todayISO());
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
   const [productDateColumns, setProductDateColumns] = useState<string[]>([]);
