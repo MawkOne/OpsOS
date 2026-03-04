@@ -51,7 +51,8 @@ def safe_int(val):
 
 
 def sanitize_row(row_dict):
-    """Recursively convert all Decimal values in a dict to float/int for JSON serialization"""
+    """Recursively convert all Decimal and datetime values in a dict for JSON serialization"""
+    from datetime import datetime, date
     sanitized = {}
     for key, value in row_dict.items():
         if isinstance(value, Decimal):
@@ -60,10 +61,13 @@ def sanitize_row(row_dict):
                 sanitized[key] = int(value)
             else:
                 sanitized[key] = float(value)
+        elif isinstance(value, (datetime, date)):
+            # Convert datetime/date to ISO format string
+            sanitized[key] = value.isoformat()
         elif isinstance(value, dict):
             sanitized[key] = sanitize_row(value)
         elif isinstance(value, list):
-            sanitized[key] = [sanitize_row(v) if isinstance(v, dict) else (float(v) if isinstance(v, Decimal) else v) for v in value]
+            sanitized[key] = [sanitize_row(v) if isinstance(v, dict) else (float(v) if isinstance(v, Decimal) else (v.isoformat() if isinstance(v, (datetime, date)) else v)) for v in value]
         else:
             sanitized[key] = value
     return sanitized
@@ -129,7 +133,7 @@ def get_mysql_connection(tunnel):
 
 
 @functions_framework.http
-def sync_ytjobs_to_bigquery(request):
+def ytjobs_mysql_bigquery_sync(request):
     """Sync YTJobs MySQL data to BigQuery"""
     
     headers = {
@@ -154,7 +158,20 @@ def sync_ytjobs_to_bigquery(request):
     else:
         days_back = request_json.get('daysBack', 7)  # 7-day lookback for nightly syncs
     
-    logger.info(f"Starting YTJobs MySQL → BigQuery sync (mode={sync_mode})")
+    # Table filtering (optional - for backfills of specific tables)
+    tables_param = request_json.get('tables', '')  # Comma-separated list or array
+    if isinstance(tables_param, list):
+        allowed_tables = set(tables_param) if tables_param else None
+    else:
+        allowed_tables = set(tables_param.split(',')) if tables_param else None
+    
+    def should_process_table(table_name):
+        """Check if table should be processed based on allowed_tables filter"""
+        if allowed_tables is None:
+            return True  # Process all tables if no filter specified
+        return table_name in allowed_tables
+    
+    logger.info(f"Starting YTJobs MySQL → BigQuery sync (mode={sync_mode}, tables={tables_param or 'all'})")
     
     try:
         # Get SSH key
@@ -458,7 +475,58 @@ def sync_ytjobs_to_bigquery(request):
                 })
             
             # ============================================
-            # 7. DAILY JOB VIEWS
+            # 7. PAYMENT SESSIONS (for GA4 Attribution)
+            # ============================================
+            logger.info("Fetching payment sessions for GA4 attribution...")
+            cursor.execute("""
+                SELECT 
+                    ps.stripe_session_id,
+                    ps.stripe_customer_id,
+                    ps.amount_total,
+                    ps.amount_subtotal,
+                    ps.payment_status,
+                    ps.created_at,
+                    c.id as company_id,
+                    u.id as user_id,
+                    p.job_id,
+                    p.product
+                FROM payment_sessions ps
+                LEFT JOIN companies c ON ps.stripe_customer_id = c.stripe_id
+                LEFT JOIN users u ON ps.stripe_customer_id = u.stripe_id
+                LEFT JOIN payments p ON ps.stripe_session_id = p.stripe_session_id
+                WHERE ps.created_at >= %s AND ps.created_at < %s
+                ORDER BY ps.created_at
+            """, (start_date, end_date + timedelta(days=1)))
+            
+            for row in cursor.fetchall():
+                date_str = row['created_at'].date().isoformat()
+                rows.append({
+                    'organization_id': organization_id,
+                    'date': date_str,
+                    'canonical_entity_id': f"payment_session_{row['stripe_session_id']}",
+                    'entity_type': 'payment_session',
+                    'revenue': safe_float(row['amount_total']) / 100,
+                    'conversions': 1,
+                    'source_breakdown': to_json({
+                        'stripe_session_id': row['stripe_session_id'],
+                        'stripe_customer_id': row['stripe_customer_id'],
+                        'payment_status': row['payment_status'],
+                        'company_id': row['company_id'],
+                        'user_id': row['user_id'],
+                        'job_id': row['job_id'],
+                        'product': row['product'],
+                        'amount_total': safe_float(row['amount_total']) / 100,
+                        'amount_subtotal': safe_float(row['amount_subtotal']) / 100,
+                    }),
+                    'created_at': now_iso,
+                    'updated_at': now_iso,
+                })
+                results['payments_processed'] += 1
+            
+            logger.info(f"Processed {len([r for r in rows if r['entity_type'] == 'payment_session'])} payment sessions")
+            
+            # ============================================
+            # 8. DAILY JOB VIEWS
             # ============================================
             logger.info("Fetching daily job views...")
             cursor.execute("""
@@ -486,7 +554,7 @@ def sync_ytjobs_to_bigquery(request):
                 })
             
             # ============================================
-            # 8. DAILY PROFILE VIEWS
+            # 9. DAILY PROFILE VIEWS
             # ============================================
             logger.info("Fetching daily profile views...")
             cursor.execute("""
@@ -514,7 +582,7 @@ def sync_ytjobs_to_bigquery(request):
                 })
             
             # ============================================
-            # 9. DAILY REVIEWS
+            # 10. DAILY REVIEWS
             # ============================================
             logger.info("Fetching daily reviews...")
             cursor.execute("""
@@ -542,7 +610,7 @@ def sync_ytjobs_to_bigquery(request):
                 })
             
             # ============================================
-            # 10. MARKETPLACE HEALTH SNAPSHOT (Daily)
+            # 11. MARKETPLACE HEALTH SNAPSHOT (Daily)
             # ============================================
             logger.info("Calculating marketplace health metrics...")
             
@@ -603,6 +671,498 @@ def sync_ytjobs_to_bigquery(request):
                 'updated_at': now_iso,
             })
             
+            # ============================================
+            # 12. BOOKINGS (Consultation Revenue)
+            # ============================================
+            if should_process_table('bookings'):
+                logger.info("Fetching bookings (consultation revenue)...")
+                cursor.execute("""
+                    SELECT 
+                        b.*,
+                        c.name as company_name,
+                        u.name as talent_name
+                    FROM bookings b
+                    LEFT JOIN companies c ON b.booker_id = c.id AND b.booker_type = 'App\\\\Company'
+                    LEFT JOIN users u ON b.bookable_id = u.id AND b.bookable_type = 'App\\\\User'
+                    WHERE b.created_at >= %s AND b.created_at < %s
+                    ORDER BY b.created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"booking_{row['id']}",
+                        'entity_type': 'booking',
+                        'revenue': safe_float(row['price']) / 100,
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'booking_id': row['id'],
+                            'company_id': row['booker_id'],
+                            'company_name': row['company_name'],
+                            'talent_id': row['bookable_id'],
+                            'talent_name': row['talent_name'],
+                            'price': safe_float(row['price']) / 100,
+                            'status': row['status'],
+                            'booked_for': row['booked_for'].isoformat() if row['booked_for'] else None,
+                            'event_type_id': row['event_type_id'],
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 13. ONE CLICK HIRINGS (Instant Hires)
+            # ============================================
+            if should_process_table('one_click_hirings'):
+                logger.info("Fetching one-click hirings...")
+                cursor.execute("""
+                    SELECT *
+                    FROM one_click_hirings
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"one_click_hiring_{row['id']}",
+                        'entity_type': 'one_click_hiring',
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'hiring_id': row['id'],
+                            'company_id': row.get('company_id'),
+                            'user_id': row.get('user_id'),
+                            'status': row.get('status'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 14. COMPANIES LTV (Pre-calculated) - Only on full sync
+            # ============================================
+            # Skip if explicit table filter is set (backfill mode)
+            if should_process_table('companies_ltv') and allowed_tables is None and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching companies LTV (snapshot)...")
+                cursor.execute("SELECT * FROM companies_ltv LIMIT 5000")
+                ltv_rows = cursor.fetchall()
+                
+                if ltv_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"companies_ltv_snapshot_{today_str}",
+                        'entity_type': 'companies_ltv_snapshot',
+                        'source_breakdown': to_json({
+                            'ltv_data': [dict(row) for row in ltv_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(ltv_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 15. COMPANIES RFM (Customer Segmentation) - Only on full sync
+            # ============================================
+            # Skip if explicit table filter is set (backfill mode)
+            if should_process_table('companies_rfm') and allowed_tables is None and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching companies RFM scores...")
+                cursor.execute("SELECT * FROM companies_rfm LIMIT 5000")
+                rfm_rows = cursor.fetchall()
+                
+                if rfm_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"companies_rfm_snapshot_{today_str}",
+                        'entity_type': 'companies_rfm_snapshot',
+                        'source_breakdown': to_json({
+                            'rfm_data': [dict(row) for row in rfm_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(rfm_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 16. USERS RFM (Talent Segmentation) - Only on full sync
+            # ============================================
+            # Skip if explicit table filter is set (backfill mode)
+            if should_process_table('users_rfm') and allowed_tables is None and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching users RFM scores...")
+                cursor.execute("SELECT * FROM users_rfm LIMIT 1000")
+                user_rfm_rows = cursor.fetchall()
+                
+                if user_rfm_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"users_rfm_snapshot_{today_str}",
+                        'entity_type': 'users_rfm_snapshot',
+                        'source_breakdown': to_json({
+                            'rfm_data': [dict(row) for row in user_rfm_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(user_rfm_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 17. USER STATS (Mautic Integration)
+            # ============================================
+            if should_process_table('user_stats'):
+                logger.info("Fetching user stats...")
+                cursor.execute("""
+                    SELECT *
+                    FROM user_stats
+                    WHERE updated_at >= %s
+                    ORDER BY updated_at
+                """, (start_date,))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['updated_at'].date().isoformat(),
+                        'canonical_entity_id': f"user_stat_{row['user_id']}_{row['updated_at'].date().isoformat()}",
+                        'entity_type': 'user_stat',
+                        'source_breakdown': to_json({
+                            'user_id': row['user_id'],
+                            'mautic_id': row.get('mautic_id'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 18. USERS KPI (24 Comprehensive KPIs) - Only on full sync
+            # ============================================
+            if should_process_table('users_kpi') and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching users KPI...")
+                cursor.execute("SELECT * FROM users_kpi ORDER BY created_at DESC LIMIT 100")
+                kpi_rows = cursor.fetchall()
+                
+                if kpi_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"users_kpi_snapshot_{today_str}",
+                        'entity_type': 'users_kpi_snapshot',
+                        'source_breakdown': to_json({
+                            'kpi_data': [dict(row) for row in kpi_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(kpi_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 19. AFFILIATES (Referral Tracking)
+            # ============================================
+            if should_process_table('affiliates'):
+                logger.info("Fetching affiliates...")
+                cursor.execute("""
+                    SELECT *
+                    FROM affiliates
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"affiliate_{row['id']}",
+                        'entity_type': 'affiliate',
+                        'source_breakdown': to_json({
+                            'affiliate_id': row['id'],
+                            'owner_id': row.get('owner_id'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 20. STRIPE COUPONS + USAGE
+            # ============================================
+            if should_process_table('stripe_coupons') and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching stripe coupons...")
+                cursor.execute("SELECT * FROM stripe_coupons LIMIT 500")
+                coupon_rows = cursor.fetchall()
+                
+                if coupon_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"stripe_coupons_snapshot_{today_str}",
+                        'entity_type': 'stripe_coupons_snapshot',
+                        'source_breakdown': to_json({
+                            'coupons': [dict(row) for row in coupon_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(coupon_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            if should_process_table('couponables'):
+                logger.info("Fetching coupon usage...")
+                cursor.execute("""
+                    SELECT *
+                    FROM couponables
+                    LIMIT 10000
+                """)
+                
+                for row in cursor.fetchall():
+                    # Couponables is a pivot table - use today's date for grouping
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"coupon_usage_{row['stripe_coupon_id']}_{row['couponable_id']}",
+                        'entity_type': 'coupon_usage',
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'coupon_id': row['stripe_coupon_id'],
+                            'couponable_id': row['couponable_id'],
+                            'couponable_type': row.get('couponable_type'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 21. CHARGES (Payment Details, Refunds)
+            # ============================================
+            if should_process_table('charges'):
+                logger.info("Fetching charges...")
+                cursor.execute("""
+                    SELECT *
+                    FROM charges
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    status = row.get('status', '')
+                    amount = safe_float(row.get('amount', 0)) / 100
+                    amount_captured = safe_float(row.get('amount_captured', 0)) / 100
+                    amount_refunded = safe_float(row.get('amount_refunded', 0)) / 100
+                    
+                    # Only count revenue for succeeded charges, and subtract refunds
+                    revenue = (amount_captured - amount_refunded) if status == 'succeeded' else 0
+                    
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"charge_{row['stripe_id']}",
+                        'entity_type': 'charge',
+                        'revenue': revenue,
+                        'conversions': 1 if status == 'succeeded' else 0,
+                        'source_breakdown': to_json({
+                            'stripe_id': row['stripe_id'],
+                            'payment_intent_id': row.get('payment_intent_id'),
+                            'amount': amount,
+                            'amount_captured': amount_captured,
+                            'amount_refunded': amount_refunded,
+                            'status': status,
+                            'failure_code': row.get('failure_code'),
+                            'failure_message': row.get('failure_message'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 22. PAYMENT INTENTS (Payment Lifecycle)
+            # ============================================
+            if should_process_table('payment_intents'):
+                logger.info("Fetching payment intents...")
+                cursor.execute("""
+                    SELECT *
+                    FROM payment_intents
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    status = row.get('status', '')
+                    amount = safe_float(row.get('amount', 0)) / 100
+                    
+                    # Only count revenue for succeeded payment intents
+                    revenue = amount if status == 'succeeded' else 0
+                    
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"payment_intent_{row['stripe_id']}",
+                        'entity_type': 'payment_intent',
+                        'revenue': revenue,
+                        'conversions': 1 if status == 'succeeded' else 0,
+                        'source_breakdown': to_json({
+                            'stripe_id': row['stripe_id'],
+                            'amount': amount,
+                            'status': status,
+                            'amount_received': safe_float(row.get('amount_received', 0)) / 100,
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 23. VOUCHES (Social Proof)
+            # ============================================
+            if should_process_table('vouches'):
+                logger.info("Fetching vouches...")
+                cursor.execute("""
+                    SELECT *
+                    FROM vouches
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"vouch_{row['id']}",
+                        'entity_type': 'vouch',
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'vouch_id': row['id'],
+                            'vouchable_id': row.get('vouchable_id'),
+                            'vouched_by_id': row.get('vouched_by_id'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 24. TESTIMONIALS
+            # ============================================
+            if should_process_table('testimonials'):
+                logger.info("Fetching testimonials...")
+                cursor.execute("""
+                    SELECT *
+                    FROM testimonials
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"testimonial_{row['id']}",
+                        'entity_type': 'testimonial',
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'testimonial_id': row['id'],
+                            'writer_id': row.get('writer_id'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 25. FEEDBACK
+            # ============================================
+            if should_process_table('feedback'):
+                logger.info("Fetching feedback...")
+                cursor.execute("""
+                    SELECT *
+                    FROM feedback
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"feedback_{row['id']}",
+                        'entity_type': 'feedback',
+                        'source_breakdown': to_json({
+                            'feedback_id': row['id'],
+                            'writer_id': row.get('writer_id'),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            # ============================================
+            # 26. GAMIFICATION (Leaderboards, Badges) - Only on full sync
+            # ============================================
+            if should_process_table('leaderboards') and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching leaderboards...")
+                cursor.execute("SELECT * FROM leaderboards LIMIT 100")
+                leaderboard_rows = cursor.fetchall()
+
+                if leaderboard_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"leaderboards_snapshot_{today_str}",
+                        'entity_type': 'leaderboards_snapshot',
+                        'source_breakdown': to_json({
+                            'leaderboards': [sanitize_row(dict(row)) for row in leaderboard_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(leaderboard_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            if should_process_table('badges') and (sync_mode == 'full' or (end_date - start_date).days >= 30):
+                logger.info("Fetching badges...")
+                cursor.execute("SELECT * FROM badges LIMIT 100")
+                badge_rows = cursor.fetchall()
+                
+                if badge_rows:
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': today_str,
+                        'canonical_entity_id': f"badges_snapshot_{today_str}",
+                        'entity_type': 'badges_snapshot',
+                        'source_breakdown': to_json({
+                            'badges': [sanitize_row(dict(row)) for row in badge_rows],
+                            'snapshot_date': today_str,
+                            'record_count': len(badge_rows),
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            if should_process_table('users_badges'):
+                logger.info("Fetching users_badges...")
+                cursor.execute("""
+                    SELECT *
+                    FROM users_badges
+                    WHERE created_at >= %s AND created_at < %s
+                    ORDER BY created_at
+                """, (start_date, end_date + timedelta(days=1)))
+                
+                for row in cursor.fetchall():
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': row['created_at'].date().isoformat(),
+                        'canonical_entity_id': f"user_badge_{row['user_id']}_{row['badge_id']}",
+                        'entity_type': 'user_badge',
+                        'conversions': 1,
+                        'source_breakdown': to_json({
+                            'user_id': row['user_id'],
+                            'badge_id': row['badge_id'],
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+            
+            logger.info(f"Total new tables processed: booking, one_click_hiring, LTV, RFM, affiliates, coupons, charges, social proof, gamification")
+            
             conn.close()
         
         # Clean up temp file
@@ -618,33 +1178,82 @@ def sync_ytjobs_to_bigquery(request):
             
             logger.info(f"Writing {len(rows)} rows to BigQuery...")
             
-            # Always delete existing data for the date range to prevent duplicates (upsert behavior)
-            delete_query = f"""
-            DELETE FROM `{table_ref}`
+            # Check if data already exists for this exact date range
+            check_query = f"""
+            SELECT COUNT(*) as record_count
+            FROM `{table_ref}`
             WHERE organization_id = '{organization_id}'
+              AND date >= '{start_date.isoformat()}' AND date <= '{end_date.isoformat()}'
               AND entity_type IN (
                 'talent_signups', 'company_signups', 'jobs_posted', 
-                'applications', 'hires', 'marketplace_revenue',
-                'job_views', 'profile_views', 'reviews', 'marketplace_health'
+                'applications', 'hires', 'marketplace_revenue'
               )
-              AND date >= '{start_date.isoformat()}' AND date <= '{end_date.isoformat()}'
             """
-            try:
-                bq.query(delete_query).result()
-                logger.info(f"Deleted existing data for {start_date} to {end_date} (upsert)")
-            except Exception as e:
-                logger.warning(f"Delete warning: {e}")
+            existing_count = list(bq.query(check_query).result())[0].record_count
+            logger.info(f"Found {existing_count} existing records for {start_date} to {end_date}")
             
-            # Insert rows in batches (sanitize to remove Decimal types)
-            BATCH_SIZE = 500
-            inserted = 0
-            for i in range(0, len(rows), BATCH_SIZE):
-                batch = [sanitize_row(row) for row in rows[i:i + BATCH_SIZE]]
-                errors = bq.insert_rows_json(table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
-                if errors:
-                    logger.warning(f"Insert errors: {errors[:3]}")
-                else:
-                    inserted += len(batch)
+            # Use MERGE (upsert) to prevent duplicates from concurrent syncs
+            # This is safer than DELETE+INSERT which has a race condition
+            logger.info(f"Upserting {len(rows)} rows using MERGE...")
+            
+            # Create temp table for MERGE source
+            temp_table_id = f"temp_ytjobs_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            temp_table_ref = f"{PROJECT_ID}.{DATASET_ID}.{temp_table_id}"
+            
+            # Get target table schema
+            target_table = bq.get_table(table_ref)
+            temp_schema = target_table.schema
+            
+            # Create temp table
+            temp_table = bigquery.Table(temp_table_ref, schema=temp_schema)
+            temp_table = bq.create_table(temp_table, exists_ok=True)
+            
+            try:
+                # Insert rows into temp table in batches
+                BATCH_SIZE = 500
+                inserted = 0
+                for i in range(0, len(rows), BATCH_SIZE):
+                    batch = [sanitize_row(row) for row in rows[i:i + BATCH_SIZE]]
+                    errors = bq.insert_rows_json(temp_table_ref, batch, skip_invalid_rows=True, ignore_unknown_values=True)
+                    if errors:
+                        logger.warning(f"Temp table insert errors: {errors[:3]}")
+                    else:
+                        inserted += len(batch)
+                
+                logger.info(f"Inserted {inserted} rows into temp table")
+                
+                # MERGE from temp table into target (upsert by canonical_entity_id + date)
+                merge_query = f"""
+                MERGE `{table_ref}` T
+                USING `{temp_table_ref}` S
+                ON T.organization_id = S.organization_id
+                   AND T.canonical_entity_id = S.canonical_entity_id
+                   AND T.date = S.date
+                   AND T.entity_type = S.entity_type
+                WHEN MATCHED THEN
+                  UPDATE SET
+                    users = S.users,
+                    sessions = S.sessions,
+                    conversions = S.conversions,
+                    revenue = S.revenue,
+                    pageviews = S.pageviews,
+                    source_breakdown = S.source_breakdown,
+                    updated_at = S.updated_at
+                WHEN NOT MATCHED THEN
+                  INSERT (organization_id, date, canonical_entity_id, entity_type, users, sessions, conversions, revenue, pageviews, source_breakdown, created_at, updated_at)
+                  VALUES (S.organization_id, S.date, S.canonical_entity_id, S.entity_type, S.users, S.sessions, S.conversions, S.revenue, S.pageviews, S.source_breakdown, S.created_at, S.updated_at)
+                """
+                
+                merge_result = bq.query(merge_query).result()
+                logger.info(f"✅ MERGE complete - upserted {inserted} rows (preventing duplicates)")
+                
+            finally:
+                # Clean up temp table
+                try:
+                    bq.delete_table(temp_table_ref, not_found_ok=True)
+                    logger.info(f"Cleaned up temp table {temp_table_id}")
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to clean up temp table: {cleanup_error}")
             
             results['rows_inserted'] = inserted
         

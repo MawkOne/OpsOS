@@ -556,26 +556,67 @@ def sync_stripe_to_bigquery(request):
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
             
             if sync_mode == 'full':
-                # FULL RESYNC: Delete all existing Stripe data and rewrite
-                delete_query = f"""
-                DELETE FROM `{table_ref}`
-                WHERE organization_id = '{organization_id}'
-                  AND entity_type IN ('revenue', 'subscription', 'subscription_summary', 'customer', 'customer_summary', 'product')
-                """
+                # FULL RESYNC: Use MERGE instead of DELETE+INSERT to prevent race conditions
+                logger.info("Full resync mode - using MERGE to prevent duplicates")
+                
+                temp_table_id = f"temp_stripe_full_sync_{organization_id.replace('-', '_')}_{int(datetime.utcnow().timestamp())}"
+                temp_table_ref = f"{PROJECT_ID}.{DATASET_ID}.{temp_table_id}"
                 
                 try:
-                    bq.query(delete_query).result()
-                    logger.info("Deleted all existing Stripe data for full resync")
-                except Exception as e:
-                    logger.warning(f"Delete query warning: {e}")
-                
-                # Insert all rows
-                errors = bq.insert_rows_json(table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
-                
-                if errors:
-                    logger.warning(f"Some rows failed: {errors[:3]}")
-                else:
+                    # Get target table schema
+                    main_table = bq.get_table(table_ref)
+                    temp_schema = main_table.schema
+                    
+                    # Create temp table
+                    temp_table = bigquery.Table(temp_table_ref, schema=temp_schema)
+                    temp_table = bq.create_table(temp_table, exists_ok=True)
+                    
+                    # Insert rows into temp table
+                    errors = bq.insert_rows_json(temp_table_ref, rows, skip_invalid_rows=True, ignore_unknown_values=True)
+                    if errors:
+                        logger.warning(f"Temp table insert errors: {errors[:3]}")
+                    
+                    # MERGE from temp table
+                    merge_query = f"""
+                    MERGE `{table_ref}` T
+                    USING `{temp_table_ref}` S
+                    ON T.organization_id = S.organization_id 
+                       AND T.canonical_entity_id = S.canonical_entity_id 
+                       AND T.date = S.date
+                    WHEN MATCHED THEN
+                        UPDATE SET 
+                            revenue = S.revenue,
+                            payment_count = S.payment_count,
+                            refund_amount = S.refund_amount,
+                            net_revenue = S.net_revenue,
+                            mrr = S.mrr,
+                            arr = S.arr,
+                            active_subscriptions = S.active_subscriptions,
+                            churned_subscriptions = S.churned_subscriptions,
+                            churn_rate = S.churn_rate,
+                            total_customers = S.total_customers,
+                            new_customers_today = S.new_customers_today,
+                            source_breakdown = S.source_breakdown,
+                            updated_at = S.updated_at
+                    WHEN NOT MATCHED THEN
+                        INSERT ROW
+                    """
+                    
+                    bq.query(merge_query).result()
                     results['rows_inserted'] = len(rows)
+                    logger.info(f"✅ Full MERGE completed: {len(rows)} rows upserted")
+                    
+                    # Clean up temp table
+                    bq.delete_table(temp_table_ref, not_found_ok=True)
+                    
+                except Exception as full_merge_error:
+                    logger.error(f"Full MERGE failed: {full_merge_error}")
+                    # Clean up temp table on error
+                    try:
+                        bq.delete_table(temp_table_ref, not_found_ok=True)
+                    except:
+                        pass
+                    raise
             else:
                 # UPDATE SYNC: Use MERGE to upsert (update existing, insert new)
                 # Create a temp table with new data, then merge

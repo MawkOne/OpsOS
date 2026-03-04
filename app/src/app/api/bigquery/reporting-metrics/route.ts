@@ -100,16 +100,23 @@ export async function GET(request: NextRequest) {
           dateSelect = "date as period_label, date as period_date";
         }
         
+        // Build product breakdown from payment_session filtered to PAID ONLY
+        // This matches our Stripe revenue definition (succeeded charges only)
         const productQuery = `
           SELECT 
             ${dateSelect},
-            source_breakdown
+            COALESCE(JSON_EXTRACT_SCALAR(source_breakdown, '$.product'), 'Unknown') as product,
+            SUM(revenue) as revenue,
+            COUNT(DISTINCT canonical_entity_id) as purchase_count
           FROM \`${PROJECT_ID}.marketing_ai.daily_entity_metrics\`
           WHERE organization_id = 'ytjobs'
-            AND entity_type = 'marketplace_revenue'
+            AND entity_type = 'payment_session'
+            AND conversions > 0
+            AND JSON_EXTRACT_SCALAR(source_breakdown, '$.payment_status') = 'paid'
             AND date >= @startDate
             AND date <= @endDate
-          ORDER BY date
+          GROUP BY period_label, period_date, product
+          ORDER BY period_date
         `;
         
         const [productRows] = await bq.query({
@@ -118,7 +125,7 @@ export async function GET(request: NextRequest) {
           location: "northamerica-northeast1",
         });
         
-        // Parse and aggregate product data
+        // Parse product data - now returns one row per product per period
         // Store both label (for display) and date (for sorting)
         const byDate: Record<string, { 
           sortDate: string;
@@ -127,17 +134,10 @@ export async function GET(request: NextRequest) {
         
         productRows.forEach((row: any) => {
           try {
-            const breakdown = typeof row.source_breakdown === 'string' 
-              ? JSON.parse(row.source_breakdown) 
-              : row.source_breakdown;
-            
-            if (!breakdown?.by_product) return;
-            
-            // Use the period_label from BigQuery for display (e.g., "46" for week number)
+            // Extract period label and date
             const labelValue = row.period_label?.value || row.period_label;
             const dateKey = typeof labelValue === 'string' ? labelValue : String(labelValue);
             
-            // Get the actual date for sorting
             const dateValue = row.period_date?.value || row.period_date;
             const sortDate = typeof dateValue === 'string' ? dateValue : new Date(dateValue).toISOString().slice(0, 10);
             
@@ -145,13 +145,17 @@ export async function GET(request: NextRequest) {
               byDate[dateKey] = { sortDate, products: {} };
             }
             
-            Object.entries(breakdown.by_product).forEach(([productName, productDataItem]: [string, any]) => {
-              if (!byDate[dateKey].products[productName]) {
-                byDate[dateKey].products[productName] = { revenue: 0, purchases: 0 };
-              }
-              byDate[dateKey].products[productName].revenue += productDataItem.revenue || 0;
-              byDate[dateKey].products[productName].purchases += productDataItem.count || 0;
-            });
+            // Extract product data
+            const productName = row.product || 'Unknown';
+            const revenue = Number(row.revenue) || 0;
+            const purchases = Number(row.purchase_count) || 0;
+            
+            if (!byDate[dateKey].products[productName]) {
+              byDate[dateKey].products[productName] = { revenue: 0, purchases: 0 };
+            }
+            byDate[dateKey].products[productName].revenue += revenue;
+            byDate[dateKey].products[productName].purchases += purchases;
+            
           } catch (err) {
             console.error("[reporting-metrics] Error processing product row:", err);
           }
