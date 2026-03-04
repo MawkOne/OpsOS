@@ -1162,7 +1162,70 @@ def ytjobs_mysql_bigquery_sync(request):
                     })
             
             logger.info(f"Total new tables processed: booking, one_click_hiring, LTV, RFM, affiliates, coupons, charges, social proof, gamification")
-            
+
+            # ============================================
+            # 27. CHANNEL ATTRIBUTION (extra_attributes)
+            # ============================================
+            # Aggregates daily signups by marketing channel using UTM/referrer data.
+            # Populates organic_sessions, paid_search_sessions, social_sessions, etc.
+            if should_process_table('extra_attributes'):
+                logger.info("Fetching channel attribution (extra_attributes)...")
+                cursor.execute("""
+                    SELECT
+                        DATE(created_at) as date,
+                        model_type,
+                        CASE
+                            WHEN referring_source IN ('GoogleAds', 'fbads')
+                              OR utm_campaign LIKE 'GAds%%'
+                              OR utm_campaign LIKE 'google_jobs%%' THEN 'paid_search'
+                            WHEN (first_referer LIKE '%%google.com%%' OR first_referer LIKE '%%bing.com%%')
+                              AND utm_campaign IS NULL
+                              AND (referring_source IS NULL OR referring_source NOT LIKE '%%Ads%%') THEN 'organic'
+                            WHEN first_referer LIKE '%%linkedin%%'
+                              OR first_referer LIKE '%%twitter%%'
+                              OR first_referer LIKE '%%t.co%%'
+                              OR first_referer LIKE '%%instagram%%'
+                              OR first_referer LIKE '%%facebook%%'
+                              OR first_referer LIKE '%%youtube%%'
+                              OR first_referer LIKE '%%tiktok%%'
+                              OR first_referer LIKE '%%reddit%%' THEN 'social'
+                            WHEN referring_source IN ('email', 'newsletter')
+                              OR latest_referring_source = 'email' THEN 'email'
+                            WHEN referring_source LIKE '%%affiliate%%'
+                              OR referring_source IN ('affiliate', 'uAffiliate', 'cAffiliate') THEN 'referral'
+                            WHEN first_referer IS NULL AND utm_campaign IS NULL AND referring_source IS NULL THEN 'direct'
+                            ELSE 'other'
+                        END as channel,
+                        COUNT(*) as signups
+                    FROM extra_attributes
+                    WHERE created_at >= %s AND created_at < %s
+                    GROUP BY 1, 2, 3
+                    ORDER BY 1
+                """, (start_date, end_date + timedelta(days=1)))
+
+                attribution_rows = cursor.fetchall()
+                for row in attribution_rows:
+                    date_str = row['date'].isoformat()
+                    channel = row['channel']
+                    model = row['model_type'].split('\\')[-1]  # 'App\User' -> 'User'
+                    signups = row['signups']
+                    entity_id = f"channel_attribution_{date_str}_{channel}_{model}"
+                    rows.append({
+                        'organization_id': organization_id,
+                        'date': date_str,
+                        'canonical_entity_id': entity_id,
+                        'entity_type': 'channel_attribution',
+                        'conversions': signups,
+                        'source_breakdown': to_json({
+                            'channel': channel,
+                            'model_type': model,
+                            'signups': signups,
+                        }),
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    })
+                logger.info(f"Processed {len(attribution_rows)} channel attribution rows")
+
             conn.close()
         
         # Clean up temp file
