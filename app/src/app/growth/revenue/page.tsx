@@ -96,8 +96,8 @@ function daysAgoISO(days: number): string {
 }
 
 export default function RevenueMetricsPage() {
-  const [granularity, setGranularity] = useState<Granularity>("weekly");
-  const [startDate, setStartDate] = useState(() => daysAgoISO(365));
+  const [granularity, setGranularity] = useState<Granularity>("monthly");
+  const [startDate, setStartDate] = useState("2025-01-01"); // Show all available data
   const [endDate, setEndDate] = useState(todayISO);
   const [rows, setRows] = useState<ReportingRow[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
@@ -295,6 +295,16 @@ export default function RevenueMetricsPage() {
                 style={{ background: "var(--background-tertiary)", color: "var(--foreground)" }}
               >
                 Last 12M
+              </button>
+              <button
+                onClick={() => {
+                  setEndDate(todayISO());
+                  setStartDate("2025-01-01");
+                }}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                style={{ background: "var(--accent)", color: "var(--background)" }}
+              >
+                All Time
               </button>
             </div>
             <div className="flex items-center gap-3">
