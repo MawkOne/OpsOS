@@ -8,6 +8,7 @@ const REDIRECT_URI = process.env.NEXTAUTH_URL
 // Google Analytics + Search Console scopes
 const SCOPES = [
   'https://www.googleapis.com/auth/analytics.readonly',
+  'https://www.googleapis.com/auth/analytics.edit',
   'https://www.googleapis.com/auth/webmasters.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
