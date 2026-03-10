@@ -122,8 +122,12 @@ export async function GET(request: NextRequest) {
     let accounts: GoogleAnalyticsAccount[] = [];
     let properties: GoogleAnalyticsProperty[] = [];
 
+    console.log('Accounts API status:', accountsResponse.status);
+    const accountsRaw = await accountsResponse.json();
+    console.log('Accounts API response:', JSON.stringify(accountsRaw));
+
     if (accountsResponse.ok) {
-      const accountsData = await accountsResponse.json();
+      const accountsData = accountsRaw;
       accounts = accountsData.accounts || [];
 
       // Get properties for each account
