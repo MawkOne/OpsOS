@@ -211,6 +211,61 @@ function toStructured(row: Record<string, unknown>): StructuredDay {
   return { date, stages };
 }
 
+/** Returns the ISO Monday date for any given date string */
+function getISOWeekStart(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay(); // 0=Sun
+  date.setUTCDate(date.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return date.toISOString().slice(0, 10);
+}
+
+/** Returns the first day of the month for any given date string */
+function getMonthStart(dateStr: string): string {
+  return dateStr.slice(0, 7) + "-01";
+}
+
+/**
+ * Aggregates daily_metrics rows into period buckets (week/month).
+ * Counts and currency are summed; percentages and ratios are averaged.
+ * Trend fields are nulled out — they're not meaningful at coarser grains.
+ */
+function aggregateDailyRows(
+  rows: Record<string, unknown>[],
+  periodFn: (date: string) => string
+): Record<string, unknown>[] {
+  const byPeriod = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const date = String(unwrapCell(row.date) ?? "");
+    if (!date) continue;
+    const key = periodFn(date);
+    const bucket = byPeriod.get(key) ?? [];
+    bucket.push(row);
+    byPeriod.set(key, bucket);
+  }
+  return Array.from(byPeriod.entries())
+    .sort(([a], [b]) => b.localeCompare(a)) // DESC by period
+    .map(([period, bucket]) => {
+      const out: Record<string, unknown> = { date: period };
+      for (const [field, def] of Object.entries(METRIC_REGISTRY)) {
+        const nums = bucket
+          .map((r) => unwrapCell(r[field]))
+          .filter((v) => v !== null && v !== undefined)
+          .map(Number)
+          .filter((n) => !Number.isNaN(n));
+        out[field] =
+          nums.length === 0
+            ? null
+            : def.unit === "percentage" || def.unit === "ratio"
+              ? nums.reduce((a, b) => a + b, 0) / nums.length
+              : nums.reduce((a, b) => a + b, 0);
+        // trend fields are not meaningful at coarser grain
+        for (const tf of def.trend_fields) out[tf] = null;
+      }
+      return out;
+    });
+}
+
 /** Hard cap to avoid accidental huge scans; ~7y daily or ~48y weekly */
 const MAX_LIMIT = 2500;
 const DEFAULT_LIMIT_NO_RANGE = 500;
@@ -603,8 +658,34 @@ export async function GET(request: NextRequest) {
     }
     
     // Structured format: group metrics by stage/section with trend embedded
-    if (responseFormat === "structured" && granularity === "daily") {
-      const structuredRows = (rowOut as Record<string, unknown>[]).map(toStructured);
+    if (responseFormat === "structured") {
+      let structuredRows: StructuredDay[];
+
+      if (granularity === "daily") {
+        structuredRows = (rowOut as Record<string, unknown>[]).map(toStructured);
+      } else {
+        // For weekly/monthly: re-fetch from daily_metrics and aggregate on the fly.
+        // This gives the same 96-metric schema at all granularities.
+        const daysPerPeriod = granularity === "weekly" ? 8 : 35;
+        const dailyLimit = Math.min(limit * daysPerPeriod, 2500);
+        const dailyQ = useRange
+          ? {
+              query: `SELECT * FROM \`${PROJECT_ID}.${DATASET}.daily_metrics\` WHERE date >= @startDate AND date <= @endDate ORDER BY date ASC LIMIT @dailyLimit`,
+              params: { startDate, endDate, dailyLimit },
+            }
+          : {
+              query: `SELECT * FROM \`${PROJECT_ID}.${DATASET}.daily_metrics\` ORDER BY date DESC LIMIT @dailyLimit`,
+              params: { dailyLimit },
+            };
+        const [dailyRaw] = await bq.query({ ...dailyQ, location: BQ_LOCATION });
+        const flatDaily = (dailyRaw || []).map((r) =>
+          flattenRow(r as Record<string, unknown>)
+        );
+        const periodFn = granularity === "weekly" ? getISOWeekStart : getMonthStart;
+        const aggregated = aggregateDailyRows(flatDaily, periodFn);
+        structuredRows = aggregated.map(toStructured);
+      }
+
       return NextResponse.json({
         format: "structured",
         granularity,
@@ -619,13 +700,18 @@ export async function GET(request: NextRequest) {
           user_types: ["both", "talent", "company"],
           trend_suffixes: TREND_SUFFIX_LABELS,
           metric_count: Object.keys(METRIC_REGISTRY).length,
+          ...(granularity !== "daily" && {
+            aggregation_note: "counts/currency = SUM across days in period; percentages/ratios = AVG. Trend fields are null at weekly/monthly grain.",
+          }),
         },
         meta: {
           startDate: useRange ? startDate : null,
           endDate: useRange ? endDate : null,
           order: seriesOrder.toLowerCase(),
           limit,
-          note: "Each metric has value + trend{dod, 7d_avg, wow_pct} inline. Use appears_in[] to find cross-stage metrics. Filter by user_type to scope to talent or company view.",
+          note: granularity === "daily"
+            ? "Each metric has value + trend{dod, 7d_avg, wow_pct} inline. Use appears_in[] to find cross-stage metrics. Filter by user_type to scope to talent or company view."
+            : `${granularity === "weekly" ? "Weekly" : "Monthly"} aggregation of daily_metrics. Counts/currency summed; rates/percentages averaged across days in the period. Trend fields are null.`,
         },
       });
     }
