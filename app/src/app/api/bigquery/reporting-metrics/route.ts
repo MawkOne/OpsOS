@@ -4,6 +4,20 @@ const PROJECT_ID = "opsos-864a1";
 const DATASET = "reporting";
 const BQ_LOCATION = "northamerica-northeast1";
 
+/**
+ * Real first dates where each data source has meaningful non-zero data.
+ * Update this when new sources are backfilled or connected.
+ * Verified: 2026-04-14
+ */
+const DATA_SOURCE_STARTS: Record<string, { date: string; note: string }> = {
+  signups:      { date: "2025-01-01", note: "Talent & company signups, revenue, purchases, organic sessions" },
+  google_ads:   { date: "2026-01-01", note: "Ad spend, ROAS, PPC conversions, Google Ads sessions" },
+  ga4_traffic:  { date: "2026-01-23", note: "GA4 sessions, engaged sessions, new users, traffic breakdown by channel" },
+  email:        { date: "2025-01-01", note: "ActiveCampaign sends, opens, clicks, open rate (sparse before Jan 2025)" },
+  recommended_start: { date: "2025-01-01", note: "Earliest date with any meaningful metrics for analysis" },
+  full_coverage:     { date: "2026-01-23", note: "All sources active — use this for cross-channel analysis" },
+};
+
 // ─── Metric registry (stage/section structure) ────────────────────────────────
 // Mirrors marketing_ai.metric_registry in BigQuery.
 // Each entry: [stage, section, bq_field, unit, is_higher_better, trend_fields]
@@ -709,6 +723,7 @@ export async function GET(request: NextRequest) {
           endDate: useRange ? endDate : null,
           order: seriesOrder.toLowerCase(),
           limit,
+          data_starts: DATA_SOURCE_STARTS,
           note: granularity === "daily"
             ? "Each metric has value + trend{dod, 7d_avg, wow_pct} inline. Use appears_in[] to find cross-stage metrics. Filter by user_type to scope to talent or company view."
             : `${granularity === "weekly" ? "Weekly" : "Monthly"} aggregation of daily_metrics. Counts/currency summed; rates/percentages averaged across days in the period. Trend fields are null.`,
@@ -731,6 +746,7 @@ export async function GET(request: NextRequest) {
         lookbackDays: lookbackRaw && /^\d{1,4}$/.test(lookbackRaw) ? lookbackRaw : null,
         includeAnalysisPack,
         analysisPackRowCap: ANALYSIS_PACK_ROW_CAP,
+        data_starts: DATA_SOURCE_STARTS,
         trendHints: {
           grangerOrDriversDailyMinDays: 90,
           weeklyRollupMinWeeks: 12,
